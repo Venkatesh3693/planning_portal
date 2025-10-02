@@ -7,7 +7,7 @@ import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import OrderCard from '@/components/gantt-chart/order-card';
 import { MACHINES, ORDERS, PROCESSES } from '@/lib/data';
-import type { Order, ScheduledProcess, Process, Machine } from '@/lib/types';
+import type { Order, ScheduledProcess, Process } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { WORK_DAY_MINUTES } from '@/lib/data';
@@ -18,7 +18,7 @@ export default function Home() {
   const [selectedProcessId, setSelectedProcessId] = useState<string>('sewing');
 
   const handleDropOnChart = (orderId: string, processId: string, machineId: string, date: Date) => {
-    const order = unplannedOrders.find((o) => o.id === orderId);
+    const order = ORDERS.find((o) => o.id === orderId); // Check against original ORDERS
     const process = PROCESSES.find((p) => p.id === processId);
 
     if (!order || !process) return;
@@ -36,11 +36,13 @@ export default function Home() {
     
     setScheduledProcesses((prev) => [...prev, newScheduledProcess]);
     
-    const orderProcesses = PROCESSES.filter(p => order.processIds.includes(p.id));
-    const scheduledForThisOrder = scheduledProcesses.filter(sp => sp.orderId === orderId).length + 1;
-
-    if (scheduledForThisOrder >= orderProcesses.length) {
-      setUnplannedOrders((prev) => prev.filter((o) => o.id !== orderId));
+    const orderInUnplanned = unplannedOrders.find(o => o.id === orderId);
+    if(orderInUnplanned){
+      const orderProcesses = PROCESSES.filter(p => orderInUnplanned.processIds.includes(p.id));
+      const scheduledForThisOrder = scheduledProcesses.filter(sp => sp.orderId === orderId).length + 1;
+      if (scheduledForThisOrder >= orderProcesses.length) {
+        setUnplannedOrders((prev) => prev.filter((o) => o.id !== orderId));
+      }
     }
   };
   
@@ -48,6 +50,24 @@ export default function Home() {
     e.dataTransfer.setData('orderId', orderId);
     e.dataTransfer.setData('processId', processId);
   };
+  
+  const handleUndoSchedule = (scheduledProcessId: string) => {
+    const processToUndo = scheduledProcesses.find(p => p.id === scheduledProcessId);
+    if (!processToUndo) return;
+    
+    // Add the order back to unplannedOrders if it's not already there
+    const orderExistsInUnplanned = unplannedOrders.some(o => o.id === processToUndo.orderId);
+    if (!orderExistsInUnplanned) {
+      const orderToAddBack = ORDERS.find(o => o.id === processToUndo.orderId);
+      if (orderToAddBack) {
+        setUnplannedOrders(prev => [...prev, orderToAddBack]);
+      }
+    }
+
+    // Remove the process from scheduledProcesses
+    setScheduledProcesses(prev => prev.filter(p => p.id !== scheduledProcessId));
+  };
+
 
   const today = startOfToday();
   const dates = Array.from({ length: 30 }, (_, i) => addDays(today, i));
@@ -117,6 +137,7 @@ export default function Home() {
                 dates={dates}
                 scheduledProcesses={scheduledProcesses.filter(sp => sp.processId === selectedProcessId)}
                 onDrop={handleDropOnChart}
+                onUndoSchedule={handleUndoSchedule}
               />
           </div>
         </div>

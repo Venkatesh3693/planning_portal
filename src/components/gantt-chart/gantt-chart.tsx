@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from 'react';
@@ -11,9 +12,10 @@ type GanttChartProps = {
   dates: Date[];
   scheduledProcesses: ScheduledProcess[];
   onDrop: (orderId: string, processId: string, machineId: string, date: Date) => void;
+  onUndoSchedule: (scheduledProcessId: string) => void;
 };
 
-export default function GanttChart({ machines, dates, scheduledProcesses, onDrop }: GanttChartProps) {
+export default function GanttChart({ machines, dates, scheduledProcesses, onDrop, onUndoSchedule }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = useState<{ machineId: string; date: Date } | null>(null);
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>, machineId: string, date: Date) => {
@@ -103,6 +105,7 @@ export default function GanttChart({ machines, dates, scheduledProcesses, onDrop
               item={item} 
               gridRow={gridRow} 
               gridColStart={gridColStart}
+              onUndo={onUndoSchedule}
             />
           );
         })}
