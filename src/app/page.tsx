@@ -10,6 +10,7 @@ import type { Order, ScheduledProcess } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { WORK_DAY_MINUTES } from '@/lib/data';
+import { cn } from '@/lib/utils';
 
 const ORDER_LEVEL_VIEW = 'order-level';
 
@@ -17,6 +18,7 @@ export default function Home() {
   const [unplannedOrders, setUnplannedOrders] = useState<Order[]>(ORDERS);
   const [scheduledProcesses, setScheduledProcesses] = useState<ScheduledProcess[]>([]);
   const [selectedProcessId, setSelectedProcessId] = useState<string>('sewing');
+  const [hoveredOrderId, setHoveredOrderId] = useState<string | null>(null);
   const ordersListRef = useRef<HTMLDivElement>(null);
 
 
@@ -52,6 +54,7 @@ export default function Home() {
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, orderId: string, processId: string) => {
     e.dataTransfer.setData('orderId', orderId);
     e.dataTransfer.setData('processId', processId);
+    setHoveredOrderId(null);
   };
   
   const handleUndoSchedule = (scheduledProcessId: string) => {
@@ -63,7 +66,7 @@ export default function Home() {
     if (!orderExistsInUnplanned) {
       const orderToAddBack = ORDERS.find(o => o.id === processToUndo.orderId);
       if (orderToAddBack) {
-        setUnplannedOrders(prev => [...prev, orderToAddBack]);
+        setUnplannedOrders(prev => [orderToAddBack, ...prev]);
       }
     }
 
@@ -142,7 +145,12 @@ export default function Home() {
                         draggable
                         onDragStart={(e) => handleDragStart(e, order.id, selectedProcessId)}
                         onDragEnd={handleDragEnd}
-                        className="cursor-grab active:cursor-grabbing p-2 text-sm font-medium text-card-foreground hover:bg-secondary rounded-md"
+                        onMouseEnter={() => setHoveredOrderId(order.id)}
+                        onMouseLeave={() => setHoveredOrderId(null)}
+                        className={cn(
+                          "cursor-grab active:cursor-grabbing p-2 text-sm font-medium text-card-foreground rounded-md",
+                          hoveredOrderId === order.id ? 'bg-secondary' : ''
+                        )}
                         title={order.id}
                       >
                         {order.id}
