@@ -11,6 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { WORK_DAY_MINUTES } from '@/lib/data';
 
+const ORDER_LEVEL_VIEW = 'order-level';
+
 export default function Home() {
   const [unplannedOrders, setUnplannedOrders] = useState<Order[]>(ORDERS);
   const [scheduledProcesses, setScheduledProcesses] = useState<ScheduledProcess[]>([]);
@@ -67,7 +69,6 @@ export default function Home() {
     setScheduledProcesses(prev => prev.filter(p => p.id !== scheduledProcessId));
   };
 
-
   const today = startOfToday();
   const dates = Array.from({ length: 30 }, (_, i) => addDays(today, i));
 
@@ -80,15 +81,26 @@ export default function Home() {
       order.processIds.includes(p.id) && !scheduledProcessIdsForOrder.includes(p.id)
     );
   };
+  
+  const selectableProcesses = [
+    { id: ORDER_LEVEL_VIEW, name: 'Order Level' },
+    ...PROCESSES.filter(p => p.id !== 'outsourcing')
+  ];
 
-  const filteredMachines = MACHINES.filter(m => m.processIds.includes(selectedProcessId));
+  const isOrderLevelView = selectedProcessId === ORDER_LEVEL_VIEW;
 
-  const filteredUnplannedOrders = unplannedOrders.filter(order => {
+  const chartRows = isOrderLevelView 
+    ? ORDERS.map(o => ({ id: o.id, name: o.ocn, processIds: o.processIds })) 
+    : MACHINES.filter(m => m.processIds.includes(selectedProcessId));
+
+  const chartProcesses = isOrderLevelView
+    ? scheduledProcesses
+    : scheduledProcesses.filter(sp => sp.processId === selectedProcessId);
+
+  const filteredUnplannedOrders = isOrderLevelView ? [] : unplannedOrders.filter(order => {
     const unscheduled = getUnscheduledProcessesForOrder(order);
     return unscheduled.some(p => p.id === selectedProcessId);
   });
-  
-  const selectableProcesses = PROCESSES.filter(p => p.id !== 'outsourcing');
 
   return (
     <div className="flex h-screen flex-col">
@@ -99,7 +111,7 @@ export default function Home() {
       />
       <main className="flex-1 overflow-hidden p-4 sm:p-6 lg:p-8 flex flex-col gap-4">
         <div className="grid h-full flex-1 grid-cols-1 gap-6 lg:grid-cols-4 overflow-hidden">
-          <Card className="lg:col-span-1 flex flex-col">
+          <Card className={`lg:col-span-1 flex flex-col ${isOrderLevelView ? 'hidden' : ''}`}>
             <CardHeader>
               <CardTitle>Orders</CardTitle>
             </CardHeader>
@@ -107,7 +119,6 @@ export default function Home() {
               <ScrollArea className="h-full pr-4">
                 <div className="space-y-2">
                   {filteredUnplannedOrders.map((order) => {
-                    // We only allow dragging if there's an unscheduled process matching the selected one
                     const canDrag = getUnscheduledProcessesForOrder(order).some(p => p.id === selectedProcessId);
                     if (!canDrag) return null;
                     
@@ -133,13 +144,14 @@ export default function Home() {
             </CardContent>
           </Card>
 
-          <div className="lg:col-span-3 h-full overflow-auto rounded-lg border bg-card p-4">
+          <div className={`h-full overflow-auto rounded-lg border bg-card p-4 ${isOrderLevelView ? 'lg:col-span-4' : 'lg:col-span-3'}`}>
              <GanttChart 
-                machines={filteredMachines} 
+                rows={chartRows} 
                 dates={dates}
-                scheduledProcesses={scheduledProcesses.filter(sp => sp.processId === selectedProcessId)}
+                scheduledProcesses={chartProcesses}
                 onDrop={handleDropOnChart}
                 onUndoSchedule={handleUndoSchedule}
+                isOrderLevelView={isOrderLevelView}
               />
           </div>
         </div>
