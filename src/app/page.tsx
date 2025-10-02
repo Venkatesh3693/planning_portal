@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useRef } from 'react';
-import { addDays, startOfToday, differenceInCalendarDays } from 'date-fns';
+import { addDays, startOfToday } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, ORDERS, PROCESSES } from '@/lib/data';
@@ -98,15 +98,6 @@ export default function Home() {
       order.processIds.includes(p.id) && !scheduledProcessIdsForOrder.includes(p.id)
     );
   };
-
-  const calculateTotalDuration = (order: Order) => {
-    return order.processIds.reduce((total, processId) => {
-      const process = PROCESSES.find(p => p.id === processId);
-      if (!process) return total;
-      const duration = Math.ceil((process.sam * order.quantity) / WORK_DAY_MINUTES);
-      return total + duration;
-    }, 0);
-  };
   
   const selectableProcesses = [
     { id: ORDER_LEVEL_VIEW, name: 'Order Level' },
@@ -147,9 +138,6 @@ export default function Home() {
                   {filteredUnplannedOrders.map((order) => {
                     const canDrag = getUnscheduledProcessesForOrder(order).some(p => p.id === selectedProcessId);
                     if (!canDrag) return null;
-                    
-                    const daysToDue = differenceInCalendarDays(order.dueDate, today);
-                    const totalDuration = calculateTotalDuration(order);
 
                     return (
                       <div
@@ -160,15 +148,12 @@ export default function Home() {
                         onMouseEnter={() => setHoveredOrderId(order.id)}
                         onMouseLeave={() => setHoveredOrderId(null)}
                         className={cn(
-                          "cursor-grab active:cursor-grabbing p-2 text-sm font-medium text-card-foreground rounded-md flex justify-between items-center",
+                          "cursor-grab active:cursor-grabbing p-2 text-sm font-medium text-card-foreground rounded-md",
                           hoveredOrderId === order.id ? 'bg-secondary' : ''
                         )}
                         title={order.id}
                       >
-                        <span>{order.id}</span>
-                        <span className="text-xs text-muted-foreground font-mono">
-                          ({daysToDue}/{totalDuration})
-                        </span>
+                        {order.id}
                       </div>
                     )
                   })}
