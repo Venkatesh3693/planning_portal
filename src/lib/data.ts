@@ -2,12 +2,12 @@ import type { Machine, Order, Process } from '@/lib/types';
 import { Scissors, Printer, Fingerprint, ExternalLink, MoveHorizontal, PackageCheck } from 'lucide-react';
 
 export const MACHINES: Machine[] = [
-  { id: 'm1', name: 'Cutting Machine Alpha' },
-  { id: 'm2', name: 'Printing Station' },
-  { id: 'm3', name: 'Embroidery Station' },
-  { id: 'm4', name: 'Sewing Station 1' },
-  { id: 'm5', name: 'Sewing Station 2' },
-  { id: 'm6', name: 'Finishing & QC' },
+  { id: 'm1', name: 'Cutting Machine Alpha', processIds: ['cutting'] },
+  { id: 'm2', name: 'Printing Station', processIds: ['printing'] },
+  { id: 'm3', name: 'Embroidery Station', processIds: ['embroidery'] },
+  { id: 'm4', name: 'Sewing Station 1', processIds: ['sewing'] },
+  { id: 'm5', name: 'Sewing Station 2', processIds: ['sewing'] },
+  { id: 'm6', name: 'Finishing & QC', processIds: ['packing'] },
 ];
 
 export const PROCESSES: Process[] = [

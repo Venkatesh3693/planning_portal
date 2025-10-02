@@ -3,6 +3,7 @@ import type { LucideIcon } from 'lucide-react';
 export type Machine = {
   id: string;
   name: string;
+  processIds: string[];
 };
 
 export type Process = {

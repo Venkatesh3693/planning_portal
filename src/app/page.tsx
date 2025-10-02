@@ -7,7 +7,7 @@ import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import OrderCard from '@/components/gantt-chart/order-card';
 import { MACHINES, ORDERS, PROCESSES } from '@/lib/data';
-import type { Order, ScheduledProcess } from '@/lib/types';
+import type { Order, ScheduledProcess, Process, Machine } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { WORK_DAY_MINUTES } from '@/lib/data';
@@ -15,6 +15,7 @@ import { WORK_DAY_MINUTES } from '@/lib/data';
 export default function Home() {
   const [unplannedOrders, setUnplannedOrders] = useState<Order[]>(ORDERS);
   const [scheduledProcesses, setScheduledProcesses] = useState<ScheduledProcess[]>([]);
+  const [selectedProcessId, setSelectedProcessId] = useState<string>('sewing');
 
   const handleDropOnChart = (orderId: string, processId: string, machineId: string, date: Date) => {
     const order = unplannedOrders.find((o) => o.id === orderId);
@@ -35,7 +36,6 @@ export default function Home() {
     
     setScheduledProcesses((prev) => [...prev, newScheduledProcess]);
     
-    // Check if all processes for this order are now scheduled
     const orderProcesses = PROCESSES.filter(p => order.processIds.includes(p.id));
     const scheduledForThisOrder = scheduledProcesses.filter(sp => sp.orderId === orderId).length + 1;
 
@@ -62,9 +62,24 @@ export default function Home() {
     );
   };
 
+  const filteredMachines = MACHINES.filter(m => m.processIds.includes(selectedProcessId));
+
+  const filteredProcesses = PROCESSES.filter(p => p.id === selectedProcessId);
+
+  const filteredUnplannedOrders = unplannedOrders.filter(order => {
+    const unscheduled = getUnscheduledProcessesForOrder(order);
+    return unscheduled.some(p => p.id === selectedProcessId);
+  });
+  
+  const selectableProcesses = PROCESSES.filter(p => p.id !== 'outsourcing');
+
   return (
     <div className="flex h-screen flex-col">
-      <Header />
+      <Header 
+        processes={selectableProcesses} 
+        selectedProcessId={selectedProcessId}
+        onProcessChange={setSelectedProcessId}
+      />
       <main className="flex-1 overflow-hidden p-4 sm:p-6 lg:p-8 flex flex-col gap-4">
         <div className="grid h-full flex-1 grid-cols-1 gap-6 lg:grid-cols-4 overflow-hidden">
           <Card className="lg:col-span-1 flex flex-col">
@@ -74,8 +89,8 @@ export default function Home() {
             <CardContent className="flex-1 overflow-hidden">
               <ScrollArea className="h-full pr-4">
                 <div className="space-y-4">
-                  {unplannedOrders.map((order) => {
-                    const unscheduled = getUnscheduledProcessesForOrder(order);
+                  {filteredUnplannedOrders.map((order) => {
+                    const unscheduled = getUnscheduledProcessesForOrder(order).filter(p => p.id === selectedProcessId);
                     if (unscheduled.length === 0) return null;
                     return (
                       <OrderCard 
@@ -86,9 +101,9 @@ export default function Home() {
                       />
                     )
                   })}
-                  {unplannedOrders.length === 0 && (
+                  {filteredUnplannedOrders.length === 0 && (
                     <div className="flex h-full items-center justify-center">
-                      <p className="text-sm text-muted-foreground">All orders planned!</p>
+                      <p className="text-sm text-muted-foreground">No unplanned orders for this process.</p>
                     </div>
                   )}
                 </div>
@@ -98,9 +113,9 @@ export default function Home() {
 
           <div className="lg:col-span-3 h-full overflow-auto rounded-lg border bg-card p-4">
              <GanttChart 
-                machines={MACHINES} 
+                machines={filteredMachines} 
                 dates={dates}
-                scheduledProcesses={scheduledProcesses}
+                scheduledProcesses={scheduledProcesses.filter(sp => sp.processId === selectedProcessId)}
                 onDrop={handleDropOnChart}
               />
           </div>
