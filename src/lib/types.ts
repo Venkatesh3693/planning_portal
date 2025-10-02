@@ -11,6 +11,7 @@ export type Process = {
   name: string;
   sam: number; // Standard Allowed Minutes
   icon: LucideIcon;
+  color?: string;
 };
 
 export type Order = {

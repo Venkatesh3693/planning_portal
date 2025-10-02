@@ -24,17 +24,28 @@ export default function ScheduledProcessBar({ item, gridRow, gridColStart, onUnd
   const handleUndo = () => {
     onUndo(item.id);
   }
+  
+  const backgroundColor = processDetails.color ? processDetails.color : 'hsl(var(--accent))';
+  const hoverBackgroundColor = processDetails.color ? `${processDetails.color.slice(0, -1)}, 0.9)` : 'hsl(var(--primary)/0.9)';
 
   const bar = (
     <div
       className={cn(
-        "z-10 flex items-center overflow-hidden rounded-md m-1 h-[calc(100%-0.5rem)] text-accent-foreground shadow-lg transition-all duration-300 ease-in-out",
-        "bg-accent hover:bg-primary/90",
+        "z-10 flex items-center overflow-hidden rounded-md m-1 h-[calc(100%-0.5rem)] text-white shadow-lg transition-all duration-300 ease-in-out",
         !isOrderLevelView && "cursor-context-menu",
       )}
       style={{
         gridRowStart: gridRow,
         gridColumn: `${gridColStart} / span ${item.durationDays}`,
+        backgroundColor: backgroundColor,
+      }}
+      onMouseEnter={(e) => {
+        if (isOrderLevelView || !processDetails.color) return;
+        (e.currentTarget as HTMLDivElement).style.backgroundColor = hoverBackgroundColor;
+      }}
+      onMouseLeave={(e) => {
+        if (isOrderLevelView || !processDetails.color) return;
+        (e.currentTarget as HTMLDivElement).style.backgroundColor = backgroundColor;
       }}
       title={durationText}
     >
@@ -51,6 +62,8 @@ export default function ScheduledProcessBar({ item, gridRow, gridColStart, onUnd
         <PopoverTrigger asChild style={{
           gridRowStart: gridRow,
           gridColumn: `${gridColStart} / span ${item.durationDays}`,
+          height: 'calc(100% - 0.25rem)',
+          margin: '0.125rem',
         }}>
           {bar}
         </PopoverTrigger>
