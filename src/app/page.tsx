@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { addDays, startOfToday } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
@@ -17,6 +17,8 @@ export default function Home() {
   const [unplannedOrders, setUnplannedOrders] = useState<Order[]>(ORDERS);
   const [scheduledProcesses, setScheduledProcesses] = useState<ScheduledProcess[]>([]);
   const [selectedProcessId, setSelectedProcessId] = useState<string>('sewing');
+  const ordersListRef = useRef<HTMLDivElement>(null);
+
 
   const handleDropOnChart = (orderId: string, processId: string, machineId: string, date: Date) => {
     const order = ORDERS.find((o) => o.id === orderId);
@@ -69,6 +71,18 @@ export default function Home() {
     setScheduledProcesses(prev => prev.filter(p => p.id !== scheduledProcessId));
   };
 
+  const handleDragEnd = () => {
+    // This is a workaround to force the browser to re-evaluate hover states.
+    if (ordersListRef.current) {
+      ordersListRef.current.style.pointerEvents = 'none';
+      setTimeout(() => {
+        if (ordersListRef.current) {
+          ordersListRef.current.style.pointerEvents = 'auto';
+        }
+      }, 0);
+    }
+  };
+
   const today = startOfToday();
   const dates = Array.from({ length: 30 }, (_, i) => addDays(today, i));
 
@@ -117,7 +131,7 @@ export default function Home() {
             </CardHeader>
             <CardContent className="flex-1 overflow-hidden">
               <ScrollArea className="h-full pr-4">
-                <div className="space-y-2">
+                <div className="space-y-2" ref={ordersListRef}>
                   {filteredUnplannedOrders.map((order) => {
                     const canDrag = getUnscheduledProcessesForOrder(order).some(p => p.id === selectedProcessId);
                     if (!canDrag) return null;
@@ -127,6 +141,7 @@ export default function Home() {
                         key={order.id}
                         draggable
                         onDragStart={(e) => handleDragStart(e, order.id, selectedProcessId)}
+                        onDragEnd={handleDragEnd}
                         className="cursor-grab active:cursor-grabbing p-2 text-sm font-medium text-card-foreground hover:bg-secondary rounded-md"
                         title={order.id}
                       >
