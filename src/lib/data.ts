@@ -1,21 +1,22 @@
 import type { Machine, Order, Process } from '@/lib/types';
-import { Scissors, Pin, Shirt, PackageCheck, DraftingCompass } from 'lucide-react';
+import { Scissors, Printer, Fingerprint, ExternalLink, MoveHorizontal, PackageCheck } from 'lucide-react';
 
 export const MACHINES: Machine[] = [
   { id: 'm1', name: 'Cutting Machine Alpha' },
-  { id: 'm2', name: 'Sewing Station 1' },
-  { id: 'm3', name: 'Sewing Station 2' },
-  { id: 'm4', name: 'Finishing & QC' },
-  { id: 'm5', name: 'Pattern Drafting Table' },
+  { id: 'm2', name: 'Printing Station' },
+  { id: 'm3', name: 'Embroidery Station' },
+  { id: 'm4', name: 'Sewing Station 1' },
+  { id: 'm5', name: 'Sewing Station 2' },
+  { id: 'm6', name: 'Finishing & QC' },
 ];
 
 export const PROCESSES: Process[] = [
-  { id: 'p1', name: 'Cut Fabric', sam: 5, icon: Scissors },
-  { id: 'p2', name: 'Draft Pattern', sam: 20, icon: DraftingCompass },
-  { id: 'p3', name: 'Sew Sleeves', sam: 12, icon: Pin },
-  { id: 'p4', name: 'Assemble Shirt', sam: 25, icon: Shirt },
-  { id: 'p5', name: 'Final Inspection & Pack', sam: 8, icon: PackageCheck },
-  { id: 'p6', name: 'Cut Pockets', sam: 2, icon: Scissors },
+  { id: 'cutting', name: 'Cutting', sam: 5, icon: Scissors },
+  { id: 'printing', name: 'Printing', sam: 15, icon: Printer },
+  { id: 'embroidery', name: 'Embroidery', sam: 20, icon: Fingerprint },
+  { id: 'outsourcing', name: 'Outsourcing', sam: 1, icon: ExternalLink },
+  { id: 'sewing', name: 'Sewing', sam: 25, icon: MoveHorizontal },
+  { id: 'packing', name: 'Packing', sam: 8, icon: PackageCheck },
 ];
 
 export const ORDERS: Order[] = [
@@ -26,7 +27,7 @@ export const ORDERS: Order[] = [
         style: 'Shirt',
         color: 'Blue',
         quantity: 100,
-        processIds: ['p2', 'p1', 'p6', 'p3', 'p4', 'p5']
+        processIds: ['cutting', 'printing', 'sewing', 'packing']
     },
     { 
         id: 'HNM1234-Pants-Black', 
@@ -35,7 +36,7 @@ export const ORDERS: Order[] = [
         style: 'Pants',
         color: 'Black',
         quantity: 200,
-        processIds: ['p2', 'p1', 'p6', 'p4', 'p5']
+        processIds: ['cutting', 'embroidery', 'sewing', 'packing']
     },
     { 
         id: 'GAP9876-TShirt-White', 
@@ -44,7 +45,7 @@ export const ORDERS: Order[] = [
         style: 'T-Shirt',
         color: 'White',
         quantity: 150,
-        processIds: ['p1', 'p4', 'p5']
+        processIds: ['cutting', 'sewing', 'packing', 'outsourcing']
     }
 ];
 

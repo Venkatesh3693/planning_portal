@@ -7,7 +7,7 @@ import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import OrderCard from '@/components/gantt-chart/order-card';
 import { MACHINES, ORDERS, PROCESSES } from '@/lib/data';
-import type { Order, Process, ScheduledProcess } from '@/lib/types';
+import type { Order, ScheduledProcess } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { WORK_DAY_MINUTES } from '@/lib/data';
