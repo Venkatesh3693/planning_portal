@@ -9,12 +9,22 @@ export type Process = {
   id: string;
   name: string;
   sam: number; // Standard Allowed Minutes
-  orderQuantity: number;
   icon: LucideIcon;
+};
+
+export type Order = {
+  id: string; // e.g. 'ZAR4531-Shirt-Blue'
+  ocn: string; // e.g. 'ZAR4531'
+  buyer: string; // e.g. 'Zara'
+  style: string; // e.g. 'Shirt'
+  color: string; // e.g. 'Blue'
+  quantity: number;
+  processIds: string[];
 };
 
 export type ScheduledProcess = {
   id: string; // unique id for the scheduled instance
+  orderId: string;
   processId: string;
   machineId: string;
   startDate: Date;

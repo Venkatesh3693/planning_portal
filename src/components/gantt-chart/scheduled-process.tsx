@@ -1,4 +1,4 @@
-import { PROCESSES } from '@/lib/data';
+import { ORDERS, PROCESSES } from '@/lib/data';
 import type { ScheduledProcess } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -10,10 +10,11 @@ type ScheduledProcessProps = {
 
 export default function ScheduledProcessBar({ item, gridRow, gridColStart }: ScheduledProcessProps) {
   const processDetails = PROCESSES.find(p => p.id === item.processId);
-  if (!processDetails) return null;
+  const orderDetails = ORDERS.find(o => o.id === item.orderId);
+  if (!processDetails || !orderDetails) return null;
 
   const Icon = processDetails.icon;
-  const durationText = `${processDetails.name} (${item.durationDays} day${item.durationDays > 1 ? 's' : ''})`;
+  const durationText = `${orderDetails.id}: ${processDetails.name} (${item.durationDays} day${item.durationDays > 1 ? 's' : ''})`;
 
   return (
     <div

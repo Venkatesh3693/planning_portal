@@ -10,7 +10,7 @@ type GanttChartProps = {
   machines: Machine[];
   dates: Date[];
   scheduledProcesses: ScheduledProcess[];
-  onDrop: (processId: string, machineId: string, date: Date) => void;
+  onDrop: (orderId: string, processId: string, machineId: string, date: Date) => void;
 };
 
 export default function GanttChart({ machines, dates, scheduledProcesses, onDrop }: GanttChartProps) {
@@ -27,9 +27,10 @@ export default function GanttChart({ machines, dates, scheduledProcesses, onDrop
   
   const handleDrop = (e: React.DragEvent<HTMLDivElement>, machineId: string, date: Date) => {
     e.preventDefault();
+    const orderId = e.dataTransfer.getData('orderId');
     const processId = e.dataTransfer.getData('processId');
-    if (processId) {
-      onDrop(processId, machineId, date);
+    if (orderId && processId) {
+      onDrop(orderId, processId, machineId, date);
     }
     setDragOverCell(null);
   };
