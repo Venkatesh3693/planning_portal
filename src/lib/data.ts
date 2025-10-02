@@ -1,5 +1,6 @@
 import type { Machine, Order, Process } from '@/lib/types';
 import { Scissors, Printer, Fingerprint, ExternalLink, MoveHorizontal, PackageCheck } from 'lucide-react';
+import { addDays, startOfToday } from 'date-fns';
 
 export const MACHINES: Machine[] = [
   { id: 'm1', name: 'Cutting Machine Alpha', processIds: ['cutting'] },
@@ -19,6 +20,8 @@ export const PROCESSES: Process[] = [
   { id: 'packing', name: 'Packing', sam: 8, icon: PackageCheck },
 ];
 
+const today = startOfToday();
+
 export const ORDERS: Order[] = [
     { 
         id: 'ZAR4531-Shirt-Blue', 
@@ -27,7 +30,8 @@ export const ORDERS: Order[] = [
         style: 'Shirt',
         color: 'Blue',
         quantity: 100,
-        processIds: ['cutting', 'printing', 'sewing', 'packing']
+        processIds: ['cutting', 'printing', 'sewing', 'packing'],
+        dueDate: addDays(today, 10)
     },
     { 
         id: 'HNM1234-Pants-Black', 
@@ -36,7 +40,8 @@ export const ORDERS: Order[] = [
         style: 'Pants',
         color: 'Black',
         quantity: 200,
-        processIds: ['cutting', 'embroidery', 'sewing', 'packing']
+        processIds: ['cutting', 'embroidery', 'sewing', 'packing'],
+        dueDate: addDays(today, 15)
     },
     { 
         id: 'GAP9876-TShirt-White', 
@@ -45,7 +50,8 @@ export const ORDERS: Order[] = [
         style: 'T-Shirt',
         color: 'White',
         quantity: 150,
-        processIds: ['cutting', 'sewing', 'packing', 'outsourcing']
+        processIds: ['cutting', 'sewing', 'packing', 'outsourcing'],
+        dueDate: addDays(today, 7)
     }
 ];
 

@@ -21,6 +21,7 @@ export type Order = {
   color: string; // e.g. 'Blue'
   quantity: number;
   processIds: string[];
+  dueDate: Date;
 };
 
 export type ScheduledProcess = {
