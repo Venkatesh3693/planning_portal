@@ -13,11 +13,12 @@ import { WORK_DAY_MINUTES } from '@/lib/data';
 import { cn } from '@/lib/utils';
 
 const ORDER_LEVEL_VIEW = 'order-level';
+const SEWING_PROCESS_ID = 'sewing';
 
 export default function Home() {
   const [unplannedOrders, setUnplannedOrders] = useState<Order[]>(ORDERS);
   const [scheduledProcesses, setScheduledProcesses] = useState<ScheduledProcess[]>([]);
-  const [selectedProcessId, setSelectedProcessId] = useState<string>('sewing');
+  const [selectedProcessId, setSelectedProcessId] = useState<string>(SEWING_PROCESS_ID);
   const [hoveredOrderId, setHoveredOrderId] = useState<string | null>(null);
   const ordersListRef = useRef<HTMLDivElement>(null);
 
@@ -113,11 +114,27 @@ export default function Home() {
   const chartProcesses = isOrderLevelView
     ? scheduledProcesses
     : scheduledProcesses.filter(sp => sp.processId === selectedProcessId);
+  
+  const sewingScheduledOrderIds = scheduledProcesses
+    .filter(p => p.processId === SEWING_PROCESS_ID)
+    .map(p => p.orderId);
 
-  const filteredUnplannedOrders = isOrderLevelView ? [] : unplannedOrders.filter(order => {
-    const unscheduled = getUnscheduledProcessesForOrder(order);
-    return unscheduled.some(p => p.id === selectedProcessId);
-  });
+  const filteredUnplannedOrders = isOrderLevelView
+    ? []
+    : selectedProcessId === SEWING_PROCESS_ID
+      ? unplannedOrders.filter(order => {
+          const unscheduled = getUnscheduledProcessesForOrder(order);
+          return unscheduled.some(p => p.id === selectedProcessId);
+        })
+      : unplannedOrders.filter(order => {
+          // For other processes, only show orders if sewing is already scheduled
+          const isSewingScheduled = sewingScheduledOrderIds.includes(order.id);
+          if (!isSewingScheduled) return false;
+
+          // And the current process is unscheduled for this order
+          const unscheduled = getUnscheduledProcessesForOrder(order);
+          return unscheduled.some(p => p.id === selectedProcessId);
+        });
 
   return (
     <div className="flex h-screen flex-col">
@@ -136,7 +153,9 @@ export default function Home() {
               <ScrollArea className="h-full pr-4">
                 <div className="space-y-2" ref={ordersListRef}>
                   {filteredUnplannedOrders.map((order) => {
-                    const canDrag = getUnscheduledProcessesForOrder(order).some(p => p.id === selectedProcessId);
+                    const unscheduled = getUnscheduledProcessesForOrder(order);
+                    const canDrag = unscheduled.some(p => p.id === selectedProcessId);
+
                     if (!canDrag) return null;
 
                     return (
@@ -159,7 +178,12 @@ export default function Home() {
                   })}
                   {filteredUnplannedOrders.length === 0 && (
                     <div className="flex h-full items-center justify-center">
-                      <p className="text-sm text-muted-foreground">No orders for this process.</p>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedProcessId === SEWING_PROCESS_ID
+                          ? "No orders to schedule for sewing."
+                          : "Schedule sewing for orders to see them here."
+                        }
+                      </p>
                     </div>
                   )}
                 </div>
