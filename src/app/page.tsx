@@ -5,9 +5,8 @@ import { useState } from 'react';
 import { addDays, startOfToday } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
-import OrderCard from '@/components/gantt-chart/order-card';
 import { MACHINES, ORDERS, PROCESSES } from '@/lib/data';
-import type { Order, ScheduledProcess, Process } from '@/lib/types';
+import type { Order, ScheduledProcess } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { WORK_DAY_MINUTES } from '@/lib/data';
@@ -18,7 +17,7 @@ export default function Home() {
   const [selectedProcessId, setSelectedProcessId] = useState<string>('sewing');
 
   const handleDropOnChart = (orderId: string, processId: string, machineId: string, date: Date) => {
-    const order = ORDERS.find((o) => o.id === orderId); // Check against original ORDERS
+    const order = ORDERS.find((o) => o.id === orderId);
     const process = PROCESSES.find((p) => p.id === processId);
 
     if (!order || !process) return;
@@ -84,8 +83,6 @@ export default function Home() {
 
   const filteredMachines = MACHINES.filter(m => m.processIds.includes(selectedProcessId));
 
-  const filteredProcesses = PROCESSES.filter(p => p.id === selectedProcessId);
-
   const filteredUnplannedOrders = unplannedOrders.filter(order => {
     const unscheduled = getUnscheduledProcessesForOrder(order);
     return unscheduled.some(p => p.id === selectedProcessId);
@@ -104,26 +101,31 @@ export default function Home() {
         <div className="grid h-full flex-1 grid-cols-1 gap-6 lg:grid-cols-4 overflow-hidden">
           <Card className="lg:col-span-1 flex flex-col">
             <CardHeader>
-              <CardTitle>Unplanned Orders</CardTitle>
+              <CardTitle>Orders</CardTitle>
             </CardHeader>
             <CardContent className="flex-1 overflow-hidden">
               <ScrollArea className="h-full pr-4">
-                <div className="space-y-4">
+                <div className="space-y-2">
                   {filteredUnplannedOrders.map((order) => {
-                    const unscheduled = getUnscheduledProcessesForOrder(order).filter(p => p.id === selectedProcessId);
-                    if (unscheduled.length === 0) return null;
+                    // We only allow dragging if there's an unscheduled process matching the selected one
+                    const canDrag = getUnscheduledProcessesForOrder(order).some(p => p.id === selectedProcessId);
+                    if (!canDrag) return null;
+                    
                     return (
-                      <OrderCard 
-                        key={order.id} 
-                        order={order} 
-                        processes={unscheduled}
-                        onDragStart={handleDragStart} 
-                      />
+                      <div
+                        key={order.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, order.id, selectedProcessId)}
+                        className="cursor-grab active:cursor-grabbing rounded-md border bg-card p-2 text-sm font-medium text-card-foreground shadow-sm transition-all hover:shadow-md"
+                        title={order.id}
+                      >
+                        {order.id}
+                      </div>
                     )
                   })}
                   {filteredUnplannedOrders.length === 0 && (
                     <div className="flex h-full items-center justify-center">
-                      <p className="text-sm text-muted-foreground">No unplanned orders for this process.</p>
+                      <p className="text-sm text-muted-foreground">No orders for this process.</p>
                     </div>
                   )}
                 </div>
