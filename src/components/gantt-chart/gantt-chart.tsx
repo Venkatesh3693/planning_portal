@@ -21,42 +21,15 @@ type GanttChartProps = {
   isOrderLevelView?: boolean;
 };
 
-type Lane = ScheduledProcess[];
-
 const assignLanes = (processes: ScheduledProcess[]): { process: ScheduledProcess; lane: number }[] => {
   if (!processes.length) return [];
   
   const sortedProcesses = [...processes].sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
   
-  const lanes: Lane[] = [];
-  const assignments: { process: ScheduledProcess; lane: number }[] = [];
-
-  for (const process of sortedProcesses) {
-    let placed = false;
-    const processInterval = { start: process.startDate, end: addDays(process.startDate, process.durationDays - 1) };
-    
-    for (let i = 0; i < lanes.length; i++) {
-      const lane = lanes[i];
-      const hasOverlap = lane.some(p => {
-        const existingInterval = { start: p.startDate, end: addDays(p.startDate, p.durationDays - 1) };
-        return areIntervalsOverlapping(processInterval, existingInterval, { inclusive: true });
-      });
-
-      if (!hasOverlap) {
-        lanes[i].push(process);
-        assignments.push({ process, lane: i });
-        placed = true;
-        break;
-      }
-    }
-
-    if (!placed) {
-      lanes.push([process]);
-      assignments.push({ process, lane: lanes.length - 1 });
-    }
-  }
-
-  return assignments;
+  return sortedProcesses.map((process, index) => ({
+    process,
+    lane: index,
+  }));
 };
 
 
@@ -102,7 +75,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
     const maxLanes = new Map<string, number>();
     for (const row of rows) {
       const assignments = laneAssignments.get(row.id) || [];
-      const numLanes = assignments.reduce((max, a) => Math.max(max, a.lane + 1), 1);
+      const numLanes = assignments.length > 0 ? assignments.length : 1;
       maxLanes.set(row.id, numLanes);
     }
     return maxLanes;
