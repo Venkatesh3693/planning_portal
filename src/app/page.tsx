@@ -127,7 +127,7 @@ export default function Home() {
                         key={order.id}
                         draggable
                         onDragStart={(e) => handleDragStart(e, order.id, selectedProcessId)}
-                        className="cursor-grab active:cursor-grabbing p-2 text-sm font-medium text-card-foreground"
+                        className="cursor-grab active:cursor-grabbing p-2 text-sm font-medium text-card-foreground hover:bg-secondary rounded-md"
                         title={order.id}
                       >
                         {order.id}
