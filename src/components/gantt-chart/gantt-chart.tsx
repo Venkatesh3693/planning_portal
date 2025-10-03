@@ -226,17 +226,13 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
             <div className="sticky left-0 top-0 z-40 border-b border-r bg-card" style={{gridRowEnd: 'span 3'}}></div>
             
             {/* Row name headers */}
-            {rows.map((row, rowIndex) => {
+            {rows.map((row) => {
                 const position = rowPositions.get(row.id);
                 if (!position) return null;
-                const isEven = rowIndex % 2 === 0;
                 return (
                     <div 
                         key={row.id}
-                        className={cn(
-                          "sticky left-0 z-30 flex items-center justify-center p-2",
-                          isEven ? "bg-primary/20" : "bg-primary/10"
-                        )}
+                        className="sticky left-0 z-30 flex items-center justify-center p-2 bg-primary/10"
                         style={{ gridRow: `${position.start + 3} / span ${position.span}`, gridColumn: 1 }}
                     >
                         <span className="font-semibold text-foreground text-sm">{row.name}</span>
@@ -310,7 +306,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                   key={`empty-header-${i}`}
                   className={cn(
                     "sticky left-0 z-10 border-b",
-                    isEven ? "bg-primary/20" : "bg-primary/10"
+                    isEven ? "bg-primary/10" : "bg-primary/10"
                   )}
                   style={{
                     gridRow: totalOccupiedRows + i + 4,
