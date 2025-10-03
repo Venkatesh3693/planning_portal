@@ -250,14 +250,14 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
             {/* Week headers */}
             {weeks.map(({name, start, span}) => (
                 <div key={name} className="sticky top-[1.2rem] z-20 border-b border-r bg-card/95 py-0 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 2}}>
-                    <span className="text-xs font-medium text-muted-foreground">{name}</span>
+                    <span className="text-sm font-semibold text-foreground">{name}</span>
                 </div>
             ))}
 
             {/* Day headers */}
             {dates.map((date, i) => (
                 <div key={i} className="sticky top-[2.4rem] z-20 border-b border-r bg-card/95 py-0 text-center backdrop-blur-sm" style={{gridColumn: i + 2, gridRow: 3}}>
-                    <div className="text-xs font-semibold text-foreground">{format(date, 'd')}</div>
+                    <div className="text-[10px] font-medium text-muted-foreground">{format(date, 'd')}</div>
                 </div>
             ))}
             
@@ -370,6 +370,8 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
 
 
 
+
+    
 
     
 
