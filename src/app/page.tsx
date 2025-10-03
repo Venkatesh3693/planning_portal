@@ -12,12 +12,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { WORK_DAY_MINUTES } from '@/lib/data';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -30,8 +24,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { FilterX, ChevronDown } from 'lucide-react';
+import { Filter, FilterX, ChevronDown } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 
 const ORDER_LEVEL_VIEW = 'order-level';
@@ -181,7 +176,7 @@ export default function Home() {
 
   }, [unplannedOrders, selectedProcessId, isOrderLevelView, sewingScheduledOrderIds, filterOcn, filterBuyer, filterDueDate]);
 
-  const hasActiveFilters = filterOcn || filterBuyer.length > 0 || filterDueDate;
+  const hasActiveFilters = !!(filterOcn || filterBuyer.length > 0 || filterDueDate);
   
   const handleBuyerFilterChange = (buyer: string) => {
     setFilterBuyer(prev => 
@@ -217,62 +212,77 @@ export default function Home() {
             
             {isOrdersPanelVisible && (
                 <Card className="h-full">
-                  <CardHeader>
+                  <CardHeader className="flex flex-row items-center justify-between">
                     <CardTitle>Orders</CardTitle>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="ghost" size="icon" className="relative">
+                            <Filter className="h-4 w-4" />
+                            {hasActiveFilters && (
+                              <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
+                              </span>
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-80">
+                          <div className="grid gap-4">
+                            <div className="space-y-2">
+                              <h4 className="font-medium leading-none">Filters</h4>
+                              <p className="text-sm text-muted-foreground">
+                                Filter the unplanned orders.
+                              </p>
+                            </div>
+                            <div className="grid gap-2">
+                              <div className="space-y-2">
+                                <Label htmlFor="filter-ocn">OCN</Label>
+                                <Input id="filter-ocn" placeholder="e.g. ZAR4531" value={filterOcn} onChange={e => setFilterOcn(e.target.value)} />
+                              </div>
+                              <div className="space-y-2">
+                                  <Label>Buyer</Label>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="outline" className="w-full justify-between">
+                                        <span>
+                                          {filterBuyer.length > 0 ? filterBuyer.join(', ') : 'All Buyers'}
+                                        </span>
+                                        <ChevronDown className="h-4 w-4 opacity-50" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]">
+                                      <DropdownMenuLabel>Buyers</DropdownMenuLabel>
+                                      <DropdownMenuSeparator />
+                                      {buyerOptions.map(buyer => (
+                                        <DropdownMenuCheckboxItem
+                                          key={buyer}
+                                          checked={filterBuyer.includes(buyer)}
+                                          onCheckedChange={() => handleBuyerFilterChange(buyer)}
+                                          onSelect={(e) => e.preventDefault()}
+                                        >
+                                          {buyer}
+                                        </DropdownMenuCheckboxItem>
+                                      ))}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                              </div>
+                               <div className="space-y-2">
+                                  <Label>Due Date</Label>
+                                  <DatePicker date={filterDueDate} setDate={setFilterDueDate} />
+                               </div>
+                               {hasActiveFilters && (
+                                  <Button variant="ghost" size="sm" onClick={clearFilters} className="w-full justify-start text-destructive hover:text-destructive px-0">
+                                    <FilterX className="mr-2 h-4 w-4" />
+                                    Clear Filters
+                                  </Button>
+                                )}
+                            </div>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                   </CardHeader>
                   <CardContent className="h-[calc(100%-4.5rem)]">
-                    <div className="px-2 pb-2">
-                       <Accordion type="single" collapsible>
-                        <AccordionItem value="filters" className="border-b-0">
-                          <AccordionTrigger className="py-2 text-sm hover:no-underline">Filters</AccordionTrigger>
-                          <AccordionContent className="space-y-4 pt-2">
-                            <div className="space-y-2">
-                              <Label htmlFor="filter-ocn">OCN</Label>
-                              <Input id="filter-ocn" placeholder="e.g. ZAR4531" value={filterOcn} onChange={e => setFilterOcn(e.target.value)} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="filter-buyer">Buyer</Label>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" className="w-full justify-between">
-                                      <span>
-                                        {filterBuyer.length > 0 ? filterBuyer.join(', ') : 'All Buyers'}
-                                      </span>
-                                      <ChevronDown className="h-4 w-4 opacity-50" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]">
-                                    <DropdownMenuLabel>Buyers</DropdownMenuLabel>
-                                    <DropdownMenuSeparator />
-                                    {buyerOptions.map(buyer => (
-                                      <DropdownMenuCheckboxItem
-                                        key={buyer}
-                                        checked={filterBuyer.includes(buyer)}
-                                        onCheckedChange={() => handleBuyerFilterChange(buyer)}
-                                        onSelect={(e) => e.preventDefault()}
-                                      >
-                                        {buyer}
-                                      </DropdownMenuCheckboxItem>
-                                    ))}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                            </div>
-                             <div className="space-y-2">
-                                <Label>Due Date</Label>
-                                <DatePicker date={filterDueDate} setDate={setFilterDueDate} />
-                             </div>
-                             {hasActiveFilters && (
-                                <Button variant="ghost" size="sm" onClick={clearFilters} className="w-full justify-start text-destructive hover:text-destructive px-0">
-                                  <FilterX className="mr-2 h-4 w-4" />
-                                  Clear Filters
-                                </Button>
-                              )}
-                          </AccordionContent>
-                        </AccordionItem>
-                      </Accordion>
-                    </div>
-
-                    <ScrollArea className="h-[calc(100%-4rem)] pr-4">
+                    <ScrollArea className="h-full pr-4">
                       <div className="space-y-2 p-2 pt-0" ref={ordersListRef}>
                         {filteredUnplannedOrders.map((order) => {
                           const unscheduled = getUnscheduledProcessesForOrder(order);
@@ -341,3 +351,5 @@ export default function Home() {
     </div>
   );
 }
+
+    
