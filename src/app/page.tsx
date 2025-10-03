@@ -54,7 +54,7 @@ export default function Home() {
   
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, orderId: string, processId: string) => {
     e.dataTransfer.setData('orderId', orderId);
-    e.dataTransfer.setData('processId', processId);
+e.dataTransfer.setData('processId', processId);
     setHoveredOrderId(null);
   };
   
@@ -168,7 +168,7 @@ export default function Home() {
                         onMouseLeave={() => setHoveredOrderId(null)}
                         className={cn(
                           "cursor-grab active:cursor-grabbing p-2 text-sm font-medium text-card-foreground rounded-md",
-                          hoveredOrderId === order.id ? 'bg-primary/10' : ''
+                          "hover:bg-primary/10"
                         )}
                         title={order.id}
                       >
@@ -191,7 +191,7 @@ export default function Home() {
             </CardContent>
           </Card>
 
-          <div className={`h-full overflow-auto rounded-lg border bg-card p-4 ${isOrderLevelView ? 'lg:col-span-4' : 'lg:col-span-3'}`}>
+          <div className={`h-full overflow-auto rounded-lg border bg-card ${isOrderLevelView ? 'lg:col-span-4' : 'lg:col-span-3'}`}>
              <GanttChart 
                 rows={chartRows} 
                 dates={dates}
