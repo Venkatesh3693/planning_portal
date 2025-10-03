@@ -191,10 +191,10 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
     <div className="h-full w-full overflow-auto" ref={containerRef}>
         <div className="relative grid min-h-full" style={timelineGridStyle}>
             {/* Sticky Row Headers column background */}
-            <div className="sticky left-0 z-20 col-start-1 row-start-1 row-end-[-1] bg-card border-r"></div>
+            <div className="sticky left-0 z-30 col-start-1 row-start-1 row-end-[-1] bg-card border-r"></div>
 
             {/* Empty Corner */}
-            <div className="sticky left-0 top-0 z-30 border-b bg-card" style={{gridRowEnd: 'span 3'}}></div>
+            <div className="sticky left-0 top-0 z-40 border-b bg-card" style={{gridRowEnd: 'span 3'}}></div>
             
             {/* Row name headers */}
             {rows.map((row) => {
@@ -203,7 +203,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                 return (
                     <div 
                         key={row.id}
-                        className="sticky left-0 z-20 flex items-center justify-start p-2 h-8"
+                        className="sticky left-0 z-30 flex items-center justify-start p-2"
                         style={{ gridRow: `${position.start + 3} / span ${position.span}`, gridColumn: 1 }}
                     >
                         <span className="font-semibold text-foreground text-sm">{row.name}</span>
@@ -213,14 +213,14 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
         
             {/* Month headers */}
             {months.map(({name, start, span}) => (
-                <div key={name} className="sticky top-0 z-20 border-b bg-card/95 py-0.5 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 1 }}>
+                <div key={name} className="sticky top-0 z-20 border-b border-r bg-card/95 py-0.5 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 1 }}>
                     <span className="text-xs font-semibold text-foreground">{name}</span>
                 </div>
             ))}
             
             {/* Week headers */}
             {weeks.map(({name, start, span}) => (
-                <div key={name} className="sticky top-[1.35rem] z-20 border-b bg-card/95 py-0.5 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 2}}>
+                <div key={name} className="sticky top-[1.35rem] z-20 border-b border-r bg-card/95 py-0.5 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 2}}>
                     <span className="text-xs font-medium text-muted-foreground">{name}</span>
                 </div>
             ))}
