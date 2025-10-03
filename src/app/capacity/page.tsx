@@ -53,7 +53,6 @@ type MachineGroup = {
   name: string;
   unit: Unit;
   quantity: number;
-  moveableQuantity: number;
   isMoveable: boolean;
 };
 
@@ -78,7 +77,13 @@ export default function CapacityPage() {
     return PROCESSES.flatMap(process => {
       const machinesInProcess = machines.filter(m => m.processIds.includes(process.id));
       
-      const machineGroupsByUnit: Record<string, Record<string, MachineGroup>> = {};
+      const machineGroupsByUnit: Record<string, Record<string, {
+          process: Process;
+          name: string;
+          unit: Unit;
+          quantity: number;
+          isMoveable: boolean;
+      }>> = {};
   
       machinesInProcess.forEach(machine => {
         const machineType = machine.name.replace(/\s\d+$|\s(Alpha|Beta)$/, '');
@@ -93,21 +98,16 @@ export default function CapacityPage() {
             name: machineType,
             unit: unit,
             quantity: 0,
-            moveableQuantity: 0,
-            isMoveable: false, // Will be updated below
+            isMoveable: false,
           };
         }
         machineGroupsByUnit[machineType][unit.id].quantity++;
         if (machine.isMoveable) {
-          machineGroupsByUnit[machineType][unit.id].moveableQuantity++;
+          machineGroupsByUnit[machineType][unit.id].isMoveable = true;
         }
       });
   
-      // Determine overall movability for the group
-      return Object.values(machineGroupsByUnit).flatMap(unitGroup => Object.values(unitGroup).map(group => ({
-        ...group,
-        isMoveable: group.moveableQuantity > 0,
-      })));
+      return Object.values(machineGroupsByUnit).flatMap(unitGroup => Object.values(unitGroup));
 
     }).sort((a, b) => {
       if (a.process.name !== b.process.name) {
@@ -116,7 +116,7 @@ export default function CapacityPage() {
       if (a.name !== b.name) {
         return a.name.localeCompare(a.name);
       }
-      return a.unit.name.localeCompare(b.unit.name);
+      return a.unit.name.localeCompare(a.unit.name);
     });
   }, [machines]);
   
@@ -270,7 +270,7 @@ export default function CapacityPage() {
                                     fromUnitId: group.unit.id,
                                     toUnitId: '',
                                     quantity: 1,
-                                    maxQuantity: group.moveableQuantity
+                                    maxQuantity: group.quantity
                                 })}
                               >
                                 <span className="cursor-pointer font-medium text-primary hover:underline">
@@ -281,7 +281,7 @@ export default function CapacityPage() {
                               <span>{group.unit.name}</span>
                             )}
                           </TableCell>
-                          <TableCell>{group.moveableQuantity > 0 ? `${group.moveableQuantity} Moveable` : 'Fixed'}</TableCell>
+                          <TableCell>{group.isMoveable ? `Moveable` : 'Fixed'}</TableCell>
                           <TableCell className="text-right">{group.quantity}</TableCell>
                         </TableRow>
                       ))}
