@@ -154,14 +154,14 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
         
         {/* Month headers */}
         {months.map(({name, start, span}) => (
-          <div key={name} className="sticky top-0 z-20 border-b border-r bg-card/95 py-0.5 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 1 }}>
+          <div key={name} className="sticky top-0 z-20 border-b bg-card/95 py-0.5 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 1 }}>
             <span className="text-xs font-semibold text-foreground">{name}</span>
           </div>
         ))}
         
         {/* Week headers */}
         {weeks.map(({name, start, span}) => (
-            <div key={name} className="sticky top-[1.35rem] z-20 border-b border-r bg-card/95 py-0.5 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 2}}>
+            <div key={name} className="sticky top-[1.35rem] z-20 border-b bg-card/95 py-0.5 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 2}}>
                 <span className="text-xs font-medium text-muted-foreground">{name}</span>
             </div>
         ))}
@@ -196,7 +196,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                   onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, row.id, date)}
                   className={cn(
-                    'border-b border-r',
+                    'border-b',
                     !isOrderLevelView && dragOverCell && dragOverCell.rowId === row.id && isSameDay(dragOverCell.date, date) 
                       ? 'bg-primary/20' 
                       : 'bg-transparent',
