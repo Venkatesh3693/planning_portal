@@ -194,7 +194,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
   }, [dates]);
   
   const weeks = React.useMemo(() => {
-      const weekSpans: { name: string; start: number; span: number; endColumn: number }[] = [];
+      const weekSpans: { name: string; start: number; span: number }[] = [];
       if (dates.length === 0) return weekSpans;
 
       let currentWeek = getWeek(dates[0]);
@@ -205,17 +205,15 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
           if (getWeek(date) === currentWeek) {
               span++;
           } else {
-              weekSpans.push({ name: `W${currentWeek}`, start, span, endColumn: start + span - 1 });
+              weekSpans.push({ name: `W${currentWeek}`, start, span });
               currentWeek = getWeek(date);
               start = index + 2;
               span = 1;
           }
       });
-      weekSpans.push({ name: `W${currentWeek}`, start, span, endColumn: start + span - 1 });
+      weekSpans.push({ name: `W${currentWeek}`, start, span });
       return weekSpans;
   }, [dates]);
-
-  const weekEndColumns = React.useMemo(() => new Set(weeks.map(w => w.endColumn)), [weeks]);
 
 
   return (
@@ -251,17 +249,14 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
             
             {/* Week headers */}
             {weeks.map(({name, start, span}) => (
-                <div key={name} className="sticky top-[1.2rem] z-20 border-b border-r bg-card/95 py-0 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 2}}>
+                <div key={name} className="sticky top-[1.2rem] z-20 border-b border-r-2 bg-card/95 py-0 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 2}}>
                     <span className="text-sm font-semibold text-foreground">{name}</span>
                 </div>
             ))}
 
             {/* Day headers */}
             {dates.map((date, i) => (
-                <div key={i} className={cn(
-                        "sticky top-[2.4rem] z-20 border-b bg-card/95 py-0 text-center backdrop-blur-sm",
-                        weekEndColumns.has(i + 2) ? "border-r-2" : "border-r",
-                    )} style={{gridColumn: i + 2, gridRow: 3}}>
+                <div key={i} className="sticky top-[2.4rem] z-20 border-b border-r bg-card/95 py-0 text-center backdrop-blur-sm" style={{gridColumn: i + 2, gridRow: 3}}>
                     <div className="text-[10px] font-medium text-muted-foreground">{format(date, 'd')}</div>
                 </div>
             ))}
