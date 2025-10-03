@@ -256,7 +256,10 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
 
             {/* Day headers */}
             {dates.map((date, i) => (
-                <div key={i} className="sticky top-[2.4rem] z-20 border-b border-r bg-card/95 py-0 text-center backdrop-blur-sm" style={{gridColumn: i + 2, gridRow: 3}}>
+                <div key={i} className={cn(
+                        "sticky top-[2.4rem] z-20 border-b border-r bg-card/95 py-0 text-center backdrop-blur-sm",
+                        isSunday(date) && "border-r-2"
+                    )} style={{gridColumn: i + 2, gridRow: 3}}>
                     <div className="text-[10px] font-medium text-muted-foreground">{format(date, 'd')}</div>
                 </div>
             ))}
@@ -274,7 +277,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                         onDragLeave={handleDragLeave}
                         onDrop={(e) => handleDrop(e, row.id, date)}
                         className={cn(
-                            'border-b border-r',
+                            'border-b',
                             !isOrderLevelView && dragOverCell && dragOverCell.rowId === row.id && isSameDay(dragOverCell.date, date) 
                             ? 'bg-primary/20' 
                             : isEven ? 'bg-primary/5' : 'bg-transparent',
@@ -294,7 +297,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                 <div
                   key={`empty-${i}-${dateIndex}`}
                   className={cn(
-                    "border-b border-r",
+                    "border-b",
                     isEven ? "bg-primary/5" : "bg-card"
                   )}
                   style={{ gridRow: gridRowStart, gridColumn: dateIndex + 2 }}
@@ -373,6 +376,8 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
 
 
 
+
+    
 
     
 
