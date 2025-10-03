@@ -168,7 +168,7 @@ export default function Home() {
                         onMouseLeave={() => setHoveredOrderId(null)}
                         className={cn(
                           "cursor-grab active:cursor-grabbing p-2 text-sm font-medium text-card-foreground rounded-md",
-                          hoveredOrderId === order.id ? 'bg-secondary' : ''
+                          hoveredOrderId === order.id ? 'bg-primary/10' : ''
                         )}
                         title={order.id}
                       >
