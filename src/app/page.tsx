@@ -22,14 +22,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DatePicker } from '@/components/ui/date-picker';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { FilterX } from 'lucide-react';
+import { FilterX, ChevronDown } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
 
 
@@ -45,7 +46,7 @@ export default function Home() {
   const ordersListRef = useRef<HTMLDivElement>(null);
   const [filterOcn, setFilterOcn] = useState('');
   const [filterStyle, setFilterStyle] = useState('');
-  const [filterBuyer, setFilterBuyer] = useState('');
+  const [filterBuyer, setFilterBuyer] = useState<string[]>([]);
   const [filterDueDate, setFilterDueDate] = useState<DateRange | undefined>();
 
   const buyerOptions = useMemo(() => [...new Set(ORDERS.map(o => o.buyer))], []);
@@ -150,7 +151,7 @@ export default function Home() {
   const clearFilters = () => {
     setFilterOcn('');
     setFilterStyle('');
-    setFilterBuyer('');
+    setFilterBuyer([]);
     setFilterDueDate(undefined);
   };
 
@@ -172,7 +173,7 @@ export default function Home() {
     return baseOrders.filter(order => {
       const ocnMatch = filterOcn ? order.ocn.toLowerCase().includes(filterOcn.toLowerCase()) : true;
       const styleMatch = filterStyle ? order.style.toLowerCase().includes(filterStyle.toLowerCase()) : true;
-      const buyerMatch = filterBuyer ? order.buyer === filterBuyer : true;
+      const buyerMatch = filterBuyer.length > 0 ? filterBuyer.includes(order.buyer) : true;
       const dueDateMatch = (() => {
         if (!filterDueDate || !filterDueDate.from) return true;
         if (!filterDueDate.to) return isSameDay(order.dueDate, filterDueDate.from);
@@ -183,7 +184,15 @@ export default function Home() {
 
   }, [unplannedOrders, selectedProcessId, isOrderLevelView, sewingScheduledOrderIds, filterOcn, filterStyle, filterBuyer, filterDueDate]);
 
-  const hasActiveFilters = filterOcn || filterStyle || filterBuyer || filterDueDate;
+  const hasActiveFilters = filterOcn || filterStyle || filterBuyer.length > 0 || filterDueDate;
+  
+  const handleBuyerFilterChange = (buyer: string) => {
+    setFilterBuyer(prev => 
+      prev.includes(buyer) 
+        ? prev.filter(b => b !== buyer) 
+        : [...prev, buyer]
+    );
+  };
 
   return (
     <div className="flex h-screen flex-col">
@@ -230,16 +239,30 @@ export default function Home() {
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="filter-buyer">Buyer</Label>
-                                <Select value={filterBuyer} onValueChange={setFilterBuyer}>
-                                  <SelectTrigger id="filter-buyer">
-                                    <SelectValue placeholder="All Buyers" />
-                                  </SelectTrigger>
-                                  <SelectContent>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" className="w-full justify-between">
+                                      <span>
+                                        {filterBuyer.length > 0 ? filterBuyer.join(', ') : 'All Buyers'}
+                                      </span>
+                                      <ChevronDown className="h-4 w-4 opacity-50" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]">
+                                    <DropdownMenuLabel>Buyers</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
                                     {buyerOptions.map(buyer => (
-                                      <SelectItem key={buyer} value={buyer}>{buyer}</SelectItem>
+                                      <DropdownMenuCheckboxItem
+                                        key={buyer}
+                                        checked={filterBuyer.includes(buyer)}
+                                        onCheckedChange={() => handleBuyerFilterChange(buyer)}
+                                        onSelect={(e) => e.preventDefault()}
+                                      >
+                                        {buyer}
+                                      </DropdownMenuCheckboxItem>
                                     ))}
-                                  </SelectContent>
-                                </Select>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                             </div>
                              <div className="space-y-2">
                                 <Label>Due Date</Label>
@@ -325,3 +348,5 @@ export default function Home() {
     </div>
   );
 }
+
+    
