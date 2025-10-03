@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { WORK_DAY_MINUTES } from '@/lib/data';
 import { cn } from '@/lib/utils';
+import { SidebarProvider, Sidebar, SidebarInset, SidebarContent, SidebarHeader } from '@/components/ui/sidebar';
 
 const ORDER_LEVEL_VIEW = 'order-level';
 const SEWING_PROCESS_ID = 'sewing';
@@ -137,72 +138,76 @@ e.dataTransfer.setData('processId', processId);
         });
 
   return (
+    <SidebarProvider>
     <div className="flex h-screen flex-col">
       <Header 
         processes={selectableProcesses} 
         selectedProcessId={selectedProcessId}
         onProcessChange={setSelectedProcessId}
       />
-      <main className="flex-1 overflow-hidden flex flex-col">
-        <div className="grid h-full flex-1 grid-cols-1 gap-4 lg:grid-cols-4 overflow-hidden p-4">
-          <Card className={`lg:col-span-1 flex flex-col ${isOrderLevelView ? 'hidden' : ''}`}>
-            <CardHeader>
-              <CardTitle>Orders</CardTitle>
-            </CardHeader>
-            <CardContent className="flex-1 overflow-hidden">
-              <ScrollArea className="h-full pr-4">
-                <div className="space-y-2" ref={ordersListRef}>
-                  {filteredUnplannedOrders.map((order) => {
-                    const unscheduled = getUnscheduledProcessesForOrder(order);
-                    const canDrag = unscheduled.some(p => p.id === selectedProcessId);
+      <main className="flex-1 overflow-hidden">
+          {!isOrderLevelView && (
+            <Sidebar>
+              <SidebarHeader>
+                <CardTitle>Orders</CardTitle>
+              </SidebarHeader>
+              <SidebarContent>
+                <ScrollArea className="h-full pr-4">
+                  <div className="space-y-2 p-2 pt-0" ref={ordersListRef}>
+                    {filteredUnplannedOrders.map((order) => {
+                      const unscheduled = getUnscheduledProcessesForOrder(order);
+                      const canDrag = unscheduled.some(p => p.id === selectedProcessId);
 
-                    if (!canDrag) return null;
+                      if (!canDrag) return null;
 
-                    return (
-                      <div
-                        key={order.id}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, order.id, selectedProcessId)}
-                        onDragEnd={handleDragEnd}
-                        onMouseEnter={() => setHoveredOrderId(order.id)}
-                        onMouseLeave={() => setHoveredOrderId(null)}
-                        className={cn(
-                          "cursor-grab active:cursor-grabbing p-2 text-sm font-medium text-card-foreground rounded-md",
-                          "hover:bg-primary/10"
-                        )}
-                        title={order.id}
-                      >
-                        {order.id}
+                      return (
+                        <div
+                          key={order.id}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, order.id, selectedProcessId)}
+                          onDragEnd={handleDragEnd}
+                          onMouseEnter={() => setHoveredOrderId(order.id)}
+                          onMouseLeave={() => setHoveredOrderId(null)}
+                          className={cn(
+                            "cursor-grab active:cursor-grabbing p-2 text-sm font-medium text-card-foreground rounded-md",
+                            "hover:bg-primary/10"
+                          )}
+                          title={order.id}
+                        >
+                          {order.id}
+                        </div>
+                      )
+                    })}
+                    {filteredUnplannedOrders.length === 0 && (
+                      <div className="flex h-full items-center justify-center">
+                        <p className="text-sm text-muted-foreground">
+                          {selectedProcessId === SEWING_PROCESS_ID
+                            ? "No orders to schedule for sewing."
+                            : "Schedule sewing for orders to see them here."
+                          }
+                        </p>
                       </div>
-                    )
-                  })}
-                  {filteredUnplannedOrders.length === 0 && (
-                    <div className="flex h-full items-center justify-center">
-                      <p className="text-sm text-muted-foreground">
-                        {selectedProcessId === SEWING_PROCESS_ID
-                          ? "No orders to schedule for sewing."
-                          : "Schedule sewing for orders to see them here."
-                        }
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
+                    )}
+                  </div>
+                </ScrollArea>
+              </SidebarContent>
+            </Sidebar>
+          )}
 
-          <div className={`h-full overflow-auto rounded-lg border bg-card ${isOrderLevelView ? 'lg:col-span-4' : 'lg:col-span-3'}`}>
-             <GanttChart 
-                rows={chartRows} 
-                dates={dates}
-                scheduledProcesses={chartProcesses}
-                onDrop={handleDropOnChart}
-                onUndoSchedule={handleUndoSchedule}
-                isOrderLevelView={isOrderLevelView}
-              />
-          </div>
-        </div>
+          <SidebarInset>
+            <div className={`h-full overflow-auto rounded-lg border bg-card`}>
+              <GanttChart 
+                  rows={chartRows} 
+                  dates={dates}
+                  scheduledProcesses={chartProcesses}
+                  onDrop={handleDropOnChart}
+                  onUndoSchedule={handleUndoSchedule}
+                  isOrderLevelView={isOrderLevelView}
+                />
+            </div>
+          </SidebarInset>
       </main>
     </div>
+    </SidebarProvider>
   );
 }

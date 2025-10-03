@@ -8,6 +8,7 @@ import type { Process } from '@/lib/types';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { usePathname } from 'next/navigation';
+import { SidebarTrigger } from '../ui/sidebar';
 
 type HeaderProps = {
   processes?: Process[];
@@ -24,6 +25,7 @@ export function Header({ processes, selectedProcessId, onProcessChange }: Header
       <div className="container mx-auto max-w-full px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-3">
+            {isHomePage && <SidebarTrigger />}
             <Link href="/" className="flex items-center gap-3">
               <Factory className="h-8 w-8 text-primary" />
               <h1 className="text-2xl font-bold tracking-tight text-foreground">
