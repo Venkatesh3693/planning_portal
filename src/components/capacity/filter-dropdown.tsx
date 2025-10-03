@@ -35,7 +35,7 @@ export function FilterDropdown({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex items-center gap-1 group">
+        <button className="flex items-center gap-1 group outline-none ring-0 focus:ring-0 focus-visible:ring-0">
             <span className="font-medium text-muted-foreground group-hover:text-foreground">{title}</span>
             {selected.length > 0 && (
                 <span className="bg-primary text-primary-foreground text-xs font-bold rounded-full px-1.5 py-0.5">
