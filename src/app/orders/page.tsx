@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
-import { ORDERS } from '@/lib/data';
+import { ORDERS, PROCESSES } from '@/lib/data';
 import { format } from 'date-fns';
 import {
   Table,
@@ -24,6 +24,8 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 
 export default function OrdersPage() {
+  const allProcesses = PROCESSES;
+
   return (
     <div className="flex h-screen flex-col">
       <Header />
@@ -58,6 +60,9 @@ export default function OrdersPage() {
                     <TableHead>Style</TableHead>
                     <TableHead>Color</TableHead>
                     <TableHead className="text-right">Quantity</TableHead>
+                    {allProcesses.map((process) => (
+                      <TableHead key={process.id} className="text-center">{process.name} (SAM)</TableHead>
+                    ))}
                     <TableHead>Due Date</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -70,6 +75,14 @@ export default function OrdersPage() {
                       <TableCell>{order.style}</TableCell>
                       <TableCell>{order.color}</TableCell>
                       <TableCell className="text-right">{order.quantity}</TableCell>
+                      {allProcesses.map((process) => {
+                        const processInOrder = order.processIds.includes(process.id);
+                        return (
+                          <TableCell key={process.id} className="text-center">
+                            {processInOrder ? process.sam : '-'}
+                          </TableCell>
+                        );
+                      })}
                       <TableCell>{format(order.dueDate, 'PPP')}</TableCell>
                     </TableRow>
                   ))}
