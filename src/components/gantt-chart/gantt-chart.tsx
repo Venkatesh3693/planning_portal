@@ -276,7 +276,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                             'border-b',
                             dragOverCell && dragOverCell.rowId === row.id && isSameDay(dragOverCell.date, date) 
                             ? 'bg-primary/20' 
-                            : 'bg-primary/5',
+                            : (rowIndex % 2 === 0 ? 'bg-card' : 'bg-primary/5'),
                             !isOrderLevelView && 'hover:bg-primary/10',
                             'transition-colors duration-200'
                         )}
@@ -293,7 +293,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                   key={`empty-${i}-${dateIndex}`}
                   className={cn(
                     "border-b",
-                    "bg-card"
+                    (totalOccupiedRows + i) % 2 === 0 ? 'bg-card' : 'bg-primary/5'
                   )}
                   style={{ gridRow: gridRowStart, gridColumn: dateIndex + 2 }}
                 ></div>
