@@ -12,29 +12,56 @@ import Link from 'next/link';
 import { UNITS, MACHINES, PROCESSES } from '@/lib/data';
 import type { Machine, Process, Unit } from '@/lib/types';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
-type MachinesWithUnit = (Machine & { unit: Unit })[];
+type MachineGroup = {
+  name: string;
+  unit: Unit;
+  quantity: number;
+};
 
 type MachinesByProcess = {
   process: Process;
-  machines: MachinesWithUnit;
+  machineGroups: MachineGroup[];
 };
 
 export default function CapacityPage() {
-  const machinesWithUnits = MACHINES.map(machine => ({
-    ...machine,
-    unit: UNITS.find(u => u.id === machine.unitId)!,
-  }));
-
-  const machinesByProcess = PROCESSES.map(process => {
-    const processMachines = machinesWithUnits
-      .filter(m => m.processIds.includes(process.id))
-      .sort((a, b) => a.name.localeCompare(b.name));
+  const machinesByProcess: MachinesByProcess[] = PROCESSES.map(process => {
+    const machinesInProcess = MACHINES.filter(m => m.processIds.includes(process.id));
     
+    const machineGroups: Record<string, Record<string, MachineGroup>> = {};
+
+    machinesInProcess.forEach(machine => {
+      const machineType = machine.name.replace(/\s\d+$|\s(Alpha|Beta)$/, '');
+      const unit = UNITS.find(u => u.id === machine.unitId)!;
+
+      if (!machineGroups[machineType]) {
+        machineGroups[machineType] = {};
+      }
+      if (!machineGroups[machineType][unit.id]) {
+        machineGroups[machineType][unit.id] = {
+          name: machineType,
+          unit: unit,
+          quantity: 0,
+        };
+      }
+      machineGroups[machineType][unit.id].quantity++;
+    });
+
+    const flattenedGroups = Object.values(machineGroups)
+      .flatMap(unitGroup => Object.values(unitGroup))
+      .sort((a, b) => a.unit.name.localeCompare(b.unit.name) || a.name.localeCompare(b.name));
+
     return {
       process,
-      machines: processMachines,
+      machineGroups: flattenedGroups,
     };
   }).sort((a, b) => a.process.name.localeCompare(b.process.name));
 
@@ -62,24 +89,32 @@ export default function CapacityPage() {
           </p>
 
           <Accordion type="multiple" className="w-full space-y-4">
-            {machinesByProcess.map(({ process, machines }) => (
+            {machinesByProcess.map(({ process, machineGroups }) => (
               <AccordionItem key={process.id} value={process.id} className="border-b-0 rounded-lg border bg-card text-card-foreground shadow-sm">
                 <AccordionTrigger className="p-6 text-lg font-semibold hover:no-underline">
                   {process.name}
                 </AccordionTrigger>
                 <AccordionContent className="p-6 pt-0">
                   <div className="space-y-3">
-                    {machines.length > 0 ? (
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {machines.map(machine => (
-                          <Card key={machine.id} className="bg-background">
-                            <CardHeader>
-                              <CardTitle className="text-base">{machine.name}</CardTitle>
-                              <CardDescription>{machine.unit.name}</CardDescription>
-                            </CardHeader>
-                          </Card>
-                        ))}
-                      </div>
+                    {machineGroups.length > 0 ? (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Machine</TableHead>
+                            <TableHead>Unit</TableHead>
+                            <TableHead className="text-right">Quantity</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {machineGroups.map((group, index) => (
+                            <TableRow key={index}>
+                              <TableCell className="font-medium">{group.name}</TableCell>
+                              <TableCell>{group.unit.name}</TableCell>
+                              <TableCell className="text-right">{group.quantity}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
                     ) : (
                       <p className="text-sm text-muted-foreground">No machines assigned to this process.</p>
                     )}
