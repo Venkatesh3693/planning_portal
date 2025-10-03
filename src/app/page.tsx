@@ -141,11 +141,14 @@ export default function Home() {
 
   return (
     <div className="flex h-screen flex-col">
-      <Header />
+      <Header 
+        isOrdersPanelVisible={isOrdersPanelVisible}
+        setIsOrdersPanelVisible={setIsOrdersPanelVisible}
+      />
       <main className="flex-1 overflow-hidden">
         <div className={cn(
-            "grid h-full items-start gap-4 p-4",
-            isOrdersPanelVisible ? "grid-cols-[20rem_1fr]" : "grid-cols-[auto_1fr]"
+            "grid h-full items-start p-4 gap-4",
+            isOrdersPanelVisible ? "grid-cols-[20rem_1fr]" : "grid-cols-[1fr]"
           )}>
           
           {isOrdersPanelVisible && (
@@ -196,26 +199,19 @@ export default function Home() {
               </Card>
           )}
           
-          <div className="flex h-full items-start gap-4">
-            <div className="flex justify-center pt-2">
-              <Button variant="ghost" size="icon" onClick={() => setIsOrdersPanelVisible(prev => !prev)}>
-                  {isOrdersPanelVisible ? <PanelLeftClose className="h-5 w-5" /> : <PanelRightClose className="h-5 w-5" />}
-              </Button>
+          <div className={cn(
+            "h-full flex-1 overflow-auto rounded-lg border bg-card",
+            !isOrdersPanelVisible && "col-span-1"
+            )}>
+              <GanttChart 
+                  rows={chartRows} 
+                  dates={dates}
+                  scheduledProcesses={chartProcesses}
+                  onDrop={handleDropOnChart}
+                  onUndoSchedule={handleUndoSchedule}
+                  isOrderLevelView={isOrderLevelView}
+                />
             </div>
-
-            <div className={cn(
-              "h-full flex-1 overflow-auto rounded-lg border bg-card"
-              )}>
-                <GanttChart 
-                    rows={chartRows} 
-                    dates={dates}
-                    scheduledProcesses={chartProcesses}
-                    onDrop={handleDropOnChart}
-                    onUndoSchedule={handleUndoSchedule}
-                    isOrderLevelView={isOrderLevelView}
-                  />
-              </div>
-          </div>
         </div>
       </main>
     </div>
