@@ -7,11 +7,10 @@ import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, ORDERS, PROCESSES } from '@/lib/data';
 import type { Order, ScheduledProcess } from '@/lib/types';
-import { CardTitle } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { WORK_DAY_MINUTES } from '@/lib/data';
 import { cn } from '@/lib/utils';
-import { SidebarProvider, Sidebar, SidebarInset, SidebarContent, SidebarHeader } from '@/components/ui/sidebar';
 
 const ORDER_LEVEL_VIEW = 'order-level';
 const SEWING_PROCESS_ID = 'sewing';
@@ -55,7 +54,7 @@ export default function Home() {
   
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, orderId: string, processId: string) => {
     e.dataTransfer.setData('orderId', orderId);
-e.dataTransfer.setData('processId', processId);
+    e.dataTransfer.setData('processId', processId);
     setHoveredOrderId(null);
   };
   
@@ -138,20 +137,20 @@ e.dataTransfer.setData('processId', processId);
         });
 
   return (
-    <SidebarProvider>
     <div className="flex h-screen flex-col">
       <Header 
         processes={selectableProcesses} 
         selectedProcessId={selectedProcessId}
         onProcessChange={setSelectedProcessId}
       />
-      <main className="flex-1 overflow-hidden">
+      <main className="flex-1 overflow-hidden p-4 sm:p-6 lg:p-8">
+        <div className="grid h-full grid-cols-[auto_1fr] gap-6">
           {!isOrderLevelView && (
-            <Sidebar>
-              <SidebarHeader>
+            <Card className="w-80">
+              <CardHeader>
                 <CardTitle>Orders</CardTitle>
-              </SidebarHeader>
-              <SidebarContent>
+              </CardHeader>
+              <CardContent className="h-[calc(100%-4.5rem)]">
                 <ScrollArea className="h-full pr-4">
                   <div className="space-y-2 p-2 pt-0" ref={ordersListRef}>
                     {filteredUnplannedOrders.map((order) => {
@@ -190,12 +189,14 @@ e.dataTransfer.setData('processId', processId);
                     )}
                   </div>
                 </ScrollArea>
-              </SidebarContent>
-            </Sidebar>
+              </CardContent>
+            </Card>
           )}
 
-          <SidebarInset>
-            <div className={`h-full overflow-auto rounded-lg border bg-card`}>
+          <div className={cn(
+            "h-full overflow-auto rounded-lg border bg-card",
+            isOrderLevelView && 'col-span-2'
+            )}>
               <GanttChart 
                   rows={chartRows} 
                   dates={dates}
@@ -205,9 +206,8 @@ e.dataTransfer.setData('processId', processId);
                   isOrderLevelView={isOrderLevelView}
                 />
             </div>
-          </SidebarInset>
+        </div>
       </main>
     </div>
-    </SidebarProvider>
   );
 }
