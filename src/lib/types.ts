@@ -10,6 +10,7 @@ export type Machine = {
   name: string;
   processIds: string[];
   unitId: string;
+  isMoveable: boolean;
 };
 
 export type Process = {

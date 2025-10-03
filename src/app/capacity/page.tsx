@@ -1,4 +1,7 @@
 
+'use client';
+
+import { useState } from 'react';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -20,11 +23,31 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Button } from '@/components/ui/button';
 
 type MachineGroup = {
   name: string;
   unit: Unit;
   quantity: number;
+  isMoveable: boolean;
 };
 
 type MachinesByProcess = {
@@ -33,8 +56,11 @@ type MachinesByProcess = {
 };
 
 export default function CapacityPage() {
+  const [machines, setMachines] = useState<Machine[]>(MACHINES);
+  const [selectedUnit, setSelectedUnit] = useState<string>('');
+  
   const machinesByProcess: MachinesByProcess[] = PROCESSES.map(process => {
-    const machinesInProcess = MACHINES.filter(m => m.processIds.includes(process.id));
+    const machinesInProcess = machines.filter(m => m.processIds.includes(process.id));
     
     const machineGroups: Record<string, Record<string, MachineGroup>> = {};
 
@@ -50,6 +76,7 @@ export default function CapacityPage() {
           name: machineType,
           unit: unit,
           quantity: 0,
+          isMoveable: machine.isMoveable,
         };
       }
       machineGroups[machineType][unit.id].quantity++;
@@ -64,6 +91,14 @@ export default function CapacityPage() {
       machineGroups: flattenedGroups,
     };
   }).sort((a, b) => a.process.name.localeCompare(b.process.name));
+  
+  const handleReallocate = (machineName: string, fromUnitId: string) => {
+    if (!selectedUnit) return;
+    
+    // This is a placeholder for the actual logic.
+    // In a real app, this would involve updating the state and potentially making an API call.
+    console.log(`Reallocating ${machineName} from ${fromUnitId} to ${selectedUnit}`);
+  }
 
   return (
     <div className="flex h-screen flex-col">
@@ -102,7 +137,9 @@ export default function CapacityPage() {
                           <TableRow>
                             <TableHead>Machine</TableHead>
                             <TableHead>Unit</TableHead>
+                            <TableHead>Mobility</TableHead>
                             <TableHead className="text-right">Quantity</TableHead>
+                            <TableHead className="w-[120px]"></TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -110,7 +147,43 @@ export default function CapacityPage() {
                             <TableRow key={index}>
                               <TableCell className="font-medium">{group.name}</TableCell>
                               <TableCell>{group.unit.name}</TableCell>
+                              <TableCell>{group.isMoveable ? 'Moveable' : 'Fixed'}</TableCell>
                               <TableCell className="text-right">{group.quantity}</TableCell>
+                              <TableCell>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="outline" size="sm" disabled={!group.isMoveable}>
+                                      Reallocate
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Reallocate {group.name}</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Select a new unit to move this machine to.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <Select onValueChange={setSelectedUnit}>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Select new unit" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {UNITS.filter(u => u.id !== group.unit.id).map(unit => (
+                                          <SelectItem key={unit.id} value={unit.id}>
+                                            {unit.name}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction onClick={() => handleReallocate(group.name, group.unit.id)}>
+                                        Confirm
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
