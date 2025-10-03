@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { addDays, startOfToday } from 'date-fns';
+import { addDays, startOfToday, format } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, ORDERS, PROCESSES } from '@/lib/data';
@@ -192,7 +192,13 @@ export default function Home() {
                               )}
                               title={order.id}
                             >
-                              {order.id}
+                              <div className="flex flex-col">
+                                <span className="font-semibold">{order.id}</span>
+                                <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
+                                  <span>Ship: {format(order.dueDate, 'MMM dd')}</span>
+                                  <span>Qty: {order.quantity}</span>
+                                </div>
+                              </div>
                             </div>
                           )
                         })}
