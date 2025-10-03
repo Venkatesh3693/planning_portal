@@ -62,7 +62,9 @@ export function Header({ processes, selectedProcessId, onProcessChange }: Header
                 <Link href="/capacity">
                   <DropdownMenuItem>Capacity management</DropdownMenuItem>
                 </Link>
-                <DropdownMenuItem>Order management</DropdownMenuItem>
+                <Link href="/orders">
+                  <DropdownMenuItem>Order management</DropdownMenuItem>
+                </Link>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
