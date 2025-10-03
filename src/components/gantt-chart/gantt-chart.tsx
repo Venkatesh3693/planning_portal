@@ -147,8 +147,8 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
 
 
   return (
-    <div className="relative h-full w-full">
-      <div className="grid" style={gridStyle}>
+    <div className="relative h-full w-full pl-[12rem]">
+      <div className="grid ml-[-12rem]" style={gridStyle}>
         {/* Empty corner */}
         <div className="sticky left-0 top-0 z-30 border-r border-b bg-card" style={{gridRowEnd: 'span 3'}}></div>
         
@@ -196,7 +196,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                   onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, row.id, date)}
                   className={cn(
-                    'border-b',
+                    'border-b border-r',
                     !isOrderLevelView && dragOverCell && dragOverCell.rowId === row.id && isSameDay(dragOverCell.date, date) 
                       ? 'bg-primary/20' 
                       : 'bg-transparent',
