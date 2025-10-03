@@ -32,7 +32,7 @@ export function DatePicker({ date, setDate, className }: DatePickerProps) {
     }
   };
 
-  const handleClear = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleClear = (e: React.MouseEvent<HTMLDivElement>) => {
     e.stopPropagation();
     setDate(undefined);
   };
@@ -63,14 +63,14 @@ export function DatePicker({ date, setDate, className }: DatePickerProps) {
             <span>Pick a date range</span>
           )}
           {date && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-1 h-6 w-6"
+            <div
+              role="button"
+              aria-label="Clear date"
+              className="absolute right-1 h-6 w-6 grid place-items-center rounded-full hover:bg-accent"
               onClick={handleClear}
             >
               <X className="h-4 w-4" />
-            </Button>
+            </div>
           )}
         </Button>
       </PopoverTrigger>
