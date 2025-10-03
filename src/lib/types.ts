@@ -1,9 +1,15 @@
 import type { LucideIcon } from 'lucide-react';
 
+export type Unit = {
+  id: string;
+  name: string;
+};
+
 export type Machine = {
   id: string;
   name: string;
   processIds: string[];
+  unitId: string;
 };
 
 export type Process = {

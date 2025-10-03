@@ -1,15 +1,25 @@
-import type { Machine, Order, Process } from '@/lib/types';
+import type { Unit, Machine, Order, Process } from '@/lib/types';
 import { Scissors, Printer, Fingerprint, ExternalLink, MoveHorizontal, PackageCheck } from 'lucide-react';
 import { addDays, startOfToday } from 'date-fns';
 
-export const MACHINES: Machine[] = [
-  { id: 'm1', name: 'Cutting Machine Alpha', processIds: ['cutting'] },
-  { id: 'm2', name: 'Printing Station', processIds: ['printing'] },
-  { id: 'm3', name: 'Embroidery Station', processIds: ['embroidery'] },
-  { id: 'm4', name: 'Sewing Station 1', processIds: ['sewing'] },
-  { id: 'm5', name: 'Sewing Station 2', processIds: ['sewing'] },
-  { id: 'm6', name: 'Finishing & QC', processIds: ['packing'] },
+export const UNITS: Unit[] = [
+  { id: 'u1', name: 'Unit 1' },
+  { id: 'u2', name: 'Unit 2' },
+  { id: 'u3', name: 'Unit 3' },
 ];
+
+export const MACHINES: Machine[] = [
+  { id: 'm1', name: 'Cutting Machine Alpha', processIds: ['cutting'], unitId: 'u1' },
+  { id: 'm2', name: 'Printing Station', processIds: ['printing'], unitId: 'u1' },
+  { id: 'm3', name: 'Embroidery Station', processIds: ['embroidery'], unitId: 'u2' },
+  { id: 'm4', name: 'Sewing Station 1', processIds: ['sewing'], unitId: 'u2' },
+  { id: 'm5', name: 'Sewing Station 2', processIds: ['sewing'], unitId: 'u3' },
+  { id: 'm6', name: 'Finishing & QC', processIds: ['packing'], unitId: 'u3' },
+  { id: 'm7', name: 'Cutting Machine Beta', processIds: ['cutting'], unitId: 'u3' },
+  { id: 'm8', name: 'Sewing Station 3', processIds: ['sewing'], unitId: 'u3' },
+  { id: 'm9', name: 'Sewing Station 4', processIds: ['sewing'], unitId: 'u3' },
+];
+
 
 export const PROCESSES: Process[] = [
   { id: 'cutting', name: 'Cutting', sam: 5, icon: Scissors, color: 'hsl(var(--chart-1))' },
