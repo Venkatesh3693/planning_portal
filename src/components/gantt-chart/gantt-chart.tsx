@@ -112,14 +112,14 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
       if (getMonth(date) === currentMonth && getYear(date) === currentYear) {
         span++;
       } else {
-        monthSpans.push({ name: format(new Date(currentYear, currentMonth), 'MMMM yyyy'), start, span });
+        monthSpans.push({ name: format(new Date(currentYear, currentMonth), "MMM ''yy"), start, span });
         currentMonth = getMonth(date);
         currentYear = getYear(date);
         start = index + 2;
         span = 1;
       }
     });
-    monthSpans.push({ name: format(new Date(currentYear, currentMonth), 'MMMM yyyy'), start, span });
+    monthSpans.push({ name: format(new Date(currentYear, currentMonth), "MMM ''yy"), start, span });
     return monthSpans;
   }, [dates]);
   
@@ -150,26 +150,25 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
     <div className="relative h-full w-full">
       <div className="grid" style={gridStyle}>
         {/* Empty corner */}
-        <div className="sticky left-0 top-0 z-20 border-r border-border/50 bg-card" style={{gridRowEnd: 'span 3'}}></div>
+        <div className="sticky left-0 top-0 z-20 border-r border-b border-border/50 bg-card" style={{gridRowEnd: 'span 3'}}></div>
         
         {/* Month headers */}
         {months.map(({name, start, span}) => (
-          <div key={name} className="sticky top-0 z-10 border-b border-border/50 bg-card/95 p-1 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 1 }}>
+          <div key={name} className="sticky top-0 z-10 border-b border-r border-border/50 bg-card/95 p-1 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 1 }}>
             <span className="text-xs font-semibold text-foreground">{name}</span>
           </div>
         ))}
         
         {/* Week headers */}
         {weeks.map(({name, start, span}) => (
-            <div key={name} className="sticky top-[2rem] z-10 border-b border-border/50 bg-card/95 p-1 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 2}}>
+            <div key={name} className="sticky top-[1.8rem] z-10 border-b border-r border-border/50 bg-card/95 p-1 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 2}}>
                 <span className="text-xs font-medium text-muted-foreground">{name}</span>
             </div>
         ))}
 
         {/* Day headers */}
         {dates.map((date, i) => (
-          <div key={i} className="sticky top-[4rem] z-10 border-b border-border/50 bg-card/95 p-1 text-center backdrop-blur-sm" style={{gridRow: 3}}>
-            <div className="text-xs font-medium text-muted-foreground">{format(date, 'E')}</div>
+          <div key={i} className="sticky top-[3.6rem] z-10 border-b border-r border-border/50 bg-card/95 p-1 text-center backdrop-blur-sm" style={{gridRow: 3}}>
             <div className="text-sm font-semibold text-foreground">{format(date, 'd')}</div>
           </div>
         ))}
