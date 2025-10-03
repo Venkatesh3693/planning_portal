@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
 import { FilterX } from 'lucide-react';
+import type { DateRange } from 'react-day-picker';
 
 
 const ORDER_LEVEL_VIEW = 'order-level';
@@ -45,7 +46,7 @@ export default function Home() {
   const [filterOcn, setFilterOcn] = useState('');
   const [filterStyle, setFilterStyle] = useState('');
   const [filterBuyer, setFilterBuyer] = useState('');
-  const [filterDueDate, setFilterDueDate] = useState<Date | undefined>();
+  const [filterDueDate, setFilterDueDate] = useState<DateRange | undefined>();
 
   const buyerOptions = useMemo(() => [...new Set(ORDERS.map(o => o.buyer))], []);
 
@@ -172,7 +173,11 @@ export default function Home() {
       const ocnMatch = filterOcn ? order.ocn.toLowerCase().includes(filterOcn.toLowerCase()) : true;
       const styleMatch = filterStyle ? order.style.toLowerCase().includes(filterStyle.toLowerCase()) : true;
       const buyerMatch = filterBuyer ? order.buyer === filterBuyer : true;
-      const dueDateMatch = filterDueDate ? isSameDay(order.dueDate, filterDueDate) : true;
+      const dueDateMatch = (() => {
+        if (!filterDueDate || !filterDueDate.from) return true;
+        if (!filterDueDate.to) return isSameDay(order.dueDate, filterDueDate.from);
+        return order.dueDate >= filterDueDate.from && order.dueDate <= filterDueDate.to;
+      })();
       return ocnMatch && styleMatch && buyerMatch && dueDateMatch;
     });
 
