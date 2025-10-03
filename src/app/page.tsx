@@ -40,12 +40,11 @@ const SEWING_PROCESS_ID = 'sewing';
 export default function Home() {
   const [unplannedOrders, setUnplannedOrders] = useState<Order[]>(ORDERS);
   const [scheduledProcesses, setScheduledProcesses] = useState<ScheduledProcess[]>([]);
-  const [selectedProcessId, setSelectedProcessId] = useState<string>(SEWING_PROCESS_ID);
+  const [selectedProcessId, setSelectedProcessId] = useState<string>(ORDER_LEVEL_VIEW);
   const [hoveredOrderId, setHoveredOrderId] = useState<string | null>(null);
   const [isOrdersPanelVisible, setIsOrdersPanelVisible] = useState(true);
   const ordersListRef = useRef<HTMLDivElement>(null);
   const [filterOcn, setFilterOcn] = useState('');
-  const [filterStyle, setFilterStyle] = useState('');
   const [filterBuyer, setFilterBuyer] = useState<string[]>([]);
   const [filterDueDate, setFilterDueDate] = useState<DateRange | undefined>();
 
@@ -150,7 +149,6 @@ export default function Home() {
 
   const clearFilters = () => {
     setFilterOcn('');
-    setFilterStyle('');
     setFilterBuyer([]);
     setFilterDueDate(undefined);
   };
@@ -172,19 +170,18 @@ export default function Home() {
     
     return baseOrders.filter(order => {
       const ocnMatch = filterOcn ? order.ocn.toLowerCase().includes(filterOcn.toLowerCase()) : true;
-      const styleMatch = filterStyle ? order.style.toLowerCase().includes(filterStyle.toLowerCase()) : true;
       const buyerMatch = filterBuyer.length > 0 ? filterBuyer.includes(order.buyer) : true;
       const dueDateMatch = (() => {
         if (!filterDueDate || !filterDueDate.from) return true;
         if (!filterDueDate.to) return isSameDay(order.dueDate, filterDueDate.from);
         return order.dueDate >= filterDueDate.from && order.dueDate <= filterDueDate.to;
       })();
-      return ocnMatch && styleMatch && buyerMatch && dueDateMatch;
+      return ocnMatch && buyerMatch && dueDateMatch;
     });
 
-  }, [unplannedOrders, selectedProcessId, isOrderLevelView, sewingScheduledOrderIds, filterOcn, filterStyle, filterBuyer, filterDueDate]);
+  }, [unplannedOrders, selectedProcessId, isOrderLevelView, sewingScheduledOrderIds, filterOcn, filterBuyer, filterDueDate]);
 
-  const hasActiveFilters = filterOcn || filterStyle || filterBuyer.length > 0 || filterDueDate;
+  const hasActiveFilters = filterOcn || filterBuyer.length > 0 || filterDueDate;
   
   const handleBuyerFilterChange = (buyer: string) => {
     setFilterBuyer(prev => 
@@ -232,10 +229,6 @@ export default function Home() {
                             <div className="space-y-2">
                               <Label htmlFor="filter-ocn">OCN</Label>
                               <Input id="filter-ocn" placeholder="e.g. ZAR4531" value={filterOcn} onChange={e => setFilterOcn(e.target.value)} />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="filter-style">Style</Label>
-                              <Input id="filter-style" placeholder="e.g. Shirt" value={filterStyle} onChange={e => setFilterStyle(e.target.value)} />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="filter-buyer">Buyer</Label>
@@ -348,5 +341,3 @@ export default function Home() {
     </div>
   );
 }
-
-    
