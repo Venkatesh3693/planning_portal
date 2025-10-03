@@ -220,19 +220,23 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
     <div className="h-full w-full overflow-auto" ref={containerRef}>
         <div className="relative grid min-h-full" style={timelineGridStyle}>
             {/* Sticky Row Headers column background */}
-            <div className="sticky left-0 z-30 col-start-1 row-start-1 row-end-[-1] bg-card border-r"></div>
+            <div className="sticky left-0 z-30 col-start-1 row-start-1 row-end-[-1] bg-card"></div>
 
             {/* Empty Corner */}
-            <div className="sticky left-0 top-0 z-40 border-b border-r bg-card" style={{gridRowEnd: 'span 3'}}></div>
+            <div className="sticky left-0 top-0 z-40 border-b bg-card" style={{gridRowEnd: 'span 3'}}></div>
             
             {/* Row name headers */}
-            {rows.map((row) => {
+            {rows.map((row, rowIndex) => {
                 const position = rowPositions.get(row.id);
                 if (!position) return null;
+                const isEven = rowIndex % 2 === 0;
                 return (
                     <div 
                         key={row.id}
-                        className="sticky left-0 z-30 flex items-center justify-center p-2"
+                        className={cn(
+                          "sticky left-0 z-30 flex items-center justify-center p-2",
+                          isEven ? "bg-muted/30" : "bg-card"
+                        )}
                         style={{ gridRow: `${position.start + 3} / span ${position.span}`, gridColumn: 1 }}
                     >
                         <span className="font-semibold text-foreground text-sm">{row.name}</span>
@@ -262,9 +266,10 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
             ))}
             
             {/* Grid cells for dropping */}
-            {rows.flatMap((row) => {
+            {rows.flatMap((row, rowIndex) => {
                 const position = rowPositions.get(row.id);
                 if (!position) return [];
+                const isEven = rowIndex % 2 === 0;
                 
                 return dates.map((date, dateIndex) => (
                     <div
@@ -276,7 +281,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                             'border-b',
                             !isOrderLevelView && dragOverCell && dragOverCell.rowId === row.id && isSameDay(dragOverCell.date, date) 
                             ? 'bg-primary/20' 
-                            : 'bg-transparent',
+                            : isEven ? 'bg-muted/30' : 'bg-transparent',
                             !isOrderLevelView && 'hover:bg-primary/10',
                             'transition-colors duration-200'
                         )}
@@ -288,25 +293,32 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
             {/* Empty rows to fill space */}
             {Array.from({ length: numEmptyRows }).map((_, i) => {
               const gridRowStart = totalOccupiedRows + i + 4;
+              const isEven = (rows.length + i) % 2 === 0;
               return dates.map((date, dateIndex) => (
                 <div
                   key={`empty-${i}-${dateIndex}`}
-                  className="border-b"
+                  className={cn("border-b", isEven ? "bg-muted/30" : "bg-card")}
                   style={{ gridRow: gridRowStart, gridColumn: dateIndex + 2 }}
                 ></div>
               ));
             })}
             {/* Empty row headers for filler */}
-            {Array.from({ length: numEmptyRows }).map((_, i) => (
-              <div
-                key={`empty-header-${i}`}
-                className="sticky left-0 z-10 border-b"
-                style={{
-                  gridRow: totalOccupiedRows + i + 4,
-                  gridColumn: 1,
-                }}
-              ></div>
-            ))}
+            {Array.from({ length: numEmptyRows }).map((_, i) => {
+              const isEven = (rows.length + i) % 2 === 0;
+              return (
+                <div
+                  key={`empty-header-${i}`}
+                  className={cn(
+                    "sticky left-0 z-10 border-b",
+                    isEven ? "bg-muted/30" : "bg-card"
+                  )}
+                  style={{
+                    gridRow: totalOccupiedRows + i + 4,
+                    gridColumn: 1,
+                  }}
+                ></div>
+              );
+            })}
 
 
             {/* Scheduled processes */}
@@ -360,4 +372,5 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
     </div>
   );
 }
+
 
