@@ -43,10 +43,10 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { FilterDropdown } from '@/components/capacity/filter-dropdown';
 import { Badge } from '@/components/ui/badge';
-import { X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { X, PlusCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { cn } from '@/lib/utils';
 
 type MachineGroup = {
   process: Process;
@@ -56,13 +56,18 @@ type MachineGroup = {
   isMoveable: boolean;
 };
 
+type ReallocationEntry = {
+  unitId: string;
+  quantity: number;
+};
+
 type ReallocationState = {
   machineName: string;
-  fromUnitId: string;
-  toUnitId: string;
-  quantity: number;
-  maxQuantity: number;
+  sourceUnitId: string;
+  totalQuantity: number;
+  allocations: ReallocationEntry[];
 };
+
 
 export default function CapacityPage() {
   const [machines, setMachines] = useState<Machine[]>(MACHINES);
@@ -119,47 +124,106 @@ export default function CapacityPage() {
       return a.unit.name.localeCompare(a.unit.name);
     });
   }, [machines]);
+
+  const handleOpenReallocation = (group: MachineGroup) => {
+    setReallocationState({
+      machineName: group.name,
+      sourceUnitId: group.unit.id,
+      totalQuantity: group.quantity,
+      allocations: [
+        { unitId: group.unit.id, quantity: group.quantity },
+        { unitId: '', quantity: 0 },
+      ],
+    });
+  };
+
+  const handleAllocationChange = (index: number, newEntry: ReallocationEntry) => {
+    setReallocationState(prev => {
+      if (!prev) return null;
+      
+      const newAllocations = [...prev.allocations];
+      newAllocations[index] = newEntry;
+
+      const allocatedQuantity = newAllocations.slice(1).reduce((sum, alloc) => sum + alloc.quantity, 0);
+      newAllocations[0] = { ...newAllocations[0], quantity: prev.totalQuantity - allocatedQuantity };
+
+      return { ...prev, allocations: newAllocations };
+    });
+  };
+
+  const addAllocationRow = () => {
+    setReallocationState(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        allocations: [...prev.allocations, { unitId: '', quantity: 0 }],
+      };
+    });
+  };
+
+  const removeAllocationRow = (index: number) => {
+    setReallocationState(prev => {
+      if (!prev) return null;
+      const newAllocations = prev.allocations.filter((_, i) => i !== index);
+      const allocatedQuantity = newAllocations.slice(1).reduce((sum, alloc) => sum + alloc.quantity, 0);
+      newAllocations[0] = { ...newAllocations[0], quantity: prev.totalQuantity - allocatedQuantity };
+
+      return { ...prev, allocations: newAllocations };
+    });
+  };
   
-  const handleReallocate = () => {
-    if (!reallocationState || !reallocationState.toUnitId || reallocationState.quantity <= 0) return;
+  const handleConfirmReallocation = () => {
+    if (!reallocationState) return;
+    const { machineName, allocations } = reallocationState;
     
-    const { machineName, fromUnitId, toUnitId, quantity } = reallocationState;
-
     setMachines(prevMachines => {
-      const newMachines = [...prevMachines];
-      const machinesToMoveIndices: number[] = [];
+      let updatedMachines = [...prevMachines];
       
-      for (let i = 0; i < newMachines.length && machinesToMoveIndices.length < quantity; i++) {
-        const m = newMachines[i];
-        if (m.name.startsWith(machineName) && m.unitId === fromUnitId && m.isMoveable) {
-          machinesToMoveIndices.push(i);
-        }
-      }
+      // First, remove all moveable machines of this type from all units to create a pool
+      const machinePool = updatedMachines.filter(m => 
+        m.name.startsWith(machineName) && m.isMoveable
+      );
+      updatedMachines = updatedMachines.filter(m => 
+        !m.name.startsWith(machineName) || !m.isMoveable
+      );
 
-      if (machinesToMoveIndices.length === quantity) {
-        machinesToMoveIndices.forEach(index => {
-          newMachines[index] = { ...newMachines[index], unitId: toUnitId };
-        });
+      // Now, distribute the machines from the pool to the units as per the new allocations
+      const finalMachines = [...updatedMachines];
+      let poolIndex = 0;
+
+      allocations.forEach(({ unitId, quantity }) => {
+        if (!unitId || quantity === 0) return;
+
+        for (let i = 0; i < quantity; i++) {
+          if (poolIndex < machinePool.length) {
+            const machineToPlace = { ...machinePool[poolIndex], unitId: unitId };
+            finalMachines.push(machineToPlace);
+            poolIndex++;
+          }
+        }
+      });
+      
+      // Add back any remaining (un-allocated) moveable machines to their original unit to be safe
+      // Although ideally the pool should be empty
+      while(poolIndex < machinePool.length) {
+        finalMachines.push(machinePool[poolIndex]);
+        poolIndex++;
       }
       
-      return newMachines;
+      // Also add back the fixed machines for this machine type
+      const fixedMachines = prevMachines.filter(m => m.name.startsWith(machineName) && !m.isMoveable);
+      finalMachines.push(...fixedMachines);
+
+
+      return finalMachines;
     });
 
     setReallocationState(null);
-  }
+  };
 
-  const isReallocationSubmitDisabled = !reallocationState || !reallocationState.toUnitId || reallocationState.quantity <= 0 || reallocationState.quantity > reallocationState.maxQuantity;
-
-  useEffect(() => {
-    if (reallocationState) {
-      // Reset quantity if maxQuantity changes (e.g. user reopens dialog)
-      if (reallocationState.quantity > reallocationState.maxQuantity) {
-        setReallocationState(prev => prev ? { ...prev, quantity: prev.maxQuantity } : null);
-      }
-    }
-  }, [reallocationState]);
-
-
+  const remainingQuantity = reallocationState?.allocations[0]?.quantity ?? 0;
+  const isReallocationInvalid = remainingQuantity < 0 || reallocationState?.allocations.slice(1).some(a => !a.unitId && a.quantity > 0);
+  
   const processOptions = useMemo(() => [...new Set(allMachineGroups.map(g => g.process.name))], [allMachineGroups]);
   const machineTypeOptions = useMemo(() => [...new Set(allMachineGroups.map(g => g.name))], [allMachineGroups]);
   const unitOptions = useMemo(() => [...new Set(allMachineGroups.map(g => g.unit.name))], [allMachineGroups]);
@@ -198,6 +262,15 @@ export default function CapacityPage() {
         break;
     }
   };
+
+  const availableUnitsForAllocation = (index: number) => {
+    if (!reallocationState) return UNITS;
+    const usedUnitIds = reallocationState.allocations
+      .map(a => a.unitId)
+      .filter((id, i) => id && i !== index);
+    return UNITS.filter(u => !usedUnitIds.includes(u.id));
+  };
+
 
   return (
     <div className="flex h-screen flex-col">
@@ -265,13 +338,7 @@ export default function CapacityPage() {
                             {group.isMoveable ? (
                               <AlertDialogTrigger 
                                 asChild
-                                onClick={() => setReallocationState({
-                                    machineName: group.name,
-                                    fromUnitId: group.unit.id,
-                                    toUnitId: '',
-                                    quantity: 1,
-                                    maxQuantity: group.quantity
-                                })}
+                                onClick={() => handleOpenReallocation(group)}
                               >
                                 <span className="cursor-pointer font-medium text-primary hover:underline">
                                   {group.unit.name}
@@ -295,59 +362,90 @@ export default function CapacityPage() {
                     </TableBody>
                   </Table>
 
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Reallocate {reallocationState?.machineName}</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Move machines from {UNITS.find(u => u.id === reallocationState?.fromUnitId)?.name} to another unit. Up to {reallocationState?.maxQuantity} may be moved.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="toUnit">Move to</Label>
-                        <Select 
-                          value={reallocationState?.toUnitId}
-                          onValueChange={(value) => setReallocationState(prev => prev ? { ...prev, toUnitId: value } : null)}
-                        >
-                          <SelectTrigger id="toUnit">
-                            <SelectValue placeholder="Select new unit" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {UNITS.filter(u => u.id !== reallocationState?.fromUnitId).map(unit => (
-                              <SelectItem key={unit.id} value={unit.id}>
-                                {unit.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="quantity">Quantity</Label>
-                        <Input
-                          id="quantity"
-                          type="number"
-                          min="1"
-                          max={reallocationState?.maxQuantity}
-                          value={reallocationState?.quantity || 1}
-                          onChange={(e) => {
-                            const newQuantity = parseInt(e.target.value, 10) || 0;
-                            setReallocationState(prev => prev ? { ...prev, quantity: newQuantity } : null)
-                          }}
-                        />
-                        {reallocationState && reallocationState.quantity > reallocationState.maxQuantity && (
-                           <p className="text-sm text-destructive">Cannot exceed available moveable quantity.</p>
+                  {reallocationState && (
+                    <AlertDialogContent className="max-w-2xl">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Reallocate {reallocationState.machineName}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Distribute the total of {reallocationState.totalQuantity} machines across different units.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      
+                      <div className="space-y-4 py-4">
+                        <div className="grid grid-cols-[1fr_100px_40px] items-center gap-x-4 gap-y-2 text-sm font-medium text-muted-foreground px-4">
+                          <span>Unit</span>
+                          <span className="text-right">Quantity</span>
+                          <span></span>
+                        </div>
+
+                        {reallocationState.allocations.map((alloc, index) => (
+                          <div key={index} className="grid grid-cols-[1fr_100px_40px] items-center gap-x-4 px-4">
+                            {index === 0 ? (
+                              <Input
+                                readOnly
+                                value={UNITS.find(u => u.id === alloc.unitId)?.name || 'Source Unit'}
+                                className="border-none bg-transparent shadow-none px-0"
+                              />
+                            ) : (
+                              <Select
+                                value={alloc.unitId}
+                                onValueChange={(unitId) => handleAllocationChange(index, { ...alloc, unitId })}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select unit" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {availableUnitsForAllocation(index).map(unit => (
+                                    <SelectItem key={unit.id} value={unit.id}>
+                                      {unit.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+
+                            <Input
+                              type="number"
+                              min="0"
+                              max={reallocationState.totalQuantity}
+                              value={alloc.quantity}
+                              readOnly={index === 0}
+                              onChange={(e) => {
+                                const newQuantity = parseInt(e.target.value, 10) || 0;
+                                handleAllocationChange(index, { ...alloc, quantity: newQuantity });
+                              }}
+                              className="text-right"
+                            />
+
+                            {index > 0 && (
+                               <Button variant="ghost" size="icon" onClick={() => removeAllocationRow(index)} className="justify-self-center">
+                                <X className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                         
+                        {remainingQuantity < 0 && (
+                          <p className="px-4 text-sm text-destructive">Total allocated quantity cannot exceed {reallocationState.totalQuantity}.</p>
                         )}
+                        
+                        <div className="px-4">
+                          <Button variant="link" size="sm" onClick={addAllocationRow} className="p-0 h-auto">
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            Add unit
+                          </Button>
+                        </div>
+
                       </div>
-                    </div>
-                    
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleReallocate} disabled={isReallocationSubmitDisabled}>
-                        Confirm
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
+                      
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleConfirmReallocation} disabled={isReallocationInvalid}>
+                          Confirm
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  )}
 
                 </AlertDialog>
             </CardContent>
@@ -357,3 +455,5 @@ export default function CapacityPage() {
     </div>
   );
 }
+
+    
