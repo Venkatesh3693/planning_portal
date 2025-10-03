@@ -21,6 +21,8 @@ type GanttChartProps = {
   isOrderLevelView?: boolean;
 };
 
+const ROW_HEIGHT = 32; // Corresponds to h-8, assuming 1rem = 16px
+
 const assignLanes = (processes: ScheduledProcess[]): { process: ScheduledProcess; lane: number }[] => {
   if (!processes.length) return [];
   
@@ -55,6 +57,19 @@ const assignLanes = (processes: ScheduledProcess[]): { process: ScheduledProcess
 
 export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, onUndoSchedule, isOrderLevelView = false }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [containerHeight, setContainerHeight] = React.useState(0);
+
+  React.useEffect(() => {
+    const measureContainer = () => {
+      if (containerRef.current) {
+        setContainerHeight(containerRef.current.offsetHeight);
+      }
+    };
+    measureContainer();
+    window.addEventListener('resize', measureContainer);
+    return () => window.removeEventListener('resize', measureContainer);
+  }, []);
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>, rowId: string, date: Date) => {
     e.preventDefault();
@@ -112,11 +127,17 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
     return positions;
   }, [rows, isOrderLevelView, maxLanesPerRow]);
 
-  const totalGridRows = Array.from(rowPositions.values()).reduce((sum, pos) => sum + pos.span, 0);
+  const totalOccupiedRows = Array.from(rowPositions.values()).reduce((sum, pos) => sum + pos.span, 0);
 
+  const headerHeight = 44 * 3; // Approximate height of 3 header rows
+  const remainingHeight = containerHeight - headerHeight - (totalOccupiedRows * ROW_HEIGHT);
+  const numEmptyRows = Math.max(0, Math.floor(remainingHeight / ROW_HEIGHT));
+
+  const totalGridRows = totalOccupiedRows + numEmptyRows;
+  
   const timelineGridStyle = {
     gridTemplateColumns: `12rem repeat(${dates.length}, minmax(3rem, 1fr))`,
-    gridTemplateRows: `auto auto auto repeat(${totalGridRows}, minmax(2rem, auto)) 1fr`,
+    gridTemplateRows: `auto auto auto repeat(${totalGridRows || 1}, ${ROW_HEIGHT}px)`,
   };
 
   const months = React.useMemo(() => {
@@ -167,13 +188,13 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
 
 
   return (
-    <div className="h-full w-full overflow-auto">
+    <div className="h-full w-full overflow-auto" ref={containerRef}>
         <div className="relative grid min-h-full" style={timelineGridStyle}>
             {/* Sticky Row Headers column background */}
-            <div className="sticky left-0 z-30 col-start-1 row-start-1 row-end-[-1] bg-card border-r"></div>
+            <div className="sticky left-0 z-20 col-start-1 row-start-1 row-end-[-1] bg-card border-r"></div>
 
             {/* Empty Corner */}
-            <div className="sticky left-0 top-0 z-40 border-b bg-card" style={{gridRowEnd: 'span 3'}}></div>
+            <div className="sticky left-0 top-0 z-30 border-b bg-card" style={{gridRowEnd: 'span 3'}}></div>
             
             {/* Row name headers */}
             {rows.map((row) => {
@@ -182,7 +203,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                 return (
                     <div 
                         key={row.id}
-                        className="sticky left-0 z-30 flex items-center justify-start border-b p-2"
+                        className="sticky left-0 z-20 flex items-center justify-start p-2 h-8"
                         style={{ gridRow: `${position.start + 3} / span ${position.span}`, gridColumn: 1 }}
                     >
                         <span className="font-semibold text-foreground text-sm">{row.name}</span>
@@ -223,7 +244,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                         onDragLeave={handleDragLeave}
                         onDrop={(e) => handleDrop(e, row.id, date)}
                         className={cn(
-                            'border-b border-r',
+                            'border-b',
                             !isOrderLevelView && dragOverCell && dragOverCell.rowId === row.id && isSameDay(dragOverCell.date, date) 
                             ? 'bg-primary/20' 
                             : 'bg-transparent',
@@ -235,13 +256,26 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                 ))
             })}
             
-            {/* Filler row to take up remaining space */}
-            <div className="sticky left-0 z-30" style={{ gridRow: totalGridRows + 4, gridColumn: 1 }}></div>
-            {dates.map((_, index) => (
+            {/* Empty rows to fill space */}
+            {Array.from({ length: numEmptyRows }).map((_, i) => {
+              const gridRowStart = totalOccupiedRows + i + 4;
+              return dates.map((date, dateIndex) => (
+                <div
+                  key={`empty-${i}-${dateIndex}`}
+                  className="border-b"
+                  style={{ gridRow: gridRowStart, gridColumn: dateIndex + 2 }}
+                ></div>
+              ));
+            })}
+            {/* Empty row headers for filler */}
+            {Array.from({ length: numEmptyRows }).map((_, i) => (
               <div
-                key={`filler-${index}`}
-                className="border-r"
-                style={{ gridRow: totalGridRows + 4, gridColumn: index + 2 }}
+                key={`empty-header-${i}`}
+                className="sticky left-0 z-10 border-b"
+                style={{
+                  gridRow: totalOccupiedRows + i + 4,
+                  gridColumn: 1,
+                }}
               ></div>
             ))}
 
