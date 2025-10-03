@@ -6,7 +6,6 @@ import { format, isSameDay, getWeek, getMonth, getYear } from 'date-fns';
 import type { ScheduledProcess } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import ScheduledProcessBar from './scheduled-process';
-import { ScrollArea } from '../ui/scroll-area';
 
 type Row = {
   id: string;
@@ -116,14 +115,9 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
   const totalGridRows = Array.from(rowPositions.values()).reduce((sum, pos) => sum + pos.span, 0);
 
   const timelineGridStyle = {
-    gridTemplateColumns: `repeat(${dates.length}, minmax(3rem, 1fr))`,
+    gridTemplateColumns: `12rem repeat(${dates.length}, minmax(3rem, 1fr))`,
     gridTemplateRows: `auto auto auto repeat(${totalGridRows}, minmax(2rem, auto))`,
   };
-  
-  const rowHeadersGridStyle = {
-    gridTemplateRows: `auto auto auto repeat(${totalGridRows}, minmax(2rem, auto))`
-  };
-
 
   const months = React.useMemo(() => {
     const monthSpans: { name: string; start: number; span: number }[] = [];
@@ -132,7 +126,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
     let currentMonth = getMonth(dates[0]);
     let currentYear = getYear(dates[0]);
     let span = 0;
-    let start = 1;
+    let start = 2; // Start after row header column
 
     dates.forEach((date, index) => {
       if (getMonth(date) === currentMonth && getYear(date) === currentYear) {
@@ -141,7 +135,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
         monthSpans.push({ name: format(new Date(currentYear, currentMonth), "MMM ''yy"), start, span });
         currentMonth = getMonth(date);
         currentYear = getYear(date);
-        start = index + 1;
+        start = index + 2;
         span = 1;
       }
     });
@@ -155,7 +149,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
 
       let currentWeek = getWeek(dates[0]);
       let span = 0;
-      let start = 1;
+      let start = 2; // Start after row header column
 
       dates.forEach((date, index) => {
           if (getWeek(date) === currentWeek) {
@@ -163,7 +157,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
           } else {
               weekSpans.push({ name: `W${currentWeek}`, start, span });
               currentWeek = getWeek(date);
-              start = index + 1;
+              start = index + 2;
               span = 1;
           }
       });
@@ -173,130 +167,122 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
 
 
   return (
-    <div className="flex h-full w-full">
-        {/* Sticky Row Headers */}
-        <div className="sticky left-0 z-20 w-[12rem] shrink-0 bg-card">
-            <div className="grid" style={rowHeadersGridStyle}>
-                {/* Empty Corner */}
-                <div className="border-b border-r" style={{gridRowEnd: 'span 3'}}></div>
-                
-                {/* Row name headers */}
-                {rows.map((row) => {
-                    const position = rowPositions.get(row.id);
-                    if (!position) return null;
-                    return (
-                        <div 
-                            key={row.id}
-                            className="flex items-center justify-start border-b border-r p-2"
-                            style={{ gridRow: `${position.start + 3} / span ${position.span}`, gridColumn: 1 }}
-                        >
-                            <span className="font-semibold text-foreground text-sm">{row.name}</span>
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
+    <div className="h-full w-full overflow-auto">
+        <div className="relative grid" style={timelineGridStyle}>
+            {/* Sticky Row Headers column background */}
+            <div className="sticky left-0 z-20 col-start-1 row-start-1 row-end-[-1] bg-card border-r"></div>
 
-        {/* Scrolling Timeline Area */}
-        <div className="flex-1 overflow-x-auto">
-            <div className="grid" style={timelineGridStyle}>
-                {/* Month headers */}
-                {months.map(({name, start, span}) => (
-                    <div key={name} className="sticky top-0 z-10 border-b bg-card/95 py-0.5 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 1 }}>
-                        <span className="text-xs font-semibold text-foreground">{name}</span>
+            {/* Empty Corner */}
+            <div className="sticky left-0 top-0 z-30 border-b bg-card" style={{gridRowEnd: 'span 3'}}></div>
+            
+            {/* Row name headers */}
+            {rows.map((row) => {
+                const position = rowPositions.get(row.id);
+                if (!position) return null;
+                return (
+                    <div 
+                        key={row.id}
+                        className="sticky left-0 z-20 flex items-center justify-start border-b p-2"
+                        style={{ gridRow: `${position.start + 3} / span ${position.span}`, gridColumn: 1 }}
+                    >
+                        <span className="font-semibold text-foreground text-sm">{row.name}</span>
                     </div>
-                ))}
+                );
+            })}
+        
+            {/* Month headers */}
+            {months.map(({name, start, span}) => (
+                <div key={name} className="sticky top-0 z-10 border-b bg-card/95 py-0.5 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 1 }}>
+                    <span className="text-xs font-semibold text-foreground">{name}</span>
+                </div>
+            ))}
+            
+            {/* Week headers */}
+            {weeks.map(({name, start, span}) => (
+                <div key={name} className="sticky top-[1.35rem] z-10 border-b bg-card/95 py-0.5 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 2}}>
+                    <span className="text-xs font-medium text-muted-foreground">{name}</span>
+                </div>
+            ))}
+
+            {/* Day headers */}
+            {dates.map((date, i) => (
+                <div key={i} className="sticky top-[2.7rem] z-10 border-b border-r bg-card/95 py-0.5 text-center backdrop-blur-sm" style={{gridColumn: i + 2, gridRow: 3}}>
+                    <div className="text-xs font-semibold text-foreground">{format(date, 'd')}</div>
+                </div>
+            ))}
+            
+            {/* Grid cells for dropping */}
+            {rows.flatMap((row) => {
+                const position = rowPositions.get(row.id);
+                if (!position) return [];
                 
-                {/* Week headers */}
-                {weeks.map(({name, start, span}) => (
-                    <div key={name} className="sticky top-[1.35rem] z-10 border-b bg-card/95 py-0.5 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 2}}>
-                        <span className="text-xs font-medium text-muted-foreground">{name}</span>
-                    </div>
-                ))}
+                return dates.map((date, dateIndex) => (
+                    <div
+                        key={`${row.id}-${dateIndex}`}
+                        onDragOver={(e) => handleDragOver(e, row.id, date)}
+                        onDragLeave={handleDragLeave}
+                        onDrop={(e) => handleDrop(e, row.id, date)}
+                        className={cn(
+                            'border-b',
+                            !isOrderLevelView && dragOverCell && dragOverCell.rowId === row.id && isSameDay(dragOverCell.date, date) 
+                            ? 'bg-primary/20' 
+                            : 'bg-transparent',
+                            !isOrderLevelView && 'hover:bg-primary/10',
+                            'transition-colors duration-200'
+                        )}
+                        style={{ gridRow: `${position.start + 3} / span ${position.span}`, gridColumn: dateIndex + 2 }}
+                    ></div>
+                ))
+            })}
 
-                {/* Day headers */}
-                {dates.map((date, i) => (
-                    <div key={i} className="sticky top-[2.7rem] z-10 border-b border-r bg-card/95 py-0.5 text-center backdrop-blur-sm" style={{gridColumn: i + 1, gridRow: 3}}>
-                        <div className="text-xs font-semibold text-foreground">{format(date, 'd')}</div>
-                    </div>
-                ))}
+            {/* Scheduled processes */}
+            {isOrderLevelView
+            ? Array.from(laneAssignments.entries()).flatMap(([rowId, assignments]) => {
+                const rowPosition = rowPositions.get(rowId);
+                if (!rowPosition) return [];
                 
-                {/* Grid cells for dropping */}
-                {rows.flatMap((row) => {
-                    const position = rowPositions.get(row.id);
-                    if (!position) return [];
-                    
-                    return dates.map((date, dateIndex) => (
-                        <div
-                            key={`${row.id}-${dateIndex}`}
-                            onDragOver={(e) => handleDragOver(e, row.id, date)}
-                            onDragLeave={handleDragLeave}
-                            onDrop={(e) => handleDrop(e, row.id, date)}
-                            className={cn(
-                                'border-b',
-                                dateIndex < dates.length -1 ? 'border-r' : '',
-                                !isOrderLevelView && dragOverCell && dragOverCell.rowId === row.id && isSameDay(dragOverCell.date, date) 
-                                ? 'bg-primary/20' 
-                                : 'bg-transparent',
-                                !isOrderLevelView && 'hover:bg-primary/10',
-                                'transition-colors duration-200'
-                            )}
-                            style={{ gridRow: `${position.start + 3} / span ${position.span}`, gridColumn: dateIndex + 1 }}
-                        ></div>
-                    ))
-                })}
-
-
-                {/* Scheduled processes */}
-                {isOrderLevelView
-                ? Array.from(laneAssignments.entries()).flatMap(([rowId, assignments]) => {
-                    const rowPosition = rowPositions.get(rowId);
-                    if (!rowPosition) return [];
-                    
-                    return assignments.map(({ process, lane }) => {
-                        const dateIndex = dates.findIndex(d => isSameDay(d, process.startDate));
-                        if (dateIndex === -1) return null;
-
-                        const gridRow = rowPosition.start + lane + 3;
-                        const gridColStart = dateIndex + 1;
-
-                        return (
-                        <ScheduledProcessBar 
-                            key={process.id} 
-                            item={process} 
-                            gridRow={gridRow} 
-                            gridColStart={gridColStart}
-                            onUndo={onUndoSchedule}
-                            isOrderLevelView={isOrderLevelView}
-                        />
-                        );
-                    });
-                    })
-                : scheduledProcesses.map((item) => {
-                    const rowId = item.machineId;
-                    const rowPosition = rowPositions.get(rowId);
-                    if (!rowPosition) return null;
-                    
-                    const dateIndex = dates.findIndex(d => isSameDay(d, item.startDate));
+                return assignments.map(({ process, lane }) => {
+                    const dateIndex = dates.findIndex(d => isSameDay(d, process.startDate));
                     if (dateIndex === -1) return null;
-                    
-                    const gridRow = rowPosition.start + 3;
-                    const gridColStart = dateIndex + 1;
+
+                    const gridRow = rowPosition.start + lane + 3;
+                    const gridColStart = dateIndex + 2; // +2 for row header col
 
                     return (
-                        <ScheduledProcessBar 
-                        key={item.id} 
-                        item={item} 
+                    <ScheduledProcessBar 
+                        key={process.id} 
+                        item={process} 
                         gridRow={gridRow} 
                         gridColStart={gridColStart}
                         onUndo={onUndoSchedule}
                         isOrderLevelView={isOrderLevelView}
-                        />
+                    />
                     );
-                    })}
-            </div>
+                });
+                })
+            : scheduledProcesses.map((item) => {
+                const rowId = item.machineId;
+                const rowPosition = rowPositions.get(rowId);
+                if (!rowPosition) return null;
+                
+                const dateIndex = dates.findIndex(d => isSameDay(d, item.startDate));
+                if (dateIndex === -1) return null;
+                
+                const gridRow = rowPosition.start + 3;
+                const gridColStart = dateIndex + 2; // +2 for row header col
+
+                return (
+                    <ScheduledProcessBar 
+                    key={item.id} 
+                    item={item} 
+                    gridRow={gridRow} 
+                    gridColStart={gridColStart}
+                    onUndo={onUndoSchedule}
+                    isOrderLevelView={isOrderLevelView}
+                    />
+                );
+            })}
         </div>
     </div>
   );
 }
-
