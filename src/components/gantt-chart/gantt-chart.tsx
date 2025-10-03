@@ -116,7 +116,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
 
   const timelineGridStyle = {
     gridTemplateColumns: `12rem repeat(${dates.length}, minmax(3rem, 1fr))`,
-    gridTemplateRows: `auto auto auto repeat(${totalGridRows}, minmax(2rem, auto))`,
+    gridTemplateRows: `auto auto auto repeat(${totalGridRows}, minmax(2rem, auto)) 1fr`,
   };
 
   const months = React.useMemo(() => {
@@ -168,12 +168,12 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
 
   return (
     <div className="h-full w-full overflow-auto">
-        <div className="relative grid" style={timelineGridStyle}>
+        <div className="relative grid min-h-full" style={timelineGridStyle}>
             {/* Sticky Row Headers column background */}
-            <div className="sticky left-0 z-20 col-start-1 row-start-1 row-end-[-1] bg-card border-r"></div>
+            <div className="sticky left-0 z-30 col-start-1 row-start-1 row-end-[-1] bg-card border-r"></div>
 
             {/* Empty Corner */}
-            <div className="sticky left-0 top-0 z-30 border-b bg-card" style={{gridRowEnd: 'span 3'}}></div>
+            <div className="sticky left-0 top-0 z-40 border-b bg-card" style={{gridRowEnd: 'span 3'}}></div>
             
             {/* Row name headers */}
             {rows.map((row) => {
@@ -182,7 +182,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                 return (
                     <div 
                         key={row.id}
-                        className="sticky left-0 z-20 flex items-center justify-start border-b p-2"
+                        className="sticky left-0 z-30 flex items-center justify-start border-b p-2"
                         style={{ gridRow: `${position.start + 3} / span ${position.span}`, gridColumn: 1 }}
                     >
                         <span className="font-semibold text-foreground text-sm">{row.name}</span>
@@ -192,21 +192,21 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
         
             {/* Month headers */}
             {months.map(({name, start, span}) => (
-                <div key={name} className="sticky top-0 z-10 border-b bg-card/95 py-0.5 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 1 }}>
+                <div key={name} className="sticky top-0 z-20 border-b bg-card/95 py-0.5 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 1 }}>
                     <span className="text-xs font-semibold text-foreground">{name}</span>
                 </div>
             ))}
             
             {/* Week headers */}
             {weeks.map(({name, start, span}) => (
-                <div key={name} className="sticky top-[1.35rem] z-10 border-b bg-card/95 py-0.5 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 2}}>
+                <div key={name} className="sticky top-[1.35rem] z-20 border-b bg-card/95 py-0.5 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 2}}>
                     <span className="text-xs font-medium text-muted-foreground">{name}</span>
                 </div>
             ))}
 
             {/* Day headers */}
             {dates.map((date, i) => (
-                <div key={i} className="sticky top-[2.7rem] z-10 border-b border-r bg-card/95 py-0.5 text-center backdrop-blur-sm" style={{gridColumn: i + 2, gridRow: 3}}>
+                <div key={i} className="sticky top-[2.7rem] z-20 border-b border-r bg-card/95 py-0.5 text-center backdrop-blur-sm" style={{gridColumn: i + 2, gridRow: 3}}>
                     <div className="text-xs font-semibold text-foreground">{format(date, 'd')}</div>
                 </div>
             ))}
@@ -223,7 +223,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                         onDragLeave={handleDragLeave}
                         onDrop={(e) => handleDrop(e, row.id, date)}
                         className={cn(
-                            'border-b',
+                            'border-b border-r',
                             !isOrderLevelView && dragOverCell && dragOverCell.rowId === row.id && isSameDay(dragOverCell.date, date) 
                             ? 'bg-primary/20' 
                             : 'bg-transparent',
@@ -234,6 +234,17 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                     ></div>
                 ))
             })}
+            
+            {/* Filler row to take up remaining space */}
+            <div className="sticky left-0 z-30" style={{ gridRow: totalGridRows + 4, gridColumn: 1 }}></div>
+            {dates.map((_, index) => (
+              <div
+                key={`filler-${index}`}
+                className="border-r"
+                style={{ gridRow: totalGridRows + 4, gridColumn: index + 2 }}
+              ></div>
+            ))}
+
 
             {/* Scheduled processes */}
             {isOrderLevelView
