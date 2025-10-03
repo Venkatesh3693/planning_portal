@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { format, isSameDay, addDays, areIntervalsOverlapping } from 'date-fns';
+import { format, isSameDay, areIntervalsOverlapping } from 'date-fns';
 import type { ScheduledProcess } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import ScheduledProcessBar from './scheduled-process';
@@ -81,8 +81,6 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
     return maxLanes;
   }, [isOrderLevelView, rows, laneAssignments]);
   
-  let gridRowCounter = 2; // Start after header
-
   const rowPositions = useMemo(() => {
     const positions = new Map<string, { start: number, span: number }>();
     let counter = 2;
@@ -98,18 +96,18 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
 
   const gridStyle = {
     gridTemplateColumns: `12rem repeat(${dates.length}, minmax(4.5rem, 1fr))`,
-    gridTemplateRows: `auto repeat(${totalGridRows}, minmax(3rem, 1fr))`,
+    gridTemplateRows: `auto repeat(${totalGridRows}, minmax(2.5rem, 1fr))`,
   };
 
   return (
     <div className="relative h-full w-full">
       <div className="grid" style={gridStyle}>
         {/* Empty corner */}
-        <div className="sticky left-0 top-0 z-20 border-b border-r bg-card"></div>
+        <div className="sticky left-0 top-0 z-20 border-b border-r border-border/50 bg-card"></div>
         
         {/* Date headers */}
         {dates.map((date, i) => (
-          <div key={i} className="sticky top-0 z-10 border-b border-r bg-card/95 p-2 text-center backdrop-blur-sm">
+          <div key={i} className="sticky top-0 z-10 border-b border-r border-border/50 bg-card/95 p-2 text-center backdrop-blur-sm">
             <div className="text-xs font-medium text-muted-foreground">{format(date, 'E')}</div>
             <div className="text-lg font-semibold text-foreground">{format(date, 'd')}</div>
           </div>
@@ -124,10 +122,10 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
             <React.Fragment key={row.id}>
               {/* Row name header */}
               <div 
-                className="sticky left-0 z-10 flex items-center justify-start border-b border-r bg-card/95 p-3 backdrop-blur-sm"
+                className="sticky left-0 z-10 flex items-center justify-start border-b border-r border-border/50 bg-card/95 p-2 backdrop-blur-sm"
                 style={{ gridRow: `${position.start} / span ${position.span}`, gridColumn: 1 }}
               >
-                <span className="font-semibold text-foreground">{row.name}</span>
+                <span className="font-semibold text-foreground text-sm">{row.name}</span>
               </div>
               
               {/* Grid cells for dropping */}
@@ -138,10 +136,10 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                   onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, row.id, date)}
                   className={cn(
-                    'border-b border-r',
+                    'border-b border-r border-border/50',
                     !isOrderLevelView && dragOverCell && dragOverCell.rowId === row.id && isSameDay(dragOverCell.date, date) 
                       ? 'bg-accent/30' 
-                      : 'bg-background/50',
+                      : 'bg-transparent',
                     !isOrderLevelView && 'hover:bg-secondary/50',
                     'transition-colors duration-200'
                   )}

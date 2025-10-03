@@ -31,7 +31,7 @@ export default function ScheduledProcessBar({ item, gridRow, gridColStart, onUnd
   const bar = (
     <div
       className={cn(
-        "z-10 flex items-center overflow-hidden rounded-md m-1 h-[calc(100%-0.5rem)] text-white shadow-lg transition-all duration-300 ease-in-out",
+        "z-10 flex items-center overflow-hidden rounded-md m-0.5 h-[calc(100%-0.25rem)] text-white shadow-lg transition-all duration-300 ease-in-out",
         !isOrderLevelView && "cursor-context-menu",
       )}
       style={{
@@ -49,9 +49,9 @@ export default function ScheduledProcessBar({ item, gridRow, gridColStart, onUnd
       }}
       title={durationText}
     >
-      <div className="flex items-center gap-2 px-3">
-        <Icon className="h-4 w-4 shrink-0" />
-        <span className="truncate text-sm font-medium">{isOrderLevelView ? processDetails.name : orderDetails.id}</span>
+      <div className="flex items-center gap-2 px-2">
+        <Icon className="h-3 w-3 shrink-0" />
+        <span className="truncate text-xs font-medium">{isOrderLevelView ? processDetails.name : orderDetails.id}</span>
       </div>
     </div>
   );
