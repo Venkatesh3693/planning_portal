@@ -31,7 +31,7 @@ export default function ScheduledProcessBar({ item, gridRow, gridColStart, onUnd
   const bar = (
     <div
       className={cn(
-        "z-10 flex items-center overflow-hidden rounded-md m-0.5 h-[calc(100%-0.25rem)] text-white shadow-lg transition-all duration-200 ease-in-out",
+        "z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg transition-all duration-200 ease-in-out",
         !isOrderLevelView && "cursor-context-menu hover:scale-[1.02] hover:brightness-95",
       )}
       style={{
@@ -54,8 +54,8 @@ export default function ScheduledProcessBar({ item, gridRow, gridColStart, onUnd
         <PopoverTrigger asChild style={{
           gridRowStart: gridRow,
           gridColumn: `${gridColStart} / span ${item.durationDays}`,
-          height: 'calc(100% - 0.25rem)',
-          margin: '0.125rem',
+          height: 'calc(100% - 0.125rem)',
+          margin: '1px',
         }}>
           {bar}
         </PopoverTrigger>

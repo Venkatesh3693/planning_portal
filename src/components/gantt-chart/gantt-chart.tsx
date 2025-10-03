@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { format, isSameDay } from 'date-fns';
+import { format, isSameDay, getWeek, getMonth, getYear } from 'date-fns';
 import type { ScheduledProcess } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import ScheduledProcessBar from './scheduled-process';
@@ -83,7 +83,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
   
   const rowPositions = useMemo(() => {
     const positions = new Map<string, { start: number, span: number }>();
-    let counter = 2;
+    let counter = 4; // Start after 3 header rows
     rows.forEach(row => {
         const span = isOrderLevelView ? (maxLanesPerRow.get(row.id) || 1) : 1;
         positions.set(row.id, { start: counter, span });
@@ -95,21 +95,82 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
   const totalGridRows = Array.from(rowPositions.values()).reduce((sum, pos) => sum + pos.span, 0);
 
   const gridStyle = {
-    gridTemplateColumns: `12rem repeat(${dates.length}, minmax(4.5rem, 1fr))`,
-    gridTemplateRows: `auto repeat(${totalGridRows}, minmax(2.5rem, auto))`,
+    gridTemplateColumns: `12rem repeat(${dates.length}, minmax(3rem, 1fr))`,
+    gridTemplateRows: `auto auto auto repeat(${totalGridRows}, minmax(2rem, auto))`,
   };
+
+  const months = useMemo(() => {
+    const monthSpans: { name: string; start: number; span: number }[] = [];
+    if (dates.length === 0) return monthSpans;
+
+    let currentMonth = getMonth(dates[0]);
+    let currentYear = getYear(dates[0]);
+    let span = 0;
+    let start = 2;
+
+    dates.forEach((date, index) => {
+      if (getMonth(date) === currentMonth && getYear(date) === currentYear) {
+        span++;
+      } else {
+        monthSpans.push({ name: format(new Date(currentYear, currentMonth), 'MMMM yyyy'), start, span });
+        currentMonth = getMonth(date);
+        currentYear = getYear(date);
+        start = index + 2;
+        span = 1;
+      }
+    });
+    monthSpans.push({ name: format(new Date(currentYear, currentMonth), 'MMMM yyyy'), start, span });
+    return monthSpans;
+  }, [dates]);
+  
+  const weeks = useMemo(() => {
+      const weekSpans: { name: string; start: number; span: number }[] = [];
+      if (dates.length === 0) return weekSpans;
+
+      let currentWeek = getWeek(dates[0]);
+      let span = 0;
+      let start = 2;
+
+      dates.forEach((date, index) => {
+          if (getWeek(date) === currentWeek) {
+              span++;
+          } else {
+              weekSpans.push({ name: `W${currentWeek}`, start, span });
+              currentWeek = getWeek(date);
+              start = index + 2;
+              span = 1;
+          }
+      });
+      weekSpans.push({ name: `W${currentWeek}`, start, span });
+      return weekSpans;
+  }, [dates]);
+
 
   return (
     <div className="relative h-full w-full">
       <div className="grid" style={gridStyle}>
         {/* Empty corner */}
-        <div className="sticky left-0 top-0 z-20 border-b border-r border-border/50 bg-card"></div>
+        <div className="sticky left-0 top-0 z-20 border-r border-border/50 bg-card" style={{gridRowEnd: 'span 3'}}></div>
         
-        {/* Date headers */}
+        {/* Month headers */}
+        {months.map(({name, start, span}) => (
+          <div key={name} className="sticky top-0 z-10 border-b border-border/50 bg-card/95 p-1 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 1 }}>
+            <span className="text-xs font-semibold text-foreground">{name}</span>
+          </div>
+        ))}
+        
+        {/* Week headers */}
+        {weeks.map(({name, start, span}) => (
+            <div key={name} className="sticky top-[2rem] z-10 border-b border-border/50 bg-card/95 p-1 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 2}}>
+                <span className="text-xs font-medium text-muted-foreground">{name}</span>
+            </div>
+        ))}
+
+        {/* Day headers */}
         {dates.map((date, i) => (
-          <div key={i} className="sticky top-0 z-10 border-b border-border/50 bg-card/95 p-2 text-center backdrop-blur-sm">
+          <div key={i} className="sticky top-[4rem] z-10 border-b border-border/50 bg-card/95 p-1 text-center backdrop-blur-sm" style={{gridRow: 3}}>
             <div className="text-xs font-medium text-muted-foreground">{format(date, 'E')}</div>
-            <div className="text-lg font-semibold text-foreground">{format(date, 'd')}</div>
+            <div className="text-sm font-semibold text-foreground">{format(date, 'd')}</div>
           </div>
         ))}
 
@@ -122,7 +183,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
             <React.Fragment key={row.id}>
               {/* Row name header */}
               <div 
-                className="sticky left-0 z-10 flex items-center justify-start border-b border-r border-border/50 bg-card/95 p-2 backdrop-blur-sm"
+                className="sticky left-0 z-10 flex items-center justify-start border-r border-border/50 bg-card/95 p-2 backdrop-blur-sm"
                 style={{ gridRow: `${position.start} / span ${position.span}`, gridColumn: 1 }}
               >
                 <span className="font-semibold text-foreground text-sm">{row.name}</span>
