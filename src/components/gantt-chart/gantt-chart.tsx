@@ -220,7 +220,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
     <div className="h-full w-full overflow-auto" ref={containerRef}>
         <div className="relative grid min-h-full" style={timelineGridStyle}>
             {/* Sticky Row Headers column background */}
-            <div className="sticky left-0 z-30 col-start-1 row-start-1 row-end-[-1] bg-card"></div>
+            <div className="sticky left-0 z-30 col-start-1 row-start-1 row-end-[-1] bg-primary/10"></div>
 
             {/* Empty Corner */}
             <div className="sticky left-0 top-0 z-40 border-b border-r bg-card" style={{gridRowEnd: 'span 3'}}></div>
@@ -235,7 +235,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                         key={row.id}
                         className={cn(
                           "sticky left-0 z-30 flex items-center justify-center p-2",
-                          isEven ? "bg-primary/5" : "bg-card"
+                          isEven ? "bg-primary/20" : "bg-primary/10"
                         )}
                         style={{ gridRow: `${position.start + 3} / span ${position.span}`, gridColumn: 1 }}
                     >
@@ -310,7 +310,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                   key={`empty-header-${i}`}
                   className={cn(
                     "sticky left-0 z-10 border-b",
-                    isEven ? "bg-primary/5" : "bg-card"
+                    isEven ? "bg-primary/20" : "bg-primary/10"
                   )}
                   style={{
                     gridRow: totalOccupiedRows + i + 4,
