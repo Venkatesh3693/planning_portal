@@ -1,5 +1,5 @@
 
-"use client";
+'use client';
 
 import { useState, useRef } from 'react';
 import { addDays, startOfToday } from 'date-fns';
@@ -11,8 +11,9 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { WORK_DAY_MINUTES } from '@/lib/data';
 import { cn } from '@/lib/utils';
-import { PanelLeftClose, PanelRightClose } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PanelLeftClose, PanelRightClose } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const ORDER_LEVEL_VIEW = 'order-level';
 const SEWING_PROCESS_ID = 'sewing';
@@ -144,77 +145,87 @@ export default function Home() {
       <Header 
         isOrdersPanelVisible={isOrdersPanelVisible}
         setIsOrdersPanelVisible={setIsOrdersPanelVisible}
-        processes={selectableProcesses}
-        selectedProcessId={selectedProcessId}
-        onProcessChange={setSelectedProcessId}
       />
-      <main className="flex-1 overflow-hidden">
-        <div className={cn(
-            "grid h-full items-start p-4 gap-4",
-            isOrdersPanelVisible ? "grid-cols-[20rem_1fr]" : "grid-cols-[1fr]"
-          )}>
-          
-          {isOrdersPanelVisible && (
-              <Card className="h-full">
-                <CardHeader>
-                  <CardTitle>Orders</CardTitle>
-                </CardHeader>
-                <CardContent className="h-[calc(100%-4.5rem)]">
-                  <ScrollArea className="h-full pr-4">
-                    <div className="space-y-2 p-2 pt-0" ref={ordersListRef}>
-                      {filteredUnplannedOrders.map((order) => {
-                        const unscheduled = getUnscheduledProcessesForOrder(order);
-                        const canDrag = unscheduled.some(p => p.id === selectedProcessId);
-
-                        if (!canDrag) return null;
-
-                        return (
-                          <div
-                            key={order.id}
-                            draggable
-                            onDragStart={(e) => handleDragStart(e, order.id, selectedProcessId)}
-                            onDragEnd={handleDragEnd}
-                            onMouseEnter={() => setHoveredOrderId(order.id)}
-                            onMouseLeave={() => setHoveredOrderId(null)}
-                            className={cn(
-                              "cursor-grab active:cursor-grabbing p-2 text-sm font-medium text-card-foreground rounded-md",
-                              "hover:bg-primary/10"
-                            )}
-                            title={order.id}
-                          >
-                            {order.id}
-                          </div>
-                        )
-                      })}
-                      {filteredUnplannedOrders.length === 0 && (
-                        <div className="flex h-full items-center justify-center text-center">
-                          <p className="text-sm text-muted-foreground">
-                            {selectedProcessId === SEWING_PROCESS_ID
-                              ? "No orders to schedule for sewing."
-                              : "Schedule sewing for orders to see them here."
-                            }
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </ScrollArea>
-                </CardContent>
-              </Card>
-          )}
-          
+      <main className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex-shrink-0 border-b p-4">
+          <Tabs value={selectedProcessId} onValueChange={setSelectedProcessId}>
+            <TabsList>
+              {selectableProcesses.map(process => (
+                <TabsTrigger key={process.id} value={process.id}>
+                  {process.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        </div>
+        <div className="flex-1 overflow-hidden p-4">
           <div className={cn(
-            "h-full flex-1 overflow-auto rounded-lg border bg-card",
-            !isOrdersPanelVisible && "col-span-1"
+              "grid h-full items-start gap-4",
+              isOrdersPanelVisible ? "grid-cols-[20rem_1fr]" : "grid-cols-[1fr]"
             )}>
-              <GanttChart 
-                  rows={chartRows} 
-                  dates={dates}
-                  scheduledProcesses={chartProcesses}
-                  onDrop={handleDropOnChart}
-                  onUndoSchedule={handleUndoSchedule}
-                  isOrderLevelView={isOrderLevelView}
-                />
-            </div>
+            
+            {isOrdersPanelVisible && (
+                <Card className="h-full">
+                  <CardHeader>
+                    <CardTitle>Orders</CardTitle>
+                  </CardHeader>
+                  <CardContent className="h-[calc(100%-4.5rem)]">
+                    <ScrollArea className="h-full pr-4">
+                      <div className="space-y-2 p-2 pt-0" ref={ordersListRef}>
+                        {filteredUnplannedOrders.map((order) => {
+                          const unscheduled = getUnscheduledProcessesForOrder(order);
+                          const canDrag = unscheduled.some(p => p.id === selectedProcessId);
+
+                          if (!canDrag) return null;
+
+                          return (
+                            <div
+                              key={order.id}
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, order.id, selectedProcessId)}
+                              onDragEnd={handleDragEnd}
+                              onMouseEnter={() => setHoveredOrderId(order.id)}
+                              onMouseLeave={() => setHoveredOrderId(null)}
+                              className={cn(
+                                "cursor-grab active:cursor-grabbing p-2 text-sm font-medium text-card-foreground rounded-md",
+                                "hover:bg-primary/10"
+                              )}
+                              title={order.id}
+                            >
+                              {order.id}
+                            </div>
+                          )
+                        })}
+                        {filteredUnplannedOrders.length === 0 && (
+                          <div className="flex h-full items-center justify-center text-center">
+                            <p className="text-sm text-muted-foreground">
+                              {selectedProcessId === SEWING_PROCESS_ID
+                                ? "No orders to schedule for sewing."
+                                : "Schedule sewing for orders to see them here."
+                              }
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </CardContent>
+                </Card>
+            )}
+            
+            <div className={cn(
+              "h-full flex-1 overflow-auto rounded-lg border bg-card",
+              !isOrdersPanelVisible && "col-span-1"
+              )}>
+                <GanttChart 
+                    rows={chartRows} 
+                    dates={dates}
+                    scheduledProcesses={chartProcesses}
+                    onDrop={handleDropOnChart}
+                    onUndoSchedule={handleUndoSchedule}
+                    isOrderLevelView={isOrderLevelView}
+                  />
+              </div>
+          </div>
         </div>
       </main>
     </div>

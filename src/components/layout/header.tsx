@@ -3,25 +3,17 @@
 
 import { Factory, PanelLeftOpen, PanelRightOpen, Settings } from 'lucide-react';
 import Link from 'next/link';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { Process } from '@/lib/types';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
 type HeaderProps = {
-  processes?: Pick<Process, 'id' | 'name'>[];
-  selectedProcessId?: string;
-  onProcessChange?: (processId: string) => void;
   isOrdersPanelVisible?: boolean;
   setIsOrdersPanelVisible?: (visible: boolean | ((prevState: boolean) => boolean)) => void;
 };
 
 export function Header({ 
-  processes, 
-  selectedProcessId, 
-  onProcessChange,
   isOrdersPanelVisible,
   setIsOrdersPanelVisible,
 }: HeaderProps) {
@@ -53,25 +45,6 @@ export function Header({
             </Link>
           </div>
           <div className="flex items-center gap-4">
-            {isHomePage && processes && selectedProcessId && onProcessChange && (
-              <>
-                <label htmlFor="process-selector" className="text-sm font-medium text-muted-foreground">
-                  Process
-                </label>
-                <Select value={selectedProcessId} onValueChange={onProcessChange}>
-                  <SelectTrigger id="process-selector" className="w-[180px] ring-offset-background focus:ring-0 focus:ring-offset-0">
-                    <SelectValue placeholder="Select a process" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {processes.map((process) => (
-                      <SelectItem key={process.id} value={process.id}>
-                        {process.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </>
-            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="ring-offset-background focus-visible:ring-0 focus-visible:ring-offset-0">
