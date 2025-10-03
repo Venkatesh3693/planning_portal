@@ -3,7 +3,7 @@
 
 import * as React from "react"
 import { format } from "date-fns"
-import { Calendar as CalendarIcon } from "lucide-react"
+import { Calendar as CalendarIcon, X } from "lucide-react"
 import { DateRange } from "react-day-picker"
 
 import { cn } from "@/lib/utils"
@@ -16,38 +16,61 @@ import {
 } from "@/components/ui/popover"
 
 type DatePickerProps = {
-  date?: Date | DateRange;
+  date?: DateRange;
   setDate: (date: DateRange | undefined) => void;
   className?: string;
 };
 
 export function DatePicker({ date, setDate, className }: DatePickerProps) {
-  const dateRange = date as DateRange | undefined;
-  
+  const [isOpen, setIsOpen] = React.useState(false);
+
+  const handleSelect = (selectedDate: DateRange | undefined) => {
+    setDate(selectedDate);
+    // Auto-close popover if a full range is selected
+    if (selectedDate?.from && selectedDate?.to) {
+      setIsOpen(false);
+    }
+  };
+
+  const handleClear = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    setDate(undefined);
+  };
+
   return (
-    <Popover>
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <Button
           id="date"
           variant={"outline"}
           className={cn(
-            "w-full justify-start text-left font-normal",
+            "w-full justify-start text-left font-normal relative",
             !date && "text-muted-foreground",
             className
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {dateRange?.from ? (
-            dateRange.to ? (
+          {date?.from ? (
+            date.to ? (
               <>
-                {format(dateRange.from, "LLL dd, y")} -{" "}
-                {format(dateRange.to, "LLL dd, y")}
+                {format(date.from, "LLL dd, y")} -{" "}
+                {format(date.to, "LLL dd, y")}
               </>
             ) : (
-              format(dateRange.from, "LLL dd, y")
+              format(date.from, "LLL dd, y")
             )
           ) : (
             <span>Pick a date range</span>
+          )}
+          {date && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-1 h-6 w-6"
+              onClick={handleClear}
+            >
+              <X className="h-4 w-4" />
+            </Button>
           )}
         </Button>
       </PopoverTrigger>
@@ -55,12 +78,14 @@ export function DatePicker({ date, setDate, className }: DatePickerProps) {
         <Calendar
           initialFocus
           mode="range"
-          defaultMonth={dateRange?.from}
-          selected={dateRange}
-          onSelect={setDate}
+          defaultMonth={date?.from}
+          selected={date}
+          onSelect={handleSelect}
           numberOfMonths={2}
         />
       </PopoverContent>
     </Popover>
   )
 }
+
+    

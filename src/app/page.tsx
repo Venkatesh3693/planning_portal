@@ -41,7 +41,7 @@ export default function Home() {
   const ordersListRef = useRef<HTMLDivElement>(null);
   const [filterOcn, setFilterOcn] = useState('');
   const [filterBuyer, setFilterBuyer] = useState<string[]>([]);
-  const [filterDueDate, setFilterDueDate] = useState<DateRange | undefined>();
+  const [filterDueDate, setFilterDueDate] = useState<DateRange | undefined>(undefined);
 
   const buyerOptions = useMemo(() => [...new Set(ORDERS.map(o => o.buyer))], []);
 
@@ -174,7 +174,7 @@ export default function Home() {
       return ocnMatch && buyerMatch && dueDateMatch;
     });
 
-  }, [unplannedOrders, selectedProcessId, isOrderLevelView, sewingScheduledOrderIds, filterOcn, filterBuyer, filterDueDate]);
+  }, [unplannedOrders, selectedProcessId, isOrderLevelView, sewingScheduledOrderIds, getUnscheduledProcessesForOrder, filterOcn, filterBuyer, filterDueDate]);
 
   const hasActiveFilters = !!(filterOcn || filterBuyer.length > 0 || filterDueDate);
   
