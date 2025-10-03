@@ -40,13 +40,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { FilterDropdown } from '@/components/capacity/filter-dropdown';
 import { Badge } from '@/components/ui/badge';
 import { X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
 
 type MachineGroup = {
   process: Process;
@@ -237,118 +237,120 @@ export default function CapacityPage() {
                     ))}
                   </div>
                 )}
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>
-                        <FilterDropdown title="Process" options={processOptions} selected={selectedProcesses} onSelectedChange={setSelectedProcesses} />
-                      </TableHead>
-                      <TableHead>
-                        <FilterDropdown title="Machine" options={machineTypeOptions} selected={selectedMachineTypes} onSelectedChange={setSelectedMachineTypes} />
-                      </TableHead>
-                      <TableHead>
-                        <FilterDropdown title="Unit" options={unitOptions} selected={selectedUnits} onSelectedChange={setSelectedUnitsState} />
-                      </TableHead>
-                      <TableHead>
-                        <FilterDropdown title="Mobility" options={mobilityOptions} selected={selectedMobilities} onSelectedChange={setSelectedMobilities} />
-                      </TableHead>
-                      <TableHead className="text-right">Quantity</TableHead>
-                      <TableHead className="w-[120px]"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredMachineGroups.map((group, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">{group.process.name}</TableCell>
-                        <TableCell>{group.name}</TableCell>
-                        <TableCell>{group.unit.name}</TableCell>
-                        <TableCell>{group.moveableQuantity > 0 ? `${group.moveableQuantity} Moveable` : 'Fixed'}</TableCell>
-                        <TableCell className="text-right">{group.quantity}</TableCell>
-                        <TableCell>
-                          <AlertDialog onOpenChange={(isOpen) => !isOpen && setReallocationState(null)}>
-                            <AlertDialogTrigger asChild>
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                disabled={!group.isMoveable}
+                <AlertDialog onOpenChange={(isOpen) => !isOpen && setReallocationState(null)}>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>
+                          <FilterDropdown title="Process" options={processOptions} selected={selectedProcesses} onSelectedChange={setSelectedProcesses} />
+                        </TableHead>
+                        <TableHead>
+                          <FilterDropdown title="Machine" options={machineTypeOptions} selected={selectedMachineTypes} onSelectedChange={setSelectedMachineTypes} />
+                        </TableHead>
+                        <TableHead>
+                          <FilterDropdown title="Unit" options={unitOptions} selected={selectedUnits} onSelectedChange={setSelectedUnitsState} />
+                        </TableHead>
+                        <TableHead>
+                          <FilterDropdown title="Mobility" options={mobilityOptions} selected={selectedMobilities} onSelectedChange={setSelectedMobilities} />
+                        </TableHead>
+                        <TableHead className="text-right">Quantity</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredMachineGroups.map((group, index) => (
+                        <TableRow key={index}>
+                          <TableCell className="font-medium">{group.process.name}</TableCell>
+                          <TableCell>{group.name}</TableCell>
+                          <TableCell>
+                            {group.isMoveable ? (
+                              <AlertDialogTrigger 
+                                asChild
                                 onClick={() => setReallocationState({
-                                  machineName: group.name,
-                                  fromUnitId: group.unit.id,
-                                  toUnitId: '',
-                                  quantity: 1,
-                                  maxQuantity: group.moveableQuantity
+                                    machineName: group.name,
+                                    fromUnitId: group.unit.id,
+                                    toUnitId: '',
+                                    quantity: 1,
+                                    maxQuantity: group.moveableQuantity
                                 })}
                               >
-                                Reallocate
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Reallocate {reallocationState?.machineName}</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Move machines from {group.unit.name} to another unit. Up to {reallocationState?.maxQuantity} may be moved.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              
-                              <div className="space-y-4">
-                                <div className="space-y-2">
-                                  <Label htmlFor="toUnit">Move to</Label>
-                                  <Select 
-                                    value={reallocationState?.toUnitId}
-                                    onValueChange={(value) => setReallocationState(prev => prev ? { ...prev, toUnitId: value } : null)}
-                                  >
-                                    <SelectTrigger id="toUnit">
-                                      <SelectValue placeholder="Select new unit" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {UNITS.filter(u => u.id !== group.unit.id).map(unit => (
-                                        <SelectItem key={unit.id} value={unit.id}>
-                                          {unit.name}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="space-y-2">
-                                  <Label htmlFor="quantity">Quantity</Label>
-                                  <Input
-                                    id="quantity"
-                                    type="number"
-                                    min="1"
-                                    max={reallocationState?.maxQuantity}
-                                    value={reallocationState?.quantity || 1}
-                                    onChange={(e) => {
-                                      const newQuantity = parseInt(e.target.value, 10) || 0;
-                                      setReallocationState(prev => prev ? { ...prev, quantity: newQuantity } : null)
-                                    }}
-                                  />
-                                  {reallocationState && reallocationState.quantity > reallocationState.maxQuantity && (
-                                     <p className="text-sm text-destructive">Cannot exceed available moveable quantity.</p>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleReallocate} disabled={isReallocationSubmitDisabled}>
-                                  Confirm
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {filteredMachineGroups.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={6} className="h-24 text-center">
-                          No results found.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
+                                <span className="cursor-pointer font-medium text-primary hover:underline">
+                                  {group.unit.name}
+                                </span>
+                              </AlertDialogTrigger>
+                            ) : (
+                              <span>{group.unit.name}</span>
+                            )}
+                          </TableCell>
+                          <TableCell>{group.moveableQuantity > 0 ? `${group.moveableQuantity} Moveable` : 'Fixed'}</TableCell>
+                          <TableCell className="text-right">{group.quantity}</TableCell>
+                        </TableRow>
+                      ))}
+                      {filteredMachineGroups.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="h-24 text-center">
+                            No results found.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Reallocate {reallocationState?.machineName}</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Move machines from {UNITS.find(u => u.id === reallocationState?.fromUnitId)?.name} to another unit. Up to {reallocationState?.maxQuantity} may be moved.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="toUnit">Move to</Label>
+                        <Select 
+                          value={reallocationState?.toUnitId}
+                          onValueChange={(value) => setReallocationState(prev => prev ? { ...prev, toUnitId: value } : null)}
+                        >
+                          <SelectTrigger id="toUnit">
+                            <SelectValue placeholder="Select new unit" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {UNITS.filter(u => u.id !== reallocationState?.fromUnitId).map(unit => (
+                              <SelectItem key={unit.id} value={unit.id}>
+                                {unit.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="quantity">Quantity</Label>
+                        <Input
+                          id="quantity"
+                          type="number"
+                          min="1"
+                          max={reallocationState?.maxQuantity}
+                          value={reallocationState?.quantity || 1}
+                          onChange={(e) => {
+                            const newQuantity = parseInt(e.target.value, 10) || 0;
+                            setReallocationState(prev => prev ? { ...prev, quantity: newQuantity } : null)
+                          }}
+                        />
+                        {reallocationState && reallocationState.quantity > reallocationState.maxQuantity && (
+                           <p className="text-sm text-destructive">Cannot exceed available moveable quantity.</p>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleReallocate} disabled={isReallocationSubmitDisabled}>
+                        Confirm
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+
+                </AlertDialog>
+            </CardContent>
           </Card>
         </div>
       </main>
