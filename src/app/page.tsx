@@ -1,8 +1,8 @@
 
 'use client';
 
-import { useState, useRef } from 'react';
-import { addDays, startOfToday, format } from 'date-fns';
+import { useState, useRef, useMemo } from 'react';
+import { addDays, startOfToday, format, isSameDay } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, ORDERS, PROCESSES } from '@/lib/data';
@@ -11,9 +11,26 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { WORK_DAY_MINUTES } from '@/lib/data';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { PanelLeftClose, PanelRightClose } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { DatePicker } from '@/components/ui/date-picker';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Button } from '@/components/ui/button';
+import { FilterX } from 'lucide-react';
+
 
 const ORDER_LEVEL_VIEW = 'order-level';
 const SEWING_PROCESS_ID = 'sewing';
@@ -25,6 +42,12 @@ export default function Home() {
   const [hoveredOrderId, setHoveredOrderId] = useState<string | null>(null);
   const [isOrdersPanelVisible, setIsOrdersPanelVisible] = useState(true);
   const ordersListRef = useRef<HTMLDivElement>(null);
+  const [filterOcn, setFilterOcn] = useState('');
+  const [filterStyle, setFilterStyle] = useState('');
+  const [filterBuyer, setFilterBuyer] = useState('');
+  const [filterDueDate, setFilterDueDate] = useState<Date | undefined>();
+
+  const buyerOptions = useMemo(() => [...new Set(ORDERS.map(o => o.buyer))], []);
 
 
   const handleDropOnChart = (orderId: string, processId: string, machineId: string, date: Date) => {
@@ -123,22 +146,39 @@ export default function Home() {
     .filter(p => p.processId === SEWING_PROCESS_ID)
     .map(p => p.orderId);
 
-  const filteredUnplannedOrders = isOrderLevelView
-    ? []
-    : selectedProcessId === SEWING_PROCESS_ID
-      ? unplannedOrders.filter(order => {
-          const unscheduled = getUnscheduledProcessesForOrder(order);
-          return unscheduled.some(p => p.id === selectedProcessId);
-        })
-      : unplannedOrders.filter(order => {
-          // For other processes, only show orders if sewing is already scheduled
-          const isSewingScheduled = sewingScheduledOrderIds.includes(order.id);
-          if (!isSewingScheduled) return false;
+  const clearFilters = () => {
+    setFilterOcn('');
+    setFilterStyle('');
+    setFilterBuyer('');
+    setFilterDueDate(undefined);
+  };
 
-          // And the current process is unscheduled for this order
-          const unscheduled = getUnscheduledProcessesForOrder(order);
-          return unscheduled.some(p => p.id === selectedProcessId);
-        });
+  const filteredUnplannedOrders = useMemo(() => {
+    let baseOrders = isOrderLevelView
+      ? []
+      : selectedProcessId === SEWING_PROCESS_ID
+        ? unplannedOrders.filter(order => {
+            const unscheduled = getUnscheduledProcessesForOrder(order);
+            return unscheduled.some(p => p.id === selectedProcessId);
+          })
+        : unplannedOrders.filter(order => {
+            const isSewingScheduled = sewingScheduledOrderIds.includes(order.id);
+            if (!isSewingScheduled) return false;
+            const unscheduled = getUnscheduledProcessesForOrder(order);
+            return unscheduled.some(p => p.id === selectedProcessId);
+          });
+    
+    return baseOrders.filter(order => {
+      const ocnMatch = filterOcn ? order.ocn.toLowerCase().includes(filterOcn.toLowerCase()) : true;
+      const styleMatch = filterStyle ? order.style.toLowerCase().includes(filterStyle.toLowerCase()) : true;
+      const buyerMatch = filterBuyer ? order.buyer === filterBuyer : true;
+      const dueDateMatch = filterDueDate ? isSameDay(order.dueDate, filterDueDate) : true;
+      return ocnMatch && styleMatch && buyerMatch && dueDateMatch;
+    });
+
+  }, [unplannedOrders, selectedProcessId, isOrderLevelView, sewingScheduledOrderIds, filterOcn, filterStyle, filterBuyer, filterDueDate]);
+
+  const hasActiveFilters = filterOcn || filterStyle || filterBuyer || filterDueDate;
 
   return (
     <div className="flex h-screen flex-col">
@@ -170,7 +210,48 @@ export default function Home() {
                     <CardTitle>Orders</CardTitle>
                   </CardHeader>
                   <CardContent className="h-[calc(100%-4.5rem)]">
-                    <ScrollArea className="h-full pr-4">
+                    <div className="px-2 pb-2">
+                       <Accordion type="single" collapsible>
+                        <AccordionItem value="filters" className="border-b-0">
+                          <AccordionTrigger className="py-2 text-sm hover:no-underline">Filters</AccordionTrigger>
+                          <AccordionContent className="space-y-4 pt-2">
+                            <div className="space-y-2">
+                              <Label htmlFor="filter-ocn">OCN</Label>
+                              <Input id="filter-ocn" placeholder="e.g. ZAR4531" value={filterOcn} onChange={e => setFilterOcn(e.target.value)} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="filter-style">Style</Label>
+                              <Input id="filter-style" placeholder="e.g. Shirt" value={filterStyle} onChange={e => setFilterStyle(e.target.value)} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="filter-buyer">Buyer</Label>
+                                <Select value={filterBuyer} onValueChange={setFilterBuyer}>
+                                  <SelectTrigger id="filter-buyer">
+                                    <SelectValue placeholder="All Buyers" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {buyerOptions.map(buyer => (
+                                      <SelectItem key={buyer} value={buyer}>{buyer}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                            </div>
+                             <div className="space-y-2">
+                                <Label>Due Date</Label>
+                                <DatePicker date={filterDueDate} setDate={setFilterDueDate} />
+                             </div>
+                             {hasActiveFilters && (
+                                <Button variant="ghost" size="sm" onClick={clearFilters} className="w-full justify-start text-destructive hover:text-destructive px-0">
+                                  <FilterX className="mr-2 h-4 w-4" />
+                                  Clear Filters
+                                </Button>
+                              )}
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
+                    </div>
+
+                    <ScrollArea className="h-[calc(100%-4rem)] pr-4">
                       <div className="space-y-2 p-2 pt-0" ref={ordersListRef}>
                         {filteredUnplannedOrders.map((order) => {
                           const unscheduled = getUnscheduledProcessesForOrder(order);
@@ -205,9 +286,11 @@ export default function Home() {
                         {filteredUnplannedOrders.length === 0 && (
                           <div className="flex h-full items-center justify-center text-center">
                             <p className="text-sm text-muted-foreground">
-                              {selectedProcessId === SEWING_PROCESS_ID
-                                ? "No orders to schedule for sewing."
-                                : "Schedule sewing for orders to see them here."
+                              {hasActiveFilters
+                                ? "No orders match your filters."
+                                : selectedProcessId === SEWING_PROCESS_ID
+                                  ? "No orders to schedule for sewing."
+                                  : "Schedule sewing for orders to see them here."
                               }
                             </p>
                           </div>
