@@ -144,73 +144,68 @@ export default function Home() {
       <Header />
       <main className="flex-1 overflow-hidden">
         <div className={cn(
-            "grid h-full gap-6 p-4 sm:p-6 lg:p-8",
-            isOrdersPanelVisible ? "grid-cols-[auto_1fr]" : "grid-cols-[auto_1fr]"
+            "grid h-full items-start gap-4 p-4 sm:p-6 lg:p-8",
+            isOrdersPanelVisible ? "grid-cols-[20rem_auto_1fr]" : "grid-cols-[0_auto_1fr]"
           )}>
-          {!isOrderLevelView && (
-            <div className={cn("transition-all duration-300", isOrdersPanelVisible ? "w-80" : "w-12")}>
-              {isOrdersPanelVisible ? (
-                <Card className="w-80">
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle>Orders</CardTitle>
-                    <Button variant="ghost" size="icon" onClick={() => setIsOrdersPanelVisible(false)}>
-                      <PanelLeftClose className="h-5 w-5" />
-                    </Button>
-                  </CardHeader>
-                  <CardContent className="h-[calc(100%-4.5rem)]">
-                    <ScrollArea className="h-full pr-4">
-                      <div className="space-y-2 p-2 pt-0" ref={ordersListRef}>
-                        {filteredUnplannedOrders.map((order) => {
-                          const unscheduled = getUnscheduledProcessesForOrder(order);
-                          const canDrag = unscheduled.some(p => p.id === selectedProcessId);
+          
+          <div className={cn("transition-all duration-300 overflow-hidden", isOrdersPanelVisible ? "w-80" : "w-0")}>
+              <Card className="w-80 h-full">
+                <CardHeader>
+                  <CardTitle>Orders</CardTitle>
+                </CardHeader>
+                <CardContent className="h-[calc(100%-4.5rem)]">
+                  <ScrollArea className="h-full pr-4">
+                    <div className="space-y-2 p-2 pt-0" ref={ordersListRef}>
+                      {filteredUnplannedOrders.map((order) => {
+                        const unscheduled = getUnscheduledProcessesForOrder(order);
+                        const canDrag = unscheduled.some(p => p.id === selectedProcessId);
 
-                          if (!canDrag) return null;
+                        if (!canDrag) return null;
 
-                          return (
-                            <div
-                              key={order.id}
-                              draggable
-                              onDragStart={(e) => handleDragStart(e, order.id, selectedProcessId)}
-                              onDragEnd={handleDragEnd}
-                              onMouseEnter={() => setHoveredOrderId(order.id)}
-                              onMouseLeave={() => setHoveredOrderId(null)}
-                              className={cn(
-                                "cursor-grab active:cursor-grabbing p-2 text-sm font-medium text-card-foreground rounded-md",
-                                "hover:bg-primary/10"
-                              )}
-                              title={order.id}
-                            >
-                              {order.id}
-                            </div>
-                          )
-                        })}
-                        {filteredUnplannedOrders.length === 0 && (
-                          <div className="flex h-full items-center justify-center">
-                            <p className="text-sm text-muted-foreground">
-                              {selectedProcessId === SEWING_PROCESS_ID
-                                ? "No orders to schedule for sewing."
-                                : "Schedule sewing for orders to see them here."
-                              }
-                            </p>
+                        return (
+                          <div
+                            key={order.id}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, order.id, selectedProcessId)}
+                            onDragEnd={handleDragEnd}
+                            onMouseEnter={() => setHoveredOrderId(order.id)}
+                            onMouseLeave={() => setHoveredOrderId(null)}
+                            className={cn(
+                              "cursor-grab active:cursor-grabbing p-2 text-sm font-medium text-card-foreground rounded-md",
+                              "hover:bg-primary/10"
+                            )}
+                            title={order.id}
+                          >
+                            {order.id}
                           </div>
-                        )}
-                      </div>
-                    </ScrollArea>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="flex justify-center">
-                  <Button variant="ghost" size="icon" onClick={() => setIsOrdersPanelVisible(true)}>
-                    <PanelRightClose className="h-5 w-5" />
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
+                        )
+                      })}
+                      {filteredUnplannedOrders.length === 0 && (
+                        <div className="flex h-full items-center justify-center text-center">
+                          <p className="text-sm text-muted-foreground">
+                            {selectedProcessId === SEWING_PROCESS_ID
+                              ? "No orders to schedule for sewing."
+                              : "Schedule sewing for orders to see them here."
+                            }
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+          </div>
+          
+          <div className="flex justify-center">
+            <Button variant="ghost" size="icon" onClick={() => setIsOrdersPanelVisible(prev => !prev)}>
+                {isOrdersPanelVisible ? <PanelLeftClose className="h-5 w-5" /> : <PanelRightClose className="h-5 w-5" />}
+            </Button>
+          </div>
 
           <div className={cn(
             "h-full overflow-auto rounded-lg border bg-card",
-            isOrderLevelView && 'col-span-2'
+            isOrderLevelView && !isOrdersPanelVisible && "col-span-3",
+            isOrderLevelView && isOrdersPanelVisible && "col-span-2"
             )}>
               <GanttChart 
                   rows={chartRows} 
