@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -45,18 +45,29 @@ import { Card, CardContent } from '@/components/ui/card';
 import { FilterDropdown } from '@/components/capacity/filter-dropdown';
 import { Badge } from '@/components/ui/badge';
 import { X } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 type MachineGroup = {
   process: Process;
   name: string;
   unit: Unit;
   quantity: number;
+  moveableQuantity: number;
   isMoveable: boolean;
+};
+
+type ReallocationState = {
+  machineName: string;
+  fromUnitId: string;
+  toUnitId: string;
+  quantity: number;
+  maxQuantity: number;
 };
 
 export default function CapacityPage() {
   const [machines, setMachines] = useState<Machine[]>(MACHINES);
-  const [selectedUnit, setSelectedUnit] = useState<string>('');
+  const [reallocationState, setReallocationState] = useState<ReallocationState | null>(null);
 
   const [selectedProcesses, setSelectedProcesses] = useState<string[]>([]);
   const [selectedMachineTypes, setSelectedMachineTypes] = useState<string[]>([]);
@@ -82,13 +93,22 @@ export default function CapacityPage() {
             name: machineType,
             unit: unit,
             quantity: 0,
-            isMoveable: machine.isMoveable,
+            moveableQuantity: 0,
+            isMoveable: false, // Will be updated below
           };
         }
         machineGroupsByUnit[machineType][unit.id].quantity++;
+        if (machine.isMoveable) {
+          machineGroupsByUnit[machineType][unit.id].moveableQuantity++;
+        }
       });
   
-      return Object.values(machineGroupsByUnit).flatMap(unitGroup => Object.values(unitGroup));
+      // Determine overall movability for the group
+      return Object.values(machineGroupsByUnit).flatMap(unitGroup => Object.values(unitGroup).map(group => ({
+        ...group,
+        isMoveable: group.moveableQuantity > 0,
+      })));
+
     }).sort((a, b) => {
       if (a.process.name !== b.process.name) {
         return a.process.name.localeCompare(b.process.name);
@@ -100,27 +120,45 @@ export default function CapacityPage() {
     });
   }, [machines]);
   
-  const handleReallocate = (machineName: string, fromUnitId: string) => {
-    if (!selectedUnit) return;
+  const handleReallocate = () => {
+    if (!reallocationState || !reallocationState.toUnitId || reallocationState.quantity <= 0) return;
     
+    const { machineName, fromUnitId, toUnitId, quantity } = reallocationState;
+
     setMachines(prevMachines => {
       const newMachines = [...prevMachines];
-      const machineToMoveIndex = newMachines.findIndex(m => 
-        m.name.startsWith(machineName) && m.unitId === fromUnitId && m.isMoveable
-      );
+      const machinesToMoveIndices: number[] = [];
+      
+      for (let i = 0; i < newMachines.length && machinesToMoveIndices.length < quantity; i++) {
+        const m = newMachines[i];
+        if (m.name.startsWith(machineName) && m.unitId === fromUnitId && m.isMoveable) {
+          machinesToMoveIndices.push(i);
+        }
+      }
 
-      if (machineToMoveIndex > -1) {
-        newMachines[machineToMoveIndex] = {
-          ...newMachines[machineToMoveIndex],
-          unitId: selectedUnit
-        };
+      if (machinesToMoveIndices.length === quantity) {
+        machinesToMoveIndices.forEach(index => {
+          newMachines[index] = { ...newMachines[index], unitId: toUnitId };
+        });
       }
       
       return newMachines;
     });
 
-    setSelectedUnit('');
+    setReallocationState(null);
   }
+
+  const isReallocationSubmitDisabled = !reallocationState || !reallocationState.toUnitId || reallocationState.quantity <= 0 || reallocationState.quantity > reallocationState.maxQuantity;
+
+  useEffect(() => {
+    if (reallocationState) {
+      // Reset quantity if maxQuantity changes (e.g. user reopens dialog)
+      if (reallocationState.quantity > reallocationState.maxQuantity) {
+        setReallocationState(prev => prev ? { ...prev, quantity: prev.maxQuantity } : null);
+      }
+    }
+  }, [reallocationState]);
+
 
   const processOptions = useMemo(() => [...new Set(allMachineGroups.map(g => g.process.name))], [allMachineGroups]);
   const machineTypeOptions = useMemo(() => [...new Set(allMachineGroups.map(g => g.name))], [allMachineGroups]);
@@ -224,37 +262,75 @@ export default function CapacityPage() {
                         <TableCell className="font-medium">{group.process.name}</TableCell>
                         <TableCell>{group.name}</TableCell>
                         <TableCell>{group.unit.name}</TableCell>
-                        <TableCell>{group.isMoveable ? 'Moveable' : 'Fixed'}</TableCell>
+                        <TableCell>{group.moveableQuantity > 0 ? `${group.moveableQuantity} Moveable` : 'Fixed'}</TableCell>
                         <TableCell className="text-right">{group.quantity}</TableCell>
                         <TableCell>
-                          <AlertDialog onOpenChange={() => setSelectedUnit('')}>
+                          <AlertDialog onOpenChange={(isOpen) => !isOpen && setReallocationState(null)}>
                             <AlertDialogTrigger asChild>
-                              <Button variant="outline" size="sm" disabled={!group.isMoveable}>
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                disabled={!group.isMoveable}
+                                onClick={() => setReallocationState({
+                                  machineName: group.name,
+                                  fromUnitId: group.unit.id,
+                                  toUnitId: '',
+                                  quantity: 1,
+                                  maxQuantity: group.moveableQuantity
+                                })}
+                              >
                                 Reallocate
                               </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Reallocate {group.name}</AlertDialogTitle>
+                                <AlertDialogTitle>Reallocate {reallocationState?.machineName}</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Select a new unit to move this machine to.
+                                  Move machines from {group.unit.name} to another unit. Up to {reallocationState?.maxQuantity} may be moved.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
-                              <Select onValueChange={setSelectedUnit}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select new unit" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {UNITS.filter(u => u.id !== group.unit.id).map(unit => (
-                                    <SelectItem key={unit.id} value={unit.id}>
-                                      {unit.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              
+                              <div className="space-y-4">
+                                <div className="space-y-2">
+                                  <Label htmlFor="toUnit">Move to</Label>
+                                  <Select 
+                                    value={reallocationState?.toUnitId}
+                                    onValueChange={(value) => setReallocationState(prev => prev ? { ...prev, toUnitId: value } : null)}
+                                  >
+                                    <SelectTrigger id="toUnit">
+                                      <SelectValue placeholder="Select new unit" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {UNITS.filter(u => u.id !== group.unit.id).map(unit => (
+                                        <SelectItem key={unit.id} value={unit.id}>
+                                          {unit.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="quantity">Quantity</Label>
+                                  <Input
+                                    id="quantity"
+                                    type="number"
+                                    min="1"
+                                    max={reallocationState?.maxQuantity}
+                                    value={reallocationState?.quantity || 1}
+                                    onChange={(e) => {
+                                      const newQuantity = parseInt(e.target.value, 10) || 0;
+                                      setReallocationState(prev => prev ? { ...prev, quantity: newQuantity } : null)
+                                    }}
+                                  />
+                                  {reallocationState && reallocationState.quantity > reallocationState.maxQuantity && (
+                                     <p className="text-sm text-destructive">Cannot exceed available moveable quantity.</p>
+                                  )}
+                                </div>
+                              </div>
+                              
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleReallocate(group.name, group.unit.id)} disabled={!selectedUnit}>
+                                <AlertDialogAction onClick={handleReallocate} disabled={isReallocationSubmitDisabled}>
                                   Confirm
                                 </AlertDialogAction>
                               </AlertDialogFooter>
