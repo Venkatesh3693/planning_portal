@@ -27,26 +27,17 @@ export default function ScheduledProcessBar({ item, gridRow, gridColStart, onUnd
   }
   
   const backgroundColor = processDetails.color ? processDetails.color : 'hsl(var(--accent))';
-  const hoverBackgroundColor = processDetails.color ? `${processDetails.color.slice(0, -1)}, 0.9)` : 'hsl(var(--primary)/0.9)';
 
   const bar = (
     <div
       className={cn(
-        "z-10 flex items-center overflow-hidden rounded-md m-0.5 h-[calc(100%-0.25rem)] text-white shadow-lg transition-all duration-300 ease-in-out",
-        !isOrderLevelView && "cursor-context-menu",
+        "z-10 flex items-center overflow-hidden rounded-md m-0.5 h-[calc(100%-0.25rem)] text-white shadow-lg transition-all duration-200 ease-in-out",
+        !isOrderLevelView && "cursor-context-menu hover:scale-[1.02] hover:brightness-95",
       )}
       style={{
         gridRowStart: gridRow,
         gridColumn: `${gridColStart} / span ${item.durationDays}`,
         backgroundColor: backgroundColor,
-      }}
-      onMouseEnter={(e) => {
-        if (isOrderLevelView || !processDetails.color) return;
-        (e.currentTarget as HTMLDivElement).style.backgroundColor = hoverBackgroundColor;
-      }}
-      onMouseLeave={(e) => {
-        if (isOrderLevelView || !processDetails.color) return;
-        (e.currentTarget as HTMLDivElement).style.backgroundColor = backgroundColor;
       }}
       title={durationText}
     >
