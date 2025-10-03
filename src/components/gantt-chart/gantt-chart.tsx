@@ -220,7 +220,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
     <div className="h-full w-full overflow-auto" ref={containerRef}>
         <div className="relative grid min-h-full" style={timelineGridStyle}>
             {/* Sticky Row Headers column background */}
-            <div className="sticky left-0 z-30 col-start-1 row-start-1 row-end-[-1] bg-primary/10"></div>
+            <div className="sticky left-0 z-30 col-start-1 row-start-1 row-end-[-1] bg-sidebar"></div>
 
             {/* Empty Corner */}
             <div className="sticky left-0 top-0 z-40 border-b border-r bg-card" style={{gridRowEnd: 'span 3'}}></div>
@@ -232,10 +232,10 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                 return (
                     <div 
                         key={row.id}
-                        className="sticky left-0 z-30 flex items-center justify-center p-2 bg-primary/10"
+                        className="sticky left-0 z-30 flex items-center justify-center p-2"
                         style={{ gridRow: `${position.start + 3} / span ${position.span}`, gridColumn: 1 }}
                     >
-                        <span className="font-semibold text-foreground text-sm">{row.name}</span>
+                        <span className="font-semibold text-sidebar-foreground text-sm">{row.name}</span>
                     </div>
                 );
             })}
@@ -300,13 +300,11 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
             })}
             {/* Empty row headers for filler */}
             {Array.from({ length: numEmptyRows }).map((_, i) => {
-              const isEven = (rows.length + i) % 2 === 0;
               return (
                 <div
                   key={`empty-header-${i}`}
                   className={cn(
                     "sticky left-0 z-10 border-b",
-                    isEven ? "bg-primary/10" : "bg-primary/10"
                   )}
                   style={{
                     gridRow: totalOccupiedRows + i + 4,
@@ -372,5 +370,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
 
 
 
+
+    
 
     
