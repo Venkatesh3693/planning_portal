@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from 'react';
-import { format, isSameDay, getWeek, getMonth, getYear, isSunday } from 'date-fns';
+import { format, isSameDay, getWeek, getMonth, getYear } from 'date-fns';
 import type { ScheduledProcess } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import ScheduledProcessBar from './scheduled-process';
@@ -194,7 +194,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
   }, [dates]);
   
   const weeks = React.useMemo(() => {
-      const weekSpans: { name: string; start: number; span: number }[] = [];
+      const weekSpans: { name: string; start: number; span: number; endColumn: number }[] = [];
       if (dates.length === 0) return weekSpans;
 
       let currentWeek = getWeek(dates[0]);
@@ -205,15 +205,17 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
           if (getWeek(date) === currentWeek) {
               span++;
           } else {
-              weekSpans.push({ name: `W${currentWeek}`, start, span });
+              weekSpans.push({ name: `W${currentWeek}`, start, span, endColumn: start + span - 1 });
               currentWeek = getWeek(date);
               start = index + 2;
               span = 1;
           }
       });
-      weekSpans.push({ name: `W${currentWeek}`, start, span });
+      weekSpans.push({ name: `W${currentWeek}`, start, span, endColumn: start + span - 1 });
       return weekSpans;
   }, [dates]);
+
+  const weekEndColumns = React.useMemo(() => new Set(weeks.map(w => w.endColumn)), [weeks]);
 
 
   return (
@@ -257,8 +259,8 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
             {/* Day headers */}
             {dates.map((date, i) => (
                 <div key={i} className={cn(
-                        "sticky top-[2.4rem] z-20 border-b border-r bg-card/95 py-0 text-center backdrop-blur-sm",
-                        isSunday(date) && "border-r-2"
+                        "sticky top-[2.4rem] z-20 border-b bg-card/95 py-0 text-center backdrop-blur-sm",
+                        weekEndColumns.has(i + 2) ? "border-r-2" : "border-r",
                     )} style={{gridColumn: i + 2, gridRow: 3}}>
                     <div className="text-[10px] font-medium text-muted-foreground">{format(date, 'd')}</div>
                 </div>
@@ -268,7 +270,6 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
             {rows.flatMap((row, rowIndex) => {
                 const position = rowPositions.get(row.id);
                 if (!position) return [];
-                const isEven = rowIndex % 2 === 0;
                 
                 return dates.map((date, dateIndex) => (
                     <div
@@ -278,9 +279,9 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                         onDrop={(e) => handleDrop(e, row.id, date)}
                         className={cn(
                             'border-b',
-                            !isOrderLevelView && dragOverCell && dragOverCell.rowId === row.id && isSameDay(dragOverCell.date, date) 
+                            dragOverCell && dragOverCell.rowId === row.id && isSameDay(dragOverCell.date, date) 
                             ? 'bg-primary/20' 
-                            : isEven ? 'bg-primary/5' : 'bg-transparent',
+                            : 'bg-primary/5',
                             !isOrderLevelView && 'hover:bg-primary/10',
                             'transition-colors duration-200'
                         )}
@@ -292,13 +293,12 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
             {/* Empty rows to fill space */}
             {Array.from({ length: numEmptyRows }).map((_, i) => {
               const gridRowStart = totalOccupiedRows + i + 4;
-              const isEven = (rows.length + i) % 2 === 0;
               return dates.map((date, dateIndex) => (
                 <div
                   key={`empty-${i}-${dateIndex}`}
                   className={cn(
                     "border-b",
-                    isEven ? "bg-primary/5" : "bg-card"
+                    "bg-card"
                   )}
                   style={{ gridRow: gridRowStart, gridColumn: dateIndex + 2 }}
                 ></div>
@@ -376,6 +376,8 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
 
 
 
+
+    
 
     
 
