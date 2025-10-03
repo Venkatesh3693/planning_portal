@@ -144,12 +144,12 @@ export default function Home() {
       <Header />
       <main className="flex-1 overflow-hidden">
         <div className={cn(
-            "grid h-full items-start gap-4 p-4 sm:p-6 lg:p-8",
-            isOrdersPanelVisible ? "grid-cols-[20rem_auto_1fr]" : "grid-cols-[0_auto_1fr]"
+            "grid h-full items-start gap-4 p-4",
+            isOrdersPanelVisible ? "grid-cols-[20rem_1fr]" : "grid-cols-[auto_1fr]"
           )}>
           
-          <div className={cn("transition-all duration-300 overflow-hidden", isOrdersPanelVisible ? "w-80" : "w-0")}>
-              <Card className="w-80 h-full">
+          {isOrdersPanelVisible && (
+              <Card className="h-full">
                 <CardHeader>
                   <CardTitle>Orders</CardTitle>
                 </CardHeader>
@@ -194,28 +194,28 @@ export default function Home() {
                   </ScrollArea>
                 </CardContent>
               </Card>
-          </div>
+          )}
           
-          <div className="flex justify-center">
-            <Button variant="ghost" size="icon" onClick={() => setIsOrdersPanelVisible(prev => !prev)}>
-                {isOrdersPanelVisible ? <PanelLeftClose className="h-5 w-5" /> : <PanelRightClose className="h-5 w-5" />}
-            </Button>
-          </div>
-
-          <div className={cn(
-            "h-full overflow-auto rounded-lg border bg-card",
-            isOrderLevelView && !isOrdersPanelVisible && "col-span-3",
-            isOrderLevelView && isOrdersPanelVisible && "col-span-2"
-            )}>
-              <GanttChart 
-                  rows={chartRows} 
-                  dates={dates}
-                  scheduledProcesses={chartProcesses}
-                  onDrop={handleDropOnChart}
-                  onUndoSchedule={handleUndoSchedule}
-                  isOrderLevelView={isOrderLevelView}
-                />
+          <div className="flex h-full items-start gap-4">
+            <div className="flex justify-center pt-2">
+              <Button variant="ghost" size="icon" onClick={() => setIsOrdersPanelVisible(prev => !prev)}>
+                  {isOrdersPanelVisible ? <PanelLeftClose className="h-5 w-5" /> : <PanelRightClose className="h-5 w-5" />}
+              </Button>
             </div>
+
+            <div className={cn(
+              "h-full flex-1 overflow-auto rounded-lg border bg-card"
+              )}>
+                <GanttChart 
+                    rows={chartRows} 
+                    dates={dates}
+                    scheduledProcesses={chartProcesses}
+                    onDrop={handleDropOnChart}
+                    onUndoSchedule={handleUndoSchedule}
+                    isOrderLevelView={isOrderLevelView}
+                  />
+              </div>
+          </div>
         </div>
       </main>
     </div>
