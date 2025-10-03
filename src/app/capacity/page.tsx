@@ -95,9 +95,23 @@ export default function CapacityPage() {
   const handleReallocate = (machineName: string, fromUnitId: string) => {
     if (!selectedUnit) return;
     
-    // This is a placeholder for the actual logic.
-    // In a real app, this would involve updating the state and potentially making an API call.
-    console.log(`Reallocating ${machineName} from ${fromUnitId} to ${selectedUnit}`);
+    setMachines(prevMachines => {
+      const newMachines = [...prevMachines];
+      const machineToMoveIndex = newMachines.findIndex(m => 
+        m.name.startsWith(machineName) && m.unitId === fromUnitId && m.isMoveable
+      );
+
+      if (machineToMoveIndex > -1) {
+        newMachines[machineToMoveIndex] = {
+          ...newMachines[machineToMoveIndex],
+          unitId: selectedUnit
+        };
+      }
+      
+      return newMachines;
+    });
+
+    setSelectedUnit('');
   }
 
   return (
@@ -123,7 +137,7 @@ export default function CapacityPage() {
             View your manufacturing resources organized by process and machine.
           </p>
 
-          <Accordion type="multiple" className="w-full space-y-4">
+          <Accordion type="multiple" className="w-full space-y-4" defaultValue={PROCESSES.map(p => p.id)}>
             {machinesByProcess.map(({ process, machineGroups }) => (
               <AccordionItem key={process.id} value={process.id} className="border-b-0 rounded-lg border bg-card text-card-foreground shadow-sm">
                 <AccordionTrigger className="p-6 text-lg font-semibold hover:no-underline">
@@ -150,7 +164,7 @@ export default function CapacityPage() {
                               <TableCell>{group.isMoveable ? 'Moveable' : 'Fixed'}</TableCell>
                               <TableCell className="text-right">{group.quantity}</TableCell>
                               <TableCell>
-                                <AlertDialog>
+                                <AlertDialog onOpenChange={() => setSelectedUnit('')}>
                                   <AlertDialogTrigger asChild>
                                     <Button variant="outline" size="sm" disabled={!group.isMoveable}>
                                       Reallocate
@@ -177,7 +191,7 @@ export default function CapacityPage() {
                                     </Select>
                                     <AlertDialogFooter>
                                       <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                      <AlertDialogAction onClick={() => handleReallocate(group.name, group.unit.id)}>
+                                      <AlertDialogAction onClick={() => handleReallocate(group.name, group.unit.id)} disabled={!selectedUnit}>
                                         Confirm
                                       </AlertDialogAction>
                                     </AlertDialogFooter>

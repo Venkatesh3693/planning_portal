@@ -13,7 +13,7 @@ export const MACHINES: Machine[] = [
   { id: 'm2', name: 'Printing Station', processIds: ['printing'], unitId: 'u1', isMoveable: false },
   { id: 'm3', name: 'Embroidery Station', processIds: ['embroidery'], unitId: 'u2', isMoveable: false },
   { id: 'm4', name: 'Sewing Station 1', processIds: ['sewing'], unitId: 'u2', isMoveable: true },
-  { id: 'm5', name: 'Sewing Station 2', processIds: ['sewing'], unitId: 'u3', isMoveable: true },
+  { id: 'm5', name: 'Sewing Station 2', processIds: ['sewing'], unitId: 'u2', isMoveable: true },
   { id: 'm6', name: 'Finishing & QC', processIds: ['packing'], unitId: 'u3', isMoveable: false },
   { id: 'm7', name: 'Cutting Machine Beta', processIds: ['cutting'], unitId: 'u3', isMoveable: false },
   { id: 'm8', name: 'Sewing Station 3', processIds: ['sewing'], unitId: 'u3', isMoveable: true },
