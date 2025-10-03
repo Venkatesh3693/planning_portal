@@ -11,8 +11,8 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { WORK_DAY_MINUTES } from '@/lib/data';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { PanelLeftClose, PanelRightClose } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 const ORDER_LEVEL_VIEW = 'order-level';
 const SEWING_PROCESS_ID = 'sewing';
@@ -144,6 +144,9 @@ export default function Home() {
       <Header 
         isOrdersPanelVisible={isOrdersPanelVisible}
         setIsOrdersPanelVisible={setIsOrdersPanelVisible}
+        processes={selectableProcesses}
+        selectedProcessId={selectedProcessId}
+        onProcessChange={setSelectedProcessId}
       />
       <main className="flex-1 overflow-hidden">
         <div className={cn(

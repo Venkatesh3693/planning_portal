@@ -11,7 +11,7 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
 type HeaderProps = {
-  processes?: Process[];
+  processes?: Pick<Process, 'id' | 'name'>[];
   selectedProcessId?: string;
   onProcessChange?: (processId: string) => void;
   isOrdersPanelVisible?: boolean;
