@@ -196,7 +196,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                   onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, row.id, date)}
                   className={cn(
-                    'border-b border-r',
+                    'border-b',
                     !isOrderLevelView && dragOverCell && dragOverCell.rowId === row.id && isSameDay(dragOverCell.date, date) 
                       ? 'bg-primary/20' 
                       : 'bg-transparent',
