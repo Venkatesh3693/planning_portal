@@ -143,8 +143,8 @@ e.dataTransfer.setData('processId', processId);
         selectedProcessId={selectedProcessId}
         onProcessChange={setSelectedProcessId}
       />
-      <main className="flex-1 overflow-hidden p-4 sm:p-6 lg:p-8 flex flex-col gap-4">
-        <div className="grid h-full flex-1 grid-cols-1 gap-6 lg:grid-cols-4 overflow-hidden">
+      <main className="flex-1 overflow-hidden flex flex-col">
+        <div className="grid h-full flex-1 grid-cols-1 gap-4 lg:grid-cols-4 overflow-hidden p-4">
           <Card className={`lg:col-span-1 flex flex-col ${isOrderLevelView ? 'hidden' : ''}`}>
             <CardHeader>
               <CardTitle>Orders</CardTitle>
