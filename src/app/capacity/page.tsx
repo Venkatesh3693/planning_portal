@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -42,6 +42,9 @@ import {
 } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { FilterDropdown } from '@/components/capacity/filter-dropdown';
+import { Badge } from '@/components/ui/badge';
+import { X } from 'lucide-react';
 
 type MachineGroup = {
   process: Process;
@@ -54,41 +57,48 @@ type MachineGroup = {
 export default function CapacityPage() {
   const [machines, setMachines] = useState<Machine[]>(MACHINES);
   const [selectedUnit, setSelectedUnit] = useState<string>('');
+
+  const [selectedProcesses, setSelectedProcesses] = useState<string[]>([]);
+  const [selectedMachineTypes, setSelectedMachineTypes] = useState<string[]>([]);
+  const [selectedUnits, setSelectedUnitsState] = useState<string[]>([]);
+  const [selectedMobilities, setSelectedMobilities] = useState<string[]>([]);
+
+  const allMachineGroups: MachineGroup[] = useMemo(() => {
+    return PROCESSES.flatMap(process => {
+      const machinesInProcess = machines.filter(m => m.processIds.includes(process.id));
+      
+      const machineGroupsByUnit: Record<string, Record<string, MachineGroup>> = {};
   
-  const allMachineGroups: MachineGroup[] = PROCESSES.flatMap(process => {
-    const machinesInProcess = machines.filter(m => m.processIds.includes(process.id));
-    
-    const machineGroupsByUnit: Record<string, Record<string, MachineGroup>> = {};
-
-    machinesInProcess.forEach(machine => {
-      const machineType = machine.name.replace(/\s\d+$|\s(Alpha|Beta)$/, '');
-      const unit = UNITS.find(u => u.id === machine.unitId)!;
-
-      if (!machineGroupsByUnit[machineType]) {
-        machineGroupsByUnit[machineType] = {};
+      machinesInProcess.forEach(machine => {
+        const machineType = machine.name.replace(/\s\d+$|\s(Alpha|Beta)$/, '');
+        const unit = UNITS.find(u => u.id === machine.unitId)!;
+  
+        if (!machineGroupsByUnit[machineType]) {
+          machineGroupsByUnit[machineType] = {};
+        }
+        if (!machineGroupsByUnit[machineType][unit.id]) {
+          machineGroupsByUnit[machineType][unit.id] = {
+            process: process,
+            name: machineType,
+            unit: unit,
+            quantity: 0,
+            isMoveable: machine.isMoveable,
+          };
+        }
+        machineGroupsByUnit[machineType][unit.id].quantity++;
+      });
+  
+      return Object.values(machineGroupsByUnit).flatMap(unitGroup => Object.values(unitGroup));
+    }).sort((a, b) => {
+      if (a.process.name !== b.process.name) {
+        return a.process.name.localeCompare(b.process.name);
       }
-      if (!machineGroupsByUnit[machineType][unit.id]) {
-        machineGroupsByUnit[machineType][unit.id] = {
-          process: process,
-          name: machineType,
-          unit: unit,
-          quantity: 0,
-          isMoveable: machine.isMoveable,
-        };
+      if (a.name !== b.name) {
+        return a.name.localeCompare(a.name);
       }
-      machineGroupsByUnit[machineType][unit.id].quantity++;
+      return a.unit.name.localeCompare(b.unit.name);
     });
-
-    return Object.values(machineGroupsByUnit).flatMap(unitGroup => Object.values(unitGroup));
-  }).sort((a, b) => {
-    if (a.process.name !== b.process.name) {
-      return a.process.name.localeCompare(b.process.name);
-    }
-    if (a.name !== b.name) {
-      return a.name.localeCompare(b.name);
-    }
-    return a.unit.name.localeCompare(b.unit.name);
-  });
+  }, [machines]);
   
   const handleReallocate = (machineName: string, fromUnitId: string) => {
     if (!selectedUnit) return;
@@ -112,6 +122,45 @@ export default function CapacityPage() {
     setSelectedUnit('');
   }
 
+  const processOptions = useMemo(() => [...new Set(allMachineGroups.map(g => g.process.name))], [allMachineGroups]);
+  const machineTypeOptions = useMemo(() => [...new Set(allMachineGroups.map(g => g.name))], [allMachineGroups]);
+  const unitOptions = useMemo(() => [...new Set(allMachineGroups.map(g => g.unit.name))], [allMachineGroups]);
+  const mobilityOptions = ['Moveable', 'Fixed'];
+  
+  const filteredMachineGroups = useMemo(() => {
+    return allMachineGroups.filter(group => {
+      const processMatch = selectedProcesses.length === 0 || selectedProcesses.includes(group.process.name);
+      const machineTypeMatch = selectedMachineTypes.length === 0 || selectedMachineTypes.includes(group.name);
+      const unitMatch = selectedUnits.length === 0 || selectedUnits.includes(group.unit.name);
+      const mobilityMatch = selectedMobilities.length === 0 || selectedMobilities.includes(group.isMoveable ? 'Moveable' : 'Fixed');
+      return processMatch && machineTypeMatch && unitMatch && mobilityMatch;
+    });
+  }, [allMachineGroups, selectedProcesses, selectedMachineTypes, selectedUnits, selectedMobilities]);
+
+  const activeFilters = [
+    ...selectedProcesses.map(v => ({ type: 'process', value: v })),
+    ...selectedMachineTypes.map(v => ({ type: 'machine', value: v })),
+    ...selectedUnits.map(v => ({ type: 'unit', value: v })),
+    ...selectedMobilities.map(v => ({ type: 'mobility', value: v })),
+  ];
+
+  const removeFilter = (type: string, value: string) => {
+    switch (type) {
+      case 'process':
+        setSelectedProcesses(prev => prev.filter(p => p !== value));
+        break;
+      case 'machine':
+        setSelectedMachineTypes(prev => prev.filter(m => m !== value));
+        break;
+      case 'unit':
+        setSelectedUnitsState(prev => prev.filter(u => u !== value));
+        break;
+      case 'mobility':
+        setSelectedMobilities(prev => prev.filter(m => m !== value));
+        break;
+    }
+  };
+
   return (
     <div className="flex h-screen flex-col">
       <Header />
@@ -132,11 +181,30 @@ export default function CapacityPage() {
         <div className="space-y-4">
           <h1 className="text-2xl font-bold">Capacity Management</h1>
           <p className="text-muted-foreground">
-            View your manufacturing resources organized by process and machine.
+            View your manufacturing resources. Use filters to narrow down your view.
           </p>
 
           <Card>
             <CardContent className="p-0">
+                <div className="flex items-center gap-2 border-b p-4">
+                  <FilterDropdown title="Process" options={processOptions} selected={selectedProcesses} onSelectedChange={setSelectedProcesses} />
+                  <FilterDropdown title="Machine" options={machineTypeOptions} selected={selectedMachineTypes} onSelectedChange={setSelectedMachineTypes} />
+                  <FilterDropdown title="Unit" options={unitOptions} selected={selectedUnits} onSelectedChange={setSelectedUnitsState} />
+                  <FilterDropdown title="Mobility" options={mobilityOptions} selected={selectedMobilities} onSelectedChange={setSelectedMobilities} />
+                </div>
+                {activeFilters.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2 p-4 border-b">
+                    <span className="text-sm font-medium">Active Filters:</span>
+                    {activeFilters.map(({type, value}) => (
+                      <Badge key={`${type}-${value}`} variant="secondary" className="gap-1">
+                        {value}
+                        <button onClick={() => removeFilter(type, value)} className="rounded-full hover:bg-muted-foreground/20">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -149,7 +217,7 @@ export default function CapacityPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {allMachineGroups.map((group, index) => (
+                    {filteredMachineGroups.map((group, index) => (
                       <TableRow key={index}>
                         <TableCell className="font-medium">{group.process.name}</TableCell>
                         <TableCell>{group.name}</TableCell>
@@ -193,6 +261,13 @@ export default function CapacityPage() {
                         </TableCell>
                       </TableRow>
                     ))}
+                    {filteredMachineGroups.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="h-24 text-center">
+                          No results found.
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
