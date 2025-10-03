@@ -59,6 +59,35 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = React.useState(0);
+  const [rowHeaderWidth, setRowHeaderWidth] = React.useState(144); // 9rem default
+
+  React.useEffect(() => {
+    if (rows.length > 0) {
+        let maxWidth = 0;
+        const tempSpan = document.createElement('span');
+        // Apply styles that affect width
+        tempSpan.style.fontFamily = 'Inter, sans-serif';
+        tempSpan.style.fontSize = '0.875rem'; // text-sm
+        tempSpan.style.fontWeight = '600'; // font-semibold
+        tempSpan.style.position = 'absolute';
+        tempSpan.style.visibility = 'hidden';
+        tempSpan.style.whiteSpace = 'nowrap';
+
+        document.body.appendChild(tempSpan);
+
+        rows.forEach(row => {
+            tempSpan.textContent = row.name;
+            const width = tempSpan.offsetWidth;
+            if (width > maxWidth) {
+                maxWidth = width;
+            }
+        });
+        document.body.removeChild(tempSpan);
+        setRowHeaderWidth(maxWidth + 32); // Add 32px for padding
+    } else {
+        setRowHeaderWidth(144); // Fallback to default if no rows
+    }
+  }, [rows]);
 
   React.useEffect(() => {
     const measureContainer = () => {
@@ -130,13 +159,13 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
   const totalOccupiedRows = Array.from(rowPositions.values()).reduce((sum, pos) => sum + pos.span, 0);
 
   const headerHeight = 44 * 3; // Approximate height of 3 header rows
-  const remainingHeight = containerHeight - headerHeight - (totalOccupiedRows * ROW_HEIGHT);
+  const remainingHeight = containerHeight > 0 ? containerHeight - headerHeight - (totalOccupiedRows * ROW_HEIGHT) : 0;
   const numEmptyRows = Math.max(0, Math.floor(remainingHeight / ROW_HEIGHT));
 
   const totalGridRows = totalOccupiedRows + numEmptyRows;
   
   const timelineGridStyle = {
-    gridTemplateColumns: `12rem repeat(${dates.length}, minmax(3rem, 1fr))`,
+    gridTemplateColumns: `${rowHeaderWidth}px repeat(${dates.length}, minmax(3rem, 1fr))`,
     gridTemplateRows: `auto auto auto repeat(${totalGridRows || 1}, ${ROW_HEIGHT}px)`,
   };
 
@@ -194,7 +223,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
             <div className="sticky left-0 z-30 col-start-1 row-start-1 row-end-[-1] bg-card border-r"></div>
 
             {/* Empty Corner */}
-            <div className="sticky left-0 top-0 z-40 border-b bg-card" style={{gridRowEnd: 'span 3'}}></div>
+            <div className="sticky left-0 top-0 z-40 border-b border-r bg-card" style={{gridRowEnd: 'span 3'}}></div>
             
             {/* Row name headers */}
             {rows.map((row) => {
@@ -203,7 +232,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                 return (
                     <div 
                         key={row.id}
-                        className="sticky left-0 z-30 flex items-center justify-start p-2"
+                        className="sticky left-0 z-30 flex items-center justify-center p-2"
                         style={{ gridRow: `${position.start + 3} / span ${position.span}`, gridColumn: 1 }}
                     >
                         <span className="font-semibold text-foreground text-sm">{row.name}</span>
@@ -331,3 +360,4 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
     </div>
   );
 }
+
