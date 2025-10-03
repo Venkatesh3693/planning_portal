@@ -186,12 +186,6 @@ export default function CapacityPage() {
 
           <Card>
             <CardContent className="p-0">
-                <div className="flex items-center gap-2 border-b p-4">
-                  <FilterDropdown title="Process" options={processOptions} selected={selectedProcesses} onSelectedChange={setSelectedProcesses} />
-                  <FilterDropdown title="Machine" options={machineTypeOptions} selected={selectedMachineTypes} onSelectedChange={setSelectedMachineTypes} />
-                  <FilterDropdown title="Unit" options={unitOptions} selected={selectedUnits} onSelectedChange={setSelectedUnitsState} />
-                  <FilterDropdown title="Mobility" options={mobilityOptions} selected={selectedMobilities} onSelectedChange={setSelectedMobilities} />
-                </div>
                 {activeFilters.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2 p-4 border-b">
                     <span className="text-sm font-medium">Active Filters:</span>
@@ -208,10 +202,18 @@ export default function CapacityPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Process</TableHead>
-                      <TableHead>Machine</TableHead>
-                      <TableHead>Unit</TableHead>
-                      <TableHead>Mobility</TableHead>
+                      <TableHead>
+                        <FilterDropdown title="Process" options={processOptions} selected={selectedProcesses} onSelectedChange={setSelectedProcesses} />
+                      </TableHead>
+                      <TableHead>
+                        <FilterDropdown title="Machine" options={machineTypeOptions} selected={selectedMachineTypes} onSelectedChange={setSelectedMachineTypes} />
+                      </TableHead>
+                      <TableHead>
+                        <FilterDropdown title="Unit" options={unitOptions} selected={selectedUnits} onSelectedChange={setSelectedUnitsState} />
+                      </TableHead>
+                      <TableHead>
+                        <FilterDropdown title="Mobility" options={mobilityOptions} selected={selectedMobilities} onSelectedChange={setSelectedMobilities} />
+                      </TableHead>
                       <TableHead className="text-right">Quantity</TableHead>
                       <TableHead className="w-[120px]"></TableHead>
                     </TableRow>

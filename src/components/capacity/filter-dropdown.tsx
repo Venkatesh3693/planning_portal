@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { ChevronDown } from 'lucide-react';
 
 type FilterDropdownProps = {
@@ -35,18 +35,15 @@ export function FilterDropdown({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="flex items-center gap-2">
-          {title}
-          {selected.length > 0 && (
-            <>
-              <span className="h-4 w-[1px] bg-border" />
-              <span className="bg-primary text-primary-foreground text-xs font-bold rounded-full px-1.5 py-0.5">
-                {selected.length}
-              </span>
-            </>
-          )}
-          <ChevronDown className="h-4 w-4 opacity-50" />
-        </Button>
+        <button className="flex items-center gap-1 group">
+            <span className="font-medium text-muted-foreground group-hover:text-foreground">{title}</span>
+            {selected.length > 0 && (
+                <span className="bg-primary text-primary-foreground text-xs font-bold rounded-full px-1.5 py-0.5">
+                    {selected.length}
+                </span>
+            )}
+            <ChevronDown className="h-4 w-4 opacity-50 group-hover:opacity-100" />
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56">
         <DropdownMenuLabel>{title}</DropdownMenuLabel>
