@@ -168,7 +168,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
 
         {/* Day headers */}
         {dates.map((date, i) => (
-          <div key={i} className="sticky top-[3.6rem] z-10 border-b border-r border-border/50 bg-card/95 p-1 text-center backdrop-blur-sm" style={{gridRow: 3}}>
+          <div key={i} className="sticky top-[3.6rem] z-10 border-b border-r border-border/50 bg-card/95 p-1 text-center backdrop-blur-sm" style={{gridColumn: i + 2, gridRow: 3}}>
             <div className="text-sm font-semibold text-foreground">{format(date, 'd')}</div>
           </div>
         ))}
