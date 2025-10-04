@@ -122,6 +122,7 @@ export default function Home() {
     setDraggedProcess(process);
     e.dataTransfer.setData('processId', process.processId); // For compatibility with drop logic
     e.dataTransfer.setData('orderId', process.orderId); // For compatibility with drop logic
+    e.dataTransfer.setData('scheduledProcessId', process.id); // To identify it on drop
   };
 
   const handleDragEnd = () => {
@@ -394,3 +395,5 @@ export default function Home() {
     </div>
   );
 }
+
+    

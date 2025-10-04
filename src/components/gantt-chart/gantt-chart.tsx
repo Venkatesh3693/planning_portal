@@ -108,6 +108,20 @@ export default function GanttChart({
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>, rowId: string, date: Date) => {
     e.preventDefault();
+
+    // Prevent dropping if the cell is occupied by a different item
+    const scheduledProcessId = e.dataTransfer.getData('scheduledProcessId');
+    const targetElement = e.target as HTMLElement;
+
+    // If we're dragging over a scheduled process bar, check if it's the one we're dragging
+    const scheduledBar = targetElement.closest('[data-scheduled-process-id]');
+    if (scheduledBar && scheduledBar.getAttribute('data-scheduled-process-id') !== scheduledProcessId) {
+        e.dataTransfer.dropEffect = 'none'; // Disallow drop
+        setDragOverCell(null);
+        return;
+    }
+    
+    e.dataTransfer.dropEffect = 'move';
     if(isOrderLevelView) return;
     setDragOverCell({ rowId, date });
   };
@@ -120,6 +134,16 @@ export default function GanttChart({
   const handleDrop = (e: React.DragEvent<HTMLDivElement>, rowId: string, date: Date) => {
     e.preventDefault();
     if(isOrderLevelView) return;
+
+    // Check if the drop is on a scheduled process bar that is NOT the one being dragged
+    const scheduledProcessId = e.dataTransfer.getData('scheduledProcessId');
+    const targetElement = e.target as HTMLElement;
+    const scheduledBar = targetElement.closest('[data-scheduled-process-id]');
+    if (scheduledBar && scheduledBar.getAttribute('data-scheduled-process-id') !== scheduledProcessId) {
+      setDragOverCell(null);
+      return; // Do not drop here
+    }
+
     const orderId = e.dataTransfer.getData('orderId');
     const processId = e.dataTransfer.getData('processId');
     if (orderId && processId) {
@@ -426,3 +450,5 @@ export default function GanttChart({
     </div>
   );
 }
+
+    

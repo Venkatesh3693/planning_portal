@@ -57,6 +57,7 @@ export default function ScheduledProcessBar({
       draggable={!isOrderLevelView}
       onDragStart={(e) => onDragStart(e, item)}
       onDragEnd={onDragEnd}
+      data-scheduled-process-id={item.id}
       className={cn(
         "z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg transition-all duration-200 ease-in-out",
         !isOrderLevelView && "cursor-grab active:cursor-grabbing hover:scale-[1.02] hover:brightness-110",
@@ -118,3 +119,5 @@ export default function ScheduledProcessBar({
     </DropdownMenu>
   );
 }
+
+    
