@@ -49,6 +49,7 @@ export default function Home() {
 
   const handleDropOnChart = (orderId: string, processId: string, machineId: string, startDateTime: Date) => {
     let finalStartDateTime = startDateTime;
+    // When dragging a new item in Day view, default its time to the start of the workday.
     if (viewMode === 'day' && !draggedProcess) {
       finalStartDateTime = set(startDateTime, { hours: 9, minutes: 0, seconds: 0, milliseconds: 0 });
     }
@@ -62,6 +63,7 @@ export default function Home() {
             : p
         )
       );
+      setDraggedProcess(null);
     } else {
       // It's a new process from the unplanned list
       const order = ORDERS.find((o) => o.id === orderId);
@@ -132,7 +134,11 @@ export default function Home() {
         }
       }, 0);
     }
-    setDraggedProcess(null); // Always clear dragged process on drag end
+    // If the drag ends and draggedProcess is still set, it means it was an invalid drop.
+    // We clear it so the original item (which was only hidden) reappears.
+    if (draggedProcess) {
+      setDraggedProcess(null);
+    }
   };
 
   const today = startOfToday();
@@ -160,16 +166,10 @@ export default function Home() {
     : MACHINES.filter(m => m.processIds.includes(selectedProcessId));
 
   const chartProcesses = useMemo(() => {
-    const baseProcesses = isOrderLevelView
+    return isOrderLevelView
       ? scheduledProcesses
       : scheduledProcesses.filter(sp => sp.processId === selectedProcessId);
-    
-    // "Lift" the dragged process off the board visually
-    if (draggedProcess) {
-      return baseProcesses.filter(p => p.id !== draggedProcess.id);
-    }
-    return baseProcesses;
-  }, [isOrderLevelView, scheduledProcesses, selectedProcessId, draggedProcess]);
+  }, [isOrderLevelView, scheduledProcesses, selectedProcessId]);
   
   const sewingScheduledOrderIds = scheduledProcesses
     .filter(p => p.processId === SEWING_PROCESS_ID)
@@ -385,6 +385,7 @@ export default function Home() {
                     onScheduledProcessDragEnd={handleDragEnd}
                     isOrderLevelView={isOrderLevelView}
                     viewMode={viewMode}
+                    draggedProcess={draggedProcess}
                   />
               </div>
           </div>

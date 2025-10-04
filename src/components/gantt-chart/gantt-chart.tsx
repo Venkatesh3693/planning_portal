@@ -24,6 +24,7 @@ type GanttChartProps = {
   onScheduledProcessDragEnd: () => void;
   isOrderLevelView?: boolean;
   viewMode: ViewMode;
+  draggedProcess: ScheduledProcess | null;
 };
 
 const ROW_HEIGHT = 32; // Corresponds to h-8
@@ -73,6 +74,7 @@ export default function GanttChart({
   onScheduledProcessDragEnd,
   isOrderLevelView = false,
   viewMode,
+  draggedProcess,
 }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -361,6 +363,7 @@ export default function GanttChart({
                 if (!rowPosition) return [];
                 
                 return assignments.map(({ process, lane }) => {
+                    const isBeingDragged = draggedProcess?.id === process.id;
                     const dateIndex = timeColumns.findIndex(d => isSameDay(d.date, process.startDateTime));
                     if (dateIndex === -1) return null;
 
@@ -379,11 +382,13 @@ export default function GanttChart({
                         onDragStart={onScheduledProcessDragStart}
                         onDragEnd={onScheduledProcessDragEnd}
                         isOrderLevelView={isOrderLevelView}
+                        isBeingDragged={isBeingDragged}
                     />
                     );
                 });
                 })
             : scheduledProcesses.map((item) => {
+                const isBeingDragged = draggedProcess?.id === item.id;
                 const rowId = item.machineId;
                 const rowPosition = rowPositions.get(rowId);
                 if (!rowPosition) return null;
@@ -413,6 +418,7 @@ export default function GanttChart({
                     onDragStart={onScheduledProcessDragStart}
                     onDragEnd={onScheduledProcessDragEnd}
                     isOrderLevelView={isOrderLevelView}
+                    isBeingDragged={isBeingDragged}
                     />
                 );
             })}
