@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from 'react';
-import { format, isSameDay, getWeek, getMonth, getYear } from 'date-fns';
+import { format, isSameDay, getWeek, getMonth, getYear, addMinutes, startOfDay, eachDayOfInterval, setHours } from 'date-fns';
 import type { ScheduledProcess } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import ScheduledProcessBar from './scheduled-process';
@@ -12,32 +12,38 @@ type Row = {
   name: string;
 };
 
+type ViewMode = 'day' | 'hour';
+
 type GanttChartProps = {
   rows: Row[];
   dates: Date[];
   scheduledProcesses: ScheduledProcess[];
-  onDrop: (orderId: string, processId: string, machineId: string, date: Date) => void;
+  onDrop: (orderId: string, processId: string, machineId: string, startDateTime: Date) => void;
   onUndoSchedule: (scheduledProcessId: string) => void;
   isOrderLevelView?: boolean;
+  viewMode: ViewMode;
 };
 
-const ROW_HEIGHT = 32; // Corresponds to h-8, assuming 1rem = 16px
+const ROW_HEIGHT = 32; // Corresponds to h-8
+const WORKING_HOURS_START = 9;
+const WORKING_HOURS_END = 17;
+const WORKING_HOURS = Array.from({ length: WORKING_HOURS_END - WORKING_HOURS_START }, (_, i) => i + WORKING_HOURS_START);
+
 
 const assignLanes = (processes: ScheduledProcess[]): { process: ScheduledProcess; lane: number }[] => {
   if (!processes.length) return [];
   
-  const sortedProcesses = [...processes].sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+  const sortedProcesses = [...processes].sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
   
   const lanes: { process: ScheduledProcess; lane: number }[] = [];
   const laneEndDates: Date[] = [];
 
   sortedProcesses.forEach(process => {
     let assigned = false;
-    const processEndDate = new Date(process.startDate);
-    processEndDate.setDate(processEndDate.getDate() + process.durationDays);
+    const processEndDate = addMinutes(process.startDateTime, process.durationMinutes);
 
     for (let i = 0; i < laneEndDates.length; i++) {
-        if (process.startDate >= laneEndDates[i]) {
+        if (process.startDateTime >= laneEndDates[i]) {
             lanes.push({ process, lane: i });
             laneEndDates[i] = processEndDate;
             assigned = true;
@@ -55,7 +61,7 @@ const assignLanes = (processes: ScheduledProcess[]): { process: ScheduledProcess
 };
 
 
-export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, onUndoSchedule, isOrderLevelView = false }: GanttChartProps) {
+export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, onUndoSchedule, isOrderLevelView = false, viewMode }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = React.useState(0);
@@ -71,6 +77,20 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
     window.addEventListener('resize', measureContainer);
     return () => window.removeEventListener('resize', measureContainer);
   }, []);
+
+  const timeColumns = React.useMemo(() => {
+    if (viewMode === 'day') {
+      return dates.map(date => ({ date, type: 'day' as const }));
+    }
+    // Hour view
+    const columns: { date: Date; type: 'hour' }[] = [];
+    dates.forEach(day => {
+      WORKING_HOURS.forEach(hour => {
+        columns.push({ date: setHours(startOfDay(day), hour), type: 'hour' });
+      });
+    });
+    return columns;
+  }, [dates, viewMode]);
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>, rowId: string, date: Date) => {
     e.preventDefault();
@@ -137,55 +157,87 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
   const totalGridRows = totalOccupiedRows + numEmptyRows;
   
   const timelineGridStyle = {
-    gridTemplateColumns: `${rowHeaderWidth}px repeat(${dates.length}, minmax(3rem, 1fr))`,
+    gridTemplateColumns: `${rowHeaderWidth}px repeat(${timeColumns.length}, minmax(3rem, 1fr))`,
     gridTemplateRows: `auto auto auto repeat(${totalGridRows || 1}, ${ROW_HEIGHT}px)`,
   };
 
-  const months = React.useMemo(() => {
-    const monthSpans: { name: string; start: number; span: number }[] = [];
-    if (dates.length === 0) return monthSpans;
+  const topHeaders = React.useMemo(() => {
+    const headers: { name: string; start: number; span: number }[] = [];
+    if (timeColumns.length === 0) return headers;
 
-    let currentMonth = getMonth(dates[0]);
-    let currentYear = getYear(dates[0]);
-    let span = 0;
-    let start = 2; // Start after row header column
-
-    dates.forEach((date, index) => {
-      if (getMonth(date) === currentMonth && getYear(date) === currentYear) {
-        span++;
-      } else {
-        monthSpans.push({ name: format(new Date(currentYear, currentMonth), "MMM ''yy"), start, span });
-        currentMonth = getMonth(date);
-        currentYear = getYear(date);
-        start = index + 2;
-        span = 1;
-      }
-    });
-    monthSpans.push({ name: format(new Date(currentYear, currentMonth), "MMM ''yy"), start, span });
-    return monthSpans;
-  }, [dates]);
-  
-  const weeks = React.useMemo(() => {
-      const weekSpans: { name: string; start: number; span: number }[] = [];
-      if (dates.length === 0) return weekSpans;
-
-      let currentWeek = getWeek(dates[0]);
+    if (viewMode === 'day') {
+      let currentMonth = getMonth(timeColumns[0].date);
+      let currentYear = getYear(timeColumns[0].date);
       let span = 0;
-      let start = 2; // Start after row header column
-
-      dates.forEach((date, index) => {
-          if (getWeek(date) === currentWeek) {
-              span++;
-          } else {
-              weekSpans.push({ name: `W${currentWeek}`, start, span });
-              currentWeek = getWeek(date);
-              start = index + 2;
-              span = 1;
-          }
+      let start = 2;
+      timeColumns.forEach((col, index) => {
+        if (getMonth(col.date) === currentMonth && getYear(col.date) === currentYear) {
+          span++;
+        } else {
+          headers.push({ name: format(new Date(currentYear, currentMonth), "MMM ''yy"), start, span });
+          currentMonth = getMonth(col.date);
+          currentYear = getYear(col.date);
+          start = index + 2;
+          span = 1;
+        }
       });
-      weekSpans.push({ name: `W${currentWeek}`, start, span });
-      return weekSpans;
-  }, [dates]);
+      headers.push({ name: format(new Date(currentYear, currentMonth), "MMM ''yy"), start, span });
+    } else { // hour view
+      let currentWeek = getWeek(timeColumns[0].date);
+      let span = 0;
+      let start = 2;
+      timeColumns.forEach((col, index) => {
+        if (getWeek(col.date) === currentWeek) {
+          span++;
+        } else {
+          headers.push({ name: `W${currentWeek}`, start, span });
+          currentWeek = getWeek(col.date);
+          start = index + 2;
+          span = 1;
+        }
+      });
+      headers.push({ name: `W${currentWeek}`, start, span });
+    }
+    return headers;
+  }, [timeColumns, viewMode]);
+  
+  const midHeaders = React.useMemo(() => {
+    const headers: { name: string; start: number; span: number }[] = [];
+      if (timeColumns.length === 0) return headers;
+
+      if (viewMode === 'day') {
+        let currentWeek = getWeek(timeColumns[0].date);
+        let span = 0;
+        let start = 2;
+        timeColumns.forEach((col, index) => {
+            if (getWeek(col.date) === currentWeek) {
+                span++;
+            } else {
+                headers.push({ name: `W${currentWeek}`, start, span });
+                currentWeek = getWeek(col.date);
+                start = index + 2;
+                span = 1;
+            }
+        });
+        headers.push({ name: `W${currentWeek}`, start, span });
+      } else { // hour view
+        let currentDay = format(timeColumns[0].date, 'MMM d');
+        let span = 0;
+        let start = 2;
+        timeColumns.forEach((col, index) => {
+          if (format(col.date, 'MMM d') === currentDay) {
+            span++;
+          } else {
+            headers.push({ name: currentDay, start, span });
+            currentDay = format(col.date, 'MMM d');
+            start = index + 2;
+            span = 1;
+          }
+        });
+        headers.push({ name: currentDay, start, span });
+      }
+      return headers;
+  }, [timeColumns, viewMode]);
 
 
   return (
@@ -197,24 +249,26 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
             {/* Empty Corner */}
             <div className="sticky left-0 top-0 z-30 border-b border-r bg-card" style={{gridRowEnd: 'span 3'}}></div>
                     
-            {/* Month headers */}
-            {months.map(({name, start, span}) => (
-                <div key={name} className="sticky top-0 z-20 border-b border-r bg-card/95 py-0 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 1 }}>
+            {/* Top headers */}
+            {topHeaders.map(({name, start, span}) => (
+                <div key={`${name}-${start}`} className="sticky top-0 z-20 border-b border-r bg-card/95 py-0 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 1 }}>
                     <span className="text-xs font-semibold text-foreground">{name}</span>
                 </div>
             ))}
             
-            {/* Week headers */}
-            {weeks.map(({name, start, span}) => (
+            {/* Mid headers */}
+            {midHeaders.map(({name, start, span}) => (
                 <div key={`${name}-${start}`} className="sticky top-[1.2rem] z-20 border-b border-r-2 bg-card/95 py-0 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 2}}>
                     <span className="text-sm font-semibold text-foreground">{name}</span>
                 </div>
             ))}
 
-            {/* Day headers */}
-            {dates.map((date, i) => (
+            {/* Bottom headers */}
+            {timeColumns.map((col, i) => (
                 <div key={i} className="sticky top-[2.4rem] z-20 border-b border-r bg-card/95 py-0 text-center backdrop-blur-sm" style={{gridColumn: i + 2, gridRow: 3}}>
-                    <div className="text-[10px] font-medium text-muted-foreground">{format(date, 'd')}</div>
+                    <div className="text-[10px] font-medium text-muted-foreground">
+                      {viewMode === 'day' ? format(col.date, 'd') : format(col.date, 'ha')}
+                    </div>
                 </div>
             ))}
             
@@ -236,15 +290,15 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                     </div>
                 );
 
-                const rowCells = dates.map((date, dateIndex) => (
+                const rowCells = timeColumns.map((col, dateIndex) => (
                     <div
                         key={`${row.id}-${dateIndex}`}
-                        onDragOver={(e) => handleDragOver(e, row.id, date)}
+                        onDragOver={(e) => handleDragOver(e, row.id, col.date)}
                         onDragLeave={handleDragLeave}
-                        onDrop={(e) => handleDrop(e, row.id, date)}
+                        onDrop={(e) => handleDrop(e, row.id, col.date)}
                         className={cn(
                             'border-b border-r',
-                            dragOverCell && dragOverCell.rowId === row.id && isSameDay(dragOverCell.date, date) 
+                            dragOverCell && dragOverCell.rowId === row.id && isSameDay(dragOverCell.date, col.date) 
                             ? 'bg-primary/20' 
                             : (rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/50'),
                             !isOrderLevelView && 'hover:bg-primary/10',
@@ -259,7 +313,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
             {/* Empty rows to fill space */}
             {Array.from({ length: numEmptyRows }).map((_, i) => {
               const gridRowStart = totalOccupiedRows + i + 4;
-              return dates.map((date, dateIndex) => (
+              return timeColumns.map((col, dateIndex) => (
                 <div
                   key={`empty-${i}-${dateIndex}`}
                   className={cn(
@@ -295,11 +349,12 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                 if (!rowPosition) return [];
                 
                 return assignments.map(({ process, lane }) => {
-                    const dateIndex = dates.findIndex(d => isSameDay(d, process.startDate));
+                    const dateIndex = timeColumns.findIndex(d => isSameDay(d.date, process.startDateTime));
                     if (dateIndex === -1) return null;
 
                     const gridRow = rowPosition.start + lane + 3;
-                    const gridColStart = dateIndex + 2; // +2 for row header col
+                    const durationInColumns = viewMode === 'day' ? Math.ceil(process.durationMinutes / (60 * 8)) : Math.ceil(process.durationMinutes / 60);
+                    const gridColStart = dateIndex + 2; 
 
                     return (
                     <ScheduledProcessBar 
@@ -307,6 +362,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                         item={process} 
                         gridRow={gridRow} 
                         gridColStart={gridColStart}
+                        durationInColumns={durationInColumns}
                         onUndo={onUndoSchedule}
                         isOrderLevelView={isOrderLevelView}
                     />
@@ -318,11 +374,19 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                 const rowPosition = rowPositions.get(rowId);
                 if (!rowPosition) return null;
                 
-                const dateIndex = dates.findIndex(d => isSameDay(d, item.startDate));
+                const dateIndex = timeColumns.findIndex(d => {
+                  if (viewMode === 'day') return isSameDay(d.date, item.startDateTime);
+                  return d.date.getTime() === setHours(startOfDay(item.startDateTime), item.startDateTime.getHours()).getTime();
+                });
                 if (dateIndex === -1) return null;
                 
                 const gridRow = rowPosition.start + 3;
-                const gridColStart = dateIndex + 2; // +2 for row header col
+                const gridColStart = dateIndex + 2;
+                
+                const durationInColumns = viewMode === 'day' 
+                    ? Math.ceil(item.durationMinutes / (8 * 60))
+                    : Math.ceil(item.durationMinutes / 60);
+
 
                 return (
                     <ScheduledProcessBar 
@@ -330,6 +394,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                     item={item} 
                     gridRow={gridRow} 
                     gridColStart={gridColStart}
+                    durationInColumns={durationInColumns}
                     onUndo={onUndoSchedule}
                     isOrderLevelView={isOrderLevelView}
                     />

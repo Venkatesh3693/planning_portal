@@ -10,17 +10,28 @@ type ScheduledProcessProps = {
   item: ScheduledProcess;
   gridRow: number;
   gridColStart: number;
+  durationInColumns: number;
   onUndo: (scheduledProcessId: string) => void;
   isOrderLevelView?: boolean;
 };
 
-export default function ScheduledProcessBar({ item, gridRow, gridColStart, onUndo, isOrderLevelView = false }: ScheduledProcessProps) {
+export default function ScheduledProcessBar({ item, gridRow, gridColStart, durationInColumns, onUndo, isOrderLevelView = false }: ScheduledProcessProps) {
   const processDetails = PROCESSES.find(p => p.id === item.processId);
   const orderDetails = ORDERS.find(o => o.id === item.orderId);
   if (!processDetails || !orderDetails) return null;
 
   const Icon = processDetails.icon;
-  const durationText = `${orderDetails.id}: ${processDetails.name} (${item.durationDays} day${item.durationDays > 1 ? 's' : ''})`;
+
+  const durationDays = Math.floor(item.durationMinutes / (8 * 60));
+  const remainingMinutes = item.durationMinutes % (8 * 60);
+  const durationHours = Math.floor(remainingMinutes / 60);
+  const finalMinutes = remainingMinutes % 60;
+  let durationText = `${orderDetails.id}: ${processDetails.name} (`;
+  if (durationDays > 0) durationText += `${durationDays}d `;
+  if (durationHours > 0) durationText += `${durationHours}h `;
+  if (finalMinutes > 0) durationText += `${finalMinutes}m`;
+  durationText += ')';
+
 
   const handleUndo = () => {
     onUndo(item.id);
@@ -36,7 +47,7 @@ export default function ScheduledProcessBar({ item, gridRow, gridColStart, onUnd
       )}
       style={{
         gridRowStart: gridRow,
-        gridColumn: `${gridColStart} / span ${item.durationDays}`,
+        gridColumn: `${gridColStart} / span ${durationInColumns}`,
         backgroundColor: backgroundColor,
       }}
       title={durationText}
@@ -53,7 +64,7 @@ export default function ScheduledProcessBar({ item, gridRow, gridColStart, onUnd
       <Popover>
         <PopoverTrigger asChild style={{
           gridRowStart: gridRow,
-          gridColumn: `${gridColStart} / span ${item.durationDays}`,
+          gridColumn: `${gridColStart} / span ${durationInColumns}`,
           height: 'calc(100% - 0.125rem)',
           margin: '1px',
         }}>
@@ -68,7 +79,7 @@ export default function ScheduledProcessBar({ item, gridRow, gridColStart, onUnd
               </p>
             </div>
              <p className="text-sm">
-                Duration: {item.durationDays} day{item.durationDays > 1 ? 's' : ''}
+                Duration: {durationText.split('(')[1].slice(0, -1)}
               </p>
           </div>
         </PopoverContent>

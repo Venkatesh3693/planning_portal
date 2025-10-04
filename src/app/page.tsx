@@ -9,7 +9,6 @@ import { MACHINES, ORDERS, PROCESSES } from '@/lib/data';
 import type { Order, ScheduledProcess } from '@/lib/types';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { WORK_DAY_MINUTES } from '@/lib/data';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -36,6 +35,7 @@ export default function Home() {
   const [unplannedOrders, setUnplannedOrders] = useState<Order[]>(ORDERS);
   const [scheduledProcesses, setScheduledProcesses] = useState<ScheduledProcess[]>([]);
   const [selectedProcessId, setSelectedProcessId] = useState<string>(ORDER_LEVEL_VIEW);
+  const [viewMode, setViewMode] = useState<'day' | 'hour'>('day');
   const [hoveredOrderId, setHoveredOrderId] = useState<string | null>(null);
   const [isOrdersPanelVisible, setIsOrdersPanelVisible] = useState(true);
   const ordersListRef = useRef<HTMLDivElement>(null);
@@ -46,21 +46,21 @@ export default function Home() {
   const buyerOptions = useMemo(() => [...new Set(ORDERS.map(o => o.buyer))], []);
 
 
-  const handleDropOnChart = (orderId: string, processId: string, machineId: string, date: Date) => {
+  const handleDropOnChart = (orderId: string, processId: string, machineId: string, startDateTime: Date) => {
     const order = ORDERS.find((o) => o.id === orderId);
     const process = PROCESSES.find((p) => p.id === processId);
 
     if (!order || !process) return;
 
-    const durationDays = Math.ceil((process.sam * order.quantity) / WORK_DAY_MINUTES);
+    const durationMinutes = process.sam * order.quantity;
 
     const newScheduledProcess: ScheduledProcess = {
       id: `${processId}-${orderId}-${new Date().getTime()}`,
       orderId,
       processId,
       machineId,
-      startDate: date,
-      durationDays,
+      startDateTime,
+      durationMinutes,
     };
     
     setScheduledProcesses((prev) => [...prev, newScheduledProcess]);
@@ -193,7 +193,7 @@ export default function Home() {
         setIsOrdersPanelVisible={setIsOrdersPanelVisible}
       />
       <main className="flex flex-1 flex-col overflow-hidden">
-        <div className="flex-shrink-0 border-b p-4">
+        <div className="flex-shrink-0 border-b p-4 flex justify-between items-center">
           <Tabs value={selectedProcessId} onValueChange={setSelectedProcessId}>
             <TabsList>
               {selectableProcesses.map(process => (
@@ -201,6 +201,12 @@ export default function Home() {
                   {process.name}
                 </TabsTrigger>
               ))}
+            </TabsList>
+          </Tabs>
+          <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'day' | 'hour')}>
+            <TabsList>
+              <TabsTrigger value="day">Day View</TabsTrigger>
+              <TabsTrigger value="hour">Hour View</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -343,6 +349,7 @@ export default function Home() {
                     onDrop={handleDropOnChart}
                     onUndoSchedule={handleUndoSchedule}
                     isOrderLevelView={isOrderLevelView}
+                    viewMode={viewMode}
                   />
               </div>
           </div>
@@ -351,5 +358,3 @@ export default function Home() {
     </div>
   );
 }
-
-    

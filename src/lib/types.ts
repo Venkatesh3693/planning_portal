@@ -37,6 +37,6 @@ export type ScheduledProcess = {
   orderId: string;
   processId: string;
   machineId: string;
-  startDate: Date;
-  durationDays: number;
+  startDateTime: Date;
+  durationMinutes: number;
 };
