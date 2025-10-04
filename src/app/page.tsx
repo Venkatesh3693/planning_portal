@@ -69,14 +69,16 @@ export default function Home() {
         
         // Check for collisions with OTHER processes on the same machine
         const hasCollision = scheduledProcesses.some(p => {
-            if (p.id === draggedProcess.id) return false;
+            if (p.id === draggedProcess.id) return false; // Exclude the item being dragged
             if (p.machineId !== machineId) return false;
 
             const existingEndDateTime = addMinutes(p.startDateTime, p.durationMinutes);
+            
             const startsDuring = isAfter(finalStartDateTime, p.startDateTime) && isBefore(finalStartDateTime, existingEndDateTime);
             const endsDuring = isAfter(proposedEndDateTime, p.startDateTime) && isBefore(proposedEndDateTime, existingEndDateTime);
             const spansOver = isBefore(finalStartDateTime, p.startDateTime) && isAfter(proposedEndDateTime, existingEndDateTime);
             const isSameStart = finalStartDateTime.getTime() === p.startDateTime.getTime();
+
             return startsDuring || endsDuring || spansOver || isSameStart;
         });
 
