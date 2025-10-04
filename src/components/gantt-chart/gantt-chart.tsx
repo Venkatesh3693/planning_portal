@@ -81,6 +81,24 @@ export default function GanttChart({
   const [containerHeight, setContainerHeight] = React.useState(0);
 
   React.useEffect(() => {
+    if (draggedProcess) {
+      const el = document.querySelector(`[data-scheduled-process-id="${draggedProcess.id}"]`) as HTMLElement;
+      if (el) {
+        const timeoutId = setTimeout(() => {
+            el.style.pointerEvents = 'none';
+            el.style.opacity = '0';
+        }, 0);
+
+        return () => {
+            clearTimeout(timeoutId);
+            el.style.pointerEvents = '';
+            el.style.opacity = '';
+        };
+      }
+    }
+  }, [draggedProcess]);
+
+  React.useEffect(() => {
     const measureContainer = () => {
       if (containerRef.current) {
         setContainerHeight(containerRef.current.offsetHeight);
@@ -143,12 +161,19 @@ export default function GanttChart({
 
   const maxLanesPerRow = React.useMemo(() => {
     if (!isOrderLevelView) return new Map<string, number>();
-
+  
     const maxLanes = new Map<string, number>();
     for (const row of rows) {
       const assignments = laneAssignments.get(row.id) || [];
-      const numLanes = assignments.length > 0 ? Math.max(...assignments.map(a => a.lane)) + 1 : 1;
-      maxLanes.set(row.id, numLanes);
+      const hasProcesses = assignments.length > 0;
+      if (hasProcesses) {
+        // If there are processes, use 3 rows, but also accommodate if more lanes are needed.
+        const neededLanes = Math.max(...assignments.map(a => a.lane)) + 1;
+        maxLanes.set(row.id, Math.max(3, neededLanes));
+      } else {
+        // If there are no processes, use 1 row.
+        maxLanes.set(row.id, 1);
+      }
     }
     return maxLanes;
   }, [isOrderLevelView, rows, laneAssignments]);
