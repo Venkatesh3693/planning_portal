@@ -12,10 +12,21 @@ type ScheduledProcessProps = {
   gridColStart: number;
   durationInColumns: number;
   onUndo: (scheduledProcessId: string) => void;
+  onDragStart: (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => void;
+  onDragEnd: () => void;
   isOrderLevelView?: boolean;
 };
 
-export default function ScheduledProcessBar({ item, gridRow, gridColStart, durationInColumns, onUndo, isOrderLevelView = false }: ScheduledProcessProps) {
+export default function ScheduledProcessBar({ 
+  item, 
+  gridRow, 
+  gridColStart, 
+  durationInColumns, 
+  onUndo,
+  onDragStart,
+  onDragEnd,
+  isOrderLevelView = false 
+}: ScheduledProcessProps) {
   const processDetails = PROCESSES.find(p => p.id === item.processId);
   const orderDetails = ORDERS.find(o => o.id === item.orderId);
   if (!processDetails || !orderDetails) return null;
@@ -41,9 +52,12 @@ export default function ScheduledProcessBar({ item, gridRow, gridColStart, durat
 
   const bar = (
     <div
+      draggable={!isOrderLevelView}
+      onDragStart={(e) => onDragStart(e, item)}
+      onDragEnd={onDragEnd}
       className={cn(
         "z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg transition-all duration-200 ease-in-out",
-        !isOrderLevelView && "cursor-context-menu hover:scale-[1.02] hover:brightness-110",
+        !isOrderLevelView && "cursor-grab active:cursor-grabbing hover:scale-[1.02] hover:brightness-110",
       )}
       style={{
         gridRowStart: gridRow,

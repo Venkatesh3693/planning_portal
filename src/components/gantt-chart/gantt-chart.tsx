@@ -20,6 +20,8 @@ type GanttChartProps = {
   scheduledProcesses: ScheduledProcess[];
   onDrop: (orderId: string, processId: string, machineId: string, startDateTime: Date) => void;
   onUndoSchedule: (scheduledProcessId: string) => void;
+  onScheduledProcessDragStart: (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => void;
+  onScheduledProcessDragEnd: () => void;
   isOrderLevelView?: boolean;
   viewMode: ViewMode;
 };
@@ -61,7 +63,17 @@ const assignLanes = (processes: ScheduledProcess[]): { process: ScheduledProcess
 };
 
 
-export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, onUndoSchedule, isOrderLevelView = false, viewMode }: GanttChartProps) {
+export default function GanttChart({
+  rows,
+  dates,
+  scheduledProcesses,
+  onDrop,
+  onUndoSchedule,
+  onScheduledProcessDragStart,
+  onScheduledProcessDragEnd,
+  isOrderLevelView = false,
+  viewMode,
+}: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = React.useState(0);
@@ -364,6 +376,8 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                         gridColStart={gridColStart}
                         durationInColumns={durationInColumns}
                         onUndo={onUndoSchedule}
+                        onDragStart={onScheduledProcessDragStart}
+                        onDragEnd={onScheduledProcessDragEnd}
                         isOrderLevelView={isOrderLevelView}
                     />
                     );
@@ -396,6 +410,8 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                     gridColStart={gridColStart}
                     durationInColumns={durationInColumns}
                     onUndo={onUndoSchedule}
+                    onDragStart={onScheduledProcessDragStart}
+                    onDragEnd={onScheduledProcessDragEnd}
                     isOrderLevelView={isOrderLevelView}
                     />
                 );

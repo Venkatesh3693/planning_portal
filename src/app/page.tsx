@@ -42,40 +42,52 @@ export default function Home() {
   const [filterOcn, setFilterOcn] = useState('');
   const [filterBuyer, setFilterBuyer] = useState<string[]>([]);
   const [filterDueDate, setFilterDueDate] = useState<DateRange | undefined>(undefined);
+  const [draggedProcess, setDraggedProcess] = useState<ScheduledProcess | null>(null);
 
   const buyerOptions = useMemo(() => [...new Set(ORDERS.map(o => o.buyer))], []);
 
 
   const handleDropOnChart = (orderId: string, processId: string, machineId: string, startDateTime: Date) => {
-    const order = ORDERS.find((o) => o.id === orderId);
-    const process = PROCESSES.find((p) => p.id === processId);
-
-    if (!order || !process) return;
-
-    const durationMinutes = process.sam * order.quantity;
-
     let finalStartDateTime = startDateTime;
-    if (viewMode === 'day') {
+    if (viewMode === 'day' && !draggedProcess) {
       finalStartDateTime = set(startDateTime, { hours: 9, minutes: 0, seconds: 0, milliseconds: 0 });
     }
 
-    const newScheduledProcess: ScheduledProcess = {
-      id: `${processId}-${orderId}-${new Date().getTime()}`,
-      orderId,
-      processId,
-      machineId,
-      startDateTime: finalStartDateTime,
-      durationMinutes,
-    };
-    
-    setScheduledProcesses((prev) => [...prev, newScheduledProcess]);
-    
-    const orderInUnplanned = unplannedOrders.find(o => o.id === orderId);
-    if(orderInUnplanned){
-      const orderProcesses = PROCESSES.filter(p => orderInUnplanned.processIds.includes(p.id));
-      const scheduledForThisOrder = scheduledProcesses.filter(sp => sp.orderId === orderId).length + 1;
-      if (scheduledForThisOrder >= orderProcesses.length) {
-        setUnplannedOrders((prev) => prev.filter((o) => o.id !== orderId));
+    if (draggedProcess) {
+      // It's an existing process being moved
+      setScheduledProcesses(prev => 
+        prev.map(p => 
+          p.id === draggedProcess.id
+            ? { ...p, machineId: machineId, startDateTime: finalStartDateTime }
+            : p
+        )
+      );
+    } else {
+      // It's a new process from the unplanned list
+      const order = ORDERS.find((o) => o.id === orderId);
+      const process = PROCESSES.find((p) => p.id === processId);
+      if (!order || !process) return;
+  
+      const durationMinutes = process.sam * order.quantity;
+  
+      const newScheduledProcess: ScheduledProcess = {
+        id: `${processId}-${orderId}-${new Date().getTime()}`,
+        orderId,
+        processId,
+        machineId,
+        startDateTime: finalStartDateTime,
+        durationMinutes,
+      };
+      
+      setScheduledProcesses((prev) => [...prev, newScheduledProcess]);
+      
+      const orderInUnplanned = unplannedOrders.find(o => o.id === orderId);
+      if(orderInUnplanned){
+        const orderProcesses = PROCESSES.filter(p => orderInUnplanned.processIds.includes(p.id));
+        const scheduledForThisOrder = scheduledProcesses.filter(sp => sp.orderId === orderId).length + 1;
+        if (scheduledForThisOrder >= orderProcesses.length) {
+          setUnplannedOrders((prev) => prev.filter((o) => o.id !== orderId));
+        }
       }
     }
   };
@@ -83,6 +95,7 @@ export default function Home() {
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, orderId: string, processId: string) => {
     e.dataTransfer.setData('orderId', orderId);
     e.dataTransfer.setData('processId', processId);
+    setDraggedProcess(null); // Ensure draggedProcess from scheduled items is cleared
     setHoveredOrderId(null);
   };
   
@@ -102,6 +115,12 @@ export default function Home() {
     // Remove the process from scheduledProcesses
     setScheduledProcesses(prev => prev.filter(p => p.id !== scheduledProcessId));
   };
+  
+  const handleScheduledProcessDragStart = (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => {
+    setDraggedProcess(process);
+    e.dataTransfer.setData('processId', process.processId); // For compatibility with drop logic
+    e.dataTransfer.setData('orderId', process.orderId); // For compatibility with drop logic
+  };
 
   const handleDragEnd = () => {
     // This is a workaround to force the browser to re-evaluate hover states.
@@ -113,6 +132,7 @@ export default function Home() {
         }
       }, 0);
     }
+    setDraggedProcess(null); // Always clear dragged process on drag end
   };
 
   const today = startOfToday();
@@ -139,9 +159,17 @@ export default function Home() {
     ? ORDERS.map(o => ({ id: o.id, name: o.ocn, processIds: o.processIds })) 
     : MACHINES.filter(m => m.processIds.includes(selectedProcessId));
 
-  const chartProcesses = isOrderLevelView
-    ? scheduledProcesses
-    : scheduledProcesses.filter(sp => sp.processId === selectedProcessId);
+  const chartProcesses = useMemo(() => {
+    const baseProcesses = isOrderLevelView
+      ? scheduledProcesses
+      : scheduledProcesses.filter(sp => sp.processId === selectedProcessId);
+    
+    // "Lift" the dragged process off the board visually
+    if (draggedProcess) {
+      return baseProcesses.filter(p => p.id !== draggedProcess.id);
+    }
+    return baseProcesses;
+  }, [isOrderLevelView, scheduledProcesses, selectedProcessId, draggedProcess]);
   
   const sewingScheduledOrderIds = scheduledProcesses
     .filter(p => p.processId === SEWING_PROCESS_ID)
@@ -353,6 +381,8 @@ export default function Home() {
                     scheduledProcesses={chartProcesses}
                     onDrop={handleDropOnChart}
                     onUndoSchedule={handleUndoSchedule}
+                    onScheduledProcessDragStart={handleScheduledProcessDragStart}
+                    onScheduledProcessDragEnd={handleDragEnd}
                     isOrderLevelView={isOrderLevelView}
                     viewMode={viewMode}
                   />
@@ -363,5 +393,3 @@ export default function Home() {
     </div>
   );
 }
-
-    
