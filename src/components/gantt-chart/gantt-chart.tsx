@@ -79,7 +79,6 @@ export default function GanttChart({
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = React.useState(0);
-  const rowHeaderWidth = 144; // 9rem fixed
 
   React.useEffect(() => {
     const measureContainer = () => {
@@ -174,7 +173,7 @@ export default function GanttChart({
   const totalGridRows = totalOccupiedRows + numEmptyRows;
   
   const timelineGridStyle = {
-    gridTemplateColumns: `${rowHeaderWidth}px repeat(${timeColumns.length}, minmax(3rem, 1fr))`,
+    gridTemplateColumns: `min-content repeat(${timeColumns.length}, minmax(3rem, 1fr))`,
     gridTemplateRows: `auto auto auto repeat(${totalGridRows || 1}, ${ROW_HEIGHT}px)`,
   };
 
@@ -261,10 +260,10 @@ export default function GanttChart({
     <div className="h-full w-full overflow-auto" ref={containerRef}>
         <div className="relative grid min-h-full" style={timelineGridStyle}>
             {/* Sticky Row Headers column background */}
-            <div className="sticky left-0 z-20 col-start-1 row-start-1 row-end-[-1] bg-card"></div>
+            <div className="sticky left-0 z-30 col-start-1 row-start-1 row-end-[-1] bg-card"></div>
 
             {/* Empty Corner */}
-            <div className="sticky left-0 top-0 z-30 border-b border-r bg-card" style={{gridRowEnd: 'span 3'}}></div>
+            <div className="sticky left-0 top-0 z-40 border-b border-r bg-card" style={{gridRowEnd: 'span 3'}}></div>
                     
             {/* Top headers */}
             {topHeaders.map(({name, start, span}) => (
@@ -298,12 +297,12 @@ export default function GanttChart({
                     <div 
                         key={`${row.id}-header`}
                         className={cn(
-                            "sticky left-0 z-20 flex items-center justify-center p-2 border-b border-r",
+                            "sticky left-0 z-30 flex items-center justify-start p-2 border-b border-r",
                             rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/50'
                         )}
                         style={{ gridRow: `${position.start + 3} / span ${position.span}`, gridColumn: 1 }}
                     >
-                        <span className="font-semibold text-foreground text-sm">{row.name}</span>
+                        <span className="font-semibold text-foreground text-sm whitespace-nowrap">{row.name}</span>
                     </div>
                 );
 
