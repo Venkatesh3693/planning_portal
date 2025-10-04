@@ -6,6 +6,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Undo2 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { format } from 'date-fns';
+import { useEffect, useRef } from 'react';
 
 type ScheduledProcessProps = {
   item: ScheduledProcess;
@@ -16,6 +17,7 @@ type ScheduledProcessProps = {
   onDragStart: (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => void;
   onDragEnd: () => void;
   isOrderLevelView?: boolean;
+  isBeingDragged?: boolean;
 };
 
 export default function ScheduledProcessBar({ 
@@ -27,9 +29,40 @@ export default function ScheduledProcessBar({
   onDragStart,
   onDragEnd,
   isOrderLevelView = false,
+  isBeingDragged = false,
 }: ScheduledProcessProps) {
+  const ref = useRef<HTMLDivElement>(null);
   const processDetails = PROCESSES.find(p => p.id === item.processId);
   const orderDetails = ORDERS.find(o => o.id === item.orderId);
+
+  useEffect(() => {
+    if (isBeingDragged) {
+      // Use a timeout to apply styles after the drag operation has started.
+      const timeoutId = setTimeout(() => {
+        if (ref.current) {
+          ref.current.style.opacity = '0';
+          ref.current.style.pointerEvents = 'none';
+        }
+      }, 0);
+
+      return () => {
+        clearTimeout(timeoutId);
+        // Clean up styles when the component re-renders (e.g., when drag ends)
+        if (ref.current) {
+          ref.current.style.opacity = '';
+          ref.current.style.pointerEvents = '';
+        }
+      };
+    } else {
+        // Ensure styles are cleared if the drag is cancelled or ends
+        if (ref.current) {
+            ref.current.style.opacity = '';
+            ref.current.style.pointerEvents = '';
+        }
+    }
+  }, [isBeingDragged]);
+
+
   if (!processDetails || !orderDetails) return null;
 
   const Icon = processDetails.icon;
@@ -81,12 +114,13 @@ export default function ScheduledProcessBar({
 
   const bar = (
      <div
+      ref={ref}
       draggable={!isOrderLevelView}
       onDragStart={(e) => onDragStart(e, item)}
       onDragEnd={onDragEnd}
       data-scheduled-process-id={item.id}
       className={cn(
-        "relative z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg",
+        "relative z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg transition-opacity duration-150",
         !isOrderLevelView && "cursor-grab active:cursor-grabbing"
       )}
       style={{

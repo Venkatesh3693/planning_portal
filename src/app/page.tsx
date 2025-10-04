@@ -55,7 +55,7 @@ export default function Home() {
         const processBeingMoved = scheduledProcesses.find(p => p.id === draggedProcess.id);
         if (!processBeingMoved) return;
 
-        const proposedEndDateTime = addMinutes(finalStartDateTime, processBeingMoved.durationMinutes);
+        const proposedEndDateTime = addMinutes(startDateTime, processBeingMoved.durationMinutes);
         
         // Check for collisions with OTHER processes on the same machine
         const hasCollision = scheduledProcesses.some(p => {
@@ -66,10 +66,10 @@ export default function Home() {
             const existingEndDateTime = addMinutes(p.startDateTime, p.durationMinutes);
 
             // Check for overlap
-            const startsDuring = isAfter(finalStartDateTime, p.startDateTime) && isBefore(finalStartDateTime, existingEndDateTime);
+            const startsDuring = isAfter(startDateTime, p.startDateTime) && isBefore(startDateTime, existingEndDateTime);
             const endsDuring = isAfter(proposedEndDateTime, p.startDateTime) && isBefore(proposedEndDateTime, existingEndDateTime);
-            const spansOver = isBefore(finalStartDateTime, p.startDateTime) && isAfter(proposedEndDateTime, existingEndDateTime);
-            const isSameStart = finalStartDateTime.getTime() === p.startDateTime.getTime();
+            const spansOver = isBefore(startDateTime, p.startDateTime) && isAfter(proposedEndDateTime, existingEndDateTime);
+            const isSameStart = startDateTime.getTime() === p.startDateTime.getTime();
 
             return startsDuring || endsDuring || spansOver || isSameStart;
         });
@@ -78,7 +78,7 @@ export default function Home() {
             setScheduledProcesses(prev => 
                 prev.map(p => 
                   p.id === draggedProcess.id
-                    ? { ...p, machineId: machineId, startDateTime: finalStartDateTime }
+                    ? { ...p, machineId: machineId, startDateTime: startDateTime }
                     : p
                 )
             );
@@ -409,6 +409,7 @@ export default function Home() {
                     onScheduledProcessDragEnd={handleDragEnd}
                     isOrderLevelView={isOrderLevelView}
                     viewMode={viewMode}
+                    draggedProcess={draggedProcess}
                   />
               </div>
           </div>
