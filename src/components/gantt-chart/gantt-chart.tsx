@@ -59,35 +59,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = React.useState(0);
-  const [rowHeaderWidth, setRowHeaderWidth] = React.useState(144); // 9rem default
-
-  React.useEffect(() => {
-    if (rows.length > 0) {
-        let maxWidth = 0;
-        const tempSpan = document.createElement('span');
-        // Apply styles that affect width
-        tempSpan.style.fontFamily = 'Inter, sans-serif';
-        tempSpan.style.fontSize = '0.875rem'; // text-sm
-        tempSpan.style.fontWeight = '600'; // font-semibold
-        tempSpan.style.position = 'absolute';
-        tempSpan.style.visibility = 'hidden';
-        tempSpan.style.whiteSpace = 'nowrap';
-
-        document.body.appendChild(tempSpan);
-
-        rows.forEach(row => {
-            tempSpan.textContent = row.name;
-            const width = tempSpan.offsetWidth;
-            if (width > maxWidth) {
-                maxWidth = width;
-            }
-        });
-        document.body.removeChild(tempSpan);
-        setRowHeaderWidth(maxWidth + 32); // Add 32px for padding
-    } else {
-        setRowHeaderWidth(144); // Fallback to default if no rows
-    }
-  }, [rows]);
+  const rowHeaderWidth = 144; // 9rem fixed
 
   React.useEffect(() => {
     const measureContainer = () => {
@@ -224,22 +196,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
 
             {/* Empty Corner */}
             <div className="sticky left-0 top-0 z-30 border-b border-r bg-card" style={{gridRowEnd: 'span 3'}}></div>
-            
-            {/* Row name headers */}
-            {rows.map((row) => {
-                const position = rowPositions.get(row.id);
-                if (!position) return null;
-                return (
-                    <div 
-                        key={row.id}
-                        className="sticky left-0 z-20 flex items-center justify-center p-2 border-b border-r"
-                        style={{ gridRow: `${position.start + 3} / span ${position.span}`, gridColumn: 1 }}
-                    >
-                        <span className="font-semibold text-foreground text-sm">{row.name}</span>
-                    </div>
-                );
-            })}
-        
+                    
             {/* Month headers */}
             {months.map(({name, start, span}) => (
                 <div key={name} className="sticky top-0 z-20 border-b border-r bg-card/95 py-0 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 1 }}>
@@ -249,7 +206,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
             
             {/* Week headers */}
             {weeks.map(({name, start, span}) => (
-                <div key={name} className="sticky top-[1.2rem] z-20 border-b border-r-2 bg-card/95 py-0 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 2}}>
+                <div key={`${name}-${start}`} className="sticky top-[1.2rem] z-20 border-b border-r-2 bg-card/95 py-0 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 2}}>
                     <span className="text-sm font-semibold text-foreground">{name}</span>
                 </div>
             ))}
@@ -266,7 +223,20 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                 const position = rowPositions.get(row.id);
                 if (!position) return [];
                 
-                return dates.map((date, dateIndex) => (
+                const rowHeader = (
+                    <div 
+                        key={`${row.id}-header`}
+                        className={cn(
+                            "sticky left-0 z-20 flex items-center justify-center p-2 border-b border-r",
+                            rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/50'
+                        )}
+                        style={{ gridRow: `${position.start + 3} / span ${position.span}`, gridColumn: 1 }}
+                    >
+                        <span className="font-semibold text-foreground text-sm">{row.name}</span>
+                    </div>
+                );
+
+                const rowCells = dates.map((date, dateIndex) => (
                     <div
                         key={`${row.id}-${dateIndex}`}
                         onDragOver={(e) => handleDragOver(e, row.id, date)}
@@ -282,7 +252,8 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                         )}
                         style={{ gridRow: `${position.start + 3} / span ${position.span}`, gridColumn: dateIndex + 2 }}
                     ></div>
-                ))
+                ));
+                return [rowHeader, ...rowCells];
             })}
             
             {/* Empty rows to fill space */}
@@ -306,6 +277,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                   key={`empty-header-${i}`}
                   className={cn(
                     "sticky left-0 z-10 border-b border-r",
+                    (totalOccupiedRows + i) % 2 === 0 ? 'bg-card' : 'bg-muted/50'
                   )}
                   style={{
                     gridRow: totalOccupiedRows + i + 4,
