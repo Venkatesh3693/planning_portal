@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { addDays, startOfToday, format, isSameDay, set, addMinutes, isBefore, isAfter } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
@@ -48,29 +48,35 @@ export default function Home() {
 
 
   const handleDropOnChart = (orderId: string, processId: string, machineId: string, startDateTime: Date) => {
-    let finalStartDateTime = startDateTime;
-
     if (draggedProcess) {
         // It's an existing process being moved
         const processBeingMoved = scheduledProcesses.find(p => p.id === draggedProcess.id);
         if (!processBeingMoved) return;
 
-        const proposedEndDateTime = addMinutes(startDateTime, processBeingMoved.durationMinutes);
+        let finalStartDateTime = startDateTime;
+
+        // If moving in Day view, we must preserve the original time
+        if(viewMode === 'day') {
+            finalStartDateTime = set(startDateTime, { 
+                hours: processBeingMoved.startDateTime.getHours(), 
+                minutes: processBeingMoved.startDateTime.getMinutes(),
+                seconds: 0,
+                milliseconds: 0
+            });
+        }
+
+        const proposedEndDateTime = addMinutes(finalStartDateTime, processBeingMoved.durationMinutes);
         
         // Check for collisions with OTHER processes on the same machine
         const hasCollision = scheduledProcesses.some(p => {
-            // Exclude the process that is currently being moved from the check
             if (p.id === draggedProcess.id) return false;
             if (p.machineId !== machineId) return false;
 
             const existingEndDateTime = addMinutes(p.startDateTime, p.durationMinutes);
-
-            // Check for overlap
-            const startsDuring = isAfter(startDateTime, p.startDateTime) && isBefore(startDateTime, existingEndDateTime);
+            const startsDuring = isAfter(finalStartDateTime, p.startDateTime) && isBefore(finalStartDateTime, existingEndDateTime);
             const endsDuring = isAfter(proposedEndDateTime, p.startDateTime) && isBefore(proposedEndDateTime, existingEndDateTime);
-            const spansOver = isBefore(startDateTime, p.startDateTime) && isAfter(proposedEndDateTime, existingEndDateTime);
-            const isSameStart = startDateTime.getTime() === p.startDateTime.getTime();
-
+            const spansOver = isBefore(finalStartDateTime, p.startDateTime) && isAfter(proposedEndDateTime, existingEndDateTime);
+            const isSameStart = finalStartDateTime.getTime() === p.startDateTime.getTime();
             return startsDuring || endsDuring || spansOver || isSameStart;
         });
 
@@ -78,12 +84,11 @@ export default function Home() {
             setScheduledProcesses(prev => 
                 prev.map(p => 
                   p.id === draggedProcess.id
-                    ? { ...p, machineId: machineId, startDateTime: startDateTime }
+                    ? { ...p, machineId: machineId, startDateTime: finalStartDateTime }
                     : p
                 )
             );
         }
-        setDraggedProcess(null);
 
     } else {
       // It's a new process from the unplanned list
@@ -91,6 +96,7 @@ export default function Home() {
       const process = PROCESSES.find((p) => p.id === processId);
       if (!order || !process) return;
       
+      let finalStartDateTime = startDateTime;
       // When dragging a new item in Day view, default its time to the start of the workday.
       if (viewMode === 'day') {
         finalStartDateTime = set(startDateTime, { hours: 9, minutes: 0, seconds: 0, milliseconds: 0 });
@@ -152,8 +158,6 @@ export default function Home() {
   };
 
   const handleDragEnd = () => {
-    // If the drag ends and draggedProcess is still set, it means it was an invalid drop.
-    // We clear it so the original item (which was only visually changed) returns to normal.
     setDraggedProcess(null);
   };
 
