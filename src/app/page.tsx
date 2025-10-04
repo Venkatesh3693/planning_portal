@@ -49,11 +49,6 @@ export default function Home() {
 
   const handleDropOnChart = (orderId: string, processId: string, machineId: string, startDateTime: Date) => {
     let finalStartDateTime = startDateTime;
-    
-    // When dragging a new item in Day view, default its time to the start of the workday.
-    if (viewMode === 'day' && !draggedProcess) {
-      finalStartDateTime = set(startDateTime, { hours: 9, minutes: 0, seconds: 0, milliseconds: 0 });
-    }
 
     if (draggedProcess) {
         // It's an existing process being moved
@@ -95,7 +90,12 @@ export default function Home() {
       const order = ORDERS.find((o) => o.id === orderId);
       const process = PROCESSES.find((p) => p.id === processId);
       if (!order || !process) return;
-  
+      
+      // When dragging a new item in Day view, default its time to the start of the workday.
+      if (viewMode === 'day') {
+        finalStartDateTime = set(startDateTime, { hours: 9, minutes: 0, seconds: 0, milliseconds: 0 });
+      }
+
       const durationMinutes = process.sam * order.quantity;
   
       const newScheduledProcess: ScheduledProcess = {
@@ -162,7 +162,7 @@ export default function Home() {
       }, 0);
     }
     // If the drag ends and draggedProcess is still set, it means it was an invalid drop.
-    // We clear it so the original item (which was only hidden) reappears.
+    // We clear it so the original item (which was only visually changed) returns to normal.
     if (draggedProcess) {
       setDraggedProcess(null);
     }
@@ -413,7 +413,7 @@ export default function Home() {
                 <GanttChart 
                     rows={chartRows} 
                     dates={dates}
-                    scheduledProcesses={chartProcesses}
+                    scheduledProcesses={scheduledProcesses}
                     onDrop={handleDropOnChart}
                     onUndoSchedule={handleUndoSchedule}
                     onScheduledProcessDragStart={handleScheduledProcessDragStart}

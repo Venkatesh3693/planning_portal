@@ -360,70 +360,73 @@ export default function GanttChart({
 
 
             {/* Scheduled processes */}
-            {isOrderLevelView
-            ? Array.from(laneAssignments.entries()).flatMap(([rowId, assignments]) => {
-                const rowPosition = rowPositions.get(rowId);
-                if (!rowPosition) return [];
-                
-                return assignments.map(({ process, lane }) => {
-                    const isBeingDragged = draggedProcess?.id === process.id;
-                    const dateIndex = timeColumns.findIndex(d => isSameDay(d.date, process.startDateTime));
+            {scheduledProcesses.map((item) => {
+                const isBeingDragged = draggedProcess?.id === item.id;
+
+                if (isOrderLevelView) {
+                    const rowId = item.orderId;
+                    const assignments = laneAssignments.get(rowId);
+                    const assignment = assignments?.find(a => a.process.id === item.id);
+                    if (!assignment) return null;
+
+                    const rowPosition = rowPositions.get(rowId);
+                    if (!rowPosition) return null;
+
+                    const dateIndex = timeColumns.findIndex(d => isSameDay(d.date, item.startDateTime));
                     if (dateIndex === -1) return null;
 
-                    const gridRow = rowPosition.start + lane + 3;
-                    const durationInColumns = viewMode === 'day' ? Math.ceil(process.durationMinutes / (60 * 8)) : Math.ceil(process.durationMinutes / 60);
+                    const gridRow = rowPosition.start + assignment.lane + 3;
+                    const durationInColumns = viewMode === 'day' ? Math.ceil(item.durationMinutes / (60 * 8)) : Math.ceil(item.durationMinutes / 60);
                     const gridColStart = dateIndex + 2; 
 
                     return (
-                    <ScheduledProcessBar 
-                        key={process.id} 
-                        item={process} 
-                        gridRow={gridRow} 
-                        gridColStart={gridColStart}
-                        durationInColumns={durationInColumns}
-                        onUndo={onUndoSchedule}
-                        onDragStart={onScheduledProcessDragStart}
-                        onDragEnd={onScheduledProcessDragEnd}
-                        isOrderLevelView={isOrderLevelView}
-                        isBeingDragged={isBeingDragged}
-                    />
+                        <ScheduledProcessBar 
+                            key={item.id} 
+                            item={item} 
+                            gridRow={gridRow} 
+                            gridColStart={gridColStart}
+                            durationInColumns={durationInColumns}
+                            onUndo={onUndoSchedule}
+                            onDragStart={onScheduledProcessDragStart}
+                            onDragEnd={onScheduledProcessDragEnd}
+                            isOrderLevelView={isOrderLevelView}
+                            isBeingDragged={isBeingDragged}
+                        />
                     );
-                });
-                })
-            : scheduledProcesses.map((item) => {
-                const isBeingDragged = draggedProcess?.id === item.id;
-                const rowId = item.machineId;
-                const rowPosition = rowPositions.get(rowId);
-                if (!rowPosition) return null;
-                
-                const dateIndex = timeColumns.findIndex(d => {
-                  if (viewMode === 'day') return isSameDay(d.date, item.startDateTime);
-                  return d.date.getTime() === setHours(startOfDay(item.startDateTime), item.startDateTime.getHours()).getTime();
-                });
-                if (dateIndex === -1) return null;
-                
-                const gridRow = rowPosition.start + 3;
-                const gridColStart = dateIndex + 2;
-                
-                const durationInColumns = viewMode === 'day' 
-                    ? Math.ceil(item.durationMinutes / (8 * 60))
-                    : Math.ceil(item.durationMinutes / 60);
+                } else { // Machine level view
+                    const rowId = item.machineId;
+                    const rowPosition = rowPositions.get(rowId);
+                    if (!rowPosition) return null;
+                    
+                    const dateIndex = timeColumns.findIndex(d => {
+                      if (viewMode === 'day') return isSameDay(d.date, item.startDateTime);
+                      return d.date.getTime() === setHours(startOfDay(item.startDateTime), item.startDateTime.getHours()).getTime();
+                    });
+                    if (dateIndex === -1) return null;
+                    
+                    const gridRow = rowPosition.start + 3;
+                    const gridColStart = dateIndex + 2;
+                    
+                    const durationInColumns = viewMode === 'day' 
+                        ? Math.ceil(item.durationMinutes / (8 * 60))
+                        : Math.ceil(item.durationMinutes / 60);
 
 
-                return (
-                    <ScheduledProcessBar 
-                    key={item.id} 
-                    item={item} 
-                    gridRow={gridRow} 
-                    gridColStart={gridColStart}
-                    durationInColumns={durationInColumns}
-                    onUndo={onUndoSchedule}
-                    onDragStart={onScheduledProcessDragStart}
-                    onDragEnd={onScheduledProcessDragEnd}
-                    isOrderLevelView={isOrderLevelView}
-                    isBeingDragged={isBeingDragged}
-                    />
-                );
+                    return (
+                        <ScheduledProcessBar 
+                            key={item.id} 
+                            item={item} 
+                            gridRow={gridRow} 
+                            gridColStart={gridColStart}
+                            durationInColumns={durationInColumns}
+                            onUndo={onUndoSchedule}
+                            onDragStart={onScheduledProcessDragStart}
+                            onDragEnd={onScheduledProcessDragEnd}
+                            isOrderLevelView={isOrderLevelView}
+                            isBeingDragged={isBeingDragged}
+                        />
+                    );
+                }
             })}
         </div>
     </div>

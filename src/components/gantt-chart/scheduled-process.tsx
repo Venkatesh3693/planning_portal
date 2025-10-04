@@ -82,15 +82,11 @@ export default function ScheduledProcessBar({
   );
 
   const bar = (
-    <div
-      draggable={!isOrderLevelView}
-      onDragStart={(e) => onDragStart(e, item)}
-      onDragEnd={onDragEnd}
+     <div
       data-scheduled-process-id={item.id}
       className={cn(
-        "z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg transition-all duration-200 ease-in-out",
-        !isOrderLevelView && "cursor-grab active:cursor-grabbing hover:scale-[1.02] hover:brightness-110",
-        isBeingDragged && "opacity-0 pointer-events-none"
+        "relative z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg transition-opacity duration-200 ease-in-out",
+        isBeingDragged && "opacity-50"
       )}
       style={{
         gridRowStart: gridRow,
@@ -99,6 +95,15 @@ export default function ScheduledProcessBar({
       }}
       title={`${orderDetails.id}: ${processDetails.name} (${durationText})`}
     >
+       <div
+          draggable={!isOrderLevelView}
+          onDragStart={(e) => onDragStart(e, item)}
+          onDragEnd={onDragEnd}
+          className={cn(
+            "absolute inset-0",
+            !isOrderLevelView && "cursor-grab active:cursor-grabbing"
+          )}
+        />
       {barContent}
     </div>
   );
