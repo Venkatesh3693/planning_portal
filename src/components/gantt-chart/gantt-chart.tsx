@@ -220,10 +220,10 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
     <div className="h-full w-full overflow-auto" ref={containerRef}>
         <div className="relative grid min-h-full" style={timelineGridStyle}>
             {/* Sticky Row Headers column background */}
-            <div className="sticky left-0 z-30 col-start-1 row-start-1 row-end-[-1] bg-blue-100"></div>
+            <div className="sticky left-0 z-20 col-start-1 row-start-1 row-end-[-1] bg-card"></div>
 
             {/* Empty Corner */}
-            <div className="sticky left-0 top-0 z-40 border-b border-r bg-card" style={{gridRowEnd: 'span 3'}}></div>
+            <div className="sticky left-0 top-0 z-30 border-b border-r bg-card" style={{gridRowEnd: 'span 3'}}></div>
             
             {/* Row name headers */}
             {rows.map((row) => {
@@ -232,10 +232,10 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                 return (
                     <div 
                         key={row.id}
-                        className="sticky left-0 z-30 flex items-center justify-center p-2"
+                        className="sticky left-0 z-20 flex items-center justify-center p-2 border-b border-r"
                         style={{ gridRow: `${position.start + 3} / span ${position.span}`, gridColumn: 1 }}
                     >
-                        <span className="font-semibold text-blue-900 text-sm">{row.name}</span>
+                        <span className="font-semibold text-foreground text-sm">{row.name}</span>
                     </div>
                 );
             })}
@@ -273,10 +273,10 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                         onDragLeave={handleDragLeave}
                         onDrop={(e) => handleDrop(e, row.id, date)}
                         className={cn(
-                            'border-b',
+                            'border-b border-r',
                             dragOverCell && dragOverCell.rowId === row.id && isSameDay(dragOverCell.date, date) 
                             ? 'bg-primary/20' 
-                            : (rowIndex % 2 === 0 ? 'bg-card' : 'bg-primary/5'),
+                            : (rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/50'),
                             !isOrderLevelView && 'hover:bg-primary/10',
                             'transition-colors duration-200'
                         )}
@@ -292,8 +292,8 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                 <div
                   key={`empty-${i}-${dateIndex}`}
                   className={cn(
-                    "border-b",
-                    (totalOccupiedRows + i) % 2 === 0 ? 'bg-card' : 'bg-primary/5'
+                    "border-b border-r",
+                    (totalOccupiedRows + i) % 2 === 0 ? 'bg-card' : 'bg-muted/50'
                   )}
                   style={{ gridRow: gridRowStart, gridColumn: dateIndex + 2 }}
                 ></div>
@@ -305,7 +305,7 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
                 <div
                   key={`empty-header-${i}`}
                   className={cn(
-                    "sticky left-0 z-10 border-b",
+                    "sticky left-0 z-10 border-b border-r",
                   )}
                   style={{
                     gridRow: totalOccupiedRows + i + 4,
@@ -367,19 +367,3 @@ export default function GanttChart({ rows, dates, scheduledProcesses, onDrop, on
     </div>
   );
 }
-
-
-
-
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
