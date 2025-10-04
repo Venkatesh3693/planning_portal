@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Undo2 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { format } from 'date-fns';
 
 type ScheduledProcessProps = {
   item: ScheduledProcess;
@@ -39,11 +40,12 @@ export default function ScheduledProcessBar({
   const remainingMinutes = item.durationMinutes % (8 * 60);
   const durationHours = Math.floor(remainingMinutes / 60);
   const finalMinutes = remainingMinutes % 60;
-  let durationText = `${orderDetails.id}: ${processDetails.name} (`;
+  
+  let durationText = '';
   if (durationDays > 0) durationText += `${durationDays}d `;
   if (durationHours > 0) durationText += `${durationHours}h `;
   if (finalMinutes > 0) durationText += `${finalMinutes}m`;
-  durationText += ')';
+  durationText = durationText.trim();
 
 
   const handleUndo = () => {
@@ -51,6 +53,33 @@ export default function ScheduledProcessBar({
   }
   
   const backgroundColor = processDetails.color ? processDetails.color : 'hsl(var(--accent))';
+
+  const barContent = (
+    <div className="flex items-center gap-2 px-2">
+      <Icon className="h-3 w-3 shrink-0" />
+      <span className="truncate text-xs font-medium">{isOrderLevelView ? processDetails.name : orderDetails.id}</span>
+    </div>
+  );
+
+  const popoverContent = (
+    <div className="grid gap-4">
+      <div className="space-y-2">
+        <h4 className="font-medium leading-none">{orderDetails.ocn} - {orderDetails.style}</h4>
+        <p className="text-sm text-muted-foreground">
+          {processDetails.name}
+        </p>
+      </div>
+      <p className="text-sm">
+        <strong>Start:</strong> {format(item.startDateTime, 'MMM d, yyyy @ h:mm a')}
+      </p>
+      <p className="text-sm">
+        <strong>Duration:</strong> {durationText}
+      </p>
+      <p className="text-sm">
+        <strong>Order ID:</strong> {orderDetails.id}
+      </p>
+    </div>
+  );
 
   const bar = (
     <div
@@ -68,12 +97,9 @@ export default function ScheduledProcessBar({
         gridColumn: `${gridColStart} / span ${durationInColumns}`,
         backgroundColor: backgroundColor,
       }}
-      title={durationText}
+      title={`${orderDetails.id}: ${processDetails.name} (${durationText})`}
     >
-      <div className="flex items-center gap-2 px-2">
-        <Icon className="h-3 w-3 shrink-0" />
-        <span className="truncate text-xs font-medium">{isOrderLevelView ? processDetails.name : orderDetails.id}</span>
-      </div>
+      {barContent}
     </div>
   );
 
@@ -85,21 +111,12 @@ export default function ScheduledProcessBar({
           gridColumn: `${gridColStart} / span ${durationInColumns}`,
           height: 'calc(100% - 0.125rem)',
           margin: '1px',
+          cursor: 'pointer'
         }}>
           {bar}
         </PopoverTrigger>
         <PopoverContent className="w-80">
-          <div className="grid gap-4">
-            <div className="space-y-2">
-              <h4 className="font-medium leading-none">{orderDetails.id}</h4>
-              <p className="text-sm text-muted-foreground">
-                {processDetails.name}
-              </p>
-            </div>
-             <p className="text-sm">
-                Duration: {durationText.split('(')[1].slice(0, -1)}
-              </p>
-          </div>
+          {popoverContent}
         </PopoverContent>
       </Popover>
     )
@@ -111,6 +128,9 @@ export default function ScheduledProcessBar({
         {bar}
       </DropdownMenuTrigger>
       <DropdownMenuContent>
+        <div className="p-4 pt-2">
+          {popoverContent}
+        </div>
         <DropdownMenuItem onClick={handleUndo}>
           <Undo2 className="mr-2 h-4 w-4" />
           <span>Return to Unplanned</span>
@@ -119,5 +139,3 @@ export default function ScheduledProcessBar({
     </DropdownMenu>
   );
 }
-
-    

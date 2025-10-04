@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useRef, useMemo } from 'react';
-import { addDays, startOfToday, format, isSameDay, set } from 'date-fns';
+import { addDays, startOfToday, format, isSameDay, set, addMinutes, isBefore, isAfter } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, ORDERS, PROCESSES } from '@/lib/data';
@@ -49,21 +49,47 @@ export default function Home() {
 
   const handleDropOnChart = (orderId: string, processId: string, machineId: string, startDateTime: Date) => {
     let finalStartDateTime = startDateTime;
+    
     // When dragging a new item in Day view, default its time to the start of the workday.
     if (viewMode === 'day' && !draggedProcess) {
       finalStartDateTime = set(startDateTime, { hours: 9, minutes: 0, seconds: 0, milliseconds: 0 });
     }
 
     if (draggedProcess) {
-      // It's an existing process being moved
-      setScheduledProcesses(prev => 
-        prev.map(p => 
-          p.id === draggedProcess.id
-            ? { ...p, machineId: machineId, startDateTime: finalStartDateTime }
-            : p
-        )
-      );
-      setDraggedProcess(null);
+        // It's an existing process being moved
+        const processBeingMoved = scheduledProcesses.find(p => p.id === draggedProcess.id);
+        if (!processBeingMoved) return;
+
+        const proposedEndDateTime = addMinutes(finalStartDateTime, processBeingMoved.durationMinutes);
+        
+        // Check for collisions with OTHER processes on the same machine
+        const hasCollision = scheduledProcesses.some(p => {
+            // Exclude the process that is currently being moved from the check
+            if (p.id === draggedProcess.id) return false;
+            if (p.machineId !== machineId) return false;
+
+            const existingEndDateTime = addMinutes(p.startDateTime, p.durationMinutes);
+
+            // Check for overlap
+            const startsDuring = isAfter(finalStartDateTime, p.startDateTime) && isBefore(finalStartDateTime, existingEndDateTime);
+            const endsDuring = isAfter(proposedEndDateTime, p.startDateTime) && isBefore(proposedEndDateTime, existingEndDateTime);
+            const spansOver = isBefore(finalStartDateTime, p.startDateTime) && isAfter(proposedEndDateTime, existingEndDateTime);
+            const isSameStart = finalStartDateTime.getTime() === p.startDateTime.getTime();
+
+            return startsDuring || endsDuring || spansOver || isSameStart;
+        });
+
+        if (!hasCollision) {
+            setScheduledProcesses(prev => 
+                prev.map(p => 
+                  p.id === draggedProcess.id
+                    ? { ...p, machineId: machineId, startDateTime: finalStartDateTime }
+                    : p
+                )
+            );
+        }
+        setDraggedProcess(null);
+
     } else {
       // It's a new process from the unplanned list
       const order = ORDERS.find((o) => o.id === orderId);
@@ -183,9 +209,9 @@ export default function Home() {
   };
 
   const filteredUnplannedOrders = useMemo(() => {
-    let baseOrders = isOrderLevelView
-      ? []
-      : selectedProcessId === SEWING_PROCESS_ID
+    if (isOrderLevelView) return [];
+    
+    let baseOrders = selectedProcessId === SEWING_PROCESS_ID
         ? unplannedOrders.filter(order => {
             const unscheduled = getUnscheduledProcessesForOrder(order);
             return unscheduled.some(p => p.id === selectedProcessId);
@@ -328,7 +354,8 @@ export default function Home() {
                           const unscheduled = getUnscheduledProcessesForOrder(order);
                           const canDrag = unscheduled.some(p => p.id === selectedProcessId);
 
-                          if (!canDrag) return null;
+                          if (!canDrag && !isOrderLevelView) return null;
+                          if (isOrderLevelView) return null;
 
                           return (
                             <div
@@ -354,7 +381,7 @@ export default function Home() {
                             </div>
                           )
                         })}
-                        {filteredUnplannedOrders.length === 0 && (
+                        {filteredUnplannedOrders.length === 0 && !isOrderLevelView && (
                           <div className="flex h-full items-center justify-center text-center">
                             <p className="text-sm text-muted-foreground">
                               {hasActiveFilters
@@ -365,6 +392,13 @@ export default function Home() {
                               }
                             </p>
                           </div>
+                        )}
+                         {isOrderLevelView && (
+                            <div className="flex h-full items-center justify-center text-center">
+                                <p className="text-sm text-muted-foreground">
+                                Drag and drop orders from a specific process view.
+                                </p>
+                            </div>
                         )}
                       </div>
                     </ScrollArea>
@@ -395,5 +429,3 @@ export default function Home() {
     </div>
   );
 }
-
-    

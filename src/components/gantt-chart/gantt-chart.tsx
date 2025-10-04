@@ -120,6 +120,7 @@ export default function GanttChart({
   
   const handleDrop = (e: React.DragEvent<HTMLDivElement>, rowId: string, date: Date) => {
     e.preventDefault();
+    setDragOverCell(null);
     if(isOrderLevelView) return;
 
     const orderId = e.dataTransfer.getData('orderId');
@@ -128,7 +129,6 @@ export default function GanttChart({
     if (orderId && processId) {
       onDrop(orderId, processId, rowId, date);
     }
-    setDragOverCell(null);
   };
 
   const laneAssignments = React.useMemo(() => {
@@ -429,5 +429,3 @@ export default function GanttChart({
     </div>
   );
 }
-
-    
