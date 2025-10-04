@@ -152,20 +152,9 @@ export default function Home() {
   };
 
   const handleDragEnd = () => {
-    // This is a workaround to force the browser to re-evaluate hover states.
-    if (ordersListRef.current) {
-      ordersListRef.current.style.pointerEvents = 'none';
-      setTimeout(() => {
-        if (ordersListRef.current) {
-          ordersListRef.current.style.pointerEvents = 'auto';
-        }
-      }, 0);
-    }
     // If the drag ends and draggedProcess is still set, it means it was an invalid drop.
     // We clear it so the original item (which was only visually changed) returns to normal.
-    if (draggedProcess) {
-      setDraggedProcess(null);
-    }
+    setDraggedProcess(null);
   };
 
   const today = startOfToday();
@@ -413,14 +402,13 @@ export default function Home() {
                 <GanttChart 
                     rows={chartRows} 
                     dates={dates}
-                    scheduledProcesses={scheduledProcesses}
+                    scheduledProcesses={chartProcesses}
                     onDrop={handleDropOnChart}
                     onUndoSchedule={handleUndoSchedule}
                     onScheduledProcessDragStart={handleScheduledProcessDragStart}
                     onScheduledProcessDragEnd={handleDragEnd}
                     isOrderLevelView={isOrderLevelView}
                     viewMode={viewMode}
-                    draggedProcess={draggedProcess}
                   />
               </div>
           </div>

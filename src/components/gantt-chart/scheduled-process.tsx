@@ -16,7 +16,6 @@ type ScheduledProcessProps = {
   onDragStart: (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => void;
   onDragEnd: () => void;
   isOrderLevelView?: boolean;
-  isBeingDragged?: boolean;
 };
 
 export default function ScheduledProcessBar({ 
@@ -28,7 +27,6 @@ export default function ScheduledProcessBar({
   onDragStart,
   onDragEnd,
   isOrderLevelView = false,
-  isBeingDragged = false,
 }: ScheduledProcessProps) {
   const processDetails = PROCESSES.find(p => p.id === item.processId);
   const orderDetails = ORDERS.find(o => o.id === item.orderId);
@@ -83,10 +81,13 @@ export default function ScheduledProcessBar({
 
   const bar = (
      <div
+      draggable={!isOrderLevelView}
+      onDragStart={(e) => onDragStart(e, item)}
+      onDragEnd={onDragEnd}
       data-scheduled-process-id={item.id}
       className={cn(
-        "relative z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg transition-opacity duration-200 ease-in-out",
-        isBeingDragged && "opacity-50"
+        "relative z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg",
+        !isOrderLevelView && "cursor-grab active:cursor-grabbing"
       )}
       style={{
         gridRowStart: gridRow,
@@ -95,15 +96,6 @@ export default function ScheduledProcessBar({
       }}
       title={`${orderDetails.id}: ${processDetails.name} (${durationText})`}
     >
-       <div
-          draggable={!isOrderLevelView}
-          onDragStart={(e) => onDragStart(e, item)}
-          onDragEnd={onDragEnd}
-          className={cn(
-            "absolute inset-0",
-            !isOrderLevelView && "cursor-grab active:cursor-grabbing"
-          )}
-        />
       {barContent}
     </div>
   );
