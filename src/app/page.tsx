@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useRef, useMemo } from 'react';
-import { addDays, startOfToday, format, isSameDay } from 'date-fns';
+import { addDays, startOfToday, format, isSameDay, set } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, ORDERS, PROCESSES } from '@/lib/data';
@@ -54,12 +54,17 @@ export default function Home() {
 
     const durationMinutes = process.sam * order.quantity;
 
+    let finalStartDateTime = startDateTime;
+    if (viewMode === 'day') {
+      finalStartDateTime = set(startDateTime, { hours: 9, minutes: 0, seconds: 0, milliseconds: 0 });
+    }
+
     const newScheduledProcess: ScheduledProcess = {
       id: `${processId}-${orderId}-${new Date().getTime()}`,
       orderId,
       processId,
       machineId,
-      startDateTime,
+      startDateTime: finalStartDateTime,
       durationMinutes,
     };
     
@@ -358,3 +363,5 @@ export default function Home() {
     </div>
   );
 }
+
+    
