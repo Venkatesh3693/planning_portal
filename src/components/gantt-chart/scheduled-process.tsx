@@ -43,7 +43,7 @@ export default function ScheduledProcessBar({ item, gridRow, gridColStart, durat
     <div
       className={cn(
         "z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg transition-all duration-200 ease-in-out",
-        !isOrderLevelView && "cursor-context-menu hover:scale-[1.02] hover:brightness-95",
+        !isOrderLevelView && "cursor-context-menu hover:scale-[1.02] hover:brightness-110",
       )}
       style={{
         gridRowStart: gridRow,
