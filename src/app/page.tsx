@@ -2,10 +2,10 @@
 'use client';
 
 import { useState, useRef, useMemo, useEffect } from 'react';
-import { addDays, startOfToday, format, isSameDay, set, addMinutes, isBefore, isAfter, isWithinInterval } from 'date-fns';
+import { addDays, startOfToday, format, isSameDay, set, addMinutes, isBefore, isAfter, getDay, setHours, setMinutes, startOfDay, isWithinInterval } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
-import { MACHINES, ORDERS, PROCESSES } from '@/lib/data';
+import { MACHINES, ORDERS, PROCESSES, WORK_DAY_MINUTES } from '@/lib/data';
 import type { Order, ScheduledProcess, TnaProcess } from '@/lib/types';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -31,6 +31,52 @@ import { getScheduledProcesses, setScheduledProcesses } from '@/lib/store';
 
 const ORDER_LEVEL_VIEW = 'order-level';
 const SEWING_PROCESS_ID = 'sewing';
+const WORKING_HOURS_START = 9;
+const WORKING_HOURS_END = 17;
+
+
+// Helper function to calculate end time considering only working hours
+const calculateEndDateTime = (startDateTime: Date, totalDurationMinutes: number): Date => {
+  let remainingMinutes = totalDurationMinutes;
+  let currentDateTime = new Date(startDateTime);
+
+  // If starting after working hours, move to the start of the next working day
+  if (currentDateTime.getHours() >= WORKING_HOURS_END) {
+    currentDateTime = set(addDays(currentDateTime, 1), { hours: WORKING_HOURS_START, minutes: 0, seconds: 0, milliseconds: 0 });
+  }
+  
+  // If starting before working hours, move to the start of the working day
+  if (currentDateTime.getHours() < WORKING_HOURS_START) {
+     currentDateTime = set(currentDateTime, { hours: WORKING_HOURS_START, minutes: 0, seconds: 0, milliseconds: 0 });
+  }
+
+  while (remainingMinutes > 0) {
+    // Skip weekends (Saturday=6, Sunday=0)
+    const dayOfWeek = getDay(currentDateTime);
+    if (dayOfWeek === 6) { // Saturday
+      currentDateTime = set(addDays(currentDateTime, 2), { hours: WORKING_HOURS_START, minutes: 0 });
+      continue;
+    }
+    if (dayOfWeek === 0) { // Sunday
+      currentDateTime = set(addDays(currentDateTime, 1), { hours: WORKING_HOURS_START, minutes: 0 });
+      continue;
+    }
+
+    const endOfWorkDay = set(currentDateTime, { hours: WORKING_HOURS_END, minutes: 0, seconds: 0, milliseconds: 0 });
+    const minutesLeftInDay = (endOfWorkDay.getTime() - currentDateTime.getTime()) / (1000 * 60);
+
+    if (remainingMinutes <= minutesLeftInDay) {
+      currentDateTime = addMinutes(currentDateTime, remainingMinutes);
+      remainingMinutes = 0;
+    } else {
+      remainingMinutes -= minutesLeftInDay;
+      currentDateTime = set(addDays(currentDateTime, 1), { hours: WORKING_HOURS_START, minutes: 0, seconds: 0, milliseconds: 0 });
+    }
+  }
+
+  return currentDateTime;
+};
+
 
 export default function Home() {
   const [scheduledProcesses, setScheduledProcessesState] = useState<ScheduledProcess[]>([]);
@@ -82,7 +128,7 @@ export default function Home() {
         });
       }
 
-      const proposedEndDateTime = addMinutes(finalStartDateTime, draggedProcess.durationMinutes);
+      const proposedEndDateTime = calculateEndDateTime(finalStartDateTime, draggedProcess.durationMinutes);
 
       const hasCollision = scheduledProcesses.some(p => {
         if (p.id === draggedProcess.id) return false;
@@ -113,7 +159,7 @@ export default function Home() {
       if (!order || !process) return;
 
       const durationMinutes = process.sam * order.quantity;
-      const endDateTime = addMinutes(finalStartDateTime, durationMinutes);
+      const endDateTime = calculateEndDateTime(finalStartDateTime, durationMinutes);
 
       const newScheduledProcess: ScheduledProcess = {
         id: `${processId}-${orderId}-${new Date().getTime()}`,
@@ -211,9 +257,10 @@ export default function Home() {
   };
 
   const filteredUnplannedOrders = useMemo(() => {
-    if (isOrderLevelView) return unplannedOrders;
-    
-    let baseOrders = selectedProcessId === SEWING_PROCESS_ID
+    let baseOrders = unplannedOrders;
+
+    if (!isOrderLevelView) {
+      baseOrders = selectedProcessId === SEWING_PROCESS_ID
         ? unplannedOrders.filter(order => {
             const unscheduled = getUnscheduledProcessesForOrder(order);
             return unscheduled.some(p => p.id === selectedProcessId);
@@ -224,6 +271,7 @@ export default function Home() {
             const unscheduled = getUnscheduledProcessesForOrder(order);
             return unscheduled.some(p => p.id === selectedProcessId);
           });
+    }
     
     return baseOrders.filter(order => {
       const ocnMatch = filterOcn ? order.ocn.toLowerCase().includes(filterOcn.toLowerCase()) : true;
@@ -238,6 +286,7 @@ export default function Home() {
 
   }, [unplannedOrders, selectedProcessId, isOrderLevelView, sewingScheduledOrderIds, getUnscheduledProcessesForOrder, filterOcn, filterBuyer, filterDueDate]);
 
+
   const hasActiveFilters = !!(filterOcn || filterBuyer.length > 0 || filterDueDate);
   
   const handleBuyerFilterChange = (buyer: string) => {
@@ -249,8 +298,6 @@ export default function Home() {
   };
 
   const handleClearSchedule = () => {
-    // This will clear the local React state, which will then trigger the
-    // useEffect to save the empty array to localStorage.
     setScheduledProcessesState([]);
   };
 
@@ -458,3 +505,6 @@ export default function Home() {
 
     
 
+
+
+    
