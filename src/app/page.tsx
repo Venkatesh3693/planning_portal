@@ -2,11 +2,11 @@
 'use client';
 
 import { useState, useRef, useMemo, useEffect } from 'react';
-import { addDays, startOfToday, format, isSameDay, set, addMinutes, isBefore, isAfter } from 'date-fns';
+import { addDays, startOfToday, format, isSameDay, set, addMinutes, isBefore, isAfter, isWithinInterval } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, ORDERS, PROCESSES } from '@/lib/data';
-import type { Order, ScheduledProcess } from '@/lib/types';
+import type { Order, ScheduledProcess, TnaProcess } from '@/lib/types';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
@@ -43,6 +43,8 @@ export default function Home() {
   const [filterBuyer, setFilterBuyer] = useState<string[]>([]);
   const [filterDueDate, setFilterDueDate] = useState<DateRange | undefined>(undefined);
   const [draggedProcess, setDraggedProcess] = useState<ScheduledProcess | null>(null);
+  const [draggedProcessTna, setDraggedProcessTna] = useState<TnaProcess | null>(null);
+
 
   const buyerOptions = useMemo(() => [...new Set(ORDERS.map(o => o.buyer))], []);
 
@@ -133,6 +135,16 @@ export default function Home() {
     e.dataTransfer.setData('processId', processId);
     setDraggedProcess(null); // Ensure draggedProcess from scheduled items is cleared
     setHoveredOrderId(null);
+
+    const order = ORDERS.find(o => o.id === orderId);
+    const tnaProcess = order?.tna?.processes.find(p => p.processId === processId);
+    if(tnaProcess) {
+      setDraggedProcessTna({
+        ...tnaProcess,
+        startDate: new Date(tnaProcess.startDate),
+        endDate: new Date(tnaProcess.endDate)
+      });
+    }
   };
   
   const handleUndoSchedule = (scheduledProcessId: string) => {
@@ -161,6 +173,7 @@ export default function Home() {
 
   const handleDragEnd = () => {
     setDraggedProcess(null);
+    setDraggedProcessTna(null);
   };
 
   const today = startOfToday();
@@ -416,6 +429,7 @@ export default function Home() {
                     isOrderLevelView={isOrderLevelView}
                     viewMode={viewMode}
                     draggedProcess={draggedProcess}
+                    draggedProcessTna={draggedProcessTna}
                   />
               </div>
           </div>

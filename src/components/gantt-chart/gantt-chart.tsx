@@ -2,8 +2,8 @@
 "use client";
 
 import * as React from 'react';
-import { format, isSameDay, getWeek, getMonth, getYear, addMinutes, startOfDay, eachDayOfInterval, setHours } from 'date-fns';
-import type { ScheduledProcess } from '@/lib/types';
+import { format, isSameDay, getWeek, getMonth, getYear, addMinutes, startOfDay, eachDayOfInterval, setHours, isWithinInterval } from 'date-fns';
+import type { ScheduledProcess, TnaProcess } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import ScheduledProcessBar from './scheduled-process';
 
@@ -25,6 +25,7 @@ type GanttChartProps = {
   isOrderLevelView?: boolean;
   viewMode: ViewMode;
   draggedProcess: ScheduledProcess | null;
+  draggedProcessTna: TnaProcess | null;
 };
 
 const ROW_HEIGHT = 32; // Corresponds to h-8
@@ -39,14 +40,14 @@ const assignLanes = (processes: ScheduledProcess[]): { process: ScheduledProcess
     const sortedProcesses = [...processes].sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
     
     const lanes: { process: ScheduledProcess, lane: number }[] = [];
-    const laneEndTimes: number[] = [];
+    const laneEndTimes: Date[] = [];
 
     for (const process of sortedProcesses) {
         let foundLane = false;
-        const processEndTime = addMinutes(process.startDateTime, process.durationMinutes).getTime();
+        const processEndTime = addMinutes(process.startDateTime, process.durationMinutes);
 
         for (let i = 0; i < laneEndTimes.length; i++) {
-            if (process.startDateTime.getTime() >= laneEndTimes[i]) {
+            if (process.startDateTime.getTime() >= laneEndTimes[i].getTime()) {
                 lanes.push({ process, lane: i });
                 laneEndTimes[i] = processEndTime;
                 foundLane = true;
@@ -74,7 +75,8 @@ export default function GanttChart({
   onScheduledProcessDragEnd,
   isOrderLevelView = false,
   viewMode,
-  draggedProcess
+  draggedProcess,
+  draggedProcessTna,
 }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -320,7 +322,18 @@ export default function GanttChart({
                     </div>
                 );
 
-                const rowCells = timeColumns.map((col, dateIndex) => (
+                const rowCells = timeColumns.map((col, dateIndex) => {
+                  const isDragOver = dragOverCell && dragOverCell.rowId === row.id && isSameDay(dragOverCell.date, col.date);
+                  
+                  let isInTnaRange = false;
+                  if (draggedProcessTna && viewMode === 'day') {
+                      isInTnaRange = isWithinInterval(col.date, { start: startOfDay(draggedProcessTna.startDate), end: startOfDay(draggedProcessTna.endDate) });
+                  } else if (draggedProcessTna && viewMode === 'hour') {
+                      isInTnaRange = isWithinInterval(col.date, { start: draggedProcessTna.startDate, end: draggedProcessTna.endDate });
+                  }
+
+
+                  return (
                     <div
                         key={`${row.id}-${dateIndex}`}
                         onDragOver={(e) => handleDragOver(e, row.id, col.date)}
@@ -328,15 +341,16 @@ export default function GanttChart({
                         onDrop={(e) => handleDrop(e, row.id, col.date)}
                         className={cn(
                             'border-b border-r',
-                            dragOverCell && dragOverCell.rowId === row.id && isSameDay(dragOverCell.date, col.date) 
+                             isDragOver 
                             ? 'bg-primary/20' 
                             : (rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/50'),
-                            !isOrderLevelView && 'hover:bg-primary/10',
+                            isInTnaRange && !isDragOver && 'bg-green-500/10',
+                            !isOrderLevelView && !isDragOver && 'hover:bg-primary/10',
                             'transition-colors duration-200'
                         )}
                         style={{ gridRow: `${position.start + 3} / span ${position.span}`, gridColumn: dateIndex + 2 }}
                     ></div>
-                ));
+                )});
                 return [rowHeader, ...rowCells];
             })}
 
