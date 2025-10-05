@@ -44,7 +44,7 @@ const assignLanes = (processes: ScheduledProcess[]): { process: ScheduledProcess
 
     for (const process of sortedProcesses) {
         let foundLane = false;
-        const processEndTime = addMinutes(process.startDateTime, process.durationMinutes);
+        const processEndTime = process.endDateTime;
 
         for (let i = 0; i < laneEndTimes.length; i++) {
             if (process.startDateTime.getTime() >= laneEndTimes[i].getTime()) {
@@ -402,7 +402,7 @@ export default function GanttChart({
                     if (dateIndex === -1) return null;
 
                     const gridRow = rowPosition.start + assignment.lane + 3;
-                    const durationInColumns = viewMode === 'day' ? Math.ceil(item.durationMinutes / (60 * 8)) : Math.ceil(item.durationMinutes / 60);
+                    const durationInColumns = viewMode === 'day' ? item.durationMinutes / (60 * 8) : item.durationMinutes / 60;
                     const gridColStart = dateIndex + 2; 
 
                     return (
@@ -434,8 +434,8 @@ export default function GanttChart({
                     const gridColStart = dateIndex + 2;
                     
                     const durationInColumns = viewMode === 'day' 
-                        ? Math.ceil(item.durationMinutes / (8 * 60))
-                        : Math.ceil(item.durationMinutes / 60);
+                        ? item.durationMinutes / (8 * 60)
+                        : item.durationMinutes / 60;
 
 
                     return (

@@ -33,35 +33,38 @@ const ORDER_LEVEL_VIEW = 'order-level';
 const SEWING_PROCESS_ID = 'sewing';
 
 export default function Home() {
-  // Use the store for state management
-  const [unplannedOrders, setUnplannedOrdersState] = useState<Order[]>(getOrders().filter(o => !getScheduledProcesses().some(sp => sp.orderId === o.id)));
-  const [scheduledProcesses, setScheduledProcessesState] = useState<ScheduledProcess[]>(getScheduledProcesses());
+  const [scheduledProcesses, setScheduledProcessesState] = useState<ScheduledProcess[]>([]);
+  const [unplannedOrders, setUnplannedOrdersState] = useState<Order[]>([]);
 
-  // Wrap state setters to update both local state and the store
-  const setAndStoreScheduledProcesses = (updater: React.SetStateAction<ScheduledProcess[]>) => {
-    const newProcesses = typeof updater === 'function' ? updater(scheduledProcesses) : updater;
+  // Effect to load initial state from store on mount
+  useEffect(() => {
+    const allStoredOrders = getOrders();
+    const storedProcesses = getScheduledProcesses();
+    const scheduledOrderIds = new Set(storedProcesses.map(p => p.orderId));
+    
+    setScheduledProcessesState(storedProcesses);
+    setUnplannedOrdersState(allStoredOrders.filter(o => !scheduledOrderIds.has(o.id)));
+  }, []);
+
+  const setAndStoreScheduledProcesses = (updater: (prev: ScheduledProcess[]) => ScheduledProcess[]) => {
+    const newProcesses = updater(scheduledProcesses);
     setScheduledProcessesState(newProcesses);
-    setScheduledProcesses(newProcesses);
+    setScheduledProcesses(() => newProcesses); // Pass a function to the store setter
   };
   
-  const setAndStoreUnplannedOrders = (updater: React.SetStateAction<Order[]>) => {
-    const newOrders = typeof updater === 'function' ? updater(unplannedOrders) : updater;
-    setUnplannedOrdersState(newOrders);
+  const setAndStoreUnplannedOrders = (updater: (prev: Order[]) => Order[]) => {
+    const newUnplannedOrders = updater(unplannedOrders);
+    setUnplannedOrdersState(newUnplannedOrders);
     
-    // This is a simplified way to update the global orders list
-    const allOrderIds = ORDERS.map(o => o.id);
+    const allStoredOrders = getOrders();
     const scheduledOrderIds = new Set(scheduledProcesses.map(sp => sp.orderId));
-    const finalOrders = allOrderIds.map(id => {
-      const isUnplanned = newOrders.some(uo => uo.id === id);
-      const isScheduled = scheduledOrderIds.has(id);
-      if (isUnplanned || !isScheduled) {
-        return ORDERS.find(o => o.id === id)!;
-      }
-      return null;
-    }).filter(Boolean) as Order[];
+    const allUnplannedIds = new Set(newUnplannedOrders.map(o => o.id));
 
-    // This part is tricky without a real state manager. We are trying to keep two states in sync.
-    // For now, let's focus on the scheduled processes being stored globally.
+    setOrders(() => allStoredOrders.map(o => {
+      // This logic can be simplified if we assume `getOrders` gives the full master list
+      // For now, let's just make sure the states are consistent for the current session.
+      return o;
+    }));
   }
 
   const [selectedProcessId, setSelectedProcessId] = useState<string>(ORDER_LEVEL_VIEW);
@@ -87,7 +90,6 @@ export default function Home() {
 
         let finalStartDateTime = startDateTime;
 
-        // If moving in Day view, we must preserve the original time
         if(viewMode === 'day') {
             finalStartDateTime = set(startDateTime, { 
                 hours: processBeingMoved.startDateTime.getHours(), 
@@ -96,15 +98,14 @@ export default function Home() {
                 milliseconds: 0
             });
         }
-
+        
         const proposedEndDateTime = addMinutes(finalStartDateTime, processBeingMoved.durationMinutes);
         
-        // Check for collisions with OTHER processes on the same machine
         const hasCollision = scheduledProcesses.some(p => {
-            if (p.id === draggedProcess.id) return false; // Exclude the item being dragged
+            if (p.id === draggedProcess.id) return false;
             if (p.machineId !== machineId) return false;
 
-            const existingEndDateTime = addMinutes(p.startDateTime, p.durationMinutes);
+            const existingEndDateTime = p.endDateTime;
             
             const startsDuring = isAfter(finalStartDateTime, p.startDateTime) && isBefore(finalStartDateTime, existingEndDateTime);
             const endsDuring = isAfter(proposedEndDateTime, p.startDateTime) && isBefore(proposedEndDateTime, existingEndDateTime);
@@ -118,7 +119,7 @@ export default function Home() {
             setAndStoreScheduledProcesses(prev => 
                 prev.map(p => 
                   p.id === draggedProcess.id
-                    ? { ...p, machineId: machineId, startDateTime: finalStartDateTime }
+                    ? { ...p, machineId: machineId, startDateTime: finalStartDateTime, endDateTime: proposedEndDateTime }
                     : p
                 )
             );
@@ -131,12 +132,12 @@ export default function Home() {
       if (!order || !process) return;
       
       let finalStartDateTime = startDateTime;
-      // When dragging a new item in Day view, default its time to the start of the workday.
       if (viewMode === 'day') {
         finalStartDateTime = set(startDateTime, { hours: 9, minutes: 0, seconds: 0, milliseconds: 0 });
       }
 
       const durationMinutes = process.sam * order.quantity;
+      const endDateTime = addMinutes(finalStartDateTime, durationMinutes);
   
       const newScheduledProcess: ScheduledProcess = {
         id: `${processId}-${orderId}-${new Date().getTime()}`,
@@ -144,28 +145,21 @@ export default function Home() {
         processId,
         machineId,
         startDateTime: finalStartDateTime,
+        endDateTime,
         durationMinutes,
       };
       
       setAndStoreScheduledProcesses((prev) => [...prev, newScheduledProcess]);
       
-      const orderInUnplanned = unplannedOrders.find(o => o.id === orderId);
-      if(orderInUnplanned){
-        const orderProcesses = PROCESSES.filter(p => orderInUnplanned.processIds.includes(p.id));
-        const scheduledForThisOrder = scheduledProcesses.filter(sp => sp.orderId === orderId).length + 1;
-        if (scheduledForThisOrder >= orderProcesses.length) {
-          setUnplannedOrdersState((prev) => prev.filter((o) => o.id !== orderId));
-        }
-      }
+      setUnplannedOrdersState((prev) => prev.filter((o) => o.id !== orderId));
     }
-    // Clean up highlighting state after any successful drop.
     setDraggedProcessTna(null);
   };
   
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, orderId: string, processId: string) => {
     e.dataTransfer.setData('orderId', orderId);
     e.dataTransfer.setData('processId', processId);
-    setDraggedProcess(null); // Ensure draggedProcess from scheduled items is cleared
+    setDraggedProcess(null);
     setHoveredOrderId(null);
 
     const order = ORDERS.find(o => o.id === orderId);
@@ -183,24 +177,19 @@ export default function Home() {
     const processToUndo = scheduledProcesses.find(p => p.id === scheduledProcessId);
     if (!processToUndo) return;
     
-    // Add the order back to unplannedOrders if it's not already there
-    const orderExistsInUnplanned = unplannedOrders.some(o => o.id === processToUndo.orderId);
-    if (!orderExistsInUnplanned) {
-      const orderToAddBack = ORDERS.find(o => o.id === processToUndo.orderId);
-      if (orderToAddBack) {
-        setUnplannedOrdersState(prev => [orderToAddBack, ...prev]);
-      }
-    }
-
-    // Remove the process from scheduledProcesses
     setAndStoreScheduledProcesses(prev => prev.filter(p => p.id !== scheduledProcessId));
+
+    const orderToAddBack = ORDERS.find(o => o.id === processToUndo.orderId);
+    if (orderToAddBack && !unplannedOrders.some(uo => uo.id === orderToAddBack.id)) {
+        setUnplannedOrdersState(prev => [orderToAddBack, ...prev]);
+    }
   };
   
   const handleScheduledProcessDragStart = (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => {
     setDraggedProcess(process);
-    e.dataTransfer.setData('processId', process.processId); // For compatibility with drop logic
-    e.dataTransfer.setData('orderId', process.orderId); // For compatibility with drop logic
-    e.dataTransfer.setData('scheduledProcessId', process.id); // To identify it on drop
+    e.dataTransfer.setData('processId', process.processId);
+    e.dataTransfer.setData('orderId', process.orderId);
+    e.dataTransfer.setData('scheduledProcessId', process.id);
   };
 
   const handleDragEnd = () => {
@@ -268,8 +257,8 @@ export default function Home() {
       const buyerMatch = filterBuyer.length > 0 ? filterBuyer.includes(order.buyer) : true;
       const dueDateMatch = (() => {
         if (!filterDueDate || !filterDueDate.from) return true;
-        if (!filterDueDate.to) return isSameDay(order.dueDate, filterDueDate.from);
-        return order.dueDate >= filterDueDate.from && order.dueDate <= filterDueDate.to;
+        if (!filterDueDate.to) return isSameDay(new Date(order.dueDate), filterDueDate.from);
+        return new Date(order.dueDate) >= filterDueDate.from && new Date(order.dueDate) <= filterDueDate.to;
       })();
       return ocnMatch && buyerMatch && dueDateMatch;
     });
@@ -414,7 +403,7 @@ export default function Home() {
                               <div className="flex flex-col">
                                 <span className="font-semibold">{order.id}</span>
                                 <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
-                                  <span>Ship: {format(order.dueDate, 'MMM dd')}</span>
+                                  <span>Ship: {format(new Date(order.dueDate), 'MMM dd')}</span>
                                   <span>Qty: {order.quantity}</span>
                                 </div>
                               </div>

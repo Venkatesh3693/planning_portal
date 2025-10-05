@@ -4,46 +4,68 @@ import { ORDERS } from './data';
 
 // In a real application, this would be a proper state management solution
 // like Zustand, Redux, or React Context, and likely fetched from a server.
-// For this example, we'll use a simple in-memory store.
 
 type Store = {
   orders: Order[];
   scheduledProcesses: ScheduledProcess[];
 };
 
-const store: Store = {
+const defaultStore: Store = {
   orders: ORDERS,
   scheduledProcesses: [],
 };
 
-// We'll export functions to interact with the store,
-// mimicking a state management library's interface.
-
-export const getStore = () => {
-  return { ...store };
+const getStore = (): Store => {
+  if (typeof window === 'undefined') {
+    return defaultStore;
+  }
+  try {
+    const serializedState = localStorage.getItem('stitchplan_store');
+    if (serializedState === null) {
+      return defaultStore;
+    }
+    const parsedStore = JSON.parse(serializedState);
+    // Important: Revive date objects from their string representations
+    parsedStore.scheduledProcesses.forEach((p: ScheduledProcess) => {
+      p.startDateTime = new Date(p.startDateTime);
+      p.endDateTime = new Date(p.endDateTime);
+    });
+    return parsedStore;
+  } catch (err) {
+    console.error("Could not load state from localStorage", err);
+    return defaultStore;
+  }
 };
 
-export const setScheduledProcesses = (processes: ScheduledProcess[] | ((prev: ScheduledProcess[]) => ScheduledProcess[])) => {
-  if (typeof processes === 'function') {
-    store.scheduledProcesses = processes(store.scheduledProcesses);
-  } else {
-    store.scheduledProcesses = processes;
-  }
-  // In a real app, you would notify subscribers of the change here.
+const setStore = (store: Store) => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+    try {
+        const serializedState = JSON.stringify(store);
+        localStorage.setItem('stitchplan_store', serializedState);
+    } catch (err) {
+        console.error("Could not save state to localStorage", err);
+    }
+}
+
+
+export const setScheduledProcesses = (updater: (prev: ScheduledProcess[]) => ScheduledProcess[]) => {
+  const currentStore = getStore();
+  const newProcesses = updater(currentStore.scheduledProcesses);
+  setStore({ ...currentStore, scheduledProcesses: newProcesses });
 };
 
 export const getScheduledProcesses = () => {
-    return store.scheduledProcesses;
+    return getStore().scheduledProcesses;
 };
 
-export const setOrders = (orders: Order[] | ((prev: Order[]) => Order[])) => {
-    if (typeof orders === 'function') {
-        store.orders = orders(store.orders);
-    } else {
-        store.orders = orders;
-    }
+export const setOrders = (updater: (prev: Order[]) => Order[]) => {
+    const currentStore = getStore();
+    const newOrders = updater(currentStore.orders);
+    setStore({ ...currentStore, orders: newOrders });
 };
 
 export const getOrders = () => {
-    return store.orders;
+    return getStore().orders;
 }

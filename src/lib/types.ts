@@ -51,5 +51,6 @@ export type ScheduledProcess = {
   processId: string;
   machineId: string;
   startDateTime: Date;
+  endDateTime: Date;
   durationMinutes: number;
 };

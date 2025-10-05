@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -22,7 +22,7 @@ import { Header } from '@/components/layout/header';
 import Link from 'next/link';
 import { ORDERS, PROCESSES } from '@/lib/data';
 import type { Order, ScheduledProcess } from '@/lib/types';
-import { format, addMinutes } from 'date-fns';
+import { format } from 'date-fns';
 import {
   Table,
   TableBody,
@@ -37,8 +37,12 @@ import { getScheduledProcesses } from '@/lib/store';
 
 export default function OrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const allProcesses = PROCESSES;
-  const allScheduledProcesses = getScheduledProcesses();
+  const [allScheduledProcesses, setAllScheduledProcesses] = useState<ScheduledProcess[]>([]);
+
+  useEffect(() => {
+    // Load processes from store on component mount
+    setAllScheduledProcesses(getScheduledProcesses());
+  }, []);
 
   const handleOrderClick = (order: Order) => {
     setSelectedOrder(order);
@@ -81,7 +85,7 @@ export default function OrdersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {allProcesses
+              {PROCESSES
                 .filter(p => order.processIds.includes(p.id))
                 .map((process) => {
                 const tnaProcess = order.tna?.processes.find(p => p.processId === process.id);
@@ -98,7 +102,7 @@ export default function OrdersPage() {
                     <TableCell>{tnaProcess ? format(new Date(tnaProcess.startDate), 'MMM dd') : '-'}</TableCell>
                     <TableCell>{tnaProcess ? format(new Date(tnaProcess.endDate), 'MMM dd') : '-'}</TableCell>
                     <TableCell>{scheduledProcess ? format(scheduledProcess.startDateTime, 'MMM dd, h:mm a') : <span className="text-muted-foreground">Not set</span>}</TableCell>
-                    <TableCell>{scheduledProcess ? format(addMinutes(scheduledProcess.startDateTime, scheduledProcess.durationMinutes), 'MMM dd, h:mm a') : <span className="text-muted-foreground">Not set</span>}</TableCell>
+                    <TableCell>{scheduledProcess ? format(scheduledProcess.endDateTime, 'MMM dd, h:mm a') : <span className="text-muted-foreground">Not set</span>}</TableCell>
                   </TableRow>
                 )
               })}
@@ -132,7 +136,14 @@ export default function OrdersPage() {
           <p className="text-muted-foreground">
             View all your orders in one place. Click on an Order ID to see details.
           </p>
-          <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedOrder(null)}>
+          <Dialog onOpenChange={(isOpen) => {
+            if (!isOpen) {
+              setSelectedOrder(null)
+            } else {
+              // Re-fetch from store when dialog opens
+              setAllScheduledProcesses(getScheduledProcesses());
+            }
+          }}>
             <Card>
               <CardContent className="p-0">
                 <Table>
