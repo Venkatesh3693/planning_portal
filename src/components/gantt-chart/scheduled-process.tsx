@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Undo2, GripVertical } from 'lucide-react';
 import { format } from 'date-fns';
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 
 type ScheduledProcessProps = {
   item: ScheduledProcess;
@@ -61,7 +61,8 @@ export default function ScheduledProcessBar({
   };
   
   const handleInternalDragStart = (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => {
-    e.stopPropagation(); // Prevent context menu from opening on drag start
+    // Stop propagation to prevent any parent handlers from interfering.
+    e.stopPropagation();
     onDragStart(e, process);
   };
 
@@ -85,7 +86,7 @@ export default function ScheduledProcessBar({
       >
         {!isOrderLevelView && (
            <div
-              draggable={!isOrderLevelView}
+              draggable
               onDragStart={(e) => handleInternalDragStart(e, item)}
               onDragEnd={onDragEnd}
               className="h-full flex items-center justify-center px-1 cursor-grab active:cursor-grabbing"
