@@ -51,12 +51,8 @@ const calculateEndDateTime = (startDateTime: Date, totalDurationMinutes: number)
   }
 
   while (remainingMinutes > 0) {
-    // Skip weekends (Saturday=6, Sunday=0)
+    // Skip Sundays (Sunday=0)
     const dayOfWeek = getDay(currentDateTime);
-    if (dayOfWeek === 6) { // Saturday
-      currentDateTime = set(addDays(currentDateTime, 2), { hours: WORKING_HOURS_START, minutes: 0 });
-      continue;
-    }
     if (dayOfWeek === 0) { // Sunday
       currentDateTime = set(addDays(currentDateTime, 1), { hours: WORKING_HOURS_START, minutes: 0 });
       continue;
@@ -210,7 +206,9 @@ export default function Home() {
   };
 
   const today = startOfToday();
-  const dates = Array.from({ length: 30 }, (_, i) => addDays(today, i));
+  const dates = Array.from({ length: 30 * (7/6) }, (_, i) => addDays(today, i))
+    .filter(date => getDay(date) !== 0) // Exclude Sundays
+    .slice(0, 30); // Take the first 30 working days
 
   const unplannedOrders = useMemo(() => {
     const scheduledOrderIds = new Set(scheduledProcesses.map(p => p.orderId));
