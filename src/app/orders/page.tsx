@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -51,12 +50,6 @@ export default function OrdersPage() {
 
     return (
       <div className="space-y-4">
-        <div>
-          <h4 className="font-semibold text-lg mb-2">Time & Action Plan</h4>
-          <p className="text-sm text-muted-foreground">
-            Compare your T&A plan with the actual scheduled dates.
-          </p>
-        </div>
         <div className="grid gap-2">
             <div className="flex justify-between items-center text-sm p-2 bg-muted rounded-md">
                 <span className="font-medium">Raw Materials In-House (CK Date)</span>
