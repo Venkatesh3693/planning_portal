@@ -84,15 +84,17 @@ export default function GanttChart({
     if (draggedProcess) {
       const el = document.querySelector(`[data-scheduled-process-id="${draggedProcess.id}"]`) as HTMLElement;
       if (el) {
+        // Use a timeout to ensure the browser has initiated the drag operation
         const timeoutId = setTimeout(() => {
-            el.style.pointerEvents = 'none';
             el.style.opacity = '0';
+            el.style.pointerEvents = 'none';
         }, 0);
 
         return () => {
             clearTimeout(timeoutId);
-            el.style.pointerEvents = '';
+            // Restore styles when drag ends
             el.style.opacity = '';
+            el.style.pointerEvents = '';
         };
       }
     }
@@ -167,9 +169,8 @@ export default function GanttChart({
       const assignments = laneAssignments.get(row.id) || [];
       const hasProcesses = assignments.length > 0;
       if (hasProcesses) {
-        // If there are processes, use 3 rows, but also accommodate if more lanes are needed.
         const neededLanes = Math.max(...assignments.map(a => a.lane)) + 1;
-        maxLanes.set(row.id, Math.max(3, neededLanes));
+        maxLanes.set(row.id, neededLanes);
       } else {
         // If there are no processes, use 1 row.
         maxLanes.set(row.id, 1);
@@ -285,10 +286,10 @@ export default function GanttChart({
     <div className="h-full w-full overflow-auto" ref={containerRef}>
         <div className="relative grid min-h-full" style={timelineGridStyle}>
             {/* Sticky Row Headers column background */}
-            <div className="sticky left-0 z-30 col-start-1 row-start-1 row-end-[-1] bg-card"></div>
+            <div className="sticky left-0 z-40 col-start-1 row-start-1 row-end-[-1] bg-card"></div>
 
             {/* Empty Corner */}
-            <div className="sticky left-0 top-0 z-40 border-b border-r bg-card" style={{gridRowEnd: 'span 3'}}></div>
+            <div className="sticky left-0 top-0 z-50 border-b border-r bg-card" style={{gridRowEnd: 'span 3'}}></div>
                     
             {/* Top headers */}
             {topHeaders.map(({name, start, span}) => (
