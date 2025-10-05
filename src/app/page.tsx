@@ -23,7 +23,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { Filter, FilterX, ChevronDown } from 'lucide-react';
+import { Filter, FilterX, ChevronDown, Trash2 } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { getScheduledProcesses, setScheduledProcesses } from '@/lib/store';
@@ -61,59 +61,57 @@ export default function Home() {
   const buyerOptions = useMemo(() => [...new Set(ORDERS.map(o => o.buyer))], []);
 
   const handleDropOnChart = (orderId: string, processId: string, machineId: string, startDateTime: Date) => {
+    let finalStartDateTime = startDateTime;
+    if (viewMode === 'day') {
+      finalStartDateTime = set(startDateTime, { hours: 9, minutes: 0, seconds: 0, milliseconds: 0 });
+    }
+
     if (draggedProcess) {
-        // It's an existing process being moved
-        let finalStartDateTime = startDateTime;
-
-        if(viewMode === 'day') {
-            finalStartDateTime = set(startDateTime, { 
-                hours: draggedProcess.startDateTime.getHours(), 
-                minutes: draggedProcess.startDateTime.getMinutes(),
-                seconds: 0,
-                milliseconds: 0
-            });
-        }
-        
-        const proposedEndDateTime = addMinutes(finalStartDateTime, draggedProcess.durationMinutes);
-        
-        const hasCollision = scheduledProcesses.some(p => {
-            if (p.id === draggedProcess.id) return false;
-            if (p.machineId !== machineId) return false;
-
-            const existingEndDateTime = p.endDateTime;
-            
-            const startsDuring = isAfter(finalStartDateTime, p.startDateTime) && isBefore(finalStartDateTime, existingEndDateTime);
-            const endsDuring = isAfter(proposedEndDateTime, p.startDateTime) && isBefore(proposedEndDateTime, existingEndDateTime);
-            const spansOver = isBefore(finalStartDateTime, p.startDateTime) && isAfter(proposedEndDateTime, existingEndDateTime);
-            const isSameStart = finalStartDateTime.getTime() === p.startDateTime.getTime();
-
-            return startsDuring || endsDuring || spansOver || isSameStart;
+      // It's an existing process being moved
+      if (viewMode === 'day') {
+        finalStartDateTime = set(startDateTime, {
+          hours: draggedProcess.startDateTime.getHours(),
+          minutes: draggedProcess.startDateTime.getMinutes(),
+          seconds: 0,
+          milliseconds: 0
         });
+      }
 
-        if (!hasCollision) {
-            const updatedProcesses = scheduledProcesses.map(p => 
-              p.id === draggedProcess.id
-                ? { ...p, machineId: machineId, startDateTime: finalStartDateTime, endDateTime: proposedEndDateTime }
-                : p
-            );
-            setScheduledProcessesState(updatedProcesses);
-            setScheduledProcesses(() => updatedProcesses);
-        }
+      const proposedEndDateTime = addMinutes(finalStartDateTime, draggedProcess.durationMinutes);
+
+      const hasCollision = scheduledProcesses.some(p => {
+        if (p.id === draggedProcess.id) return false;
+        if (p.machineId !== machineId) return false;
+
+        const existingEndDateTime = p.endDateTime;
+
+        const startsDuring = isAfter(finalStartDateTime, p.startDateTime) && isBefore(finalStartDateTime, existingEndDateTime);
+        const endsDuring = isAfter(proposedEndDateTime, p.startDateTime) && isBefore(proposedEndDateTime, existingEndDateTime);
+        const spansOver = isBefore(finalStartDateTime, p.startDateTime) && isAfter(proposedEndDateTime, existingEndDateTime);
+        const isSameStart = finalStartDateTime.getTime() === p.startDateTime.getTime();
+
+        return startsDuring || endsDuring || spansOver || isSameStart;
+      });
+
+      if (!hasCollision) {
+        const updatedProcesses = scheduledProcesses.map(p =>
+          p.id === draggedProcess.id
+            ? { ...p, machineId: machineId, startDateTime: finalStartDateTime, endDateTime: proposedEndDateTime }
+            : p
+        );
+        setScheduledProcesses(() => updatedProcesses);
+        setScheduledProcessesState(updatedProcesses);
+      }
 
     } else {
       // It's a new process from the unplanned list
       const order = ORDERS.find((o) => o.id === orderId);
       const process = PROCESSES.find((p) => p.id === processId);
       if (!order || !process) return;
-      
-      let finalStartDateTime = startDateTime;
-      if (viewMode === 'day') {
-        finalStartDateTime = set(startDateTime, { hours: 9, minutes: 0, seconds: 0, milliseconds: 0 });
-      }
 
       const durationMinutes = process.sam * order.quantity;
       const endDateTime = addMinutes(finalStartDateTime, durationMinutes);
-  
+
       const newScheduledProcess: ScheduledProcess = {
         id: `${processId}-${orderId}-${new Date().getTime()}`,
         orderId,
@@ -123,10 +121,10 @@ export default function Home() {
         endDateTime,
         durationMinutes,
       };
-      
+
       const newProcesses = [...scheduledProcesses, newScheduledProcess];
-      setScheduledProcessesState(newProcesses);
       setScheduledProcesses(() => newProcesses);
+      setScheduledProcessesState(newProcesses);
     }
     setDraggedProcessTna(null);
   };
@@ -150,8 +148,8 @@ export default function Home() {
   
   const handleUndoSchedule = (scheduledProcessId: string) => {
     const updatedProcesses = scheduledProcesses.filter(p => p.id !== scheduledProcessId);
-    setScheduledProcessesState(updatedProcesses);
     setScheduledProcesses(() => updatedProcesses);
+    setScheduledProcessesState(updatedProcesses);
   };
   
   const handleScheduledProcessDragStart = (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => {
@@ -251,6 +249,15 @@ export default function Home() {
     );
   };
 
+  const handleClearSchedule = () => {
+    // Clear the localStorage
+    setScheduledProcesses(() => []);
+    // Clear the local React state
+    setScheduledProcessesState([]);
+    // Optionally, you can reload the page to ensure a clean start
+    // window.location.reload();
+  };
+
   return (
     <div className="flex h-screen flex-col">
       <Header 
@@ -285,72 +292,78 @@ export default function Home() {
                 <Card className="h-full">
                   <CardHeader className="flex flex-row items-center justify-between">
                     <CardTitle>Orders</CardTitle>
-                    <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="ghost" size="icon" className="relative">
-                            <Filter className="h-4 w-4" />
-                            {hasActiveFilters && (
-                              <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
-                              </span>
-                            )}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-80">
-                          <div className="grid gap-4">
-                            <div className="space-y-2">
-                              <h4 className="font-medium leading-none">Filters</h4>
-                              <p className="text-sm text-muted-foreground">
-                                Filter the unplanned orders.
-                              </p>
-                            </div>
-                            <div className="grid gap-2">
+                    <div className="flex items-center gap-2">
+                      <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="ghost" size="icon" className="relative">
+                              <Filter className="h-4 w-4" />
+                              {hasActiveFilters && (
+                                <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
+                                </span>
+                              )}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-80">
+                            <div className="grid gap-4">
                               <div className="space-y-2">
-                                <Label htmlFor="filter-ocn">OCN</Label>
-                                <Input id="filter-ocn" placeholder="e.g. ZAR4531" value={filterOcn} onChange={e => setFilterOcn(e.target.value)} />
+                                <h4 className="font-medium leading-none">Filters</h4>
+                                <p className="text-sm text-muted-foreground">
+                                  Filter the unplanned orders.
+                                </p>
                               </div>
-                              <div className="space-y-2">
-                                  <Label>Buyer</Label>
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button variant="outline" className="w-full justify-between">
-                                        <span>
-                                          {filterBuyer.length > 0 ? filterBuyer.join(', ') : 'All Buyers'}
-                                        </span>
-                                        <ChevronDown className="h-4 w-4 opacity-50" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]">
-                                      <DropdownMenuLabel>Buyers</DropdownMenuLabel>
-                                      <DropdownMenuSeparator />
-                                      {buyerOptions.map(buyer => (
-                                        <DropdownMenuCheckboxItem
-                                          key={buyer}
-                                          checked={filterBuyer.includes(buyer)}
-                                          onCheckedChange={() => handleBuyerFilterChange(buyer)}
-                                          onSelect={(e) => e.preventDefault()}
-                                        >
-                                          {buyer}
-                                        </DropdownMenuCheckboxItem>
-                                      ))}
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
+                              <div className="grid gap-2">
+                                <div className="space-y-2">
+                                  <Label htmlFor="filter-ocn">OCN</Label>
+                                  <Input id="filter-ocn" placeholder="e.g. ZAR4531" value={filterOcn} onChange={e => setFilterOcn(e.target.value)} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Buyer</Label>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" className="w-full justify-between">
+                                          <span>
+                                            {filterBuyer.length > 0 ? filterBuyer.join(', ') : 'All Buyers'}
+                                          </span>
+                                          <ChevronDown className="h-4 w-4 opacity-50" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]">
+                                        <DropdownMenuLabel>Buyers</DropdownMenuLabel>
+                                        <DropdownMenuSeparator />
+                                        {buyerOptions.map(buyer => (
+                                          <DropdownMenuCheckboxItem
+                                            key={buyer}
+                                            checked={filterBuyer.includes(buyer)}
+                                            onCheckedChange={() => handleBuyerFilterChange(buyer)}
+                                            onSelect={(e) => e.preventDefault()}
+                                          >
+                                            {buyer}
+                                          </DropdownMenuCheckboxItem>
+                                        ))}
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
+                                 <div className="space-y-2">
+                                    <Label>Due Date</Label>
+                                    <DatePicker date={filterDueDate} setDate={setFilterDueDate} />
+                                 </div>
+                                 {hasActiveFilters && (
+                                    <Button variant="ghost" size="sm" onClick={clearFilters} className="w-full justify-start text-destructive hover:text-destructive px-0">
+                                      <FilterX className="mr-2 h-4 w-4" />
+                                      Clear Filters
+                                    </Button>
+                                  )}
                               </div>
-                               <div className="space-y-2">
-                                  <Label>Due Date</Label>
-                                  <DatePicker date={filterDueDate} setDate={setFilterDueDate} />
-                               </div>
-                               {hasActiveFilters && (
-                                  <Button variant="ghost" size="sm" onClick={clearFilters} className="w-full justify-start text-destructive hover:text-destructive px-0">
-                                    <FilterX className="mr-2 h-4 w-4" />
-                                    Clear Filters
-                                  </Button>
-                                )}
                             </div>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
+                          </PopoverContent>
+                        </Popover>
+                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={handleClearSchedule}>
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Clear Schedule</span>
+                        </Button>
+                      </div>
                   </CardHeader>
                   <CardContent className="h-[calc(100%-4.5rem)]">
                     <ScrollArea className="h-full pr-4">
