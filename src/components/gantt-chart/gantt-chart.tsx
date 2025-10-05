@@ -24,6 +24,7 @@ type GanttChartProps = {
   onScheduledProcessDragEnd: () => void;
   isOrderLevelView?: boolean;
   viewMode: ViewMode;
+  draggedProcess: ScheduledProcess | null;
 };
 
 const ROW_HEIGHT = 32; // Corresponds to h-8
@@ -33,35 +34,35 @@ const WORKING_HOURS = Array.from({ length: WORKING_HOURS_END - WORKING_HOURS_STA
 
 
 const assignLanes = (processes: ScheduledProcess[]): { process: ScheduledProcess; lane: number }[] => {
-    if (!processes.length) return [];
+    if (!processes || processes.length === 0) return [];
 
     const sortedProcesses = [...processes].sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
 
     const lanes: { process: ScheduledProcess; lane: number }[] = [];
-    const laneEndDates: Date[] = [];
+    const laneEndTimes: Date[] = [];
 
-    sortedProcesses.forEach(process => {
-        let assigned = false;
+    for (const process of sortedProcesses) {
+        let foundLane = false;
         const processEndDate = addMinutes(process.startDateTime, process.durationMinutes);
 
-        for (let i = 0; i < laneEndDates.length; i++) {
-            if (process.startDateTime.getTime() >= laneEndDates[i].getTime()) {
+        for (let i = 0; i < laneEndTimes.length; i++) {
+            if (process.startDateTime.getTime() >= laneEndTimes[i].getTime()) {
                 lanes.push({ process, lane: i });
-                laneEndDates[i] = processEndDate;
-                assigned = true;
+                laneEndTimes[i] = processEndDate;
+                foundLane = true;
                 break;
             }
         }
 
-        if (!assigned) {
-            lanes.push({ process, lane: laneEndDates.length });
-            laneEndDates.push(processEndDate);
+        if (!foundLane) {
+            const newLaneIndex = laneEndTimes.length;
+            lanes.push({ process, lane: newLaneIndex });
+            laneEndTimes.push(processEndDate);
         }
-    });
+    }
 
     return lanes;
 };
-
 
 
 export default function GanttChart({
@@ -74,19 +75,17 @@ export default function GanttChart({
   onScheduledProcessDragEnd,
   isOrderLevelView = false,
   viewMode,
+  draggedProcess
 }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = React.useState(0);
-  const [draggedProcess, setDraggedProcess] = React.useState<ScheduledProcess | null>(null);
-
+  
   const handleInternalDragStart = (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => {
-    setDraggedProcess(process);
     onScheduledProcessDragStart(e, process);
   };
   
   const handleInternalDragEnd = () => {
-    setDraggedProcess(null);
     onScheduledProcessDragEnd();
   };
 
@@ -159,7 +158,7 @@ export default function GanttChart({
       const assignments = laneAssignments.get(row.id) || [];
       const hasProcesses = assignments.length > 0;
       if (hasProcesses) {
-        const neededLanes = Math.max(...assignments.map(a => a.lane)) + 1;
+        const neededLanes = Math.max(...assignments.map(a => a.lane), 0) + 1;
         maxLanes.set(row.id, neededLanes);
       } else {
         // If there are no processes, use 1 row.
@@ -446,3 +445,5 @@ export default function GanttChart({
     </div>
   );
 }
+
+      

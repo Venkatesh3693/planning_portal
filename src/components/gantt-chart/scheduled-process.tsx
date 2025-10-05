@@ -37,7 +37,6 @@ export default function ScheduledProcessBar({
 
   useEffect(() => {
     if (isBeingDragged) {
-      // Use a timeout to apply styles after the drag operation has started.
       const timeoutId = setTimeout(() => {
         if (ref.current) {
           ref.current.style.opacity = '0';
@@ -47,14 +46,12 @@ export default function ScheduledProcessBar({
 
       return () => {
         clearTimeout(timeoutId);
-        // Clean up styles when the component re-renders (e.g., when drag ends)
         if (ref.current) {
           ref.current.style.opacity = '';
           ref.current.style.pointerEvents = '';
         }
       };
     } else {
-        // Ensure styles are cleared if the drag is cancelled or ends
         if (ref.current) {
             ref.current.style.opacity = '';
             ref.current.style.pointerEvents = '';
@@ -170,3 +167,5 @@ export default function ScheduledProcessBar({
     </DropdownMenu>
   );
 }
+
+      
