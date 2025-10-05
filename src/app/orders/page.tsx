@@ -41,7 +41,13 @@ export default function OrdersPage() {
 
   useEffect(() => {
     // Load processes from store on component mount
-    setAllScheduledProcesses(getScheduledProcesses());
+    const storedProcesses = getScheduledProcesses();
+    const processesWithDates = storedProcesses.map(p => ({
+        ...p,
+        startDateTime: new Date(p.startDateTime),
+        endDateTime: new Date(p.endDateTime),
+    }));
+    setAllScheduledProcesses(processesWithDates);
   }, []);
 
   const handleOrderClick = (order: Order) => {
@@ -141,7 +147,13 @@ export default function OrdersPage() {
               setSelectedOrder(null)
             } else {
               // Re-fetch from store when dialog opens
-              setAllScheduledProcesses(getScheduledProcesses());
+              const storedProcesses = getScheduledProcesses();
+              const processesWithDates = storedProcesses.map(p => ({
+                  ...p,
+                  startDateTime: new Date(p.startDateTime),
+                  endDateTime: new Date(p.endDateTime),
+              }));
+              setAllScheduledProcesses(processesWithDates);
             }
           }}>
             <Card>
