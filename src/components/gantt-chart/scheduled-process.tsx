@@ -2,7 +2,7 @@
 import { ORDERS, PROCESSES } from '@/lib/data';
 import type { ScheduledProcess } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Undo2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useEffect, useRef, useState } from 'react';
@@ -116,9 +116,7 @@ export default function ScheduledProcessBar({
 
   return (
     <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-      <DropdownMenuTrigger asChild>
-        {barContent}
-      </DropdownMenuTrigger>
+      {barContent}
       <DropdownMenuContent className="w-80">
         <div className="grid gap-2 p-2">
           <div className="space-y-1">
