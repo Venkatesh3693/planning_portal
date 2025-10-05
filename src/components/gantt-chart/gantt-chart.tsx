@@ -37,27 +37,26 @@ const assignLanes = (processes: ScheduledProcess[]): { process: ScheduledProcess
     if (!processes || processes.length === 0) return [];
 
     const sortedProcesses = [...processes].sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
-
-    const lanes: { process: ScheduledProcess; lane: number }[] = [];
-    const laneEndTimes: Date[] = [];
+    
+    const lanes: { process: ScheduledProcess, lane: number }[] = [];
+    const laneEndTimes: number[] = [];
 
     for (const process of sortedProcesses) {
         let foundLane = false;
-        const processEndDate = addMinutes(process.startDateTime, process.durationMinutes);
+        const processEndTime = addMinutes(process.startDateTime, process.durationMinutes).getTime();
 
         for (let i = 0; i < laneEndTimes.length; i++) {
-            if (process.startDateTime.getTime() >= laneEndTimes[i].getTime()) {
+            if (process.startDateTime.getTime() >= laneEndTimes[i]) {
                 lanes.push({ process, lane: i });
-                laneEndTimes[i] = processEndDate;
+                laneEndTimes[i] = processEndTime;
                 foundLane = true;
                 break;
             }
         }
 
         if (!foundLane) {
-            const newLaneIndex = laneEndTimes.length;
-            lanes.push({ process, lane: newLaneIndex });
-            laneEndTimes.push(processEndDate);
+            lanes.push({ process, lane: laneEndTimes.length });
+            laneEndTimes.push(processEndTime);
         }
     }
 
