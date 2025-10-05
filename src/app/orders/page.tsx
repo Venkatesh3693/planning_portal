@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -21,8 +21,8 @@ import {
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
 import { ORDERS, PROCESSES } from '@/lib/data';
-import type { Order } from '@/lib/types';
-import { format } from 'date-fns';
+import type { Order, ScheduledProcess } from '@/lib/types';
+import { format, addMinutes } from 'date-fns';
 import {
   Table,
   TableBody,
@@ -33,16 +33,18 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { getScheduledProcesses } from '@/lib/store';
 
 export default function OrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const allProcesses = PROCESSES;
+  const allScheduledProcesses = getScheduledProcesses();
 
   const handleOrderClick = (order: Order) => {
     setSelectedOrder(order);
   };
   
-  const TnaPlan = ({ order }: { order: Order }) => {
+  const TnaPlan = ({ order, scheduledProcesses }: { order: Order, scheduledProcesses: ScheduledProcess[] }) => {
     if (!order.tna) return null;
     
     const { ckDate, processes: tnaProcesses } = order.tna;
@@ -52,7 +54,7 @@ export default function OrdersPage() {
         <div>
           <h4 className="font-semibold text-lg mb-2">Time & Action Plan</h4>
           <p className="text-sm text-muted-foreground">
-            The following dates include buffer time to ensure the delivery date is met.
+            Compare your T&A plan with the actual scheduled dates.
           </p>
         </div>
         <div className="grid gap-2">
@@ -67,27 +69,32 @@ export default function OrdersPage() {
             <TableHeader>
               <TableRow className="bg-transparent hover:bg-transparent">
                 <TableHead>Process</TableHead>
-                <TableHead>Start Date</TableHead>
-                <TableHead>End Date</TableHead>
+                <TableHead>T&A Start</TableHead>
+                <TableHead>T&A End</TableHead>
+                <TableHead>Scheduled Start</TableHead>
+                <TableHead>Scheduled End</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {tnaProcesses.map(({ processId, startDate, endDate }) => {
-                const process = allProcesses.find(p => p.id === processId);
-                if (!process) return null;
+              {allProcesses
+                .filter(p => order.processIds.includes(p.id))
+                .map((process) => {
+                const tnaProcess = tnaProcesses.find(p => p.processId === process.id);
+                const scheduledProcess = scheduledProcesses.find(p => p.processId === process.id);
                 
                 return (
-                  <TableRow key={processId} className="bg-transparent even:bg-transparent hover:bg-muted/30">
+                  <TableRow key={process.id} className="bg-transparent even:bg-transparent hover:bg-muted/30">
                     <TableCell className="font-medium">{process.name}</TableCell>
-                    <TableCell>{format(new Date(startDate), 'MMM dd, yyyy')}</TableCell>
-                    <TableCell>{format(new Date(endDate), 'MMM dd, yyyy')}</TableCell>
+                    <TableCell>{tnaProcess ? format(new Date(tnaProcess.startDate), 'MMM dd') : '-'}</TableCell>
+                    <TableCell>{tnaProcess ? format(new Date(tnaProcess.endDate), 'MMM dd') : '-'}</TableCell>
+                    <TableCell>{scheduledProcess ? format(scheduledProcess.startDateTime, 'MMM dd, h:mm a') : <span className="text-muted-foreground">Not set</span>}</TableCell>
+                    <TableCell>{scheduledProcess ? format(addMinutes(scheduledProcess.startDateTime, scheduledProcess.durationMinutes), 'MMM dd, h:mm a') : <span className="text-muted-foreground">Not set</span>}</TableCell>
                   </TableRow>
                 )
               })}
             </TableBody>
           </Table>
         </div>
-
       </div>
     );
   };
@@ -168,7 +175,7 @@ export default function OrdersPage() {
             </Card>
 
             {selectedOrder && (
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="max-w-4xl">
                 <DialogHeader>
                   <DialogTitle>{selectedOrder.ocn} - {selectedOrder.style} ({selectedOrder.color})</DialogTitle>
                   <DialogDescription>
@@ -176,7 +183,10 @@ export default function OrdersPage() {
                   </DialogDescription>
                 </DialogHeader>
                 <div className="py-4">
-                  <TnaPlan order={selectedOrder} />
+                  <TnaPlan 
+                    order={selectedOrder}
+                    scheduledProcesses={allScheduledProcesses.filter(p => p.orderId === selectedOrder.id)}
+                  />
                 </div>
               </DialogContent>
             )}

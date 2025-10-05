@@ -26,14 +26,44 @@ import { Button } from '@/components/ui/button';
 import { Filter, FilterX, ChevronDown } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { getScheduledProcesses, setScheduledProcesses, getOrders, setOrders } from '@/lib/store';
 
 
 const ORDER_LEVEL_VIEW = 'order-level';
 const SEWING_PROCESS_ID = 'sewing';
 
 export default function Home() {
-  const [unplannedOrders, setUnplannedOrders] = useState<Order[]>(ORDERS);
-  const [scheduledProcesses, setScheduledProcesses] = useState<ScheduledProcess[]>([]);
+  // Use the store for state management
+  const [unplannedOrders, setUnplannedOrdersState] = useState<Order[]>(getOrders().filter(o => !getScheduledProcesses().some(sp => sp.orderId === o.id)));
+  const [scheduledProcesses, setScheduledProcessesState] = useState<ScheduledProcess[]>(getScheduledProcesses());
+
+  // Wrap state setters to update both local state and the store
+  const setAndStoreScheduledProcesses = (updater: React.SetStateAction<ScheduledProcess[]>) => {
+    const newProcesses = typeof updater === 'function' ? updater(scheduledProcesses) : updater;
+    setScheduledProcessesState(newProcesses);
+    setScheduledProcesses(newProcesses);
+  };
+  
+  const setAndStoreUnplannedOrders = (updater: React.SetStateAction<Order[]>) => {
+    const newOrders = typeof updater === 'function' ? updater(unplannedOrders) : updater;
+    setUnplannedOrdersState(newOrders);
+    
+    // This is a simplified way to update the global orders list
+    const allOrderIds = ORDERS.map(o => o.id);
+    const scheduledOrderIds = new Set(scheduledProcesses.map(sp => sp.orderId));
+    const finalOrders = allOrderIds.map(id => {
+      const isUnplanned = newOrders.some(uo => uo.id === id);
+      const isScheduled = scheduledOrderIds.has(id);
+      if (isUnplanned || !isScheduled) {
+        return ORDERS.find(o => o.id === id)!;
+      }
+      return null;
+    }).filter(Boolean) as Order[];
+
+    // This part is tricky without a real state manager. We are trying to keep two states in sync.
+    // For now, let's focus on the scheduled processes being stored globally.
+  }
+
   const [selectedProcessId, setSelectedProcessId] = useState<string>(ORDER_LEVEL_VIEW);
   const [viewMode, setViewMode] = useState<'day' | 'hour'>('day');
   const [hoveredOrderId, setHoveredOrderId] = useState<string | null>(null);
@@ -85,7 +115,7 @@ export default function Home() {
         });
 
         if (!hasCollision) {
-            setScheduledProcesses(prev => 
+            setAndStoreScheduledProcesses(prev => 
                 prev.map(p => 
                   p.id === draggedProcess.id
                     ? { ...p, machineId: machineId, startDateTime: finalStartDateTime }
@@ -117,14 +147,14 @@ export default function Home() {
         durationMinutes,
       };
       
-      setScheduledProcesses((prev) => [...prev, newScheduledProcess]);
+      setAndStoreScheduledProcesses((prev) => [...prev, newScheduledProcess]);
       
       const orderInUnplanned = unplannedOrders.find(o => o.id === orderId);
       if(orderInUnplanned){
         const orderProcesses = PROCESSES.filter(p => orderInUnplanned.processIds.includes(p.id));
         const scheduledForThisOrder = scheduledProcesses.filter(sp => sp.orderId === orderId).length + 1;
         if (scheduledForThisOrder >= orderProcesses.length) {
-          setUnplannedOrders((prev) => prev.filter((o) => o.id !== orderId));
+          setUnplannedOrdersState((prev) => prev.filter((o) => o.id !== orderId));
         }
       }
     }
@@ -158,12 +188,12 @@ export default function Home() {
     if (!orderExistsInUnplanned) {
       const orderToAddBack = ORDERS.find(o => o.id === processToUndo.orderId);
       if (orderToAddBack) {
-        setUnplannedOrders(prev => [orderToAddBack, ...prev]);
+        setUnplannedOrdersState(prev => [orderToAddBack, ...prev]);
       }
     }
 
     // Remove the process from scheduledProcesses
-    setScheduledProcesses(prev => prev.filter(p => p.id !== scheduledProcessId));
+    setAndStoreScheduledProcesses(prev => prev.filter(p => p.id !== scheduledProcessId));
   };
   
   const handleScheduledProcessDragStart = (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => {
