@@ -108,9 +108,10 @@ export default function Home() {
       }
 
       const proposedEndDateTime = calculateEndDateTime(finalStartDateTime, draggedProcess.durationMinutes);
+      
+      const otherProcesses = scheduledProcesses.filter(p => p.id !== draggedProcess.id);
 
-      const hasCollision = scheduledProcesses.some(p => {
-        if (p.id === draggedProcess.id) return false;
+      const hasCollision = otherProcesses.some(p => {
         if (p.machineId !== machineId) return false;
 
         const existingEndDateTime = p.endDateTime;
