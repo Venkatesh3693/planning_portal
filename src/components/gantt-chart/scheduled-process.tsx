@@ -6,7 +6,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Undo2 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { format } from 'date-fns';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 type ScheduledProcessProps = {
   item: ScheduledProcess;
@@ -32,6 +32,8 @@ export default function ScheduledProcessBar({
   isBeingDragged = false,
 }: ScheduledProcessProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   const processDetails = PROCESSES.find(p => p.id === item.processId);
   const orderDetails = ORDERS.find(o => o.id === item.orderId);
 
@@ -79,6 +81,11 @@ export default function ScheduledProcessBar({
   const handleUndo = () => {
     onUndo(item.id);
   }
+
+  const handleContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsMenuOpen(true);
+  };
   
   const backgroundColor = processDetails.color ? processDetails.color : 'hsl(var(--accent))';
 
@@ -118,6 +125,7 @@ export default function ScheduledProcessBar({
       draggable={!isOrderLevelView}
       onDragStart={(e) => onDragStart(e, item)}
       onDragEnd={onDragEnd}
+      onContextMenu={handleContextMenu}
       data-scheduled-process-id={item.id}
       className={cn(
         "relative z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg transition-opacity duration-150",
@@ -130,25 +138,32 @@ export default function ScheduledProcessBar({
       }}
       title={`${orderDetails.id}: ${processDetails.name} (${durationText})`}
     >
-      {barContent}
+      <Popover>
+        <PopoverTrigger asChild>
+          {barContent}
+        </PopoverTrigger>
+        <PopoverContent className="w-80">
+          {popoverContent}
+        </PopoverContent>
+      </Popover>
     </div>
   );
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
       <DropdownMenuTrigger asChild>
         {bar}
       </DropdownMenuTrigger>
       <DropdownMenuContent>
-        <div className="p-4 pt-2">
-          {popoverContent}
-        </div>
         {!isOrderLevelView && (
           <DropdownMenuItem onClick={handleUndo}>
             <Undo2 className="mr-2 h-4 w-4" />
             <span>Return to Unplanned</span>
           </DropdownMenuItem>
         )}
+         <DropdownMenuItem disabled>
+            No actions available
+          </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
