@@ -1,8 +1,8 @@
 
 'use client';
 
-import { useState, useRef, useMemo, useEffect } from 'react';
-import { addDays, startOfToday, format, isSameDay, set, addMinutes, isBefore, isAfter, getDay, setHours, setMinutes, startOfDay, isWithinInterval } from 'date-fns';
+import { useState, useRef, useMemo } from 'react';
+import { addDays, startOfToday, format, isSameDay, set, addMinutes, isBefore, isAfter, getDay, setHours, setMinutes, startOfDay } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, ORDERS, PROCESSES } from '@/lib/data';
@@ -26,7 +26,7 @@ import { Button } from '@/components/ui/button';
 import { Filter, FilterX, ChevronDown, Trash2 } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { getScheduledProcesses } from '@/lib/store';
+import { useAppContext } from '@/context/app-provider';
 
 
 const ORDER_LEVEL_VIEW = 'order-level';
@@ -75,31 +75,7 @@ const calculateEndDateTime = (startDateTime: Date, totalDurationMinutes: number)
 
 
 export default function Home() {
-  const [scheduledProcesses, setScheduledProcessesState] = useState<ScheduledProcess[]>([]);
-
-  // Effect to load initial state from store on mount and ensure dates are correct
-  useEffect(() => {
-    const storedProcesses = getScheduledProcesses();
-    const processesWithDates = storedProcesses.map(p => ({
-      ...p,
-      startDateTime: new Date(p.startDateTime),
-      endDateTime: new Date(p.endDateTime),
-    }));
-    setScheduledProcessesState(processesWithDates);
-  }, []);
-
-  // Effect to save to localStorage whenever the state changes
-  useEffect(() => {
-    try {
-        const serializedState = localStorage.getItem('stitchplan_store');
-        const currentStore = serializedState ? JSON.parse(serializedState) : {};
-        const newStore = { ...currentStore, scheduledProcesses: scheduledProcesses };
-        localStorage.setItem('stitchplan_store', JSON.stringify(newStore));
-    } catch (err) {
-        console.error("Could not save state to localStorage", err);
-    }
-  }, [scheduledProcesses]);
-
+  const { scheduledProcesses, setScheduledProcesses } = useAppContext();
 
   const [selectedProcessId, setSelectedProcessId] = useState<string>(ORDER_LEVEL_VIEW);
   const [viewMode, setViewMode] = useState<'day' | 'hour'>('day');
@@ -148,7 +124,7 @@ export default function Home() {
       });
 
       if (!hasCollision) {
-        setScheduledProcessesState(prev => prev.map(p =>
+        setScheduledProcesses(prev => prev.map(p =>
           p.id === draggedProcess.id
             ? { ...p, machineId: machineId, startDateTime: finalStartDateTime, endDateTime: proposedEndDateTime }
             : p
@@ -174,7 +150,7 @@ export default function Home() {
         durationMinutes,
       };
 
-      setScheduledProcessesState(prev => [...prev, newScheduledProcess]);
+      setScheduledProcesses(prev => [...prev, newScheduledProcess]);
     }
     setDraggedProcessTna(null);
   };
@@ -197,7 +173,7 @@ export default function Home() {
   };
   
   const handleUndoSchedule = (scheduledProcessId: string) => {
-    setScheduledProcessesState(prev => prev.filter(p => p.id !== scheduledProcessId));
+    setScheduledProcesses(prev => prev.filter(p => p.id !== scheduledProcessId));
   };
   
   const handleScheduledProcessDragStart = (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => {
@@ -303,7 +279,7 @@ export default function Home() {
   };
 
   const handleClearSchedule = () => {
-    setScheduledProcessesState([]);
+    setScheduledProcesses([]);
   };
 
   return (
@@ -507,6 +483,4 @@ export default function Home() {
       </main>
     </div>
   );
-
-    
-
+}

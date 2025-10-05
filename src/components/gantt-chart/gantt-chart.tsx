@@ -402,7 +402,9 @@ export default function GanttChart({
                     if (dateIndex === -1) return null;
 
                     const gridRow = rowPosition.start + assignment.lane + 3;
-                    const durationInColumns = viewMode === 'day' ? Math.ceil(item.durationMinutes / (60 * 8)) : Math.ceil(item.durationMinutes / 60);
+                    const durationInColumns = viewMode === 'day' 
+                        ? Math.ceil(item.durationMinutes / (8 * 60)) 
+                        : Math.ceil(item.durationMinutes / 60);
                     const gridColStart = dateIndex + 2; 
 
                     return (

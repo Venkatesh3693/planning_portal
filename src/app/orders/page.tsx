@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -32,27 +32,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { getScheduledProcesses } from '@/lib/store';
+import { useAppContext } from '@/context/app-provider';
 
 export default function OrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [allScheduledProcesses, setAllScheduledProcesses] = useState<ScheduledProcess[]>([]);
+  const { scheduledProcesses } = useAppContext();
 
-  const loadAndPrepareProcesses = () => {
-    const storedProcesses = getScheduledProcesses();
-    const processesWithDates = storedProcesses.map(p => ({
-        ...p,
-        startDateTime: new Date(p.startDateTime),
-        endDateTime: new Date(p.endDateTime),
-    }));
-    setAllScheduledProcesses(processesWithDates);
-  }
-
-  // Load processes on initial mount
-  useEffect(() => {
-    loadAndPrepareProcesses();
-  }, []);
 
   const handleOrderClick = (order: Order) => {
     setSelectedOrder(order);
@@ -146,14 +131,7 @@ export default function OrdersPage() {
           <p className="text-muted-foreground">
             View all your orders in one place. Click on an Order ID to see details.
           </p>
-          <Dialog onOpenChange={(isOpen) => {
-            if (!isOpen) {
-              setSelectedOrder(null)
-            } else {
-              // Re-fetch and parse dates from store when dialog opens to ensure data is fresh
-              loadAndPrepareProcesses();
-            }
-          }}>
+          <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedOrder(null)}>
             <Card>
               <CardContent className="p-0">
                 <Table>
@@ -205,7 +183,7 @@ export default function OrdersPage() {
                 <div className="py-4">
                   <TnaPlan 
                     order={selectedOrder}
-                    scheduledProcesses={allScheduledProcesses.filter(p => p.orderId === selectedOrder.id)}
+                    scheduledProcesses={scheduledProcesses.filter(p => p.orderId === selectedOrder.id)}
                   />
                 </div>
               </DialogContent>

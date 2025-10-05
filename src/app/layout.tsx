@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
+import { AppProvider } from '@/context/app-provider';
 
 export const metadata: Metadata = {
   title: 'StitchPlan',
@@ -23,7 +24,9 @@ export default function RootLayout({
         />
       </head>
       <body className="font-body antialiased h-full bg-background">
-        {children}
+        <AppProvider>
+          {children}
+        </AppProvider>
         <Toaster />
       </body>
     </html>
