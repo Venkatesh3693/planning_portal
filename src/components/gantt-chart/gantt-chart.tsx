@@ -46,7 +46,7 @@ const assignLanes = (processes: ScheduledProcess[]): { process: ScheduledProcess
     const processEndDate = addMinutes(process.startDateTime, process.durationMinutes);
 
     for (let i = 0; i < laneEndDates.length; i++) {
-        if (process.startDateTime >= laneEndDates[i]) {
+        if (process.startDateTime > laneEndDates[i]) {
             lanes.push({ process, lane: i });
             laneEndDates[i] = processEndDate;
             assigned = true;
@@ -93,8 +93,10 @@ export default function GanttChart({
         return () => {
             clearTimeout(timeoutId);
             // Restore styles when drag ends
-            el.style.opacity = '';
-            el.style.pointerEvents = '';
+            if (el) {
+              el.style.opacity = '';
+              el.style.pointerEvents = '';
+            }
         };
       }
     }
@@ -323,12 +325,12 @@ export default function GanttChart({
                     <div 
                         key={`${row.id}-header`}
                         className={cn(
-                            "sticky left-0 z-30 flex items-center justify-start p-2 border-b border-r",
+                            "sticky left-0 z-30 flex items-center justify-start p-2 border-b border-r whitespace-nowrap",
                             rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/50'
                         )}
                         style={{ gridRow: `${position.start + 3} / span ${position.span}`, gridColumn: 1 }}
                     >
-                        <span className="font-semibold text-foreground text-sm whitespace-nowrap">{row.name}</span>
+                        <span className="font-semibold text-foreground text-sm">{row.name}</span>
                     </div>
                 );
 
