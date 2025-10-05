@@ -2,8 +2,8 @@
 import { ORDERS, PROCESSES } from '@/lib/data';
 import type { ScheduledProcess } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Undo2, GripVertical } from 'lucide-react';
+import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover';
+import { Undo2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -58,7 +58,6 @@ export default function ScheduledProcessBar({
   }
 
   const handleContextMenu = (e: React.MouseEvent) => {
-    // Only open context menu in machine view
     if (isOrderLevelView) return;
     e.preventDefault();
     setIsMenuOpen(true);
@@ -74,12 +73,16 @@ export default function ScheduledProcessBar({
 
   return (
     <Popover open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-      <PopoverTrigger asChild>
+      <PopoverAnchor asChild>
         <div
+          draggable={!isOrderLevelView}
+          onDragStart={(e) => handleInternalDragStart(e, item)}
+          onDragEnd={onDragEnd}
           onContextMenu={handleContextMenu}
           data-scheduled-process-id={item.id}
           className={cn(
             "relative z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg transition-opacity duration-150",
+            !isOrderLevelView && "cursor-grab active:cursor-grabbing",
             isBeingDragged && "opacity-0 pointer-events-none"
           )}
           style={{
@@ -89,29 +92,14 @@ export default function ScheduledProcessBar({
           }}
           title={`${orderDetails.id}: ${processDetails.name} (${durationText})`}
         >
-          {/* Drag Handle for machine view */}
-          {!isOrderLevelView && (
-            <div 
-              draggable
-              onDragStart={(e) => handleInternalDragStart(e, item)}
-              onDragEnd={onDragEnd}
-              className="flex items-center justify-center h-full w-6 cursor-grab active:cursor-grabbing"
-              onClick={(e) => e.stopPropagation()} // prevent popover from opening
-            >
-              <GripVertical className="h-4 w-4 text-white/50" />
-            </div>
-          )}
           <div 
             className="flex items-center gap-2 px-2 pointer-events-none w-full"
-            style={{
-              paddingLeft: isOrderLevelView ? undefined : '0.25rem'
-            }}
           >
             <Icon className="h-3 w-3 shrink-0" />
             <span className="truncate text-xs font-medium">{isOrderLevelView ? processDetails.name : orderDetails.id}</span>
           </div>
         </div>
-      </PopoverTrigger>
+      </PopoverAnchor>
       
       {!isOrderLevelView && (
           <PopoverContent className="w-80" side="right" align="start">
@@ -146,3 +134,4 @@ export default function ScheduledProcessBar({
     </Popover>
   );
 }
+
