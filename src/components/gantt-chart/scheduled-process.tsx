@@ -64,8 +64,6 @@ export default function ScheduledProcessBar({
   };
   
   const handleInternalDragStart = (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => {
-    // Stop propagation to prevent any parent handlers from interfering.
-    e.stopPropagation();
     onDragStart(e, process);
   };
 
@@ -134,4 +132,3 @@ export default function ScheduledProcessBar({
     </Popover>
   );
 }
-
