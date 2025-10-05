@@ -85,7 +85,7 @@ export default function OrdersPage() {
                 .filter(p => order.processIds.includes(p.id))
                 .map((process) => {
                 const tnaProcess = order.tna?.processes.find(p => p.processId === process.id);
-                const scheduledProcess = scheduledProcesses.find(p => p.processId === process.id);
+                const scheduledProcess = scheduledProcesses.find(p => p.processId === process.id && p.orderId === order.id);
                 
                 return (
                   <TableRow key={process.id} className="bg-transparent even:bg-transparent hover:bg-muted/30">
