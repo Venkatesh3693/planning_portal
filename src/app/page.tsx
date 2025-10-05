@@ -106,7 +106,6 @@ export default function Home() {
           milliseconds: 0
         });
       }
-
       const proposedEndDateTime = calculateEndDateTime(finalStartDateTime, draggedProcess.durationMinutes);
       
       const otherProcesses = scheduledProcesses.filter(p => p.id !== draggedProcess.id);
@@ -140,6 +139,21 @@ export default function Home() {
 
       const durationMinutes = process.sam * order.quantity;
       const endDateTime = calculateEndDateTime(finalStartDateTime, durationMinutes);
+      
+      const hasCollision = scheduledProcesses.some(p => {
+        if (p.machineId !== machineId) return false;
+
+        const existingEndDateTime = p.endDateTime;
+
+        const startsDuring = isAfter(finalStartDateTime, p.startDateTime) && isBefore(finalStartDateTime, existingEndDateTime);
+        const endsDuring = isAfter(endDateTime, p.startDateTime) && isBefore(endDateTime, existingEndDateTime);
+        const spansOver = isBefore(finalStartDateTime, p.startDateTime) && isAfter(endDateTime, existingEndDateTime);
+        const isSameStart = finalStartDateTime.getTime() === p.startDateTime.getTime();
+
+        return startsDuring || endsDuring || spansOver || isSameStart;
+      });
+      
+      if(hasCollision) return;
 
       const newScheduledProcess: ScheduledProcess = {
         id: `${processId}-${orderId}-${new Date().getTime()}`,
