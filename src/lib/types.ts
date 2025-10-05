@@ -19,6 +19,7 @@ export type Process = {
   sam: number; // Standard Allowed Minutes
   icon: LucideIcon;
   color?: string;
+  singleRunOutput: number;
 };
 
 export type TnaProcess = {

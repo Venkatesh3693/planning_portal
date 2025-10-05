@@ -51,10 +51,18 @@ export default function OrdersPage() {
 
     return (
       <div className="space-y-4">
-        <div className="grid gap-2">
-            <div className="flex justify-between items-center text-sm p-2 bg-muted rounded-md">
-                <span className="font-medium">Raw Materials In-House (CK Date)</span>
-                <Badge variant="secondary">{format(new Date(ckDate), 'MMM dd, yyyy')}</Badge>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+            <div className="p-3 bg-muted rounded-md">
+                <div className="font-medium text-muted-foreground">CK Date</div>
+                <div className="font-semibold text-lg">{format(new Date(ckDate), 'MMM dd, yyyy')}</div>
+            </div>
+            <div className="p-3 bg-muted rounded-md">
+                <div className="font-medium text-muted-foreground">Shipment Date</div>
+                <div className="font-semibold text-lg">{format(new Date(order.dueDate), 'MMM dd, yyyy')}</div>
+            </div>
+            <div className="p-3 bg-muted rounded-md">
+                <div className="font-medium text-muted-foreground">Order Quantity</div>
+                <div className="font-semibold text-lg">{order.quantity.toLocaleString()} units</div>
             </div>
         </div>
 
@@ -64,6 +72,8 @@ export default function OrdersPage() {
               <TableRow className="bg-transparent hover:bg-transparent">
                 <TableHead>Process</TableHead>
                 <TableHead>SAM</TableHead>
+                <TableHead>Single Run Output</TableHead>
+                <TableHead>Produced Qty</TableHead>
                 <TableHead>T&A Start</TableHead>
                 <TableHead>T&A End</TableHead>
                 <TableHead>Scheduled Start</TableHead>
@@ -81,6 +91,10 @@ export default function OrdersPage() {
                   <TableRow key={process.id} className="bg-transparent even:bg-transparent hover:bg-muted/30">
                     <TableCell className="font-medium">{process.name}</TableCell>
                     <TableCell>{process.sam}</TableCell>
+                    <TableCell>{process.singleRunOutput}</TableCell>
+                    <TableCell>
+                        <span className="text-muted-foreground">Not Started</span>
+                    </TableCell>
                     <TableCell>{tnaProcess ? format(new Date(tnaProcess.startDate), 'MMM dd') : '-'}</TableCell>
                     <TableCell>{tnaProcess ? format(new Date(tnaProcess.endDate), 'MMM dd') : '-'}</TableCell>
                     <TableCell>{scheduledProcess ? format(scheduledProcess.startDateTime, 'MMM dd, h:mm a') : <span className="text-muted-foreground">Not set</span>}</TableCell>
@@ -160,7 +174,7 @@ export default function OrdersPage() {
             </Card>
 
             {selectedOrder && (
-              <DialogContent className="max-w-4xl">
+              <DialogContent className="max-w-6xl">
                 <DialogHeader>
                   <DialogTitle>{selectedOrder.ocn} - {selectedOrder.style} ({selectedOrder.color})</DialogTitle>
                   <DialogDescription>
