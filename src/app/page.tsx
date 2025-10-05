@@ -26,7 +26,7 @@ import { Button } from '@/components/ui/button';
 import { Filter, FilterX, ChevronDown, Trash2 } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { getScheduledProcesses, setScheduledProcesses } from '@/lib/store';
+import { getScheduledProcesses } from '@/lib/store';
 
 
 const ORDER_LEVEL_VIEW = 'order-level';
@@ -90,7 +90,15 @@ export default function Home() {
 
   // Effect to save to localStorage whenever the state changes
   useEffect(() => {
-    setScheduledProcesses(() => scheduledProcesses);
+    try {
+        const currentStoreString = localStorage.getItem('stitchplan_store');
+        const currentStore = currentStoreString ? JSON.parse(currentStoreString) : {};
+        const newStore = { ...currentStore, scheduledProcesses: scheduledProcesses };
+        const serializedState = JSON.stringify(newStore);
+        localStorage.setItem('stitchplan_store', serializedState);
+    } catch (err) {
+        console.error("Could not save state to localStorage", err);
+    }
   }, [scheduledProcesses]);
 
 

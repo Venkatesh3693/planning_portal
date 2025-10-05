@@ -25,13 +25,6 @@ const getStore = (): Store => {
       return defaultStore;
     }
     const parsedStore = JSON.parse(serializedState);
-    // Important: Revive date objects from their string representations
-    if (parsedStore.scheduledProcesses) {
-      parsedStore.scheduledProcesses.forEach((p: ScheduledProcess) => {
-        p.startDateTime = new Date(p.startDateTime);
-        p.endDateTime = new Date(p.endDateTime);
-      });
-    }
     return { ...defaultStore, ...parsedStore };
   } catch (err) {
     console.error("Could not load state from localStorage", err);
@@ -39,31 +32,14 @@ const getStore = (): Store => {
   }
 };
 
-const setStore = (store: Partial<Store>) => {
-    if (typeof window === 'undefined') {
-        return;
-    }
-    try {
-        const currentStore = getStore();
-        const newStore = { ...currentStore, ...store };
-        const serializedState = JSON.stringify(newStore);
-        localStorage.setItem('stitchplan_store', serializedState);
-    } catch (err) {
-        console.error("Could not save state to localStorage", err);
-    }
-}
-
-
-export const setScheduledProcesses = (updater: (prev: ScheduledProcess[]) => ScheduledProcess[]) => {
-  const currentStore = getStore();
-  const newProcesses = updater(currentStore.scheduledProcesses);
-  setStore({ scheduledProcesses: newProcesses });
-};
-
 export const getScheduledProcesses = (): ScheduledProcess[] => {
-    return getStore().scheduledProcesses;
+    const store = getStore();
+    // Important: Revive date objects from their string representations
+    if (store.scheduledProcesses) {
+      store.scheduledProcesses.forEach((p: ScheduledProcess) => {
+        p.startDateTime = new Date(p.startDateTime);
+        p.endDateTime = new Date(p.endDateTime);
+      });
+    }
+    return store.scheduledProcesses || [];
 };
-
-export const getOrders = (): Order[] => {
-    return getStore().orders;
-}
