@@ -63,21 +63,18 @@ export default function Home() {
   const handleDropOnChart = (orderId: string, processId: string, machineId: string, startDateTime: Date) => {
     if (draggedProcess) {
         // It's an existing process being moved
-        const processBeingMoved = scheduledProcesses.find(p => p.id === draggedProcess.id);
-        if (!processBeingMoved) return;
-
         let finalStartDateTime = startDateTime;
 
         if(viewMode === 'day') {
             finalStartDateTime = set(startDateTime, { 
-                hours: processBeingMoved.startDateTime.getHours(), 
-                minutes: processBeingMoved.startDateTime.getMinutes(),
+                hours: draggedProcess.startDateTime.getHours(), 
+                minutes: draggedProcess.startDateTime.getMinutes(),
                 seconds: 0,
                 milliseconds: 0
             });
         }
         
-        const proposedEndDateTime = addMinutes(finalStartDateTime, processBeingMoved.durationMinutes);
+        const proposedEndDateTime = addMinutes(finalStartDateTime, draggedProcess.durationMinutes);
         
         const hasCollision = scheduledProcesses.some(p => {
             if (p.id === draggedProcess.id) return false;
