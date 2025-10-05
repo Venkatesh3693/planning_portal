@@ -502,7 +502,3 @@ export default function Home() {
   );
 
     
-
-
-
-    
