@@ -5,7 +5,7 @@ import { useState, useRef, useMemo, useEffect } from 'react';
 import { addDays, startOfToday, format, isSameDay, set, addMinutes, isBefore, isAfter, getDay, setHours, setMinutes, startOfDay, isWithinInterval } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
-import { MACHINES, ORDERS, PROCESSES, WORK_DAY_MINUTES } from '@/lib/data';
+import { MACHINES, ORDERS, PROCESSES } from '@/lib/data';
 import type { Order, ScheduledProcess, TnaProcess } from '@/lib/types';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -91,11 +91,10 @@ export default function Home() {
   // Effect to save to localStorage whenever the state changes
   useEffect(() => {
     try {
-        const currentStoreString = localStorage.getItem('stitchplan_store');
-        const currentStore = currentStoreString ? JSON.parse(currentStoreString) : {};
+        const serializedState = localStorage.getItem('stitchplan_store');
+        const currentStore = serializedState ? JSON.parse(serializedState) : {};
         const newStore = { ...currentStore, scheduledProcesses: scheduledProcesses };
-        const serializedState = JSON.stringify(newStore);
-        localStorage.setItem('stitchplan_store', serializedState);
+        localStorage.setItem('stitchplan_store', JSON.stringify(newStore));
     } catch (err) {
         console.error("Could not save state to localStorage", err);
     }
@@ -510,3 +509,4 @@ export default function Home() {
   );
 
     
+

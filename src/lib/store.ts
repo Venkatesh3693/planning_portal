@@ -25,7 +25,11 @@ const getStore = (): Store => {
       return defaultStore;
     }
     const parsedStore = JSON.parse(serializedState);
-    return { ...defaultStore, ...parsedStore };
+    // Ensure both keys are present, even if empty, to prevent errors downstream
+    return { 
+      orders: parsedStore.orders || defaultStore.orders,
+      scheduledProcesses: parsedStore.scheduledProcesses || defaultStore.scheduledProcesses,
+    };
   } catch (err) {
     console.error("Could not load state from localStorage", err);
     return defaultStore;
@@ -34,12 +38,5 @@ const getStore = (): Store => {
 
 export const getScheduledProcesses = (): ScheduledProcess[] => {
     const store = getStore();
-    // Important: Revive date objects from their string representations
-    if (store.scheduledProcesses) {
-      store.scheduledProcesses.forEach((p: ScheduledProcess) => {
-        p.startDateTime = new Date(p.startDateTime);
-        p.endDateTime = new Date(p.endDateTime);
-      });
-    }
     return store.scheduledProcesses || [];
 };

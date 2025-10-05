@@ -39,8 +39,7 @@ export default function OrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [allScheduledProcesses, setAllScheduledProcesses] = useState<ScheduledProcess[]>([]);
 
-  useEffect(() => {
-    // Load processes from store on component mount and ensure dates are correct
+  const loadAndPrepareProcesses = () => {
     const storedProcesses = getScheduledProcesses();
     const processesWithDates = storedProcesses.map(p => ({
         ...p,
@@ -48,6 +47,11 @@ export default function OrdersPage() {
         endDateTime: new Date(p.endDateTime),
     }));
     setAllScheduledProcesses(processesWithDates);
+  }
+
+  // Load processes on initial mount
+  useEffect(() => {
+    loadAndPrepareProcesses();
   }, []);
 
   const handleOrderClick = (order: Order) => {
@@ -147,13 +151,7 @@ export default function OrdersPage() {
               setSelectedOrder(null)
             } else {
               // Re-fetch and parse dates from store when dialog opens to ensure data is fresh
-              const storedProcesses = getScheduledProcesses();
-              const processesWithDates = storedProcesses.map(p => ({
-                  ...p,
-                  startDateTime: new Date(p.startDateTime),
-                  endDateTime: new Date(p.endDateTime),
-              }));
-              setAllScheduledProcesses(processesWithDates);
+              loadAndPrepareProcesses();
             }
           }}>
             <Card>
