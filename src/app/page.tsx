@@ -26,7 +26,7 @@ import { Button } from '@/components/ui/button';
 import { Filter, FilterX, ChevronDown } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { getScheduledProcesses, setScheduledProcesses, getOrders, setOrders } from '@/lib/store';
+import { getScheduledProcesses, setScheduledProcesses } from '@/lib/store';
 
 
 const ORDER_LEVEL_VIEW = 'order-level';
@@ -34,44 +34,21 @@ const SEWING_PROCESS_ID = 'sewing';
 
 export default function Home() {
   const [scheduledProcesses, setScheduledProcessesState] = useState<ScheduledProcess[]>([]);
-  const [unplannedOrders, setUnplannedOrdersState] = useState<Order[]>([]);
 
   // Effect to load initial state from store on mount
   useEffect(() => {
-    const allStoredOrders = getOrders();
-    const storedProcesses = getScheduledProcesses();
-    const scheduledOrderIds = new Set(storedProcesses.map(p => p.orderId));
-    
-    setScheduledProcessesState(storedProcesses);
-    setUnplannedOrdersState(allStoredOrders.filter(o => !scheduledOrderIds.has(o.id)));
+    setScheduledProcessesState(getScheduledProcesses());
   }, []);
 
   const setAndStoreScheduledProcesses = (updater: (prev: ScheduledProcess[]) => ScheduledProcess[]) => {
-    // The updater function will return a new state with proper Date objects.
-    const newProcesses = updater(scheduledProcesses);
-    
-    // Update the local React state with the correct objects for immediate rendering.
-    setScheduledProcessesState(newProcesses);
-
-    // Persist the new state to localStorage for other pages.
-    setScheduledProcesses(() => newProcesses);
+    setScheduledProcessesState(prevProcesses => {
+      const newProcesses = updater(prevProcesses);
+      // Persist the new state to localStorage for other pages.
+      setScheduledProcesses(() => newProcesses);
+      return newProcesses;
+    });
   };
   
-  const setAndStoreUnplannedOrders = (updater: (prev: Order[]) => Order[]) => {
-    const newUnplannedOrders = updater(unplannedOrders);
-    setUnplannedOrdersState(newUnplannedOrders);
-    
-    const allStoredOrders = getOrders();
-    const scheduledOrderIds = new Set(scheduledProcesses.map(sp => sp.orderId));
-    const allUnplannedIds = new Set(newUnplannedOrders.map(o => o.id));
-
-    setOrders(() => allStoredOrders.map(o => {
-      // This logic can be simplified if we assume `getOrders` gives the full master list
-      // For now, let's just make sure the states are consistent for the current session.
-      return o;
-    }));
-  }
-
   const [selectedProcessId, setSelectedProcessId] = useState<string>(ORDER_LEVEL_VIEW);
   const [viewMode, setViewMode] = useState<'day' | 'hour'>('day');
   const [hoveredOrderId, setHoveredOrderId] = useState<string | null>(null);
@@ -83,9 +60,7 @@ export default function Home() {
   const [draggedProcess, setDraggedProcess] = useState<ScheduledProcess | null>(null);
   const [draggedProcessTna, setDraggedProcessTna] = useState<TnaProcess | null>(null);
 
-
   const buyerOptions = useMemo(() => [...new Set(ORDERS.map(o => o.buyer))], []);
-
 
   const handleDropOnChart = (orderId: string, processId: string, machineId: string, startDateTime: Date) => {
     if (draggedProcess) {
@@ -155,8 +130,6 @@ export default function Home() {
       };
       
       setAndStoreScheduledProcesses((prev) => [...prev, newScheduledProcess]);
-      
-      setUnplannedOrdersState((prev) => prev.filter((o) => o.id !== orderId));
     }
     setDraggedProcessTna(null);
   };
@@ -179,15 +152,7 @@ export default function Home() {
   };
   
   const handleUndoSchedule = (scheduledProcessId: string) => {
-    const processToUndo = scheduledProcesses.find(p => p.id === scheduledProcessId);
-    if (!processToUndo) return;
-    
     setAndStoreScheduledProcesses(prev => prev.filter(p => p.id !== scheduledProcessId));
-
-    const orderToAddBack = ORDERS.find(o => o.id === processToUndo.orderId);
-    if (orderToAddBack && !unplannedOrders.some(uo => uo.id === orderToAddBack.id)) {
-        setUnplannedOrdersState(prev => [orderToAddBack, ...prev]);
-    }
   };
   
   const handleScheduledProcessDragStart = (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => {
@@ -204,6 +169,11 @@ export default function Home() {
 
   const today = startOfToday();
   const dates = Array.from({ length: 30 }, (_, i) => addDays(today, i));
+
+  const unplannedOrders = useMemo(() => {
+    const scheduledOrderIds = new Set(scheduledProcesses.map(p => p.orderId));
+    return ORDERS.filter(o => !scheduledOrderIds.has(o.id));
+  }, [scheduledProcesses]);
 
   const getUnscheduledProcessesForOrder = (order: Order) => {
     const scheduledProcessIdsForOrder = scheduledProcesses
@@ -232,9 +202,11 @@ export default function Home() {
       : scheduledProcesses.filter(sp => sp.processId === selectedProcessId);
   }, [isOrderLevelView, scheduledProcesses, selectedProcessId]);
   
-  const sewingScheduledOrderIds = scheduledProcesses
-    .filter(p => p.processId === SEWING_PROCESS_ID)
-    .map(p => p.orderId);
+  const sewingScheduledOrderIds = useMemo(() => 
+    new Set(scheduledProcesses
+      .filter(p => p.processId === SEWING_PROCESS_ID)
+      .map(p => p.orderId)
+    ), [scheduledProcesses]);
 
   const clearFilters = () => {
     setFilterOcn('');
@@ -251,7 +223,7 @@ export default function Home() {
             return unscheduled.some(p => p.id === selectedProcessId);
           })
         : unplannedOrders.filter(order => {
-            const isSewingScheduled = sewingScheduledOrderIds.includes(order.id);
+            const isSewingScheduled = sewingScheduledOrderIds.has(order.id);
             if (!isSewingScheduled) return false;
             const unscheduled = getUnscheduledProcessesForOrder(order);
             return unscheduled.some(p => p.id === selectedProcessId);
@@ -421,7 +393,7 @@ export default function Home() {
                               {hasActiveFilters
                                 ? "No orders match your filters."
                                 : selectedProcessId === SEWING_PROCESS_ID
-                                  ? "No orders to schedule for sewing."
+                                  ? "All orders are scheduled for sewing."
                                   : "Schedule sewing for orders to see them here."
                               }
                             </p>

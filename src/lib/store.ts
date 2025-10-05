@@ -26,23 +26,27 @@ const getStore = (): Store => {
     }
     const parsedStore = JSON.parse(serializedState);
     // Important: Revive date objects from their string representations
-    parsedStore.scheduledProcesses.forEach((p: ScheduledProcess) => {
-      p.startDateTime = new Date(p.startDateTime);
-      p.endDateTime = new Date(p.endDateTime);
-    });
-    return parsedStore;
+    if (parsedStore.scheduledProcesses) {
+      parsedStore.scheduledProcesses.forEach((p: ScheduledProcess) => {
+        p.startDateTime = new Date(p.startDateTime);
+        p.endDateTime = new Date(p.endDateTime);
+      });
+    }
+    return { ...defaultStore, ...parsedStore };
   } catch (err) {
     console.error("Could not load state from localStorage", err);
     return defaultStore;
   }
 };
 
-const setStore = (store: Store) => {
+const setStore = (store: Partial<Store>) => {
     if (typeof window === 'undefined') {
         return;
     }
     try {
-        const serializedState = JSON.stringify(store);
+        const currentStore = getStore();
+        const newStore = { ...currentStore, ...store };
+        const serializedState = JSON.stringify(newStore);
         localStorage.setItem('stitchplan_store', serializedState);
     } catch (err) {
         console.error("Could not save state to localStorage", err);
@@ -53,19 +57,13 @@ const setStore = (store: Store) => {
 export const setScheduledProcesses = (updater: (prev: ScheduledProcess[]) => ScheduledProcess[]) => {
   const currentStore = getStore();
   const newProcesses = updater(currentStore.scheduledProcesses);
-  setStore({ ...currentStore, scheduledProcesses: newProcesses });
+  setStore({ scheduledProcesses: newProcesses });
 };
 
-export const getScheduledProcesses = () => {
+export const getScheduledProcesses = (): ScheduledProcess[] => {
     return getStore().scheduledProcesses;
 };
 
-export const setOrders = (updater: (prev: Order[]) => Order[]) => {
-    const currentStore = getStore();
-    const newOrders = updater(currentStore.orders);
-    setStore({ ...currentStore, orders: newOrders });
-};
-
-export const getOrders = () => {
+export const getOrders = (): Order[] => {
     return getStore().orders;
 }
