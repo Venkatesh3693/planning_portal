@@ -65,36 +65,34 @@ export default function ScheduledProcessBar({
 
   return (
     <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-      <DropdownMenuTrigger asChild onPointerDown={(e) => {
-          if (e.button === 0 && e.ctrlKey === false) {
-             e.preventDefault()
-          }
-        }}>
-        <div
-          ref={ref}
-          draggable={!isOrderLevelView}
-          onDragStart={(e) => onDragStart(e, item)}
-          onDragEnd={onDragEnd}
-          onContextMenu={handleContextMenu}
-          data-scheduled-process-id={item.id}
-          className={cn(
-            "relative z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg transition-opacity duration-150",
-            !isOrderLevelView && "cursor-grab active:cursor-grabbing",
-            isBeingDragged && "opacity-0 pointer-events-none"
-          )}
-          style={{
-            gridRowStart: gridRow,
-            gridColumn: `${gridColStart} / span ${durationInColumns}`,
-            backgroundColor: backgroundColor,
-          }}
-          title={`${orderDetails.id}: ${processDetails.name} (${durationText})`}
-        >
-          <div className="flex items-center gap-2 px-2">
-            <Icon className="h-3 w-3 shrink-0" />
-            <span className="truncate text-xs font-medium">{isOrderLevelView ? processDetails.name : orderDetails.id}</span>
-          </div>
+      <div
+        ref={ref}
+        draggable={!isOrderLevelView}
+        onDragStart={(e) => onDragStart(e, item)}
+        onDragEnd={onDragEnd}
+        onContextMenu={handleContextMenu}
+        data-scheduled-process-id={item.id}
+        className={cn(
+          "relative z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg transition-opacity duration-150",
+          !isOrderLevelView && "cursor-grab active:cursor-grabbing",
+          isBeingDragged && "opacity-0 pointer-events-none"
+        )}
+        style={{
+          gridRowStart: gridRow,
+          gridColumn: `${gridColStart} / span ${durationInColumns}`,
+          backgroundColor: backgroundColor,
+        }}
+        title={`${orderDetails.id}: ${processDetails.name} (${durationText})`}
+      >
+        <DropdownMenuTrigger asChild>
+           {/* This trigger is invisible and just for anchoring the menu */}
+           <div className="absolute inset-0" />
+        </DropdownMenuTrigger>
+        <div className="flex items-center gap-2 px-2">
+          <Icon className="h-3 w-3 shrink-0" />
+          <span className="truncate text-xs font-medium">{isOrderLevelView ? processDetails.name : orderDetails.id}</span>
         </div>
-      </DropdownMenuTrigger>
+      </div>
       <DropdownMenuContent className="w-80">
         <div className="grid gap-2 p-2">
           <div className="space-y-1">
