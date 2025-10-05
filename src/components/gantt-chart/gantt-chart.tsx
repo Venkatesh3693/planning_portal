@@ -82,14 +82,6 @@ export default function GanttChart({
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = React.useState(0);
   
-  const handleInternalDragStart = (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => {
-    onScheduledProcessDragStart(e, process);
-  };
-  
-  const handleInternalDragEnd = () => {
-    onScheduledProcessDragEnd();
-  };
-
   React.useEffect(() => {
     const measureContainer = () => {
       if (containerRef.current) {
@@ -415,8 +407,8 @@ export default function GanttChart({
                             gridColStart={gridColStart}
                             durationInColumns={durationInColumns}
                             onUndo={onUndoSchedule}
-                            onDragStart={handleInternalDragStart}
-                            onDragEnd={handleInternalDragEnd}
+                            onDragStart={onScheduledProcessDragStart}
+                            onDragEnd={onScheduledProcessDragEnd}
                             isOrderLevelView={isOrderLevelView}
                             isBeingDragged={isBeingDragged}
                         />
@@ -448,8 +440,8 @@ export default function GanttChart({
                             gridColStart={gridColStart}
                             durationInColumns={durationInColumns}
                             onUndo={onUndoSchedule}
-                            onDragStart={handleInternalDragStart}
-                            onDragEnd={handleInternalDragEnd}
+                            onDragStart={onScheduledProcessDragStart}
+                            onDragEnd={onScheduledProcessDragEnd}
                             isOrderLevelView={isOrderLevelView}
                             isBeingDragged={isBeingDragged}
                         />
@@ -460,3 +452,5 @@ export default function GanttChart({
     </div>
   );
 }
+
+    
