@@ -40,7 +40,7 @@ export default function OrdersPage() {
   const [allScheduledProcesses, setAllScheduledProcesses] = useState<ScheduledProcess[]>([]);
 
   useEffect(() => {
-    // Load processes from store on component mount
+    // Load processes from store on component mount and ensure dates are correct
     const storedProcesses = getScheduledProcesses();
     const processesWithDates = storedProcesses.map(p => ({
         ...p,
@@ -146,7 +146,7 @@ export default function OrdersPage() {
             if (!isOpen) {
               setSelectedOrder(null)
             } else {
-              // Re-fetch from store when dialog opens
+              // Re-fetch and parse dates from store when dialog opens to ensure data is fresh
               const storedProcesses = getScheduledProcesses();
               const processesWithDates = storedProcesses.map(p => ({
                   ...p,
