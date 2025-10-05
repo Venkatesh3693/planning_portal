@@ -5,7 +5,7 @@ import { ORDERS, PROCESSES } from '@/lib/data';
 import type { ScheduledProcess } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover';
-import { Undo2 } from 'lucide-react';
+import { Undo2, GripVertical } from 'lucide-react';
 import { format } from 'date-fns';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -71,15 +71,11 @@ export default function ScheduledProcessBar({
     <Popover open={isMenuOpen} onOpenChange={setIsMenuOpen}>
       <PopoverAnchor asChild>
         <div
-          draggable={!isOrderLevelView}
-          onDragStart={(e) => onDragStart(e, item)}
-          onDragEnd={onDragEnd}
           onContextMenu={handleContextMenu}
           data-scheduled-process-id={item.id}
           className={cn(
             "relative z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg transition-opacity duration-150",
-            !isOrderLevelView && "cursor-grab active:cursor-grabbing",
-            isBeingDragged && "opacity-0 pointer-events-none"
+            isBeingDragged && "opacity-30"
           )}
           style={{
             gridRowStart: gridRow,
@@ -88,9 +84,23 @@ export default function ScheduledProcessBar({
           }}
           title={`${orderDetails.id}: ${processDetails.name} (${durationText})`}
         >
-          <div 
-            className="flex items-center gap-2 px-2 pointer-events-none w-full"
-          >
+          {!isOrderLevelView && (
+            <div
+              draggable={!isOrderLevelView}
+              onDragStart={(e) => {
+                e.stopPropagation();
+                onDragStart(e, item)
+              }}
+              onDragEnd={(e) => {
+                e.stopPropagation();
+                onDragEnd()
+              }}
+              className="flex items-center justify-center h-full w-6 cursor-grab active:cursor-grabbing"
+            >
+              <GripVertical className="h-4 w-4 text-white/50" />
+            </div>
+          )}
+          <div className="flex items-center gap-2 px-2 pointer-events-none w-full">
             <Icon className="h-3 w-3 shrink-0" />
             <span className="truncate text-xs font-medium">{isOrderLevelView ? processDetails.name : orderDetails.id}</span>
           </div>
@@ -131,3 +141,5 @@ export default function ScheduledProcessBar({
   );
 }
 
+
+    

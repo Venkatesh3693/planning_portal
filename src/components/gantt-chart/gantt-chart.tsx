@@ -264,6 +264,16 @@ export default function GanttChart({
   }, [timeColumns, viewMode]);
 
 
+  const isBeingDragged = !!draggedProcess;
+
+  const handleLocalDragStart = (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => {
+    onScheduledProcessDragStart(e, process);
+  };
+  
+  const handleLocalDragEnd = () => {
+    onScheduledProcessDragEnd();
+  };
+
   return (
     <div className="h-full w-full overflow-auto" ref={containerRef}>
         <div className="relative grid min-h-full" style={timelineGridStyle}>
@@ -380,7 +390,7 @@ export default function GanttChart({
 
             {/* Scheduled processes */}
             {scheduledProcesses.map((item) => {
-                const isBeingDragged = draggedProcess?.id === item.id;
+                const isItemBeingDragged = draggedProcess?.id === item.id;
                 if (isOrderLevelView) {
                     const rowId = item.orderId;
                     const assignments = laneAssignments.get(rowId);
@@ -407,10 +417,10 @@ export default function GanttChart({
                             gridColStart={gridColStart}
                             durationInColumns={durationInColumns}
                             onUndo={onUndoSchedule}
-                            onDragStart={onScheduledProcessDragStart}
-                            onDragEnd={onScheduledProcessDragEnd}
+                            onDragStart={handleLocalDragStart}
+                            onDragEnd={handleLocalDragEnd}
                             isOrderLevelView={isOrderLevelView}
-                            isBeingDragged={isBeingDragged}
+                            isBeingDragged={isItemBeingDragged}
                         />
                     );
                 } else { // Machine level view
@@ -440,10 +450,10 @@ export default function GanttChart({
                             gridColStart={gridColStart}
                             durationInColumns={durationInColumns}
                             onUndo={onUndoSchedule}
-                            onDragStart={onScheduledProcessDragStart}
-                            onDragEnd={onScheduledProcessDragEnd}
+                            onDragStart={handleLocalDragStart}
+                            onDragEnd={handleLocalDragEnd}
                             isOrderLevelView={isOrderLevelView}
-                            isBeingDragged={isBeingDragged}
+                            isBeingDragged={isItemBeingDragged}
                         />
                     );
                 }
@@ -452,5 +462,7 @@ export default function GanttChart({
     </div>
   );
 }
+
+    
 
     
