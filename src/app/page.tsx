@@ -47,9 +47,14 @@ export default function Home() {
   }, []);
 
   const setAndStoreScheduledProcesses = (updater: (prev: ScheduledProcess[]) => ScheduledProcess[]) => {
+    // The updater function will return a new state with proper Date objects.
     const newProcesses = updater(scheduledProcesses);
+    
+    // Update the local React state with the correct objects for immediate rendering.
     setScheduledProcessesState(newProcesses);
-    setScheduledProcesses(() => newProcesses); // Pass a function to the store setter
+
+    // Persist the new state to localStorage for other pages.
+    setScheduledProcesses(() => newProcesses);
   };
   
   const setAndStoreUnplannedOrders = (updater: (prev: Order[]) => Order[]) => {
