@@ -37,18 +37,16 @@ export default function Home() {
 
   // Effect to load initial state from store on mount
   useEffect(() => {
-    setScheduledProcessesState(getScheduledProcesses());
+    const storedProcesses = getScheduledProcesses();
+    // Ensure all date strings are converted to Date objects on initial load.
+    const processesWithDates = storedProcesses.map(p => ({
+      ...p,
+      startDateTime: new Date(p.startDateTime),
+      endDateTime: new Date(p.endDateTime),
+    }));
+    setScheduledProcessesState(processesWithDates);
   }, []);
 
-  const setAndStoreScheduledProcesses = (updater: (prev: ScheduledProcess[]) => ScheduledProcess[]) => {
-    setScheduledProcessesState(prevProcesses => {
-      const newProcesses = updater(prevProcesses);
-      // Persist the new state to localStorage for other pages.
-      setScheduledProcesses(() => newProcesses);
-      return newProcesses;
-    });
-  };
-  
   const [selectedProcessId, setSelectedProcessId] = useState<string>(ORDER_LEVEL_VIEW);
   const [viewMode, setViewMode] = useState<'day' | 'hour'>('day');
   const [hoveredOrderId, setHoveredOrderId] = useState<string | null>(null);
@@ -96,13 +94,13 @@ export default function Home() {
         });
 
         if (!hasCollision) {
-            setAndStoreScheduledProcesses(prev => 
-                prev.map(p => 
-                  p.id === draggedProcess.id
-                    ? { ...p, machineId: machineId, startDateTime: finalStartDateTime, endDateTime: proposedEndDateTime }
-                    : p
-                )
+            const updatedProcesses = scheduledProcesses.map(p => 
+              p.id === draggedProcess.id
+                ? { ...p, machineId: machineId, startDateTime: finalStartDateTime, endDateTime: proposedEndDateTime }
+                : p
             );
+            setScheduledProcessesState(updatedProcesses);
+            setScheduledProcesses(() => updatedProcesses);
         }
 
     } else {
@@ -129,7 +127,9 @@ export default function Home() {
         durationMinutes,
       };
       
-      setAndStoreScheduledProcesses((prev) => [...prev, newScheduledProcess]);
+      const newProcesses = [...scheduledProcesses, newScheduledProcess];
+      setScheduledProcessesState(newProcesses);
+      setScheduledProcesses(() => newProcesses);
     }
     setDraggedProcessTna(null);
   };
@@ -152,7 +152,9 @@ export default function Home() {
   };
   
   const handleUndoSchedule = (scheduledProcessId: string) => {
-    setAndStoreScheduledProcesses(prev => prev.filter(p => p.id !== scheduledProcessId));
+    const updatedProcesses = scheduledProcesses.filter(p => p.id !== scheduledProcessId);
+    setScheduledProcessesState(updatedProcesses);
+    setScheduledProcesses(() => updatedProcesses);
   };
   
   const handleScheduledProcessDragStart = (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => {
@@ -215,7 +217,7 @@ export default function Home() {
   };
 
   const filteredUnplannedOrders = useMemo(() => {
-    if (isOrderLevelView) return [];
+    if (isOrderLevelView) return unplannedOrders;
     
     let baseOrders = selectedProcessId === SEWING_PROCESS_ID
         ? unplannedOrders.filter(order => {
@@ -357,11 +359,28 @@ export default function Home() {
                     <ScrollArea className="h-full pr-4">
                       <div className="space-y-2 p-2 pt-0" ref={ordersListRef}>
                         {filteredUnplannedOrders.map((order) => {
+                          if (isOrderLevelView) {
+                            return (
+                              <div
+                                key={order.id}
+                                className="p-2 text-sm font-medium text-card-foreground rounded-md"
+                                title={order.id}
+                              >
+                                <div className="flex flex-col">
+                                  <span className="font-semibold">{order.id}</span>
+                                  <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
+                                    <span>Ship: {format(new Date(order.dueDate), 'MMM dd')}</span>
+                                    <span>Qty: {order.quantity}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          }
+                          
                           const unscheduled = getUnscheduledProcessesForOrder(order);
                           const canDrag = unscheduled.some(p => p.id === selectedProcessId);
 
                           if (!canDrag && !isOrderLevelView) return null;
-                          if (isOrderLevelView) return null;
 
                           return (
                             <div
@@ -387,24 +406,19 @@ export default function Home() {
                             </div>
                           )
                         })}
-                        {filteredUnplannedOrders.length === 0 && !isOrderLevelView && (
+                        {filteredUnplannedOrders.length === 0 && (
                           <div className="flex h-full items-center justify-center text-center">
                             <p className="text-sm text-muted-foreground">
                               {hasActiveFilters
                                 ? "No orders match your filters."
+                                : isOrderLevelView
+                                ? "All orders have been scheduled."
                                 : selectedProcessId === SEWING_PROCESS_ID
-                                  ? "All orders are scheduled for sewing."
+                                  ? "All sewing processes are scheduled."
                                   : "Schedule sewing for orders to see them here."
                               }
                             </p>
                           </div>
-                        )}
-                         {isOrderLevelView && (
-                            <div className="flex h-full items-center justify-center text-center">
-                                <p className="text-sm text-muted-foreground">
-                                Drag and drop orders from a specific process view.
-                                </p>
-                            </div>
                         )}
                       </div>
                     </ScrollArea>
@@ -435,4 +449,5 @@ export default function Home() {
       </main>
     </div>
   );
-}
+
+    
