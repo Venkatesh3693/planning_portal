@@ -1,6 +1,6 @@
 import type { Unit, Machine, Order, Process } from '@/lib/types';
 import { Scissors, Printer, Fingerprint, ExternalLink, MoveHorizontal, PackageCheck } from 'lucide-react';
-import { addDays, startOfToday } from 'date-fns';
+import { addDays, subDays, startOfToday } from 'date-fns';
 
 export const UNITS: Unit[] = [
   { id: 'u1', name: 'Unit 1' },
@@ -41,7 +41,16 @@ export const ORDERS: Order[] = [
         color: 'Blue',
         quantity: 100,
         processIds: ['cutting', 'printing', 'sewing', 'packing'],
-        dueDate: addDays(today, 10)
+        dueDate: addDays(today, 10),
+        tna: {
+            ckDate: subDays(today, 5),
+            processes: [
+                { processId: 'cutting', startDate: subDays(today, 2), endDate: subDays(today, 1) },
+                { processId: 'printing', startDate: today, endDate: addDays(today, 1) },
+                { processId: 'sewing', startDate: addDays(today, 2), endDate: addDays(today, 5) },
+                { processId: 'packing', startDate: addDays(today, 6), endDate: addDays(today, 8) },
+            ]
+        }
     },
     { 
         id: 'HNM1234-Pants-Black', 
@@ -51,7 +60,16 @@ export const ORDERS: Order[] = [
         color: 'Black',
         quantity: 200,
         processIds: ['cutting', 'embroidery', 'sewing', 'packing'],
-        dueDate: addDays(today, 15)
+        dueDate: addDays(today, 15),
+        tna: {
+            ckDate: subDays(today, 10),
+            processes: [
+                { processId: 'cutting', startDate: subDays(today, 5), endDate: subDays(today, 3) },
+                { processId: 'embroidery', startDate: subDays(today, 2), endDate: addDays(today, 2) },
+                { processId: 'sewing', startDate: addDays(today, 3), endDate: addDays(today, 9) },
+                { processId: 'packing', startDate: addDays(today, 10), endDate: addDays(today, 13) },
+            ]
+        }
     },
     { 
         id: 'GAP9876-TShirt-White', 
@@ -61,7 +79,16 @@ export const ORDERS: Order[] = [
         color: 'White',
         quantity: 150,
         processIds: ['cutting', 'sewing', 'packing', 'outsourcing'],
-        dueDate: addDays(today, 7)
+        dueDate: addDays(today, 7),
+        tna: {
+            ckDate: subDays(today, 8),
+            processes: [
+                { processId: 'cutting', startDate: subDays(today, 6), endDate: subDays(today, 5) },
+                { processId: 'sewing', startDate: subDays(today, 4), endDate: addDays(today, 1) },
+                { processId: 'outsourcing', startDate: addDays(today, 2), endDate: addDays(today, 3) },
+                { processId: 'packing', startDate: addDays(today, 4), endDate: addDays(today, 5) },
+            ]
+        }
     }
 ];
 

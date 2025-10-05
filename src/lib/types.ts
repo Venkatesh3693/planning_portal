@@ -6,7 +6,7 @@ export type Unit = {
 };
 
 export type Machine = {
-  id: string;
+  id:string;
   name: string;
   processIds: string[];
   unitId: string;
@@ -21,6 +21,17 @@ export type Process = {
   color?: string;
 };
 
+export type TnaProcess = {
+  processId: string;
+  startDate: string | Date;
+  endDate: string | Date;
+};
+
+export type Tna = {
+  ckDate: string | Date;
+  processes: TnaProcess[];
+};
+
 export type Order = {
   id: string; // e.g. 'ZAR4531-Shirt-Blue'
   ocn: string; // e.g. 'ZAR4531'
@@ -30,6 +41,7 @@ export type Order = {
   quantity: number;
   processIds: string[];
   dueDate: Date;
+  tna?: Tna;
 };
 
 export type ScheduledProcess = {
