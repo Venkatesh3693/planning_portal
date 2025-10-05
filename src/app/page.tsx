@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { addDays, startOfToday, format, isSameDay, set, addMinutes, isBefore, isAfter, getDay, setHours, setMinutes, startOfDay } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
@@ -80,7 +80,7 @@ export default function Home() {
   const [selectedProcessId, setSelectedProcessId] = useState<string>(ORDER_LEVEL_VIEW);
   const [viewMode, setViewMode] = useState<'day' | 'hour'>('day');
   const [hoveredOrderId, setHoveredOrderId] = useState<string | null>(null);
-  const [isOrdersPanelVisible, setIsOrdersPanelVisible] = useState(true);
+  const [isOrdersPanelVisibleState, setIsOrdersPanelVisibleState] = useState(true);
   const ordersListRef = useRef<HTMLDivElement>(null);
   const [filterOcn, setFilterOcn] = useState('');
   const [filterBuyer, setFilterBuyer] = useState<string[]>([]);
@@ -189,14 +189,8 @@ export default function Home() {
   };
 
   const today = startOfToday();
-  const dates = Array.from({ length: 30 * (7/6) }, (_, i) => addDays(today, i))
-    .filter(date => getDay(date) !== 0) // Exclude Sundays
-    .slice(0, 30); // Take the first 30 working days
-
-  const unplannedOrders = useMemo(() => {
-    const scheduledOrderIds = new Set(scheduledProcesses.map(p => p.orderId));
-    return ORDERS.filter(o => !scheduledOrderIds.has(o.id));
-  }, [scheduledProcesses]);
+  const dates = Array.from({ length: 30 }, (_, i) => addDays(today, i))
+    .filter(date => getDay(date) !== 0); // Exclude Sundays
 
   const getUnscheduledProcessesForOrder = (order: Order) => {
     const scheduledProcessIdsForOrder = scheduledProcesses
@@ -214,6 +208,29 @@ export default function Home() {
   ];
 
   const isOrderLevelView = selectedProcessId === ORDER_LEVEL_VIEW;
+  const isOrdersPanelVisible = isOrdersPanelVisibleState && !isOrderLevelView;
+
+  const unplannedOrders = useMemo(() => {
+    const scheduledProcessIds = new Set(scheduledProcesses.map(sp => sp.processId));
+    
+    // In order level view, all orders that have at least one process NOT scheduled are "unplanned"
+    if (isOrderLevelView) {
+      return ORDERS.filter(order => {
+        const unscheduledProcesses = getUnscheduledProcessesForOrder(order);
+        return unscheduledProcesses.length > 0;
+      });
+    }
+    
+    // In process level view, an order is "unplanned" for THIS process if this process is not scheduled
+    return ORDERS.filter(order => {
+      const isProcessInOrder = order.processIds.includes(selectedProcessId);
+      if (!isProcessInOrder) return false;
+
+      const isProcessScheduledForOrder = scheduledProcesses.some(sp => sp.orderId === order.id && sp.processId === selectedProcessId);
+      return !isProcessScheduledForOrder;
+    });
+
+  }, [scheduledProcesses, isOrderLevelView, selectedProcessId]);
 
   const chartRows = isOrderLevelView 
     ? ORDERS.map(o => ({ id: o.id, name: o.ocn, processIds: o.processIds })) 
@@ -286,7 +303,7 @@ export default function Home() {
     <div className="flex h-screen flex-col">
       <Header 
         isOrdersPanelVisible={isOrdersPanelVisible}
-        setIsOrdersPanelVisible={setIsOrdersPanelVisible}
+        setIsOrdersPanelVisible={setIsOrdersPanelVisibleState}
       />
       <main className="flex flex-1 flex-col overflow-hidden">
         <div className="flex-shrink-0 border-b p-4 flex justify-between items-center">
@@ -393,24 +410,6 @@ export default function Home() {
                     <ScrollArea className="h-full pr-4">
                       <div className="space-y-2 p-2 pt-0" ref={ordersListRef}>
                         {filteredUnplannedOrders.map((order) => {
-                          if (isOrderLevelView) {
-                            return (
-                              <div
-                                key={order.id}
-                                className="p-2 text-sm font-medium text-card-foreground rounded-md"
-                                title={order.id}
-                              >
-                                <div className="flex flex-col">
-                                  <span className="font-semibold">{order.id}</span>
-                                  <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
-                                    <span>Ship: {format(new Date(order.dueDate), 'MMM dd')}</span>
-                                    <span>Qty: {order.quantity}</span>
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          }
-                          
                           const unscheduled = getUnscheduledProcessesForOrder(order);
                           const canDrag = unscheduled.some(p => p.id === selectedProcessId);
 
