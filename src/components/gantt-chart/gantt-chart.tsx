@@ -24,7 +24,6 @@ type GanttChartProps = {
   onScheduledProcessDragEnd: () => void;
   isOrderLevelView?: boolean;
   viewMode: ViewMode;
-  draggedProcess: ScheduledProcess | null;
 };
 
 const ROW_HEIGHT = 32; // Corresponds to h-8
@@ -34,34 +33,35 @@ const WORKING_HOURS = Array.from({ length: WORKING_HOURS_END - WORKING_HOURS_STA
 
 
 const assignLanes = (processes: ScheduledProcess[]): { process: ScheduledProcess; lane: number }[] => {
-  if (!processes.length) return [];
-  
-  const sortedProcesses = [...processes].sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
-  
-  const lanes: { process: ScheduledProcess; lane: number }[] = [];
-  const laneEndDates: Date[] = [];
+    if (!processes.length) return [];
 
-  sortedProcesses.forEach(process => {
-    let assigned = false;
-    const processEndDate = addMinutes(process.startDateTime, process.durationMinutes);
+    const sortedProcesses = [...processes].sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
 
-    for (let i = 0; i < laneEndDates.length; i++) {
-        if (process.startDateTime > laneEndDates[i]) {
-            lanes.push({ process, lane: i });
-            laneEndDates[i] = processEndDate;
-            assigned = true;
-            break;
+    const lanes: { process: ScheduledProcess; lane: number }[] = [];
+    const laneEndDates: Date[] = [];
+
+    sortedProcesses.forEach(process => {
+        let assigned = false;
+        const processEndDate = addMinutes(process.startDateTime, process.durationMinutes);
+
+        for (let i = 0; i < laneEndDates.length; i++) {
+            if (process.startDateTime.getTime() >= laneEndDates[i].getTime()) {
+                lanes.push({ process, lane: i });
+                laneEndDates[i] = processEndDate;
+                assigned = true;
+                break;
+            }
         }
-    }
 
-    if (!assigned) {
-        lanes.push({ process, lane: laneEndDates.length });
-        laneEndDates.push(processEndDate);
-    }
-  });
+        if (!assigned) {
+            lanes.push({ process, lane: laneEndDates.length });
+            laneEndDates.push(processEndDate);
+        }
+    });
 
-  return lanes;
+    return lanes;
 };
+
 
 
 export default function GanttChart({
@@ -74,33 +74,21 @@ export default function GanttChart({
   onScheduledProcessDragEnd,
   isOrderLevelView = false,
   viewMode,
-  draggedProcess,
 }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = React.useState(0);
+  const [draggedProcess, setDraggedProcess] = React.useState<ScheduledProcess | null>(null);
 
-  React.useEffect(() => {
-    if (draggedProcess) {
-      const el = document.querySelector(`[data-scheduled-process-id="${draggedProcess.id}"]`) as HTMLElement;
-      if (el) {
-        // Use a timeout to ensure the browser has initiated the drag operation
-        const timeoutId = setTimeout(() => {
-            el.style.opacity = '0';
-            el.style.pointerEvents = 'none';
-        }, 0);
-
-        return () => {
-            clearTimeout(timeoutId);
-            // Restore styles when drag ends
-            if (el) {
-              el.style.opacity = '';
-              el.style.pointerEvents = '';
-            }
-        };
-      }
-    }
-  }, [draggedProcess]);
+  const handleInternalDragStart = (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => {
+    setDraggedProcess(process);
+    onScheduledProcessDragStart(e, process);
+  };
+  
+  const handleInternalDragEnd = () => {
+    setDraggedProcess(null);
+    onScheduledProcessDragEnd();
+  };
 
   React.useEffect(() => {
     const measureContainer = () => {
@@ -316,10 +304,10 @@ export default function GanttChart({
                 </div>
             ))}
             
-            {/* Grid cells for dropping */}
-            {rows.flatMap((row, rowIndex) => {
+            {/* Grid cells and row headers */}
+            {rows.map((row, rowIndex) => {
                 const position = rowPositions.get(row.id);
-                if (!position) return [];
+                if (!position) return null;
                 
                 const rowHeader = (
                     <div 
@@ -353,7 +341,7 @@ export default function GanttChart({
                 ));
                 return [rowHeader, ...rowCells];
             })}
-            
+
             {/* Empty rows to fill space */}
             {Array.from({ length: numEmptyRows }).map((_, i) => {
               const gridRowStart = totalOccupiedRows + i + 4;
@@ -413,8 +401,8 @@ export default function GanttChart({
                             gridColStart={gridColStart}
                             durationInColumns={durationInColumns}
                             onUndo={onUndoSchedule}
-                            onDragStart={onScheduledProcessDragStart}
-                            onDragEnd={onScheduledProcessDragEnd}
+                            onDragStart={handleInternalDragStart}
+                            onDragEnd={handleInternalDragEnd}
                             isOrderLevelView={isOrderLevelView}
                             isBeingDragged={isBeingDragged}
                         />
@@ -446,8 +434,8 @@ export default function GanttChart({
                             gridColStart={gridColStart}
                             durationInColumns={durationInColumns}
                             onUndo={onUndoSchedule}
-                            onDragStart={onScheduledProcessDragStart}
-                            onDragEnd={onScheduledProcessDragEnd}
+                            onDragStart={handleInternalDragStart}
+                            onDragEnd={handleInternalDragEnd}
                             isOrderLevelView={isOrderLevelView}
                             isBeingDragged={isBeingDragged}
                         />
