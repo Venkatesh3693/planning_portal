@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -46,7 +47,7 @@ export default function OrdersPage() {
   const TnaPlan = ({ order, scheduledProcesses }: { order: Order, scheduledProcesses: ScheduledProcess[] }) => {
     if (!order.tna) return null;
     
-    const { ckDate, processes: tnaProcesses } = order.tna;
+    const { ckDate } = order.tna;
 
     return (
       <div className="space-y-4">
@@ -62,6 +63,7 @@ export default function OrdersPage() {
             <TableHeader>
               <TableRow className="bg-transparent hover:bg-transparent">
                 <TableHead>Process</TableHead>
+                <TableHead>SAM</TableHead>
                 <TableHead>T&A Start</TableHead>
                 <TableHead>T&A End</TableHead>
                 <TableHead>Scheduled Start</TableHead>
@@ -72,12 +74,13 @@ export default function OrdersPage() {
               {allProcesses
                 .filter(p => order.processIds.includes(p.id))
                 .map((process) => {
-                const tnaProcess = tnaProcesses.find(p => p.processId === process.id);
+                const tnaProcess = order.tna?.processes.find(p => p.processId === process.id);
                 const scheduledProcess = scheduledProcesses.find(p => p.processId === process.id);
                 
                 return (
                   <TableRow key={process.id} className="bg-transparent even:bg-transparent hover:bg-muted/30">
                     <TableCell className="font-medium">{process.name}</TableCell>
+                    <TableCell>{process.sam}</TableCell>
                     <TableCell>{tnaProcess ? format(new Date(tnaProcess.startDate), 'MMM dd') : '-'}</TableCell>
                     <TableCell>{tnaProcess ? format(new Date(tnaProcess.endDate), 'MMM dd') : '-'}</TableCell>
                     <TableCell>{scheduledProcess ? format(scheduledProcess.startDateTime, 'MMM dd, h:mm a') : <span className="text-muted-foreground">Not set</span>}</TableCell>
@@ -127,9 +130,6 @@ export default function OrdersPage() {
                       <TableHead>Style</TableHead>
                       <TableHead>Color</TableHead>
                       <TableHead className="text-right">Quantity</TableHead>
-                      {allProcesses.map((process) => (
-                        <TableHead key={process.id} className="text-center">{process.name} (SAM)</TableHead>
-                      ))}
                       <TableHead>Due Date</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -151,14 +151,6 @@ export default function OrdersPage() {
                         <TableCell>{order.style}</TableCell>
                         <TableCell>{order.color}</TableCell>
                         <TableCell className="text-right">{order.quantity}</TableCell>
-                        {allProcesses.map((process) => {
-                          const processInOrder = order.processIds.includes(process.id);
-                          return (
-                            <TableCell key={process.id} className="text-center">
-                              {processInOrder ? process.sam : '-'}
-                            </TableCell>
-                          );
-                        })}
                         <TableCell>{format(new Date(order.dueDate), 'PPP')}</TableCell>
                       </TableRow>
                     ))}
