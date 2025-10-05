@@ -101,6 +101,9 @@ export default function ScheduledProcessBar({
         <strong>Start:</strong> {format(item.startDateTime, 'MMM d, yyyy @ h:mm a')}
       </p>
       <p className="text-sm">
+        <strong>End:</strong> {format(item.endDateTime, 'MMM d, yyyy @ h:mm a')}
+      </p>
+      <p className="text-sm">
         <strong>Duration:</strong> {durationText}
       </p>
       <p className="text-sm">
@@ -131,25 +134,6 @@ export default function ScheduledProcessBar({
     </div>
   );
 
-  if (isOrderLevelView) {
-    return (
-      <Popover>
-        <PopoverTrigger asChild style={{
-          gridRowStart: gridRow,
-          gridColumn: `${gridColStart} / span ${durationInColumns}`,
-          height: 'calc(100% - 0.125rem)',
-          margin: '1px',
-          cursor: 'pointer'
-        }}>
-          {bar}
-        </PopoverTrigger>
-        <PopoverContent className="w-80">
-          {popoverContent}
-        </PopoverContent>
-      </Popover>
-    )
-  }
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -159,13 +143,13 @@ export default function ScheduledProcessBar({
         <div className="p-4 pt-2">
           {popoverContent}
         </div>
-        <DropdownMenuItem onClick={handleUndo}>
-          <Undo2 className="mr-2 h-4 w-4" />
-          <span>Return to Unplanned</span>
-        </DropdownMenuItem>
+        {!isOrderLevelView && (
+          <DropdownMenuItem onClick={handleUndo}>
+            <Undo2 className="mr-2 h-4 w-4" />
+            <span>Return to Unplanned</span>
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
-
-      
