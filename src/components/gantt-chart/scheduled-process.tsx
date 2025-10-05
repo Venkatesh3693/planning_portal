@@ -2,10 +2,10 @@
 import { ORDERS, PROCESSES } from '@/lib/data';
 import type { ScheduledProcess } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Undo2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
 type ScheduledProcessProps = {
   item: ScheduledProcess;
@@ -36,31 +36,6 @@ export default function ScheduledProcessBar({
   const processDetails = PROCESSES.find(p => p.id === item.processId);
   const orderDetails = ORDERS.find(o => o.id === item.orderId);
 
-  useEffect(() => {
-    if (isBeingDragged) {
-      const timeoutId = setTimeout(() => {
-        if (ref.current) {
-          ref.current.style.opacity = '0';
-          ref.current.style.pointerEvents = 'none';
-        }
-      }, 0);
-
-      return () => {
-        clearTimeout(timeoutId);
-        if (ref.current) {
-          ref.current.style.opacity = '';
-          ref.current.style.pointerEvents = '';
-        }
-      };
-    } else {
-        if (ref.current) {
-            ref.current.style.opacity = '';
-            ref.current.style.pointerEvents = '';
-        }
-    }
-  }, [isBeingDragged]);
-
-
   if (!processDetails || !orderDetails) return null;
 
   const Icon = processDetails.icon;
@@ -81,42 +56,45 @@ export default function ScheduledProcessBar({
     onUndo(item.id);
   }
 
-  const handleContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     setIsMenuOpen(true);
   };
   
   const backgroundColor = processDetails.color ? processDetails.color : 'hsl(var(--accent))';
 
-  const barContent = (
-    <div
-      ref={ref}
-      draggable={!isOrderLevelView}
-      onDragStart={(e) => onDragStart(e, item)}
-      onDragEnd={onDragEnd}
-      onContextMenu={handleContextMenu}
-      data-scheduled-process-id={item.id}
-      className={cn(
-        "relative z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg transition-opacity duration-150",
-        !isOrderLevelView && "cursor-grab active:cursor-grabbing"
-      )}
-      style={{
-        gridRowStart: gridRow,
-        gridColumn: `${gridColStart} / span ${durationInColumns}`,
-        backgroundColor: backgroundColor,
-      }}
-      title={`${orderDetails.id}: ${processDetails.name} (${durationText})`}
-    >
-      <div className="flex items-center gap-2 px-2">
-        <Icon className="h-3 w-3 shrink-0" />
-        <span className="truncate text-xs font-medium">{isOrderLevelView ? processDetails.name : orderDetails.id}</span>
-      </div>
-    </div>
-  );
-
   return (
     <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-      {barContent}
+      <DropdownMenuTrigger asChild onPointerDown={(e) => {
+          if (e.button === 0 && e.ctrlKey === false) {
+             e.preventDefault()
+          }
+        }}>
+        <div
+          ref={ref}
+          draggable={!isOrderLevelView}
+          onDragStart={(e) => onDragStart(e, item)}
+          onDragEnd={onDragEnd}
+          onContextMenu={handleContextMenu}
+          data-scheduled-process-id={item.id}
+          className={cn(
+            "relative z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg transition-opacity duration-150",
+            !isOrderLevelView && "cursor-grab active:cursor-grabbing",
+            isBeingDragged && "opacity-0 pointer-events-none"
+          )}
+          style={{
+            gridRowStart: gridRow,
+            gridColumn: `${gridColStart} / span ${durationInColumns}`,
+            backgroundColor: backgroundColor,
+          }}
+          title={`${orderDetails.id}: ${processDetails.name} (${durationText})`}
+        >
+          <div className="flex items-center gap-2 px-2">
+            <Icon className="h-3 w-3 shrink-0" />
+            <span className="truncate text-xs font-medium">{isOrderLevelView ? processDetails.name : orderDetails.id}</span>
+          </div>
+        </div>
+      </DropdownMenuTrigger>
       <DropdownMenuContent className="w-80">
         <div className="grid gap-2 p-2">
           <div className="space-y-1">
