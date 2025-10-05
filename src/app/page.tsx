@@ -128,6 +128,8 @@ export default function Home() {
         }
       }
     }
+    // Clean up highlighting state after any successful drop.
+    setDraggedProcessTna(null);
   };
   
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, orderId: string, processId: string) => {
@@ -438,5 +440,3 @@ export default function Home() {
     </div>
   );
 }
-
-    
