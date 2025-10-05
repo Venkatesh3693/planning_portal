@@ -35,10 +35,9 @@ const SEWING_PROCESS_ID = 'sewing';
 export default function Home() {
   const [scheduledProcesses, setScheduledProcessesState] = useState<ScheduledProcess[]>([]);
 
-  // Effect to load initial state from store on mount
+  // Effect to load initial state from store on mount and ensure dates are correct
   useEffect(() => {
     const storedProcesses = getScheduledProcesses();
-    // Ensure all date strings are converted to Date objects on initial load.
     const processesWithDates = storedProcesses.map(p => ({
       ...p,
       startDateTime: new Date(p.startDateTime),
@@ -46,6 +45,12 @@ export default function Home() {
     }));
     setScheduledProcessesState(processesWithDates);
   }, []);
+
+  // Effect to save to localStorage whenever the state changes
+  useEffect(() => {
+    setScheduledProcesses(() => scheduledProcesses);
+  }, [scheduledProcesses]);
+
 
   const [selectedProcessId, setSelectedProcessId] = useState<string>(ORDER_LEVEL_VIEW);
   const [viewMode, setViewMode] = useState<'day' | 'hour'>('day');
@@ -94,13 +99,11 @@ export default function Home() {
       });
 
       if (!hasCollision) {
-        const updatedProcesses = scheduledProcesses.map(p =>
+        setScheduledProcessesState(prev => prev.map(p =>
           p.id === draggedProcess.id
             ? { ...p, machineId: machineId, startDateTime: finalStartDateTime, endDateTime: proposedEndDateTime }
             : p
-        );
-        setScheduledProcesses(() => updatedProcesses);
-        setScheduledProcessesState(updatedProcesses);
+        ));
       }
 
     } else {
@@ -122,9 +125,7 @@ export default function Home() {
         durationMinutes,
       };
 
-      const newProcesses = [...scheduledProcesses, newScheduledProcess];
-      setScheduledProcesses(() => newProcesses);
-      setScheduledProcessesState(newProcesses);
+      setScheduledProcessesState(prev => [...prev, newScheduledProcess]);
     }
     setDraggedProcessTna(null);
   };
@@ -147,9 +148,7 @@ export default function Home() {
   };
   
   const handleUndoSchedule = (scheduledProcessId: string) => {
-    const updatedProcesses = scheduledProcesses.filter(p => p.id !== scheduledProcessId);
-    setScheduledProcesses(() => updatedProcesses);
-    setScheduledProcessesState(updatedProcesses);
+    setScheduledProcessesState(prev => prev.filter(p => p.id !== scheduledProcessId));
   };
   
   const handleScheduledProcessDragStart = (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => {
@@ -250,12 +249,9 @@ export default function Home() {
   };
 
   const handleClearSchedule = () => {
-    // Clear the localStorage
-    setScheduledProcesses(() => []);
-    // Clear the local React state
+    // This will clear the local React state, which will then trigger the
+    // useEffect to save the empty array to localStorage.
     setScheduledProcessesState([]);
-    // Optionally, you can reload the page to ensure a clean start
-    // window.location.reload();
   };
 
   return (
@@ -461,3 +457,4 @@ export default function Home() {
   );
 
     
+
