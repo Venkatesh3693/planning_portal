@@ -1,4 +1,6 @@
 
+"use client";
+
 import { ORDERS, PROCESSES } from '@/lib/data';
 import type { ScheduledProcess } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -63,10 +65,6 @@ export default function ScheduledProcessBar({
     setIsMenuOpen(true);
   };
   
-  const handleInternalDragStart = (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => {
-    onDragStart(e, process);
-  };
-
   const backgroundColor = processDetails.color ? processDetails.color : 'hsl(var(--accent))';
 
   return (
@@ -74,7 +72,7 @@ export default function ScheduledProcessBar({
       <PopoverAnchor asChild>
         <div
           draggable={!isOrderLevelView}
-          onDragStart={(e) => handleInternalDragStart(e, item)}
+          onDragStart={(e) => onDragStart(e, item)}
           onDragEnd={onDragEnd}
           onContextMenu={handleContextMenu}
           data-scheduled-process-id={item.id}
