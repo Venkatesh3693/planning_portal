@@ -275,7 +275,7 @@ export default function GanttChart({
     <div className="h-full w-full overflow-auto" ref={containerRef}>
         <div className="relative grid min-h-full" style={timelineGridStyle}>
             {/* Sticky Row Headers column background */}
-            <div className="sticky left-0 z-40 col-start-1 row-start-1 row-end-[-1] bg-card"></div>
+            <div className="sticky left-0 z-30 col-start-1 row-start-1 row-end-[-1] bg-card"></div>
 
             {/* Empty Corner */}
             <div className="sticky left-0 top-0 z-50 border-b border-r bg-card" style={{gridRowEnd: 'span 3'}}></div>
@@ -312,7 +312,7 @@ export default function GanttChart({
                     <div 
                         key={`${row.id}-header`}
                         className={cn(
-                            "sticky left-0 z-30 flex items-center justify-start p-2 border-b border-r whitespace-nowrap",
+                            "sticky left-0 z-40 flex items-center justify-start p-2 border-b border-r whitespace-nowrap",
                             rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/50'
                         )}
                         style={{ gridRow: `${position.start + 3} / span ${position.span}`, gridColumn: 1 }}
@@ -445,5 +445,3 @@ export default function GanttChart({
     </div>
   );
 }
-
-      
