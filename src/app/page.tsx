@@ -120,11 +120,15 @@ export default function Home() {
       });
 
       if (!hasCollision) {
-        setScheduledProcesses(prev => prev.map(p => 
-          p.id === draggedProcess.id 
-            ? { ...draggedProcess, machineId: machineId, startDateTime: finalStartDateTime, endDateTime: proposedEndDateTime } 
-            : p
-        ));
+        const updatedProcess = { 
+          ...draggedProcess, 
+          machineId: machineId, 
+          startDateTime: finalStartDateTime, 
+          endDateTime: proposedEndDateTime 
+        };
+        setScheduledProcesses(prev => 
+          prev.map(p => (p.id === updatedProcess.id ? updatedProcess : p))
+        );
       }
     } else {
       let finalStartDateTime = startDateTime;
@@ -212,10 +216,7 @@ export default function Home() {
     );
     setDragPreviewPosition({ x: e.clientX, y: e.clientY });
     
-    // Use a timeout to set the dragged process state, allowing the drag preview to render first
-    setTimeout(() => {
-        setDraggedProcess(process);
-    }, 0);
+    setDraggedProcess(process);
   };
   
   const handleGanttDragOver = (e: React.DragEvent<HTMLDivElement>) => {
