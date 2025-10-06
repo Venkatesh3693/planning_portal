@@ -95,22 +95,17 @@ export default function Home() {
   const buyerOptions = useMemo(() => [...new Set(ORDERS.map(o => o.buyer))], []);
 
   const handleDropOnChart = (orderId: string, processId: string, machineId: string, startDateTime: Date) => {
-    let finalStartDateTime = startDateTime;
-    if (viewMode === 'day' && !draggedProcess) {
-      finalStartDateTime = set(startDateTime, { hours: 9, minutes: 0, seconds: 0, milliseconds: 0 });
-    } else if (viewMode === 'day' && draggedProcess) {
-      finalStartDateTime = set(startDateTime, {
-        hours: draggedProcess.startDateTime.getHours(),
-        minutes: draggedProcess.startDateTime.getMinutes(),
-        seconds: 0,
-        milliseconds: 0
-      });
-    }
-
     if (draggedProcess) {
+      let finalStartDateTime = startDateTime;
+      if (viewMode === 'day') {
+        const originalDate = draggedProcess.startDateTime;
+        finalStartDateTime = setHours(setMinutes(startDateTime, originalDate.getMinutes()), originalDate.getHours());
+      }
+      
       const proposedEndDateTime = calculateEndDateTime(finalStartDateTime, draggedProcess.durationMinutes);
+      
       const otherProcesses = scheduledProcesses.filter(p => p.id !== draggedProcess.id);
-  
+      
       const hasCollision = otherProcesses.some(p => {
         if (p.machineId !== machineId) return false;
         
@@ -132,6 +127,11 @@ export default function Home() {
         ));
       }
     } else {
+      let finalStartDateTime = startDateTime;
+      if (viewMode === 'day') {
+        finalStartDateTime = set(startDateTime, { hours: 9, minutes: 0, seconds: 0, milliseconds: 0 });
+      }
+
       const order = ORDERS.find((o) => o.id === orderId);
       const process = PROCESSES.find((p) => p.id === processId);
       if (!order || !process) return;
