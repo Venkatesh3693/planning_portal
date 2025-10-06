@@ -93,79 +93,79 @@ export default function Home() {
   const handleDropOnChart = (orderId: string, processId: string, machineId: string, startDateTime: Date) => {
     let finalStartDateTime = startDateTime;
     if (viewMode === 'day') {
-      finalStartDateTime = set(startDateTime, { hours: 9, minutes: 0, seconds: 0, milliseconds: 0 });
+        finalStartDateTime = set(startDateTime, { hours: 9, minutes: 0, seconds: 0, milliseconds: 0 });
     }
-
+    
     if (draggedProcess) {
-      // It's an existing process being moved
-      if (viewMode === 'day') {
-        finalStartDateTime = set(startDateTime, {
-          hours: draggedProcess.startDateTime.getHours(),
-          minutes: draggedProcess.startDateTime.getMinutes(),
-          seconds: 0,
-          milliseconds: 0
+        // Logic for moving an existing process
+        if (viewMode === 'day') {
+            finalStartDateTime = set(startDateTime, {
+                hours: draggedProcess.startDateTime.getHours(),
+                minutes: draggedProcess.startDateTime.getMinutes(),
+                seconds: 0,
+                milliseconds: 0
+            });
+        }
+        const proposedEndDateTime = calculateEndDateTime(finalStartDateTime, draggedProcess.durationMinutes);
+        
+        const otherProcesses = scheduledProcesses.filter(p => p.id !== draggedProcess.id);
+
+        const hasCollision = otherProcesses.some(p => {
+            if (p.machineId !== machineId) return false;
+            
+            const existingEndDateTime = p.endDateTime;
+            
+            const startsDuring = isAfter(finalStartDateTime, p.startDateTime) && isBefore(finalStartDateTime, existingEndDateTime);
+            const endsDuring = isAfter(proposedEndDateTime, p.startDateTime) && isBefore(proposedEndDateTime, existingEndDateTime);
+            const spansOver = isBefore(finalStartDateTime, p.startDateTime) && isAfter(proposedEndDateTime, existingEndDateTime);
+            const isSameStart = finalStartDateTime.getTime() === p.startDateTime.getTime();
+
+            return startsDuring || endsDuring || spansOver || isSameStart;
         });
-      }
-      const proposedEndDateTime = calculateEndDateTime(finalStartDateTime, draggedProcess.durationMinutes);
-      
-      const otherProcesses = scheduledProcesses.filter(p => p.id !== draggedProcess.id);
 
-      const hasCollision = otherProcesses.some(p => {
-        if (p.machineId !== machineId) return false;
-
-        const existingEndDateTime = p.endDateTime;
-
-        const startsDuring = isAfter(finalStartDateTime, p.startDateTime) && isBefore(finalStartDateTime, existingEndDateTime);
-        const endsDuring = isAfter(proposedEndDateTime, p.startDateTime) && isBefore(proposedEndDateTime, existingEndDateTime);
-        const spansOver = isBefore(finalStartDateTime, p.startDateTime) && isAfter(proposedEndDateTime, existingEndDateTime);
-        const isSameStart = finalStartDateTime.getTime() === p.startDateTime.getTime();
-
-        return startsDuring || endsDuring || spansOver || isSameStart;
-      });
-
-      if (!hasCollision) {
-        setScheduledProcesses(prev => prev.map(p =>
-          p.id === draggedProcess.id
-            ? { ...p, machineId: machineId, startDateTime: finalStartDateTime, endDateTime: proposedEndDateTime }
-            : p
-        ));
-      }
+        if (!hasCollision) {
+            setScheduledProcesses(prev => prev.map(p => 
+                p.id === draggedProcess.id 
+                ? { ...p, machineId: machineId, startDateTime: finalStartDateTime, endDateTime: proposedEndDateTime } 
+                : p
+            ));
+        }
 
     } else {
-      // It's a new process from the unplanned list
-      const order = ORDERS.find((o) => o.id === orderId);
-      const process = PROCESSES.find((p) => p.id === processId);
-      if (!order || !process) return;
+        // Logic for adding a new process from the unplanned list
+        const order = ORDERS.find((o) => o.id === orderId);
+        const process = PROCESSES.find((p) => p.id === processId);
+        if (!order || !process) return;
 
-      const durationMinutes = process.sam * order.quantity;
-      const endDateTime = calculateEndDateTime(finalStartDateTime, durationMinutes);
-      
-      const hasCollision = scheduledProcesses.some(p => {
-        if (p.machineId !== machineId) return false;
+        const durationMinutes = process.sam * order.quantity;
+        const endDateTime = calculateEndDateTime(finalStartDateTime, durationMinutes);
+        
+        const hasCollision = scheduledProcesses.some(p => {
+            if (p.machineId !== machineId) return false;
 
-        const existingEndDateTime = p.endDateTime;
+            const existingEndDateTime = p.endDateTime;
 
-        const startsDuring = isAfter(finalStartDateTime, p.startDateTime) && isBefore(finalStartDateTime, existingEndDateTime);
-        const endsDuring = isAfter(endDateTime, p.startDateTime) && isBefore(endDateTime, existingEndDateTime);
-        const spansOver = isBefore(finalStartDateTime, p.startDateTime) && isAfter(endDateTime, existingEndDateTime);
-        const isSameStart = finalStartDateTime.getTime() === p.startDateTime.getTime();
+            const startsDuring = isAfter(finalStartDateTime, p.startDateTime) && isBefore(finalStartDateTime, existingEndDateTime);
+            const endsDuring = isAfter(endDateTime, p.startDateTime) && isBefore(endDateTime, existingEndDateTime);
+            const spansOver = isBefore(finalStartDateTime, p.startDateTime) && isAfter(endDateTime, existingEndDateTime);
+            const isSameStart = finalStartDateTime.getTime() === p.startDateTime.getTime();
 
-        return startsDuring || endsDuring || spansOver || isSameStart;
-      });
-      
-      if(hasCollision) return;
+            return startsDuring || endsDuring || spansOver || isSameStart;
+        });
+        
+        if(!hasCollision) {
+            const newScheduledProcess: ScheduledProcess = {
+                id: `${processId}-${orderId}-${new Date().getTime()}`,
+                orderId,
+                processId,
+                machineId,
+                startDateTime: finalStartDateTime,
+                endDateTime,
+                durationMinutes,
+            };
 
-      const newScheduledProcess: ScheduledProcess = {
-        id: `${processId}-${orderId}-${new Date().getTime()}`,
-        orderId,
-        processId,
-        machineId,
-        startDateTime: finalStartDateTime,
-        endDateTime,
-        durationMinutes,
-      };
-
-      setScheduledProcesses(prev => [...prev, newScheduledProcess]);
+            setScheduledProcesses(prev => [...prev, newScheduledProcess]);
+        }
     }
     setDraggedProcessTna(null);
   };
