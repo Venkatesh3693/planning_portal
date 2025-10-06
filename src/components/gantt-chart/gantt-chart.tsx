@@ -23,6 +23,7 @@ type GanttChartProps = {
   onDrop: (rowId: string, startDateTime: Date, draggedItemJSON: string) => void;
   onUndoSchedule: (scheduledProcessId: string) => void;
   onProcessDragStart: (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => void;
+  isOrderLevelView: boolean;
   viewMode: ViewMode;
   draggedItem: DraggedItemData | null;
 };
@@ -40,6 +41,7 @@ export default function GanttChart({
   onDrop,
   onUndoSchedule,
   onProcessDragStart,
+  isOrderLevelView,
   viewMode,
   draggedItem,
 }: GanttChartProps) {
@@ -85,7 +87,7 @@ export default function GanttChart({
   
   const timelineGridStyle = {
     gridTemplateColumns: `min-content repeat(${timeColumns.length}, minmax(3rem, 1fr))`,
-    gridTemplateRows: `auto auto auto repeat(${totalGridRows || 1}, ${ROW_HEIGHT}px)`,
+    gridTemplateRows: `repeat(${totalGridRows || 1}, ${ROW_HEIGHT}px)`,
   };
 
   const topHeaders = React.useMemo(() => {
@@ -95,17 +97,17 @@ export default function GanttChart({
 
     if (viewMode === 'day') {
       currentGroup = `${getMonth(timeColumns[0].date)}-${getYear(timeColumns[0].date)}`;
-      timeColumns.forEach((col) => {
+      timeColumns.forEach((col, index) => {
         const group = `${getMonth(col.date)}-${getYear(col.date)}`;
         if (group === currentGroup) {
           span++;
         } else {
-          headers.push({ name: format(new Date(getYear(col.date), getMonth(col.date) - 1), "MMM ''yy"), span });
+          headers.push({ name: format(new Date(getYear(col.date), getMonth(col.date) -1 ), "MMM ''yy"), span });
           currentGroup = group;
           span = 1;
         }
       });
-      headers.push({ name: format(new Date(getYear(timeColumns[timeColumns.length - 1].date), getMonth(timeColumns[timeColumns.length - 1].date)), "MMM ''yy"), span });
+       headers.push({ name: format(new Date(getYear(timeColumns[timeColumns.length - 1].date), getMonth(timeColumns[timeColumns.length-1].date)), "MMM ''yy"), span });
     } else { // hour view
       currentGroup = getWeek(timeColumns[0].date);
       timeColumns.forEach((col) => {
@@ -162,7 +164,7 @@ export default function GanttChart({
       rowHeader: (
           <div 
               className={cn( "sticky left-0 z-20 flex items-center justify-start p-2 border-b border-r whitespace-nowrap", rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/50' )}
-              style={{ gridRow: `${rowIndex + 4}`, gridColumn: 1 }}
+              style={{ gridRow: `${rowIndex + 1}`, gridColumn: 1 }}
           >
               <span className="font-semibold text-foreground text-sm">{row.name}</span>
           </div>
@@ -185,7 +187,7 @@ export default function GanttChart({
               isInTnaRange && !isDragOver && 'bg-green-500/10',
               'transition-colors duration-200'
           ),
-          style: { gridRow: `${rowIndex + 4}`, gridColumn: dateIndex + 2 }
+          style: { gridRow: `${rowIndex + 1}`, gridColumn: dateIndex + 2 }
         }
       })
     }));
@@ -196,41 +198,38 @@ export default function GanttChart({
 
   return (
     <div className="h-full w-full overflow-auto" ref={containerRef}>
-        <div className={cn("relative grid min-h-full group/gantt", isDragging && 'is-dragging')} style={timelineGridStyle}>
-            {/* Corner header */}
-            <div className="sticky top-0 left-0 z-30 bg-card border-b border-r" style={{gridRow: '1 / 4', gridColumn: 1}} />
-
-            {/* Top Headers */}
-            {topHeaders.map(({ name, span }, i) => {
-              const start = topHeaderColStart;
-              topHeaderColStart += span;
-              return (
-                <div key={`top-header-${i}`} className="sticky top-0 z-20 bg-card/95 backdrop-blur-sm border-b border-r text-center py-1" style={{ gridRow: 1, gridColumn: `${start} / span ${span}` }}>
+      <div className="sticky top-0 z-30">
+        <div className="grid" style={{ gridTemplateColumns: `min-content repeat(${timeColumns.length}, minmax(3rem, 1fr))` }}>
+          <div className="sticky left-0 z-30 bg-card border-b border-r" />
+          
+          <div className="col-start-2" style={{ gridColumn: `2 / span ${timeColumns.length}` }}>
+            <div className="grid grid-flow-col auto-cols-fr">
+              {topHeaders.map(({ name, span }, i) => (
+                <div key={`top-header-${i}`} className="border-r text-center py-1" style={{ gridColumn: `span ${span}` }}>
                   <span className="text-xs font-semibold text-foreground">{name}</span>
                 </div>
-              );
-            })}
-
-            {/* Mid Headers */}
-            {midHeaders.map(({ name, span }, i) => {
-              const start = midHeaderColStart;
-              midHeaderColStart += span;
-              return (
-                <div key={`mid-header-${i}`} className="sticky top-0 z-20 bg-card/95 backdrop-blur-sm border-b border-r text-center py-1" style={{ gridRow: 2, gridColumn: `${start} / span ${span}` }}>
+              ))}
+            </div>
+            <div className="grid grid-flow-col auto-cols-fr">
+              {midHeaders.map(({ name, span }, i) => (
+                <div key={`mid-header-${i}`} className="border-r text-center py-1" style={{ gridColumn: `span ${span}` }}>
                   <span className="text-sm font-semibold text-foreground">{name}</span>
                 </div>
-              );
-            })}
-            
-            {/* Bottom Headers */}
-            {timeColumns.map((col, i) => (
-                <div key={`bottom-header-${i}`} className="sticky top-0 z-20 bg-card/95 backdrop-blur-sm border-b border-r text-center" style={{ gridRow: 3, gridColumn: i + 2}}>
+              ))}
+            </div>
+            <div className="grid grid-flow-col auto-cols-fr">
+              {timeColumns.map((col, i) => (
+                <div key={`bottom-header-${i}`} className="border-r text-center">
                     <div className="text-[10px] font-medium text-muted-foreground leading-none py-1">
                       {viewMode === 'day' ? format(col.date, 'd') : format(col.date, 'ha')}
                     </div>
                 </div>
-            ))}
-            
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className={cn("relative grid min-h-full group/gantt", isDragging && 'is-dragging')} style={timelineGridStyle}>
             {rowElements.map(row => (
               <React.Fragment key={row.key}>
                 {row.rowHeader}
@@ -266,7 +265,7 @@ export default function GanttChart({
                     <ScheduledProcessBar 
                         key={item.id} 
                         item={item} 
-                        gridRow={position + 4} 
+                        gridRow={position + 1} 
                         gridColStart={dateIndex + 2}
                         durationInColumns={durationInColumns}
                         onUndo={onUndoSchedule}
@@ -278,4 +277,3 @@ export default function GanttChart({
     </div>
   );
 }
-
