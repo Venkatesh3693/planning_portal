@@ -103,89 +103,93 @@ export default function Home() {
     if (!draggedItem) return;
 
     if (draggedItem.type === 'new') {
-        if (isOrderLevelView) return; // Can't drop new items in order-level view
+      if (isOrderLevelView) return; // Can't drop new items in order-level view
 
-        const order = ORDERS.find((o) => o.id === draggedItem.orderId);
-        const process = PROCESSES.find((p) => p.id === draggedItem.processId);
-        if (!order || !process) return;
-        
-        let finalStartDateTime = startDateTime;
-        if (viewMode === 'day') {
-          finalStartDateTime = set(startDateTime, { hours: WORKING_HOURS_START, minutes: 0 });
-        }
+      const order = ORDERS.find((o) => o.id === draggedItem.orderId);
+      const process = PROCESSES.find((p) => p.id === draggedItem.processId);
+      if (!order || !process) return;
 
-        const durationMinutes = process.sam * order.quantity;
-        const endDateTime = calculateEndDateTime(finalStartDateTime, durationMinutes);
+      let finalStartDateTime = startDateTime;
+      if (viewMode === 'day') {
+        finalStartDateTime = set(startDateTime, { hours: WORKING_HOURS_START, minutes: 0 });
+      }
 
-        const newScheduledProcess: ScheduledProcess = {
-            id: `${process.id}-${order.id}-${Date.now()}`,
-            orderId: order.id,
-            processId: process.id,
-            machineId: rowId,
-            startDateTime: finalStartDateTime,
-            endDateTime,
-            durationMinutes,
-        };
-        
-        setScheduledProcesses(current => {
-          const hasCollision = current.some(p => {
-              if (p.machineId !== rowId) return false;
-              return (isAfter(newScheduledProcess.startDateTime, p.startDateTime) && isBefore(newScheduledProcess.startDateTime, p.endDateTime)) ||
-                     (isAfter(newScheduledProcess.endDateTime, p.startDateTime) && isBefore(newScheduledProcess.endDateTime, p.endDateTime)) ||
-                     (isBefore(newScheduledProcess.startDateTime, p.startDateTime) && isAfter(newScheduledProcess.endDateTime, p.endDateTime)) ||
-                     newScheduledProcess.startDateTime.getTime() === p.startDateTime.getTime();
-          });
-          
-          if (hasCollision) return current;
+      const durationMinutes = process.sam * order.quantity;
+      const endDateTime = calculateEndDateTime(finalStartDateTime, durationMinutes);
 
-          return [...current, newScheduledProcess];
+      const newScheduledProcess: ScheduledProcess = {
+        id: `${process.id}-${order.id}-${Date.now()}`,
+        orderId: order.id,
+        processId: process.id,
+        machineId: rowId,
+        startDateTime: finalStartDateTime,
+        endDateTime,
+        durationMinutes,
+      };
+
+      setScheduledProcesses(current => {
+        const hasCollision = current.some(p => {
+          if (p.machineId !== rowId) return false;
+          return (isAfter(newScheduledProcess.startDateTime, p.startDateTime) && isBefore(newScheduledProcess.startDateTime, p.endDateTime)) ||
+                 (isAfter(newScheduledProcess.endDateTime, p.startDateTime) && isBefore(newScheduledProcess.endDateTime, p.endDateTime)) ||
+                 (isBefore(newScheduledProcess.startDateTime, p.startDateTime) && isAfter(newScheduledProcess.endDateTime, p.endDateTime)) ||
+                 newScheduledProcess.startDateTime.getTime() === p.startDateTime.getTime();
         });
+        
+        if (hasCollision) {
+           setDraggedItem(null);
+           return current;
+        };
+
+        return [...current, newScheduledProcess];
+      });
     }
 
     if (draggedItem.type === 'existing') {
-        const { process: draggedProcess } = draggedItem;
-        const machineId = isOrderLevelView ? draggedProcess.machineId : rowId;
-        
-        let finalStartDateTime = startDateTime;
-        if (viewMode === 'day') {
-            const originalStart = draggedProcess.startDateTime;
-            finalStartDateTime = setHours(setMinutes(startDateTime, originalStart.getMinutes()), originalStart.getHours());
+      const { process: draggedProcess } = draggedItem;
+      const machineId = isOrderLevelView ? draggedProcess.machineId : rowId;
+      
+      let finalStartDateTime = startDateTime;
+      if (viewMode === 'day') {
+        const originalStart = draggedProcess.startDateTime;
+        finalStartDateTime = setHours(setMinutes(startDateTime, originalStart.getMinutes()), originalStart.getHours());
+      }
+
+      const proposedEndDateTime = calculateEndDateTime(finalStartDateTime, draggedProcess.durationMinutes);
+
+      setScheduledProcesses(currentProcesses => {
+        const hasCollision = currentProcesses.some(p => {
+          if (draggedItem?.type === 'existing' && p.id === draggedItem.process.id) {
+            return false;
+          }
+
+          if (p.machineId !== machineId) return false;
+          
+          const newStart = finalStartDateTime;
+          const newEnd = proposedEndDateTime;
+          const existingStart = p.startDateTime;
+          const existingEnd = p.endDateTime;
+
+          return (isAfter(newStart, existingStart) && isBefore(newStart, existingEnd)) ||
+                 (isAfter(newEnd, existingStart) && isBefore(newEnd, existingEnd)) ||
+                 (isBefore(newStart, existingStart) && isAfter(newEnd, existingEnd)) ||
+                 newStart.getTime() === existingStart.getTime();
+        });
+
+        if (hasCollision) {
+          setDraggedItem(null);
+          return currentProcesses;
         }
 
-        const proposedEndDateTime = calculateEndDateTime(finalStartDateTime, draggedProcess.durationMinutes);
+        const updatedProcess: ScheduledProcess = {
+          ...draggedProcess,
+          machineId,
+          startDateTime: finalStartDateTime,
+          endDateTime: proposedEndDateTime,
+        };
 
-        setScheduledProcesses(currentProcesses => {
-            const hasCollision = currentProcesses.some(p => {
-              // CRITICAL FIX: If the process `p` is the one we are dragging, skip it completely.
-              if (draggedItem?.type === 'existing' && p.id === draggedItem.process.id) {
-                return false;
-              }
-
-              if (p.machineId !== machineId) return false;
-              
-              const newStart = finalStartDateTime;
-              const newEnd = proposedEndDateTime;
-              const existingStart = p.startDateTime;
-              const existingEnd = p.endDateTime;
-
-              // Check for overlap:
-              return (isAfter(newStart, existingStart) && isBefore(newStart, existingEnd)) ||
-                     (isAfter(newEnd, existingStart) && isBefore(newEnd, existingEnd)) ||
-                     (isBefore(newStart, existingStart) && isAfter(newEnd, existingEnd)) ||
-                     newStart.getTime() === existingStart.getTime();
-            });
-
-            if (hasCollision) return currentProcesses;
-
-            const updatedProcess: ScheduledProcess = {
-              ...draggedProcess,
-              machineId,
-              startDateTime: finalStartDateTime,
-              endDateTime: proposedEndDateTime,
-            };
-
-            return currentProcesses.map(p => p.id === updatedProcess.id ? updatedProcess : p);
-        });
+        return currentProcesses.map(p => p.id === updatedProcess.id ? updatedProcess : p);
+      });
     }
     setDraggedItem(null);
   };
@@ -199,8 +203,16 @@ export default function Home() {
     setScheduledProcesses(prev => prev.filter(p => p.id !== scheduledProcessId));
   };
 
-  const handleDragEnd = () => {
-    setDraggedItem(null);
+  const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
+    // This is a failsafe. If the drop happened on a valid target,
+    // draggedItem will already be null. If it dropped on an invalid
+    // target, we nullify it here to reset the state.
+    if (draggedItem) {
+        // Use a timeout to ensure onDrop has time to fire and update state
+        setTimeout(() => {
+            setDraggedItem(null);
+        }, 100);
+    }
   };
 
   const today = startOfToday();
@@ -466,3 +478,5 @@ export default function Home() {
     </div>
   );
 }
+
+    
