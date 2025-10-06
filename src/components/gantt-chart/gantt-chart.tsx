@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from 'react';
-import { format, getWeek, getMonth, getYear, setHours, startOfDay, isWithinInterval, startOfHour, endOfHour, addDays, addMinutes } from 'date-fns';
+import { format, getMonth, getYear, setHours, startOfDay, isWithinInterval, startOfHour, endOfHour, addDays, addMinutes, getDaysInMonth } from 'date-fns';
 import type { ScheduledProcess } from '@/lib/types';
 import type { DraggedItemData } from '@/app/page';
 import { cn } from '@/lib/utils';
@@ -81,73 +81,46 @@ export default function GanttChart({
   const topHeaders = React.useMemo(() => {
     const headers: { name: string; span: number }[] = [];
     if (timeColumns.length === 0) return headers;
-    let currentGroup: string | number, span = 0;
-
+    
     if (viewMode === 'day') {
-      currentGroup = `${getMonth(timeColumns[0].date)}-${getYear(timeColumns[0].date)}`;
-      timeColumns.forEach((col, index) => {
-          const group = `${getMonth(col.date)}-${getYear(col.date)}`;
-          if (group === currentGroup) {
-              span++;
-          } else {
-              headers.push({ name: format(timeColumns[index-1].date, "MMM ''yy"), span });
-              currentGroup = group;
-              span = 1;
+      let currentMonth = -1;
+      let span = 0;
+      timeColumns.forEach((col) => {
+        const month = getMonth(col.date);
+        if (month !== currentMonth) {
+          if (currentMonth !== -1) {
+            headers.push({ name: format(addDays(col.date, -span), "MMM ''yy"), span });
           }
+          currentMonth = month;
+          span = 1;
+        } else {
+          span++;
+        }
       });
       headers.push({ name: format(timeColumns[timeColumns.length - 1].date, "MMM ''yy"), span });
     } else { // hour view
-      currentGroup = getWeek(timeColumns[0].date);
-      timeColumns.forEach((col, index) => {
-        if (getWeek(col.date) === currentGroup) {
-          span++;
-        } else {
-          headers.push({ name: `W${currentGroup}`, span });
-          currentGroup = getWeek(col.date);
+      let currentDay = -1;
+      let span = 0;
+      timeColumns.forEach((col) => {
+        const day = col.date.getDate();
+        if (day !== currentDay) {
+          if (currentDay !== -1) {
+             headers.push({ name: format(addDays(col.date, -1), 'MMM d'), span });
+          }
+          currentDay = day;
           span = 1;
+        } else {
+          span++;
         }
       });
-      headers.push({ name: `W${currentGroup}`, span });
+      headers.push({ name: format(timeColumns[timeColumns.length - 1].date, 'MMM d'), span });
     }
-    return headers;
-  }, [timeColumns, viewMode]);
-  
-  const midHeaders = React.useMemo(() => {
-    const headers: { name: string; span: number }[] = [];
-    if (timeColumns.length === 0) return headers;
-    let currentGroup: string | number, span = 0;
 
-    if (viewMode === 'day') {
-      currentGroup = getWeek(timeColumns[0].date);
-      timeColumns.forEach((col, index) => {
-        if (getWeek(col.date) === currentGroup) {
-            span++;
-        } else {
-            headers.push({ name: `W${currentGroup}`, span });
-            currentGroup = getWeek(col.date);
-            span = 1;
-        }
-      });
-      headers.push({ name: `W${currentGroup}`, span });
-    } else { // hour view
-      currentGroup = format(timeColumns[0].date, 'yyyy-MM-dd');
-      timeColumns.forEach((col, index) => {
-        const group = format(col.date, 'yyyy-MM-dd');
-        if (group === currentGroup) {
-          span++;
-        } else {
-          headers.push({ name: format(new Date(currentGroup), 'MMM d'), span });
-          currentGroup = group;
-          span = 1;
-        }
-      });
-      headers.push({ name: format(new Date(currentGroup), 'MMM d'), span });
-    }
     return headers;
   }, [timeColumns, viewMode]);
 
   const gridTemplateColumns = `[row-header] max-content repeat(${timeColumns.length}, minmax(2.5rem, 1fr))`;
-  const gridTemplateRows = `auto auto auto repeat(${rows.length}, ${ROW_HEIGHT_PX}px)`;
+  const gridTemplateRows = `auto auto repeat(${rows.length}, ${ROW_HEIGHT_PX}px)`;
 
   return (
     <div 
@@ -161,34 +134,26 @@ export default function GanttChart({
         }}
       >
         {/* Sticky Top-Left Corner */}
-        <div className="sticky top-0 left-0 z-40 bg-card border-r border-b" style={{ gridRow: '1 / 4', gridColumn: 'row-header' }}>
+        <div className="sticky top-0 left-0 z-40 bg-card border-r border-b" style={{ gridRow: '1 / 3', gridColumn: 'row-header' }}>
            <div className="flex h-full items-center justify-end border-b bg-card pr-2 py-1">
-            <span className="text-xs font-semibold text-foreground">Month</span>
-          </div>
-          <div className="flex h-full items-center justify-end border-b bg-card pr-2 py-1">
-            <span className="text-sm font-semibold text-foreground">Week</span>
+            <span className="text-sm font-semibold text-foreground">{viewMode === 'day' ? 'Month' : 'Day'}</span>
           </div>
           <div className="flex h-full items-center justify-end bg-card pr-2">
-            <span className="text-[10px] font-medium text-muted-foreground leading-tight py-1">Day</span>
+            <span className="text-[10px] font-medium text-muted-foreground leading-tight py-1">{viewMode === 'day' ? 'Day' : 'Hour'}</span>
           </div>
         </div>
 
         {/* Sticky Date Headers */}
         <div className="sticky top-0 z-30 col-start-2 col-span-full flex flex-col bg-card">
+          {/* Top Header (Month or Day) */}
           <div className="grid" style={{ gridTemplateColumns: `subgrid` }}>
               {topHeaders.map(({ name, span }, i) => (
                   <div key={`top-header-${i}`} className="border-r border-b text-center py-1" style={{ gridColumn: `span ${span}` }}>
-                      <span className="text-xs font-semibold text-foreground">{name}</span>
-                  </div>
-              ))}
-          </div>
-          <div className="grid" style={{ gridTemplateColumns: `subgrid` }}>
-              {midHeaders.map(({ name, span }, i) => (
-                  <div key={`mid-header-${i}`} className="border-r border-b text-center py-1" style={{ gridColumn: `span ${span}` }}>
                       <span className="text-sm font-semibold text-foreground">{name}</span>
                   </div>
               ))}
           </div>
+          {/* Bottom Header (Day or Hour) */}
           <div className="grid" style={{ gridTemplateColumns: `subgrid` }}>
               {timeColumns.map((col, i) => (
                   <div key={`bottom-header-${i}`} className="border-r border-b text-center">
@@ -208,7 +173,7 @@ export default function GanttChart({
                   "sticky left-0 z-20 p-2 border-b border-r whitespace-nowrap justify-start flex items-center", 
                   rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted'
                 )}
-                style={{ gridRowStart: rowIndex + 4, gridColumn: 'row-header' }}
+                style={{ gridRowStart: rowIndex + 3, gridColumn: 'row-header' }}
             >
                 <span className="font-semibold text-foreground text-sm">{row.name}</span>
             </div>
@@ -237,7 +202,7 @@ export default function GanttChart({
                           isInTnaRange && !isDragOver && 'bg-green-500/10',
                           'transition-colors duration-200'
                       )}
-                      style={{ gridRowStart: rowIndex + 4, gridColumnStart: dateIndex + 2 }}
+                      style={{ gridRowStart: rowIndex + 3, gridColumnStart: dateIndex + 2 }}
                   />
               )
             })}
@@ -271,7 +236,7 @@ export default function GanttChart({
                 <ScheduledProcessBar 
                     key={item.id} 
                     item={item} 
-                    gridRow={rowIndex + 4} 
+                    gridRow={rowIndex + 3} 
                     gridColStart={dateIndex + 2}
                     durationInColumns={durationInColumns}
                     onUndo={onUndoSchedule}
@@ -283,3 +248,5 @@ export default function GanttChart({
     </div>
   );
 }
+
+    
