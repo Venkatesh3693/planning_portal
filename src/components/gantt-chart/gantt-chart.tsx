@@ -160,9 +160,7 @@ export default function GanttChart({
           }}
         >
           {/* HEADER */}
-          <div className="sticky top-0 left-0 z-30 border-r border-b bg-card" style={{gridColumn: 1, gridRow: 1}}></div>
-          <div className="sticky top-0 left-0 z-30 border-r border-b bg-card" style={{gridColumn: 1, gridRow: 2}}></div>
-          <div className="sticky top-0 left-0 z-30 border-r border-b bg-card" style={{gridColumn: 1, gridRow: 3}}></div>
+          <div className="sticky top-0 left-0 z-30 border-r border-b bg-card" style={{gridColumn: 1, gridRow: '1 / 4'}}></div>
           
           <div className="sticky top-0 z-20 col-start-2 border-b bg-card" style={{gridColumn: '2 / -1', gridRow: 1}}>
               {topHeaders.map(({ name, span }, i) => (
