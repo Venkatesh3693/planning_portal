@@ -85,64 +85,61 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
             ))}
           </TableRow>
         </TableHeader>
-        <TableBody>
-          {Object.entries(pabData.data).map(([orderId, processData]) => (
+        {Object.entries(pabData.data).map(([orderId, processData]) => (
             <Collapsible asChild key={orderId} open={openOrders[orderId]} onOpenChange={() => toggleOrder(orderId)}>
-                <React.Fragment>
-                <TableRow className="bg-card hover:bg-muted/50 border-b-2 border-border font-medium">
-                    <TableCell className="sticky left-0 bg-card z-10 min-w-[250px] p-0">
-                        <CollapsibleTrigger asChild>
-                            <button className="flex items-center gap-2 cursor-pointer h-full p-4 w-full text-left">
-                                <ChevronRight className={cn("h-4 w-4 transition-transform", openOrders[orderId] && "rotate-90")} />
-                                <span className="font-semibold text-primary">{orderId}</span>
-                            </button>
-                        </CollapsibleTrigger>
-                    </TableCell>
-                    <TableCell colSpan={dates.length}></TableCell>
-                </TableRow>
-                
-                <CollapsibleContent asChild>
-                    <>
+                <TableBody>
+                    <TableRow className="bg-card hover:bg-muted/50 border-b-2 border-border font-medium">
+                        <TableCell className="sticky left-0 bg-card z-10 min-w-[250px] p-0">
+                            <CollapsibleTrigger asChild>
+                                <button className="flex items-center gap-2 cursor-pointer h-full p-4 w-full text-left">
+                                    <ChevronRight className={cn("h-4 w-4 transition-transform", openOrders[orderId] && "rotate-90")} />
+                                    <span className="font-semibold text-primary">{orderId}</span>
+                                </button>
+                            </CollapsibleTrigger>
+                        </TableCell>
+                        <TableCell colSpan={dates.length}></TableCell>
+                    </TableRow>
+                    
                     {pabData.processSequences[orderId]?.map((processId) => {
                         const processName = pabData.processDetails[processId]?.name || processId;
                         const dailyPabs = processData[processId] || {};
                         return (
-                        <TableRow key={`${orderId}-${processId}`} className="hover:bg-muted/30 even:bg-muted/20">
-                            <TableCell className="sticky left-0 bg-inherit z-10 min-w-[250px]">
-                            <div className="pl-10">{processName}</div>
-                            </TableCell>
-                            {dates.map((date) => {
-                                const dateKey = format(date, 'yyyy-MM-dd');
-                                const pab = dailyPabs[dateKey];
-                                let cellContent: React.ReactNode = <span className="text-muted-foreground/30">-</span>;
-                                if (pab !== undefined) {
-                                    const isNegative = pab < 0;
-                                    cellContent = (
-                                        <div className={cn(
-                                            "w-full h-full p-2 text-center rounded text-xs font-semibold",
-                                            isNegative ? 'bg-destructive/20 text-destructive-foreground' : 'bg-green-500/20 text-green-900',
-                                            'dark:text-foreground'
-                                        )}>
-                                            {Math.round(pab).toLocaleString()}
-                                        </div>
-                                    )
-                                }
-                                return (
-                                    <TableCell key={date.toISOString()} className="p-1">
-                                        {cellContent}
-                                    </TableCell>
-                                );
-                            })}
-                        </TableRow>
+                        <CollapsibleContent asChild key={`${orderId}-${processId}`}>
+                            <TableRow className="hover:bg-muted/30 even:bg-muted/20">
+                                <TableCell className="sticky left-0 bg-inherit z-10 min-w-[250px]">
+                                    <div className="pl-10">{processName}</div>
+                                </TableCell>
+                                {dates.map((date) => {
+                                    const dateKey = format(date, 'yyyy-MM-dd');
+                                    const pab = dailyPabs[dateKey];
+                                    let cellContent: React.ReactNode = <span className="text-muted-foreground/30">-</span>;
+                                    if (pab !== undefined) {
+                                        const isNegative = pab < 0;
+                                        cellContent = (
+                                            <div className={cn(
+                                                "w-full h-full p-2 text-center rounded text-xs font-semibold",
+                                                isNegative ? 'bg-destructive/20 text-destructive-foreground' : 'bg-green-500/20 text-green-900',
+                                                'dark:text-foreground'
+                                            )}>
+                                                {Math.round(pab).toLocaleString()}
+                                            </div>
+                                        )
+                                    }
+                                    return (
+                                        <TableCell key={date.toISOString()} className="p-1">
+                                            {cellContent}
+                                        </TableCell>
+                                    );
+                                })}
+                            </TableRow>
+                        </CollapsibleContent>
                         );
                     })}
-                    </>
-                </CollapsibleContent>
-                </React.Fragment>
+                </TableBody>
             </Collapsible>
           ))}
-        </TableBody>
       </Table>
     </div>
   );
 }
+
