@@ -7,7 +7,6 @@ import type { ScheduledProcess } from '@/lib/types';
 import type { DraggedItemData } from '@/app/page';
 import { cn } from '@/lib/utils';
 import ScheduledProcessBar from './scheduled-process';
-import { PROCESSES } from '@/lib/data';
 
 type Row = {
   id: string;
@@ -161,33 +160,29 @@ export default function GanttChart({
           }}
         >
           {/* HEADER */}
-          {/* Top Left Header Corner */}
-          <div className="sticky top-0 left-0 z-30 border-r border-b bg-card"></div>
-          <div className="sticky top-0 left-0 z-30 border-r border-b bg-card" style={{gridRow: 2}}></div>
-          <div className="sticky top-0 left-0 z-30 border-r border-b bg-card" style={{gridRow: 3}}></div>
+          <div className="sticky top-0 left-0 z-30 border-r border-b bg-card" style={{gridColumn: 1, gridRow: 1}}></div>
+          <div className="sticky top-0 left-0 z-30 border-r border-b bg-card" style={{gridColumn: 1, gridRow: 2}}></div>
+          <div className="sticky top-0 left-0 z-30 border-r border-b bg-card" style={{gridColumn: 1, gridRow: 3}}></div>
           
-          {/* Top Header Row */}
           <div className="sticky top-0 z-20 col-start-2 border-b bg-card" style={{gridColumn: '2 / -1', gridRow: 1}}>
               {topHeaders.map(({ name, span }, i) => (
-                <div key={`top-header-${i}`} className="inline-block border-r text-center py-1" style={{ width: `calc(${span} * 100% / ${timeColumns.length})` }}>
-                  <span className="text-xs font-semibold text-foreground">{name}</span>
+                <div key={`top-header-${i}`} className="inline-block border-r text-center" style={{ width: `calc(${span} * 100% / ${timeColumns.length})` }}>
+                  <span className="text-xs font-semibold text-foreground py-1">{name}</span>
                 </div>
               ))}
           </div>
           
-          {/* Mid Header Row */}
-          <div className="sticky top-0 z-20 col-start-2 border-b bg-card" style={{gridColumn: '2 / -1', gridRow: 2, top: 'calc(1.75rem)'}}>
+          <div className="sticky top-[1.8rem] z-20 col-start-2 border-b bg-card" style={{gridColumn: '2 / -1', gridRow: 2}}>
               {midHeaders.map(({ name, span }, i) => (
-                <div key={`mid-header-${i}`} className="inline-block border-r text-center py-1" style={{ width: `calc(${span} * 100% / ${timeColumns.length})` }}>
-                  <span className="text-sm font-semibold text-foreground">{name}</span>
+                <div key={`mid-header-${i}`} className="inline-block border-r text-center" style={{ width: `calc(${span} * 100% / ${timeColumns.length})` }}>
+                  <span className="text-sm font-semibold text-foreground py-1">{name}</span>
                 </div>
               ))}
           </div>
 
-          {/* Bottom Header Row */}
           {timeColumns.map((col, i) => (
-            <div key={`bottom-header-${i}`} className="sticky top-0 z-20 border-r border-b bg-card text-center py-1" style={{gridColumn: i+2, gridRow: 3, top: 'calc(3.5rem)'}}>
-              <div className="text-[10px] font-medium text-muted-foreground leading-none">
+            <div key={`bottom-header-${i}`} className="sticky top-[3.5rem] z-20 border-r border-b bg-card text-center" style={{gridColumn: i+2, gridRow: 3}}>
+              <div className="text-[10px] font-medium text-muted-foreground leading-none py-1">
                 {viewMode === 'day' ? format(col.date, 'd') : format(col.date, 'ha').toLowerCase()}
               </div>
             </div>
@@ -198,7 +193,7 @@ export default function GanttChart({
           {rows.map((row, rowIndex) => (
             <div 
               key={row.id}
-              className={cn( "sticky left-0 z-20 flex items-center justify-start p-2 border-b border-r whitespace-nowrap", rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/50' )}
+              className={cn( "sticky left-0 z-20 flex items-center justify-start p-2 border-b border-r whitespace-nowrap", rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted' )}
               style={{ gridRow: `${rowIndex + 4}` }}
             >
               <span className="font-semibold text-foreground text-sm">{row.name}</span>
