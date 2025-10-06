@@ -40,7 +40,7 @@ export type DraggedItemData = {
     tna: TnaProcess | null;
 } | {
     type: 'existing';
-    processId: string;
+    process: ScheduledProcess;
 };
 
 // Helper function to calculate end time considering only working hours
@@ -91,7 +91,7 @@ export default function Home() {
   const [filterOcn, setFilterOcn] = useState('');
   const [filterBuyer, setFilterBuyer] = useState<string[]>([]);
   const [filterDueDate, setFilterDueDate] = useState<DateRange | undefined>(undefined);
-  const [isDragging, setIsDragging] = useState(false);
+  const [draggedItem, setDraggedItem] = useState<DraggedItemData | null>(null);
 
   const buyerOptions = useMemo(() => [...new Set(ORDERS.map(o => o.buyer))], []);
   const isOrderLevelView = selectedProcessId === ORDER_LEVEL_VIEW;
@@ -124,8 +124,7 @@ export default function Home() {
       };
       otherProcesses = [...scheduledProcesses];
     } else { // 'existing'
-      const originalProcess = scheduledProcesses.find(p => p.id === droppedItem.processId);
-      if (!originalProcess) return;
+      const originalProcess = droppedItem.process;
   
       const finalStartDateTime = viewMode === 'day'
         ? set(startDateTime, { hours: originalProcess.startDateTime.getHours(), minutes: originalProcess.startDateTime.getMinutes() })
@@ -137,7 +136,7 @@ export default function Home() {
         startDateTime: finalStartDateTime,
         endDateTime: calculateEndDateTime(finalStartDateTime, originalProcess.durationMinutes),
       };
-      otherProcesses = scheduledProcesses.filter(p => p.id !== droppedItem.processId);
+      otherProcesses = scheduledProcesses.filter(p => p.id !== originalProcess.id);
     }
   
     // 2. Identify conflicts and prepare for cascade
@@ -147,30 +146,27 @@ export default function Home() {
       .sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
   
     const finalProcesses: ScheduledProcess[] = otherProcesses.filter(p => p.machineId !== machineId);
-    finalProcesses.push(processToPlace);
-  
+    
     // Find processes that start AFTER the new/moved process begins
-    let processesToCascade = processesOnSameMachine.filter(p => 
-      isAfter(p.startDateTime, processToPlace.startDateTime)
-    );
-  
-    // Add processes that the new one directly lands on top of
     const directConflicts = processesOnSameMachine.filter(p =>
-      processToPlace.startDateTime < p.endDateTime && processToPlace.endDateTime > p.startDateTime && !processesToCascade.find(c => c.id === p.id)
+      processToPlace.startDateTime < p.endDateTime && processToPlace.endDateTime > p.startDateTime
     );
-    processesToCascade = [...directConflicts, ...processesToCascade].sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
+
+    let processesToCascade = directConflicts.sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
   
     // Add back unaffected processes on the same machine
     const unaffectedOnMachine = processesOnSameMachine.filter(p => 
       !processesToCascade.find(c => c.id === p.id)
     );
     finalProcesses.push(...unaffectedOnMachine);
+    finalProcesses.push(processToPlace); // Add the item we just dropped
   
     // 3. Perform the cascade
     let lastProcessEnd = processToPlace.endDateTime;
   
     for (const processToShift of processesToCascade) {
-      const newStart = lastProcessEnd;
+      // The new start is either its original start or the end of the previous process, whichever is later
+      const newStart = isAfter(processToShift.startDateTime, lastProcessEnd) ? processToShift.startDateTime : lastProcessEnd;
       const newEnd = calculateEndDateTime(newStart, processToShift.durationMinutes);
   
       finalProcesses.push({
@@ -188,12 +184,13 @@ export default function Home() {
   
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => {
-    e.dataTransfer.setData('application/json', JSON.stringify(item));
-    setIsDragging(true);
+    const itemJSON = JSON.stringify(item);
+    e.dataTransfer.setData('application/json', itemJSON);
+    setDraggedItem(item);
   };
   
   const handleDragEnd = () => {
-    setIsDragging(false);
+    setDraggedItem(null);
   };
 
   const handleUndoSchedule = (scheduledProcessId: string) => {
@@ -452,7 +449,7 @@ export default function Home() {
                     onProcessDragStart={handleDragStart}
                     isOrderLevelView={isOrderLevelView}
                     viewMode={viewMode}
-                    isDragging={isDragging}
+                    draggedItem={draggedItem}
                   />
               </div>
           </div>
@@ -464,3 +461,4 @@ export default function Home() {
     
 
     
+

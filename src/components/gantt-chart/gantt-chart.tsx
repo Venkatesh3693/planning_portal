@@ -24,7 +24,7 @@ type GanttChartProps = {
   onProcessDragStart: (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => void;
   isOrderLevelView?: boolean;
   viewMode: ViewMode;
-  isDragging: boolean;
+  draggedItem: DraggedItemData | null;
 };
 
 const ROW_HEIGHT = 32; // Corresponds to h-8
@@ -67,7 +67,7 @@ export default function GanttChart({
   onProcessDragStart,
   isOrderLevelView = false,
   viewMode,
-  isDragging,
+  draggedItem,
 }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -101,13 +101,15 @@ export default function GanttChart({
   const handleInternalDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     const draggedItemJSON = e.dataTransfer.getData('application/json');
     if (!draggedItemJSON) return;
-    const item: DraggedItemData = JSON.parse(draggedItemJSON);
-    if (item.type === 'new' && item.tna) {
-      setDraggedItemTna({startDate: new Date(item.tna.startDate), endDate: new Date(item.tna.endDate)});
-    }
-    // This is needed to propagate the drag start to the main page
-    if (item.type === 'existing') {
+    try {
+        const item: DraggedItemData = JSON.parse(draggedItemJSON);
+        if (item.type === 'new' && item.tna) {
+          setDraggedItemTna({startDate: new Date(item.tna.startDate), endDate: new Date(item.tna.endDate)});
+        }
+        // This is needed to propagate the drag start to the main page
         onProcessDragStart(e, item);
+    } catch(e) {
+      // ignore if parsing fails
     }
   };
 
@@ -350,6 +352,8 @@ export default function GanttChart({
                     lane = assignment.lane;
                 }
                 
+                const isBeingDragged = draggedItem?.type === 'existing' && draggedItem.process.id === item.id;
+
                 return (
                     <ScheduledProcessBar 
                         key={item.id} 
@@ -360,7 +364,8 @@ export default function GanttChart({
                         onUndo={onUndoSchedule}
                         onDragStart={onProcessDragStart}
                         isOrderLevelView={isOrderLevelView}
-                        isDragging={isDragging}
+                        isBeingDragged={isBeingDragged}
+                        isAnyDragging={!!draggedItem}
                     />
                 );
             })}
