@@ -19,6 +19,7 @@ type ScheduledProcessProps = {
   onUndo?: (scheduledProcessId: string) => void;
   onDragStart?: (e: React.DragEvent<HTMLDivElement>, item: DraggedItem) => void;
   isOrderLevelView?: boolean;
+  isGhost?: boolean;
 };
 
 export default function ScheduledProcessBar({ 
@@ -29,6 +30,7 @@ export default function ScheduledProcessBar({
   onUndo,
   onDragStart,
   isOrderLevelView = false,
+  isGhost = false,
 }: ScheduledProcessProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -63,6 +65,11 @@ export default function ScheduledProcessBar({
   const backgroundColor = processDetails.color || 'hsl(var(--accent))';
 
   const handleInternalDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+    // Prevent dragging the ghost
+    if (isGhost) {
+      e.preventDefault();
+      return;
+    }
     if (onDragStart) {
       const draggedItem: DraggedItem = { type: 'existing', process: item };
       onDragStart(e, draggedItem);
@@ -74,11 +81,11 @@ export default function ScheduledProcessBar({
       <PopoverAnchor asChild>
         <div
           onContextMenu={handleContextMenu}
-          draggable={!!onDragStart}
+          draggable={!isGhost && !!onDragStart}
           onDragStart={handleInternalDragStart}
           className={cn(
             "relative z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg",
-            "cursor-grab active:cursor-grabbing"
+            isGhost ? "opacity-30 pointer-events-none" : "cursor-grab active:cursor-grabbing"
           )}
           style={{
             gridRowStart: gridRow,
@@ -124,5 +131,3 @@ export default function ScheduledProcessBar({
     </Popover>
   );
 }
-
-    

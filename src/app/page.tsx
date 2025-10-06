@@ -102,75 +102,74 @@ export default function Home() {
     if (!draggedItem) return;
 
     let droppedProcess: ScheduledProcess;
-    let otherProcesses = scheduledProcesses;
+    let baseProcesses = scheduledProcesses;
 
     // Define the process being dropped/moved
     if (draggedItem.type === 'new') {
-        const order = ORDERS.find(o => o.id === draggedItem.orderId)!;
-        const process = PROCESSES.find(p => p.id === draggedItem.processId)!;
-        const durationMinutes = process.sam * order.quantity;
-        
-        const finalStartDateTime = viewMode === 'day' 
-            ? set(startDateTime, { hours: WORKING_HOURS_START, minutes: 0 }) 
-            : startDateTime;
+      const order = ORDERS.find(o => o.id === draggedItem.orderId)!;
+      const process = PROCESSES.find(p => p.id === draggedItem.processId)!;
+      const durationMinutes = process.sam * order.quantity;
 
-        droppedProcess = {
-            id: `${draggedItem.processId}-${draggedItem.orderId}-${Date.now()}`,
-            orderId: draggedItem.orderId,
-            processId: draggedItem.processId,
-            machineId: isOrderLevelView ? order.id : rowId,
-            startDateTime: finalStartDateTime,
-            endDateTime: calculateEndDateTime(finalStartDateTime, durationMinutes),
-            durationMinutes,
-        };
+      const finalStartDateTime = viewMode === 'day'
+        ? set(startDateTime, { hours: WORKING_HOURS_START, minutes: 0 })
+        : startDateTime;
+
+      droppedProcess = {
+        id: `${draggedItem.processId}-${draggedItem.orderId}-${Date.now()}`,
+        orderId: draggedItem.orderId,
+        processId: draggedItem.processId,
+        machineId: isOrderLevelView ? order.id : rowId,
+        startDateTime: finalStartDateTime,
+        endDateTime: calculateEndDateTime(finalStartDateTime, durationMinutes),
+        durationMinutes,
+      };
     } else { // 'existing'
-        const baseProcess = draggedItem.process;
-        otherProcesses = scheduledProcesses.filter(p => p.id !== baseProcess.id);
+      const baseProcess = draggedItem.process;
+      // When moving an existing item, the base list is all *other* processes
+      baseProcesses = scheduledProcesses.filter(p => p.id !== baseProcess.id);
 
-        const finalStartDateTime = viewMode === 'day'
-            ? set(startDateTime, { hours: baseProcess.startDateTime.getHours(), minutes: baseProcess.startDateTime.getMinutes() })
-            : startDateTime;
-        
-        droppedProcess = {
-            ...baseProcess,
-            machineId: isOrderLevelView ? baseProcess.machineId : rowId,
-            startDateTime: finalStartDateTime,
-            endDateTime: calculateEndDateTime(finalStartDateTime, baseProcess.durationMinutes),
-        };
+      const finalStartDateTime = viewMode === 'day'
+        ? set(startDateTime, { hours: baseProcess.startDateTime.getHours(), minutes: baseProcess.startDateTime.getMinutes() })
+        : startDateTime;
+
+      droppedProcess = {
+        ...baseProcess,
+        machineId: isOrderLevelView ? baseProcess.machineId : rowId,
+        startDateTime: finalStartDateTime,
+        endDateTime: calculateEndDateTime(finalStartDateTime, baseProcess.durationMinutes),
+      };
     }
 
     const finalProcesses: ScheduledProcess[] = [];
-    const processesOnSameMachine = otherProcesses
-        .filter(p => p.machineId === droppedProcess.machineId)
-        .sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
+    const processesOnSameMachine = baseProcesses
+      .filter(p => p.machineId === droppedProcess.machineId)
+      .sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
     
-    // Add all processes from other machines
-    finalProcesses.push(...otherProcesses.filter(p => p.machineId !== droppedProcess.machineId));
+    // Add all processes from other machines first
+    finalProcesses.push(...baseProcesses.filter(p => p.machineId !== droppedProcess.machineId));
     finalProcesses.push(droppedProcess);
 
     let lastEndTime = droppedProcess.endDateTime;
 
     processesOnSameMachine.forEach(existingProcess => {
-        const newStart = lastEndTime;
-        
-        // Check for collision with the newly dropped/moved item
-        if (isAfter(droppedProcess.endDateTime, existingProcess.startDateTime)) {
-            // Cascade: shift this process and subsequent ones
-            const shiftedProcess: ScheduledProcess = {
-                ...existingProcess,
-                startDateTime: newStart,
-                endDateTime: calculateEndDateTime(newStart, existingProcess.durationMinutes),
-            };
-            finalProcesses.push(shiftedProcess);
-            lastEndTime = shiftedProcess.endDateTime;
-        } else {
-            // No collision, keep the process as is
-            finalProcesses.push(existingProcess);
-            // Update lastEndTime to the end of the latest process so far
-            if (isAfter(existingProcess.endDateTime, lastEndTime)) {
-                lastEndTime = existingProcess.endDateTime;
-            }
+      // Check for collision with the newly dropped/moved item
+      if (isAfter(droppedProcess.endDateTime, existingProcess.startDateTime) && isBefore(droppedProcess.startDateTime, existingProcess.endDateTime)) {
+        // Cascade: shift this process and subsequent ones
+        const shiftedProcess: ScheduledProcess = {
+          ...existingProcess,
+          startDateTime: lastEndTime,
+          endDateTime: calculateEndDateTime(lastEndTime, existingProcess.durationMinutes),
+        };
+        finalProcesses.push(shiftedProcess);
+        lastEndTime = shiftedProcess.endDateTime;
+      } else {
+        // No collision, keep the process as is
+        finalProcesses.push(existingProcess);
+        // Update lastEndTime to the end of the latest process so far
+        if (isAfter(existingProcess.endDateTime, lastEndTime)) {
+          lastEndTime = existingProcess.endDateTime;
         }
+      }
     });
 
     setScheduledProcesses(finalProcesses);
@@ -452,5 +451,3 @@ export default function Home() {
     </div>
   );
 }
-
-    

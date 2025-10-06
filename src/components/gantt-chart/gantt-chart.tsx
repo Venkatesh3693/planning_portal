@@ -117,25 +117,16 @@ export default function GanttChart({
     setDragOverCell(null);
   };
 
-  const processesToRender = React.useMemo(() => {
-    if (!draggedItem || draggedItem.type !== 'existing') {
-        return scheduledProcesses;
-    }
-    // Filter out the item currently being dragged so it doesn't appear on the chart
-    return scheduledProcesses.filter(p => p.id !== draggedItem.process.id);
-  }, [scheduledProcesses, draggedItem]);
-
-
   const laneAssignments = React.useMemo(() => {
     if (!isOrderLevelView) return new Map();
 
     const assignmentsByRow = new Map<string, { process: ScheduledProcess; lane: number }[]>();
     for (const row of rows) {
-      const processesForRow = processesToRender.filter(p => p.orderId === row.id);
+      const processesForRow = scheduledProcesses.filter(p => p.orderId === row.id);
       assignmentsByRow.set(row.id, assignLanes(processesForRow));
     }
     return assignmentsByRow;
-  }, [isOrderLevelView, rows, processesToRender]);
+  }, [isOrderLevelView, rows, scheduledProcesses]);
 
   const maxLanesPerRow = React.useMemo(() => {
     if (!isOrderLevelView) return new Map<string, number>();
@@ -320,7 +311,7 @@ export default function GanttChart({
               ))
             ])}
 
-            {processesToRender.map((item) => {
+            {scheduledProcesses.map((item) => {
                 const rowId = isOrderLevelView ? item.orderId : item.machineId;
                 const rowPosition = rowPositions.get(rowId);
                 if (!rowPosition) return null;
@@ -340,6 +331,8 @@ export default function GanttChart({
                     if (!assignment) return null;
                     lane = assignment.lane;
                 }
+                
+                const isGhost = draggedItem?.type === 'existing' && draggedItem.process.id === item.id;
 
                 return (
                     <ScheduledProcessBar 
@@ -351,6 +344,7 @@ export default function GanttChart({
                         onUndo={onUndoSchedule}
                         onDragStart={onProcessDragStart}
                         isOrderLevelView={isOrderLevelView}
+                        isGhost={isGhost}
                     />
                 );
             })}
@@ -358,5 +352,3 @@ export default function GanttChart({
     </div>
   );
 }
-
-    
