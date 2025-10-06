@@ -135,17 +135,19 @@ export default function Home() {
             durationMinutes,
         };
         
-        const hasCollision = scheduledProcesses.some(p => {
-            if (p.machineId !== rowId) return false;
-            return (isAfter(newScheduledProcess.startDateTime, p.startDateTime) && isBefore(newScheduledProcess.startDateTime, p.endDateTime)) ||
-                   (isAfter(newScheduledProcess.endDateTime, p.startDateTime) && isBefore(newScheduledProcess.endDateTime, p.endDateTime)) ||
-                   (isBefore(newScheduledProcess.startDateTime, p.startDateTime) && isAfter(newScheduledProcess.endDateTime, p.endDateTime)) ||
-                   newScheduledProcess.startDateTime.getTime() === p.startDateTime.getTime();
-        });
-        
-        if (hasCollision) return;
+        setScheduledProcesses(current => {
+          const hasCollision = current.some(p => {
+              if (p.machineId !== rowId) return false;
+              return (isAfter(newScheduledProcess.startDateTime, p.startDateTime) && isBefore(newScheduledProcess.startDateTime, p.endDateTime)) ||
+                     (isAfter(newScheduledProcess.endDateTime, p.startDateTime) && isBefore(newScheduledProcess.endDateTime, p.endDateTime)) ||
+                     (isBefore(newScheduledProcess.startDateTime, p.startDateTime) && isAfter(newScheduledProcess.endDateTime, p.endDateTime)) ||
+                     newScheduledProcess.startDateTime.getTime() === p.startDateTime.getTime();
+          });
+          
+          if (hasCollision) return current;
 
-        setScheduledProcesses(current => [...current, newScheduledProcess]);
+          return [...current, newScheduledProcess];
+        });
     }
 
     if (droppedItem.type === 'existing') {
@@ -189,11 +191,6 @@ export default function Home() {
   
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, item: DraggedItem) => {
     e.dataTransfer.setData('application/json', JSON.stringify(item));
-    if (item.type === 'existing') {
-      const img = new Image();
-      img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-      e.dataTransfer.setDragImage(img, 0, 0);
-    }
     setDraggedItem(item);
   };
   
@@ -468,3 +465,5 @@ export default function Home() {
     </div>
   );
 }
+
+    
