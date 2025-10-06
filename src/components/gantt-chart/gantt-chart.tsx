@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from 'react';
-import { format, getMonth, getYear, setHours, startOfDay, isWithinInterval, startOfHour, endOfHour, addDays, addMinutes, getDaysInMonth } from 'date-fns';
+import { format, getMonth, isWithinInterval, startOfDay, startOfHour, endOfHour, addDays, addMinutes } from 'date-fns';
 import type { ScheduledProcess } from '@/lib/types';
 import type { DraggedItemData } from '@/app/page';
 import { cn } from '@/lib/utils';
@@ -30,6 +30,7 @@ const ROW_HEIGHT_PX = 32;
 const WORKING_HOURS_START = 9;
 const WORKING_HOURS_END = 17;
 const WORKING_HOURS = Array.from({ length: WORKING_HOURS_END - WORKING_HOURS_START }, (_, i) => i + WORKING_HOURS_START);
+const HEADER_HEIGHT_PX = 56; // month row + day row
 
 
 export default function GanttChart({
@@ -45,6 +46,13 @@ export default function GanttChart({
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const isDragging = !!draggedItem;
   
+  const headerRef = React.useRef<HTMLDivElement>(null);
+  const sidebarRef = React.useRef<HTMLDivElement>(null);
+  const bodyRef = React.useRef<HTMLDivElement>(null);
+  const sidebarWidthRef = React.useRef<HTMLDivElement>(null);
+
+  const [sidebarWidth, setSidebarWidth] = React.useState(150);
+
   const timeColumns = React.useMemo(() => {
     if (viewMode === 'day') {
       return dates.map(date => ({ date, type: 'day' as const }));
@@ -52,12 +60,26 @@ export default function GanttChart({
     const columns: { date: Date; type: 'hour' }[] = [];
     dates.forEach(day => {
       WORKING_HOURS.forEach(hour => {
-        columns.push({ date: setHours(startOfDay(day), hour), type: 'hour' });
+        columns.push({ date: startOfHour(day.setHours(hour)), type: 'hour' });
       });
     });
     return columns;
   }, [dates, viewMode]);
 
+  const handleBodyScroll = () => {
+    if (headerRef.current && bodyRef.current) {
+        headerRef.current.scrollLeft = bodyRef.current.scrollLeft;
+    }
+    if (sidebarRef.current && bodyRef.current) {
+        sidebarRef.current.scrollTop = bodyRef.current.scrollTop;
+    }
+  };
+
+  React.useLayoutEffect(() => {
+    if (sidebarWidthRef.current) {
+      setSidebarWidth(sidebarWidthRef.current.offsetWidth);
+    }
+  }, [rows]);
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>, rowId: string, date: Date) => {
     e.preventDefault();
@@ -78,175 +100,201 @@ export default function GanttChart({
     setDragOverCell(null);
   };
   
-  const topHeaders = React.useMemo(() => {
+  const monthHeaders = React.useMemo(() => {
     const headers: { name: string; span: number }[] = [];
-    if (timeColumns.length === 0) return headers;
+    if (timeColumns.length === 0 || viewMode !== 'day') return headers;
     
-    if (viewMode === 'day') {
-      let currentMonth = -1;
-      let span = 0;
-      timeColumns.forEach((col) => {
-        const month = getMonth(col.date);
-        if (month !== currentMonth) {
-          if (currentMonth !== -1) {
-            headers.push({ name: format(addDays(col.date, -span), "MMM ''yy"), span });
-          }
-          currentMonth = month;
-          span = 1;
-        } else {
-          span++;
+    let currentMonth = -1;
+    let span = 0;
+    timeColumns.forEach((col, index) => {
+      const month = getMonth(col.date);
+      if (month !== currentMonth) {
+        if (currentMonth !== -1) {
+          headers.push({ name: format(addDays(col.date, -span), "MMM ''yy"), span });
         }
-      });
-      headers.push({ name: format(timeColumns[timeColumns.length - 1].date, "MMM ''yy"), span });
-    } else { // hour view
-      let currentDay = -1;
-      let span = 0;
-      timeColumns.forEach((col) => {
+        currentMonth = month;
+        span = 1;
+      } else {
+        span++;
+      }
+      if (index === timeColumns.length - 1) {
+         headers.push({ name: format(col.date, "MMM ''yy"), span });
+      }
+    });
+    return headers;
+  }, [timeColumns, viewMode]);
+  
+  const dayHeaders = React.useMemo(() => {
+    const headers: { name: string; span: number }[] = [];
+    if (timeColumns.length === 0 || viewMode !== 'hour') return headers;
+
+    let currentDay = -1;
+    let span = 0;
+    timeColumns.forEach((col, index) => {
         const day = col.date.getDate();
         if (day !== currentDay) {
-          if (currentDay !== -1) {
-             headers.push({ name: format(addDays(col.date, -1), 'MMM d'), span });
-          }
-          currentDay = day;
-          span = 1;
-        } else {
-          span++;
+            if (currentDay !== -1) {
+                headers.push({ name: format(addDays(col.date, -1), 'MMM d'), span });
+            }
+            currentDay = day;
+            span = WORKING_HOURS.length;
         }
-      });
-      headers.push({ name: format(timeColumns[timeColumns.length - 1].date, 'MMM d'), span });
-    }
+        if (index === timeColumns.length - 1) {
+            headers.push({ name: format(col.date, 'MMM d'), span });
+        }
+    });
 
     return headers;
   }, [timeColumns, viewMode]);
 
-  const gridTemplateColumns = `[row-header] max-content repeat(${timeColumns.length}, minmax(2.5rem, 1fr))`;
-  const gridTemplateRows = `auto auto repeat(${rows.length}, ${ROW_HEIGHT_PX}px)`;
+  const topHeaders = viewMode === 'day' ? monthHeaders : dayHeaders;
+
+  const cellWidth = viewMode === 'day' ? 'minmax(2.5rem, 1fr)' : 'minmax(3.5rem, 1fr)';
+  const gridTemplateColumns = `repeat(${timeColumns.length}, ${cellWidth})`;
 
   return (
-    <div 
-        className={cn("h-full w-full overflow-auto relative", isDragging && 'is-dragging')}
+    <div className={cn("h-full w-full overflow-hidden relative grid", isDragging && 'is-dragging')}
+      style={{
+        gridTemplateColumns: `${sidebarWidth}px 1fr`,
+        gridTemplateRows: `${HEADER_HEIGHT_PX}px 1fr`,
+      }}
     >
-      <div 
-        className="grid relative"
-        style={{
-          gridTemplateColumns,
-          gridTemplateRows,
-        }}
-      >
-        {/* Sticky Top-Left Corner */}
-        <div className="sticky top-0 left-0 z-40 bg-card border-r border-b" style={{ gridRow: '1 / 3', gridColumn: 'row-header' }}>
-           <div className="flex h-full items-center justify-end border-b bg-card pr-2 py-1">
-            <span className="text-sm font-semibold text-foreground">{viewMode === 'day' ? 'Month' : 'Day'}</span>
-          </div>
-          <div className="flex h-full items-center justify-end bg-card pr-2">
-            <span className="text-[10px] font-medium text-muted-foreground leading-tight py-1">{viewMode === 'day' ? 'Day' : 'Hour'}</span>
-          </div>
-        </div>
+      {/* Top-Left Corner */}
+      <div className="sticky top-0 left-0 z-40 bg-card border-r border-b">
+         <div className="flex h-1/2 items-center justify-end pr-2 border-b">
+           <span className="text-sm font-semibold text-foreground">{viewMode === 'day' ? 'Month' : 'Day'}</span>
+         </div>
+         <div className="flex h-1/2 items-center justify-end pr-2">
+           <span className="text-[10px] font-medium text-muted-foreground leading-tight">{viewMode === 'day' ? 'Day' : 'Hour'}</span>
+         </div>
+      </div>
 
-        {/* Sticky Date Headers */}
-        <div className="sticky top-0 z-30 col-start-2 col-span-full flex flex-col bg-card">
-          {/* Top Header (Month or Day) */}
-          <div className="grid" style={{ gridTemplateColumns: `subgrid` }}>
-              {topHeaders.map(({ name, span }, i) => (
-                  <div key={`top-header-${i}`} className="border-r border-b text-center py-1" style={{ gridColumn: `span ${span}` }}>
-                      <span className="text-sm font-semibold text-foreground">{name}</span>
-                  </div>
-              ))}
-          </div>
-          {/* Bottom Header (Day or Hour) */}
-          <div className="grid" style={{ gridTemplateColumns: `subgrid` }}>
-              {timeColumns.map((col, i) => (
-                  <div key={`bottom-header-${i}`} className="border-r border-b text-center">
-                    <div className="text-[10px] font-medium text-muted-foreground leading-tight py-1">
-                        {viewMode === 'day' ? format(col.date, 'd') : format(col.date, 'ha').toLowerCase()}
-                    </div>
-                  </div>
-              ))}
-          </div>
+      {/* Top-Right Header */}
+      <div ref={headerRef} className="sticky top-0 z-30 col-start-2 overflow-hidden bg-card border-b">
+         <div className="grid" style={{ gridTemplateColumns }}>
+            {topHeaders.map(({ name, span }, i) => (
+                <div key={`top-header-${i}`} className="border-r border-b text-center h-7 flex items-center justify-center" style={{ gridColumn: `span ${span}` }}>
+                    <span className="text-sm font-semibold text-foreground">{name}</span>
+                </div>
+            ))}
         </div>
+        <div className="grid" style={{ gridTemplateColumns }}>
+            {timeColumns.map((col, i) => (
+                <div key={`bottom-header-${i}`} className="border-r border-b text-center h-7 flex items-center justify-center">
+                  <div className="text-[10px] font-medium text-muted-foreground leading-tight">
+                      {viewMode === 'day' ? format(col.date, 'd') : format(col.date, 'ha').toLowerCase()}
+                  </div>
+                </div>
+            ))}
+        </div>
+      </div>
 
-        {/* Sticky Machine Name Headers */}
-        {rows.map((row, rowIndex) => (
+      {/* Bottom-Left Sidebar (Machine Names) */}
+      <div ref={sidebarRef} className="row-start-2 overflow-hidden bg-card border-r">
+        {/* Render twice: one for measuring, one for display */}
+        <div ref={sidebarWidthRef} className="absolute pointer-events-none opacity-0">
+          {rows.map(row => (
+            <div key={row.id} className="p-2 whitespace-nowrap font-semibold text-foreground text-sm">{row.name}</div>
+          ))}
+        </div>
+        <div>
+          {rows.map((row, rowIndex) => (
             <div
-                key={row.id}
-                className={cn(
-                  "sticky left-0 z-20 p-2 border-b border-r whitespace-nowrap justify-start flex items-center", 
-                  rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted'
-                )}
-                style={{ gridRowStart: rowIndex + 3, gridColumn: 'row-header' }}
+              key={row.id}
+              className={cn(
+                "p-2 border-b whitespace-nowrap justify-start flex items-center", 
+                rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted'
+              )}
+              style={{ height: `${ROW_HEIGHT_PX}px` }}
             >
-                <span className="font-semibold text-foreground text-sm">{row.name}</span>
+              <span className="font-semibold text-foreground text-sm">{row.name}</span>
             </div>
-        ))}
+          ))}
+        </div>
+      </div>
 
-        {/* Main Timeline Grid */}
-        {rows.map((row, rowIndex) => (
-          <React.Fragment key={row.id}>
-            {timeColumns.map((col, dateIndex) => {
-              const isDragOver = dragOverCell?.rowId === row.id && dragOverCell.date.getTime() === col.date.getTime();
-              let isInTnaRange = false;
-              if (draggedItem?.type === 'new' && draggedItem.tna) {
-                  const interval = viewMode === 'day' 
-                    ? { start: startOfDay(draggedItem.tna.startDate), end: startOfDay(draggedItem.tna.endDate) }
-                    : { start: startOfHour(draggedItem.tna.startDate), end: endOfHour(draggedItem.tna.endDate) };
-                  isInTnaRange = isWithinInterval(col.date, interval);
+      {/* Bottom-Right Body (Timeline) */}
+      <div ref={bodyRef} className="row-start-2 col-start-2 overflow-auto relative" onScroll={handleBodyScroll}>
+        <div className="relative" style={{ width: `calc(${timeColumns.length} * max(2.5rem, 4vw))`, height: `${rows.length * ROW_HEIGHT_PX}px`}}>
+          {/* Main Timeline Grid Background */}
+          <div className="absolute inset-0 grid" style={{ gridTemplateColumns, gridTemplateRows: `repeat(${rows.length}, ${ROW_HEIGHT_PX}px)` }}>
+            {rows.map((row, rowIndex) => (
+              <React.Fragment key={row.id}>
+                {timeColumns.map((col, dateIndex) => {
+                  const isDragOver = dragOverCell?.rowId === row.id && dragOverCell.date.getTime() === col.date.getTime();
+                  let isInTnaRange = false;
+                  if (draggedItem?.type === 'new' && draggedItem.tna) {
+                      const interval = viewMode === 'day' 
+                        ? { start: startOfDay(draggedItem.tna.startDate), end: startOfDay(draggedItem.tna.endDate) }
+                        : { start: startOfHour(draggedItem.tna.startDate), end: endOfHour(draggedItem.tna.endDate) };
+                      isInTnaRange = isWithinInterval(col.date, interval);
+                  }
+                  return (
+                      <div
+                          key={`${row.id}-${dateIndex}`}
+                          onDragOver={(e) => handleDragOver(e, row.id, col.date)}
+                          onDragLeave={handleDragLeave}
+                          onDrop={(e) => handleDrop(e, row.id, col.date)}
+                          className={cn('border-b border-r z-0',
+                              isDragOver ? 'bg-primary/20' : (rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/50'),
+                              isInTnaRange && !isDragOver && 'bg-green-500/10',
+                              'transition-colors duration-200'
+                          )}
+                      />
+                  )
+                })}
+              </React.Fragment>
+            ))}
+          </div>
+
+          {/* Scheduled Process Bars */}
+          {scheduledProcesses.map((item) => {
+              const rowIndex = rows.findIndex(r => r.id === item.machineId);
+              if (rowIndex === -1) return null;
+
+              const startColDate = viewMode === 'day' ? startOfDay(item.startDateTime) : startOfHour(item.startDateTime);
+              const dateIndex = timeColumns.findIndex(d => d.date.getTime() === startColDate.getTime());
+              if (dateIndex === -1) return null;
+
+              const endColDate = viewMode === 'day' ? startOfDay(item.endDateTime) : startOfHour(item.endDateTime);
+              let endDateIndex = timeColumns.findIndex(d => d.date.getTime() === endColDate.getTime());
+              
+              if (item.endDateTime.getTime() === endColDate.getTime() && item.endDateTime.getTime() > item.startDateTime.getTime()) {
+                  const prevDate = viewMode === 'day' ? startOfDay(addDays(item.endDateTime, -1)) : startOfHour(addMinutes(item.endDateTime, -60));
+                  endDateIndex = timeColumns.findIndex(d => d.date.getTime() === prevDate.getTime());
               }
+
+              if (endDateIndex === -1) {
+                endDateIndex = timeColumns.length -1;
+              }
+
+              const durationInColumns = endDateIndex - dateIndex + 1;
+              
+              const totalWidth = `calc(${timeColumns.length} * max(2.5rem, 4vw))`;
+              const leftOffset = `calc((${dateIndex} / ${timeColumns.length}) * ${totalWidth})`;
+              const barWidth = `calc((${durationInColumns} / ${timeColumns.length}) * ${totalWidth})`;
+
               return (
-                  <div
-                      key={`${row.id}-${dateIndex}`}
-                      onDragOver={(e) => handleDragOver(e, row.id, col.date)}
-                      onDragLeave={handleDragLeave}
-                      onDrop={(e) => handleDrop(e, row.id, col.date)}
-                      className={cn('border-b border-r z-0',
-                          isDragOver ? 'bg-primary/20' : (rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/50'),
-                          isInTnaRange && !isDragOver && 'bg-green-500/10',
-                          'transition-colors duration-200'
-                      )}
-                      style={{ gridRowStart: rowIndex + 3, gridColumnStart: dateIndex + 2 }}
-                  />
-              )
-            })}
-          </React.Fragment>
-        ))}
-
-        {/* Scheduled Process Bars */}
-        {scheduledProcesses.map((item) => {
-            const rowIndex = rows.findIndex(r => r.id === item.machineId);
-            if (rowIndex === -1) return null;
-
-            const startColDate = viewMode === 'day' ? startOfDay(item.startDateTime) : startOfHour(item.startDateTime);
-            const dateIndex = timeColumns.findIndex(d => d.date.getTime() === startColDate.getTime());
-            if (dateIndex === -1) return null;
-
-            const endColDate = viewMode === 'day' ? startOfDay(item.endDateTime) : startOfHour(item.endDateTime);
-            let endDateIndex = timeColumns.findIndex(d => d.date.getTime() === endColDate.getTime());
-            
-            if (item.endDateTime.getTime() === endColDate.getTime() && item.endDateTime.getTime() > item.startDateTime.getTime()) {
-                const prevDate = viewMode === 'day' ? startOfDay(addDays(item.endDateTime, -1)) : startOfHour(addMinutes(item.endDateTime, -60));
-                endDateIndex = timeColumns.findIndex(d => d.date.getTime() === prevDate.getTime());
-            }
-
-            if (endDateIndex === -1) {
-              endDateIndex = timeColumns.length -1;
-            }
-
-            const durationInColumns = endDateIndex - dateIndex + 1;
-            
-            return (
-                <ScheduledProcessBar 
-                    key={item.id} 
-                    item={item} 
-                    gridRow={rowIndex + 3} 
-                    gridColStart={dateIndex + 2}
-                    durationInColumns={durationInColumns}
-                    onUndo={onUndoSchedule}
-                    onDragStart={onProcessDragStart}
-                />
-            );
-        })}
+                  <div 
+                    key={item.id}
+                    className="absolute z-10"
+                    style={{
+                      top: `${rowIndex * ROW_HEIGHT_PX}px`,
+                      left: leftOffset,
+                      width: barWidth,
+                      height: `${ROW_HEIGHT_PX}px`,
+                    }}
+                  >
+                    <ScheduledProcessBar 
+                        item={item} 
+                        onUndo={onUndoSchedule}
+                        onDragStart={onProcessDragStart}
+                    />
+                  </div>
+              );
+          })}
+        </div>
       </div>
     </div>
   );
 }
-
-    

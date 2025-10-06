@@ -13,18 +13,12 @@ import { Button } from '@/components/ui/button';
 
 type ScheduledProcessProps = {
   item: ScheduledProcess;
-  gridRow?: number;
-  gridColStart?: number;
-  durationInColumns?: number;
   onUndo?: (scheduledProcessId: string) => void;
   onDragStart?: (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => void;
 };
 
 export default function ScheduledProcessBar({ 
   item, 
-  gridRow, 
-  gridColStart, 
-  durationInColumns, 
   onUndo,
   onDragStart,
 }: ScheduledProcessProps) {
@@ -84,8 +78,6 @@ export default function ScheduledProcessBar({
             onDragStart && 'cursor-grab active:cursor-grabbing'
           )}
           style={{
-            gridRowStart: gridRow,
-            gridColumn: `${gridColStart} / span ${durationInColumns}`,
             backgroundColor: backgroundColor,
           }}
           title={`${orderDetails.id}: ${processDetails.name} (${durationText})`}
