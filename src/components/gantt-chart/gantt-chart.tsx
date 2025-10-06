@@ -22,7 +22,7 @@ type GanttChartProps = {
   onDrop: (rowId: string, startDateTime: Date, e: React.DragEvent<HTMLDivElement>) => void;
   onUndoSchedule: (scheduledProcessId: string) => void;
   onProcessDragStart: (e: React.DragEvent<HTMLDivElement>, item: DraggedItem) => void;
-  onDragEnd: () => void;
+  onDragEnd: (e: React.DragEvent<HTMLDivElement>) => void;
   isOrderLevelView?: boolean;
   viewMode: ViewMode;
   draggedItem: DraggedItem | null;
@@ -114,7 +114,6 @@ export default function GanttChart({
   const handleDrop = (e: React.DragEvent<HTMLDivElement>, rowId: string, date: Date) => {
     onDrop(rowId, date, e);
     setDragOverCell(null);
-    onDragEnd();
   };
 
   const laneAssignments = React.useMemo(() => {
@@ -312,7 +311,7 @@ export default function GanttChart({
             ])}
 
             {scheduledProcesses.map((item) => {
-                const isBeingDragged = draggedItem?.type === 'existing' && draggedItem.process.id === item.id;
+                const isBeingDragged = false; // The item is not rendered while being dragged
                 
                 const rowId = isOrderLevelView ? item.orderId : item.machineId;
                 const rowPosition = rowPositions.get(rowId);
@@ -352,3 +351,5 @@ export default function GanttChart({
     </div>
   );
 }
+
+    
