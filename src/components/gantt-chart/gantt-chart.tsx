@@ -147,78 +147,74 @@ export default function GanttChart({
   }, [timeColumns, viewMode]);
 
   const gridTemplateColumns = `[row-header] max-content repeat(${timeColumns.length}, minmax(2.5rem, 1fr))`;
-  const timeGridTemplateColumns = `repeat(${timeColumns.length}, minmax(2.5rem, 1fr))`;
+  const gridTemplateRows = `auto auto auto repeat(${rows.length}, ${ROW_HEIGHT_PX}px)`;
 
   return (
     <div 
         className={cn("h-full w-full overflow-auto relative", isDragging && 'is-dragging')}
     >
-      <div className='sticky top-0 z-30 bg-card'>
-        <div 
-          style={{
-            display: 'grid',
-            gridTemplateColumns,
-          }}
-        >
-           <div className="sticky left-0 z-40 flex flex-col bg-card" style={{ gridColumn: 'row-header' }}>
-              <div className="flex h-full items-center justify-end border-b border-r bg-card pr-2 py-1">
-                <span className="text-xs font-semibold text-foreground">Month</span>
-              </div>
-              <div className="flex h-full items-center justify-end border-b border-r bg-card pr-2 py-1">
-                <span className="text-sm font-semibold text-foreground">Week</span>
-              </div>
-              <div className="flex h-full items-center justify-end border-b border-r bg-card pr-2">
-                <span className="text-[10px] font-medium text-muted-foreground leading-tight py-1">Day</span>
-              </div>
-           </div>
-
-          <div className="col-start-2 col-span-full flex flex-col">
-              <div className="grid" style={{ gridTemplateColumns: timeGridTemplateColumns }}>
-                  {topHeaders.map(({ name, span }, i) => (
-                      <div key={`top-header-${i}`} className="border-r border-b text-center py-1" style={{ gridColumn: `span ${span}` }}>
-                          <span className="text-xs font-semibold text-foreground">{name}</span>
-                      </div>
-                  ))}
-              </div>
-              
-              <div className="grid" style={{ gridTemplateColumns: timeGridTemplateColumns }}>
-                  {midHeaders.map(({ name, span }, i) => (
-                      <div key={`mid-header-${i}`} className="border-r border-b text-center py-1" style={{ gridColumn: `span ${span}` }}>
-                          <span className="text-sm font-semibold text-foreground">{name}</span>
-                      </div>
-                  ))}
-              </div>
-
-              <div className="grid" style={{ gridTemplateColumns: timeGridTemplateColumns }}>
-                  {timeColumns.map((col, i) => (
-                      <div key={`bottom-header-${i}`} className="border-r border-b text-center">
-                      <div className="text-[10px] font-medium text-muted-foreground leading-tight py-1">
-                          {viewMode === 'day' ? format(col.date, 'd') : format(col.date, 'ha').toLowerCase()}
-                      </div>
-                      </div>
-                  ))}
-              </div>
-          </div>
-        </div>
-      </div>
-
-
-      <div style={{
-          display: 'grid',
+      <div 
+        className="grid relative"
+        style={{
           gridTemplateColumns,
-          gridTemplateRows: `repeat(${rows.length}, ${ROW_HEIGHT_PX}px)`,
+          gridTemplateRows,
         }}
       >
+        {/* Sticky Top-Left Corner */}
+        <div className="sticky top-0 left-0 z-40 flex flex-col bg-card" style={{ gridRow: '1 / 4', gridColumn: 'row-header' }}>
+          <div className="flex h-full items-center justify-end border-b border-r bg-card pr-2 py-1">
+            <span className="text-xs font-semibold text-foreground">Month</span>
+          </div>
+          <div className="flex h-full items-center justify-end border-b border-r bg-card pr-2 py-1">
+            <span className="text-sm font-semibold text-foreground">Week</span>
+          </div>
+          <div className="flex h-full items-center justify-end border-b border-r bg-card pr-2">
+            <span className="text-[10px] font-medium text-muted-foreground leading-tight py-1">Day</span>
+          </div>
+        </div>
+
+        {/* Sticky Date Headers */}
+        <div className="sticky top-0 z-30 col-start-2 col-span-full flex flex-col bg-card">
+          <div className="grid" style={{ gridTemplateColumns: `subgrid` }}>
+              {topHeaders.map(({ name, span }, i) => (
+                  <div key={`top-header-${i}`} className="border-r border-b text-center py-1" style={{ gridColumn: `span ${span}` }}>
+                      <span className="text-xs font-semibold text-foreground">{name}</span>
+                  </div>
+              ))}
+          </div>
+          <div className="grid" style={{ gridTemplateColumns: `subgrid` }}>
+              {midHeaders.map(({ name, span }, i) => (
+                  <div key={`mid-header-${i}`} className="border-r border-b text-center py-1" style={{ gridColumn: `span ${span}` }}>
+                      <span className="text-sm font-semibold text-foreground">{name}</span>
+                  </div>
+              ))}
+          </div>
+          <div className="grid" style={{ gridTemplateColumns: `subgrid` }}>
+              {timeColumns.map((col, i) => (
+                  <div key={`bottom-header-${i}`} className="border-r border-b text-center">
+                    <div className="text-[10px] font-medium text-muted-foreground leading-tight py-1">
+                        {viewMode === 'day' ? format(col.date, 'd') : format(col.date, 'ha').toLowerCase()}
+                    </div>
+                  </div>
+              ))}
+          </div>
+        </div>
+
+        {/* Sticky Machine Name Headers */}
         {rows.map((row, rowIndex) => (
             <div
                 key={row.id}
-                className={cn("sticky left-0 z-20 p-2 border-b border-r whitespace-nowrap flex items-center", rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted')}
-                style={{ gridRow: `${rowIndex + 1}`, gridColumn: 'row-header' }}
+                className={cn(
+                  "sticky left-0 z-20 p-2 border-b border-r whitespace-nowrap flex items-center justify-start", 
+                  rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted'
+                )}
+                style={{ gridRowStart: rowIndex + 4, gridColumn: 'row-header' }}
             >
                 <span className="font-semibold text-foreground text-sm">{row.name}</span>
             </div>
         ))}
 
+        {/* Main Timeline Grid */}
         {rows.map((row, rowIndex) => (
           <React.Fragment key={row.id}>
             {timeColumns.map((col, dateIndex) => {
@@ -236,18 +232,19 @@ export default function GanttChart({
                       onDragOver={(e) => handleDragOver(e, row.id, col.date)}
                       onDragLeave={handleDragLeave}
                       onDrop={(e) => handleDrop(e, row.id, col.date)}
-                      className={cn('border-b border-r -z-0',
+                      className={cn('border-b border-r z-0',
                           isDragOver ? 'bg-primary/20' : (rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/50'),
                           isInTnaRange && !isDragOver && 'bg-green-500/10',
                           'transition-colors duration-200'
                       )}
-                      style={{ gridRow: rowIndex + 1, gridColumn: dateIndex + 2 }}
+                      style={{ gridRowStart: rowIndex + 4, gridColumnStart: dateIndex + 2 }}
                   />
               )
             })}
           </React.Fragment>
         ))}
 
+        {/* Scheduled Process Bars */}
         {scheduledProcesses.map((item) => {
             const rowIndex = rows.findIndex(r => r.id === item.machineId);
             if (rowIndex === -1) return null;
@@ -274,7 +271,7 @@ export default function GanttChart({
                 <ScheduledProcessBar 
                     key={item.id} 
                     item={item} 
-                    gridRow={rowIndex + 1} 
+                    gridRow={rowIndex + 4} 
                     gridColStart={dateIndex + 2}
                     durationInColumns={durationInColumns}
                     onUndo={onUndoSchedule}
