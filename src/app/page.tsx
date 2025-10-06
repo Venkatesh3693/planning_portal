@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { addDays, startOfToday, format, isSameDay, set, addMinutes, isAfter, getDay, setHours } from 'date-fns';
+import { addDays, startOfToday, format, isSameDay, set, addMinutes, isAfter, getDay, setHours, isBefore } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, ORDERS, PROCESSES } from '@/lib/data';
@@ -91,102 +91,114 @@ export default function Home() {
   const [filterOcn, setFilterOcn] = useState('');
   const [filterBuyer, setFilterBuyer] = useState<string[]>([]);
   const [filterDueDate, setFilterDueDate] = useState<DateRange | undefined>(undefined);
+  const [draggedItem, setDraggedItem] = useState<DraggedItemData | null>(null);
 
   const buyerOptions = useMemo(() => [...new Set(ORDERS.map(o => o.buyer))], []);
   const isOrderLevelView = selectedProcessId === ORDER_LEVEL_VIEW;
 
   const handleDropOnChart = (rowId: string, startDateTime: Date, draggedItemJSON: string) => {
     if (!draggedItemJSON) return;
-  
-    const draggedItem: DraggedItemData = JSON.parse(draggedItemJSON);
-    
+
+    const droppedItem: DraggedItemData = JSON.parse(draggedItemJSON);
+
     let processToPlace: ScheduledProcess;
     let otherProcesses = [...scheduledProcesses];
-  
-    if (draggedItem.type === 'new') {
-      const order = ORDERS.find(o => o.id === draggedItem.orderId)!;
-      const process = PROCESSES.find(p => p.id === draggedItem.processId)!;
-      const durationMinutes = process.sam * order.quantity;
-      
-      const finalStartDateTime = viewMode === 'day'
-        ? set(startDateTime, { hours: WORKING_HOURS_START, minutes: 0 })
-        : startDateTime;
-  
-      processToPlace = {
-        id: `${draggedItem.processId}-${draggedItem.orderId}-${Date.now()}`,
-        orderId: draggedItem.orderId,
-        processId: draggedItem.processId,
-        machineId: isOrderLevelView ? order.id : rowId,
-        startDateTime: finalStartDateTime,
-        endDateTime: calculateEndDateTime(finalStartDateTime, durationMinutes),
-        durationMinutes,
-      };
+
+    if (droppedItem.type === 'new') {
+        const order = ORDERS.find(o => o.id === droppedItem.orderId)!;
+        const process = PROCESSES.find(p => p.id === droppedItem.processId)!;
+        const durationMinutes = process.sam * order.quantity;
+
+        const finalStartDateTime = viewMode === 'day'
+            ? set(startDateTime, { hours: WORKING_HOURS_START, minutes: 0 })
+            : startDateTime;
+
+        processToPlace = {
+            id: `${droppedItem.processId}-${droppedItem.orderId}-${Date.now()}`,
+            orderId: droppedItem.orderId,
+            processId: droppedItem.processId,
+            machineId: isOrderLevelView ? order.id : rowId,
+            startDateTime: finalStartDateTime,
+            endDateTime: calculateEndDateTime(finalStartDateTime, durationMinutes),
+            durationMinutes,
+        };
     } else { // 'existing'
-      const originalProcess = scheduledProcesses.find(p => p.id === draggedItem.processId);
-      if (!originalProcess) return;
-  
-      otherProcesses = scheduledProcesses.filter(p => p.id !== draggedItem.processId);
-      
-      const finalStartDateTime = viewMode === 'day'
-        ? set(startDateTime, { hours: originalProcess.startDateTime.getHours(), minutes: originalProcess.startDateTime.getMinutes() })
-        : startDateTime;
-  
-      processToPlace = {
-        ...originalProcess,
-        machineId: isOrderLevelView ? originalProcess.machineId : rowId,
-        startDateTime: finalStartDateTime,
-        endDateTime: calculateEndDateTime(finalStartDateTime, originalProcess.durationMinutes),
-      };
+        const originalProcess = scheduledProcesses.find(p => p.id === droppedItem.processId);
+        if (!originalProcess) return;
+
+        otherProcesses = scheduledProcesses.filter(p => p.id !== droppedItem.processId);
+
+        const finalStartDateTime = viewMode === 'day'
+            ? set(startDateTime, { hours: originalProcess.startDateTime.getHours(), minutes: originalProcess.startDateTime.getMinutes() })
+            : startDateTime;
+
+        processToPlace = {
+            ...originalProcess,
+            machineId: isOrderLevelView ? originalProcess.machineId : rowId,
+            startDateTime: finalStartDateTime,
+            endDateTime: calculateEndDateTime(finalStartDateTime, originalProcess.durationMinutes),
+        };
     }
-    
-    // --- Cascade Logic ---
+
+    const machineId = processToPlace.machineId;
+
     const processesOnSameMachine = otherProcesses
-      .filter(p => p.machineId === processToPlace.machineId)
-      .sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
+        .filter(p => p.machineId === machineId)
+        .sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
     
-    const unaffectedProcesses = otherProcesses.filter(p => p.machineId !== processToPlace.machineId);
+    const unaffectedProcesses = otherProcesses.filter(p => p.machineId !== machineId);
+
+    const finalProcesses: ScheduledProcess[] = [...unaffectedProcesses];
     
-    const finalProcesses: ScheduledProcess[] = [...unaffectedProcesses, processToPlace];
     let lastProcessEnd = processToPlace.endDateTime;
-  
-    // Find the first process that collides with the newly placed process
-    const firstCollisionIndex = processesOnSameMachine.findIndex(p =>
-      isAfter(processToPlace.endDateTime, p.startDateTime) && isAfter(p.endDateTime, processToPlace.startDateTime)
+
+    // Add the newly placed/moved process first.
+    finalProcesses.push(processToPlace);
+    
+    let toCascade = processesOnSameMachine.filter(p => 
+        isAfter(lastProcessEnd, p.startDateTime) && isBefore(p.startDateTime, lastProcessEnd)
     );
-  
-    if (firstCollisionIndex === -1) {
-      // No collision, just add the non-colliding processes
-      finalProcesses.push(...processesOnSameMachine);
-    } else {
-      // Add all processes before the collision
-      finalProcesses.push(...processesOnSameMachine.slice(0, firstCollisionIndex));
-  
-      // Start the cascade from the first colliding process
-      for (let i = firstCollisionIndex; i < processesOnSameMachine.length; i++) {
-        const currentProcess = processesOnSameMachine[i];
+
+    const nonColliding = processesOnSameMachine.filter(p => !toCascade.find(c => c.id === p.id));
+    finalProcesses.push(...nonColliding);
+
+    while(toCascade.length > 0) {
+        const currentProcess = toCascade.shift()!;
         
         const newStart = lastProcessEnd;
         const newEnd = calculateEndDateTime(newStart, currentProcess.durationMinutes);
-  
-        const shiftedProcess: ScheduledProcess = {
-          ...currentProcess,
-          startDateTime: newStart,
-          endDateTime: newEnd,
-        };
-        
-        finalProcesses.push(shiftedProcess);
+
+        finalProcesses.push({
+            ...currentProcess,
+            startDateTime: newStart,
+            endDateTime: newEnd,
+        });
+
         lastProcessEnd = newEnd;
-      }
+
+        // Check if this shift causes further collisions
+        const furtherCollisions = toCascade.filter(p =>
+            isAfter(lastProcessEnd, p.startDateTime) && isBefore(p.startDateTime, lastProcessEnd)
+        );
+        
+        nonColliding.push(...toCascade.filter(p => !furtherCollisions.find(c => c.id === p.id)));
+
+        toCascade = furtherCollisions.sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
     }
-  
+
     setScheduledProcesses(finalProcesses);
-  };
+};
   
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => {
     e.dataTransfer.setData('application/json', JSON.stringify(item));
+    setDraggedItem(item);
   };
   
+  const handleDragEnd = () => {
+    setDraggedItem(null);
+  };
+
   const handleUndoSchedule = (scheduledProcessId: string) => {
     setScheduledProcesses(prev => prev.filter(p => p.id !== scheduledProcessId));
   };
@@ -280,7 +292,7 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-screen flex-col" onDragEnd={handleDragEnd}>
       <Header />
       <main className="flex flex-1 flex-col overflow-hidden">
         <div className="flex-shrink-0 border-b p-4 flex justify-between items-center">
@@ -443,6 +455,7 @@ export default function Home() {
                     onProcessDragStart={handleDragStart}
                     isOrderLevelView={isOrderLevelView}
                     viewMode={viewMode}
+                    draggedItem={draggedItem}
                   />
               </div>
           </div>

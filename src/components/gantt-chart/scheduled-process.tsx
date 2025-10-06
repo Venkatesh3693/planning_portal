@@ -19,6 +19,7 @@ type ScheduledProcessProps = {
   onUndo?: (scheduledProcessId: string) => void;
   onDragStart?: (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => void;
   isOrderLevelView?: boolean;
+  isGhost?: boolean;
 };
 
 export default function ScheduledProcessBar({ 
@@ -29,6 +30,7 @@ export default function ScheduledProcessBar({
   onUndo,
   onDragStart,
   isOrderLevelView = false,
+  isGhost = false,
 }: ScheduledProcessProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -65,6 +67,11 @@ export default function ScheduledProcessBar({
   const handleInternalDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     if (onDragStart) {
       const draggedItem: DraggedItemData = { type: 'existing', processId: item.id };
+      // This is crucial to prevent the component from re-rendering immediately
+      // and interrupting the drag operation.
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData('application/json', JSON.stringify(draggedItem));
+      // Call the parent drag start handler *after* setting up dataTransfer
       onDragStart(e, draggedItem);
     }
   };
@@ -74,10 +81,11 @@ export default function ScheduledProcessBar({
       <PopoverAnchor asChild>
         <div
           onContextMenu={handleContextMenu}
-          draggable={!!onDragStart}
+          draggable={!!onDragStart && !isGhost}
           onDragStart={handleInternalDragStart}
           className={cn(
-            "relative z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg cursor-grab active:cursor-grabbing"
+            "relative z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg",
+            isGhost ? 'opacity-30' : 'cursor-grab active:cursor-grabbing'
           )}
           style={{
             gridRowStart: gridRow,

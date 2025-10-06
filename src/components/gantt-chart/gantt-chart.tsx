@@ -24,6 +24,7 @@ type GanttChartProps = {
   onProcessDragStart: (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => void;
   isOrderLevelView?: boolean;
   viewMode: ViewMode;
+  draggedItem: DraggedItemData | null;
 };
 
 const ROW_HEIGHT = 32; // Corresponds to h-8
@@ -66,6 +67,7 @@ export default function GanttChart({
   onProcessDragStart,
   isOrderLevelView = false,
   viewMode,
+  draggedItem,
 }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -96,12 +98,16 @@ export default function GanttChart({
     return columns;
   }, [dates, viewMode]);
 
-  const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleInternalDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     const draggedItemJSON = e.dataTransfer.getData('application/json');
     if (!draggedItemJSON) return;
-    const draggedItem: DraggedItemData = JSON.parse(draggedItemJSON);
-    if (draggedItem.type === 'new' && draggedItem.tna) {
-      setDraggedItemTna({startDate: new Date(draggedItem.tna.startDate), endDate: new Date(draggedItem.tna.endDate)});
+    const item: DraggedItemData = JSON.parse(draggedItemJSON);
+    if (item.type === 'new' && item.tna) {
+      setDraggedItemTna({startDate: new Date(item.tna.startDate), endDate: new Date(item.tna.endDate)});
+    }
+    // This is needed to propagate the drag start to the main page
+    if (item.type === 'existing') {
+        onProcessDragStart(e, item);
     }
   };
 
@@ -247,7 +253,7 @@ export default function GanttChart({
   }, [timeColumns, viewMode]);
 
   return (
-    <div className="h-full w-full overflow-auto" ref={containerRef} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <div className="h-full w-full overflow-auto" ref={containerRef} onDragStart={handleInternalDragStart} onDragEnd={handleDragEnd}>
         <div className="relative grid min-h-full" style={timelineGridStyle}>
             <div className="sticky left-0 z-10 col-start-1 row-start-1 row-end-[-1] bg-card"></div>
             <div className="sticky left-0 top-0 z-50 border-b border-r bg-card" style={{gridRowEnd: 'span 3'}}></div>
@@ -343,6 +349,9 @@ export default function GanttChart({
                     if (!assignment) return null;
                     lane = assignment.lane;
                 }
+                
+                const isBeingDragged = draggedItem?.type === 'existing' && draggedItem.processId === item.id;
+                const isGhost = isBeingDragged;
 
                 return (
                     <ScheduledProcessBar 
@@ -354,6 +363,7 @@ export default function GanttChart({
                         onUndo={onUndoSchedule}
                         onDragStart={onProcessDragStart}
                         isOrderLevelView={isOrderLevelView}
+                        isGhost={isGhost}
                     />
                 );
             })}
