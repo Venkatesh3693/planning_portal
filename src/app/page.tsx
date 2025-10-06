@@ -263,7 +263,7 @@ export default function Home() {
 
 
   const today = startOfToday();
-  const dates = Array.from({ length: 30 }, (_, i) => addDays(today, i))
+  const dates = Array.from({ length: 90 }, (_, i) => addDays(today, i))
     .filter(date => getDay(date) !== 0); // Exclude Sundays
 
   
