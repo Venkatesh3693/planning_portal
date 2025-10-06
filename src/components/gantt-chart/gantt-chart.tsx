@@ -113,7 +113,9 @@ export default function GanttChart({
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>, rowId: string, date: Date) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    setDragOverCell({ rowId, date });
+     if (dragOverCell?.rowId !== rowId || dragOverCell?.date.getTime() !== date.getTime()) {
+      setDragOverCell({ rowId, date });
+    }
   };
 
   const handleDragLeave = () => {
@@ -309,7 +311,7 @@ export default function GanttChart({
                 );
 
                 const rowCells = timeColumns.map((col, dateIndex) => {
-                  const isDragOver = dragOverCell && dragOverCell.rowId === row.id && isSameDay(dragOverCell.date, col.date);
+                  const isDragOver = dragOverCell && dragOverCell.rowId === row.id && dragOverCell.date.getTime() === col.date.getTime();
                   
                   let isInTnaRange = false;
                   if (draggedProcessTna && viewMode === 'day') {
@@ -450,5 +452,6 @@ export default function GanttChart({
     
 
     
+
 
 
