@@ -96,23 +96,17 @@ export default function Home() {
   const buyerOptions = useMemo(() => [...new Set(ORDERS.map(o => o.buyer))], []);
 
   const handleDropOnChart = (machineId: string, startDateTime: Date, e: React.DragEvent<HTMLDivElement>) => {
-    const scheduledProcessId = e.dataTransfer.getData('scheduledProcessId');
+    const scheduledProcessData = e.dataTransfer.getData('scheduledProcess');
     
-    if (scheduledProcessId) {
+    if (scheduledProcessData) {
       // Logic for moving an existing process
-      const processDataString = e.dataTransfer.getData('scheduledProcess');
-      if (!processDataString) return;
-
-      const droppedProcess: ScheduledProcess = JSON.parse(processDataString);
-      // Dates are stringified, so we need to convert them back to Date objects
-      droppedProcess.startDateTime = new Date(droppedProcess.startDateTime);
-      droppedProcess.endDateTime = new Date(droppedProcess.endDateTime);
-
-
+      const droppedProcess: ScheduledProcess = JSON.parse(scheduledProcessData);
+      
       let finalStartDateTime = startDateTime;
       if (viewMode === 'day') {
-          const originalDate = droppedProcess.startDateTime;
-          finalStartDateTime = setHours(setMinutes(startDateTime, originalDate.getMinutes()), originalDate.getHours());
+          // Preserve original time when dropping in day view
+          const originalStartDate = new Date(droppedProcess.startDateTime);
+          finalStartDateTime = setHours(setMinutes(startDateTime, originalStartDate.getMinutes()), originalStartDate.getHours());
       }
       
       const proposedEndDateTime = calculateEndDateTime(finalStartDateTime, droppedProcess.durationMinutes);
@@ -123,12 +117,12 @@ export default function Home() {
         const hasCollision = otherProcesses.some(p => {
           if (p.machineId !== machineId) return false;
           
-          const existingEndDateTime = p.endDateTime;
+          const existingProcessEnd = new Date(p.endDateTime);
           
-          const startsDuring = isAfter(finalStartDateTime, p.startDateTime) && isBefore(finalStartDateTime, existingEndDateTime);
-          const endsDuring = isAfter(proposedEndDateTime, p.startDateTime) && isBefore(proposedEndDateTime, existingEndDateTime);
-          const spansOver = isBefore(finalStartDateTime, p.startDateTime) && isAfter(proposedEndDateTime, existingEndDateTime);
-          const isSameStart = finalStartDateTime.getTime() === p.startDateTime.getTime();
+          const startsDuring = isAfter(finalStartDateTime, new Date(p.startDateTime)) && isBefore(finalStartDateTime, existingProcessEnd);
+          const endsDuring = isAfter(proposedEndDateTime, new Date(p.startDateTime)) && isBefore(proposedEndDateTime, existingProcessEnd);
+          const spansOver = isBefore(finalStartDateTime, new Date(p.startDateTime)) && isAfter(proposedEndDateTime, existingProcessEnd);
+          const isSameStart = finalStartDateTime.getTime() === new Date(p.startDateTime).getTime();
           return startsDuring || endsDuring || spansOver || isSameStart;
         });
 
@@ -141,6 +135,7 @@ export default function Home() {
           };
           return [...otherProcesses, updatedProcess];
         }
+        
         return currentProcesses;
       });
 
@@ -215,7 +210,6 @@ export default function Home() {
   };
   
   const handleScheduledProcessDragStart = (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => {
-    e.dataTransfer.setData('scheduledProcessId', process.id);
     e.dataTransfer.setData('scheduledProcess', JSON.stringify(process));
     
     // Set native drag image to an empty one
