@@ -167,12 +167,17 @@ export default function Home() {
             
             const hasCollision = otherProcesses.some(p => {
               if (p.machineId !== machineId) return false;
-              const existingEnd = p.endDateTime;
               const newStart = finalStartDateTime;
-              return (isAfter(newStart, p.startDateTime) && isBefore(newStart, existingEnd)) ||
-                     (isAfter(proposedEndDateTime, p.startDateTime) && isBefore(proposedEndDateTime, existingEnd)) ||
-                     (isBefore(newStart, p.startDateTime) && isAfter(proposedEndDateTime, existingEnd)) ||
-                     newStart.getTime() === p.startDateTime.getTime();
+              const newEnd = proposedEndDateTime;
+              const existingStart = p.startDateTime;
+              const existingEnd = p.endDateTime;
+
+              // Check for overlap:
+              // (newStart is inside existing) OR (newEnd is inside existing) OR (existing is inside new)
+              return (isAfter(newStart, existingStart) && isBefore(newStart, existingEnd)) ||
+                     (isAfter(newEnd, existingStart) && isBefore(newEnd, existingEnd)) ||
+                     (isBefore(newStart, existingStart) && isAfter(newEnd, existingEnd)) ||
+                     newStart.getTime() === existingStart.getTime();
             });
 
             if (hasCollision) return currentProcesses;
