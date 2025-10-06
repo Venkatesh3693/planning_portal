@@ -156,8 +156,8 @@ export default function Home() {
 
         setScheduledProcesses(currentProcesses => {
             const hasCollision = currentProcesses.some(p => {
-              // If the process `p` is the one we are dragging, skip it completely.
-              if (p.id === draggedItem.process.id) {
+              // CRITICAL FIX: If the process `p` is the one we are dragging, skip it completely.
+              if (draggedItem?.type === 'existing' && p.id === draggedItem.process.id) {
                 return false;
               }
 
