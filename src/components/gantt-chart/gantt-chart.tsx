@@ -160,22 +160,19 @@ export default function GanttChart({
             gridTemplateColumns,
           }}
         >
-          {/* Sticky Top-Left Corner */}
            <div className="sticky left-0 z-30 flex flex-col" style={{ gridColumn: 'row-header' }}>
-              <div className="flex h-full items-center justify-end border-b border-r bg-card pr-2">
+              <div className="flex h-full items-center justify-end border-b border-r bg-card pr-2 py-1">
                 <span className="text-xs font-semibold text-foreground">{viewMode === 'day' ? 'Month' : 'Week'}</span>
               </div>
-              <div className="flex h-full items-center justify-end border-b border-r bg-card pr-2">
+              <div className="flex h-full items-center justify-end border-b border-r bg-card pr-2 py-1">
                 <span className="text-sm font-semibold text-foreground">{viewMode === 'day' ? 'Week' : 'Day'}</span>
               </div>
               <div className="flex h-full items-center justify-end border-b border-r bg-card pr-2">
-                <span className="text-[10px] font-medium text-muted-foreground">{viewMode === 'day' ? 'Day' : 'Hour'}</span>
+                <span className="text-[10px] font-medium text-muted-foreground leading-tight py-1">{viewMode === 'day' ? 'Day' : 'Hour'}</span>
               </div>
            </div>
 
-          {/* Headers */}
           <div className="col-start-2 col-span-full flex flex-col">
-              {/* Sticky Top Headers (Month/Week) */}
               <div className="grid" style={{ gridTemplateColumns: timeGridTemplateColumns }}>
                   {topHeaders.map(({ name, span }, i) => (
                       <div key={`top-header-${i}`} className="border-r border-b text-center py-1" style={{ gridColumn: `span ${span}` }}>
@@ -184,7 +181,6 @@ export default function GanttChart({
                   ))}
               </div>
               
-              {/* Sticky Mid Headers (Week/Day) */}
               <div className="grid" style={{ gridTemplateColumns: timeGridTemplateColumns }}>
                   {midHeaders.map(({ name, span }, i) => (
                       <div key={`mid-header-${i}`} className="border-r border-b text-center py-1" style={{ gridColumn: `span ${span}` }}>
@@ -193,7 +189,6 @@ export default function GanttChart({
                   ))}
               </div>
 
-              {/* Bottom Headers (Day/Hour) */}
               <div className="grid" style={{ gridTemplateColumns: timeGridTemplateColumns }}>
                   {timeColumns.map((col, i) => (
                       <div key={`bottom-header-${i}`} className="border-r border-b text-center">
@@ -214,7 +209,6 @@ export default function GanttChart({
           gridTemplateRows: `repeat(${rows.length}, ${ROW_HEIGHT_PX}px)`,
         }}
       >
-        {/* Sticky Row Headers (Machine Names) */}
         {rows.map((row, rowIndex) => (
             <div
                 key={row.id}
@@ -225,7 +219,6 @@ export default function GanttChart({
             </div>
         ))}
 
-        {/* Grid Body Cells */}
         {rows.map((row, rowIndex) => (
           <React.Fragment key={row.id}>
             {timeColumns.map((col, dateIndex) => {
@@ -255,7 +248,6 @@ export default function GanttChart({
           </React.Fragment>
         ))}
 
-        {/* Scheduled Process Bars */}
         {scheduledProcesses.map((item) => {
             const rowIndex = rows.findIndex(r => r.id === item.machineId);
             if (rowIndex === -1) return null;
@@ -294,4 +286,3 @@ export default function GanttChart({
     </div>
   );
 }
-
