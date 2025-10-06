@@ -95,19 +95,30 @@ export default function Home() {
 
   const buyerOptions = useMemo(() => [...new Set(ORDERS.map(o => o.buyer))], []);
 
-  const handleDropOnChart = (orderId: string, processId: string, machineId: string, startDateTime: Date) => {
-    if (draggedProcess) {
+  const handleDropOnChart = (machineId: string, startDateTime: Date, e: React.DragEvent<HTMLDivElement>) => {
+    const scheduledProcessId = e.dataTransfer.getData('scheduledProcessId');
+    
+    if (scheduledProcessId) {
       // Logic for moving an existing process
+      const processDataString = e.dataTransfer.getData('scheduledProcess');
+      if (!processDataString) return;
+
+      const droppedProcess: ScheduledProcess = JSON.parse(processDataString);
+      // Dates are stringified, so we need to convert them back to Date objects
+      droppedProcess.startDateTime = new Date(droppedProcess.startDateTime);
+      droppedProcess.endDateTime = new Date(droppedProcess.endDateTime);
+
+
       let finalStartDateTime = startDateTime;
       if (viewMode === 'day') {
-          const originalDate = draggedProcess.startDateTime;
+          const originalDate = droppedProcess.startDateTime;
           finalStartDateTime = setHours(setMinutes(startDateTime, originalDate.getMinutes()), originalDate.getHours());
       }
       
-      const proposedEndDateTime = calculateEndDateTime(finalStartDateTime, draggedProcess.durationMinutes);
+      const proposedEndDateTime = calculateEndDateTime(finalStartDateTime, droppedProcess.durationMinutes);
 
       setScheduledProcesses(currentProcesses => {
-        const otherProcesses = currentProcesses.filter(p => p.id !== draggedProcess.id);
+        const otherProcesses = currentProcesses.filter(p => p.id !== droppedProcess.id);
 
         const hasCollision = otherProcesses.some(p => {
           if (p.machineId !== machineId) return false;
@@ -122,20 +133,23 @@ export default function Home() {
         });
 
         if (!hasCollision) {
-          const updatedProcess = {
-              ...draggedProcess,
+          const updatedProcess: ScheduledProcess = {
+              ...droppedProcess,
               machineId: machineId,
               startDateTime: finalStartDateTime,
               endDateTime: proposedEndDateTime,
           };
           return [...otherProcesses, updatedProcess];
         }
-        
         return currentProcesses;
       });
 
     } else {
       // Logic for scheduling a new process from the side panel
+      const orderId = e.dataTransfer.getData('orderId');
+      const processId = e.dataTransfer.getData('processId');
+      if(!orderId || !processId) return;
+
       let finalStartDateTime = startDateTime;
       if (viewMode === 'day') {
         finalStartDateTime = set(startDateTime, { hours: 9, minutes: 0, seconds: 0, milliseconds: 0 });
@@ -201,9 +215,8 @@ export default function Home() {
   };
   
   const handleScheduledProcessDragStart = (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => {
-    e.dataTransfer.setData('processId', process.processId);
-    e.dataTransfer.setData('orderId', process.orderId);
     e.dataTransfer.setData('scheduledProcessId', process.id);
+    e.dataTransfer.setData('scheduledProcess', JSON.stringify(process));
     
     // Set native drag image to an empty one
     const img = new Image();
@@ -222,6 +235,7 @@ export default function Home() {
     );
     setDragPreviewPosition({ x: e.clientX, y: e.clientY });
     
+    // Set state to visually hide the original element
     setDraggedProcess({
       ...process,
       startDateTime: new Date(process.startDateTime),

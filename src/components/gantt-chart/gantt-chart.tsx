@@ -18,7 +18,7 @@ type GanttChartProps = {
   rows: Row[];
   dates: Date[];
   scheduledProcesses: ScheduledProcess[];
-  onDrop: (orderId: string, processId: string, machineId: string, startDateTime: Date) => void;
+  onDrop: (machineId: string, startDateTime: Date, e: React.DragEvent<HTMLDivElement>) => void;
   onUndoSchedule: (scheduledProcessId: string) => void;
   onScheduledProcessDragStart: (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => void;
   onScheduledProcessDragEnd: () => void;
@@ -126,12 +126,7 @@ export default function GanttChart({
     setDragOverCell(null);
     if(isOrderLevelView) return;
 
-    const orderId = e.dataTransfer.getData('orderId');
-    const processId = e.dataTransfer.getData('processId');
-    
-    if (orderId && processId) {
-      onDrop(orderId, processId, rowId, date);
-    }
+    onDrop(rowId, date, e);
   };
 
   const laneAssignments = React.useMemo(() => {
