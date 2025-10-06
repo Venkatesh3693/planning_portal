@@ -22,6 +22,7 @@ type GanttChartProps = {
   onDrop: (rowId: string, startDateTime: Date, draggedItemJSON: string) => void;
   onUndoSchedule: (scheduledProcessId: string) => void;
   onProcessDragStart: (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => void;
+  onSplitProcess: (process: ScheduledProcess) => void;
   viewMode: ViewMode;
   draggedItem: DraggedItemData | null;
 };
@@ -133,6 +134,7 @@ export default function GanttChart({
   onDrop,
   onUndoSchedule,
   onProcessDragStart,
+  onSplitProcess,
   viewMode,
   draggedItem,
 }: GanttChartProps) {
@@ -306,6 +308,7 @@ export default function GanttChart({
                         item={item} 
                         onUndo={onUndoSchedule}
                         onDragStart={onProcessDragStart}
+                        onSplit={onSplitProcess}
                     />
                   </div>
               );

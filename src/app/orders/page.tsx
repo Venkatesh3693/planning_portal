@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -22,7 +22,7 @@ import { Header } from '@/components/layout/header';
 import Link from 'next/link';
 import { ORDERS, PROCESSES } from '@/lib/data';
 import type { Order, Process, ScheduledProcess } from '@/lib/types';
-import { format } from 'date-fns';
+import { format, isAfter, isBefore } from 'date-fns';
 import {
   Table,
   TableBody,
@@ -85,6 +85,26 @@ export default function OrdersPage() {
     
     const processBatchSize = calculateProcessBatchSize(order);
 
+    const getAggregatedScheduledTimes = (processId: string) => {
+        const relevantProcesses = scheduledProcesses.filter(p => p.orderId === order.id && p.processId === processId);
+        if (relevantProcesses.length === 0) {
+            return { start: null, end: null };
+        }
+
+        let earliestStart = relevantProcesses[0].startDateTime;
+        let latestEnd = relevantProcesses[0].endDateTime;
+
+        for (let i = 1; i < relevantProcesses.length; i++) {
+            if (isBefore(relevantProcesses[i].startDateTime, earliestStart)) {
+                earliestStart = relevantProcesses[i].startDateTime;
+            }
+            if (isAfter(relevantProcesses[i].endDateTime, latestEnd)) {
+                latestEnd = relevantProcesses[i].endDateTime;
+            }
+        }
+        return { start: earliestStart, end: latestEnd };
+    };
+
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-sm">
@@ -126,7 +146,7 @@ export default function OrdersPage() {
                 .filter(p => order.processIds.includes(p.id))
                 .map((process) => {
                 const tnaProcess = order.tna?.processes.find(p => p.processId === process.id);
-                const scheduledProcess = scheduledProcesses.find(p => p.processId === process.id && p.orderId === order.id);
+                const { start, end } = getAggregatedScheduledTimes(process.id);
                 
                 return (
                   <TableRow key={process.id} className="bg-transparent even:bg-transparent hover:bg-muted/30">
@@ -139,8 +159,8 @@ export default function OrdersPage() {
                     </TableCell>
                     <TableCell>{tnaProcess ? format(new Date(tnaProcess.startDate), 'MMM dd') : '-'}</TableCell>
                     <TableCell>{tnaProcess ? format(new Date(tnaProcess.endDate), 'MMM dd') : '-'}</TableCell>
-                    <TableCell>{scheduledProcess ? format(scheduledProcess.startDateTime, 'MMM dd, h:mm a') : <span className="text-muted-foreground">Not set</span>}</TableCell>
-                    <TableCell>{scheduledProcess ? format(scheduledProcess.endDateTime, 'MMM dd, h:mm a') : <span className="text-muted-foreground">Not set</span>}</TableCell>
+                    <TableCell>{start ? format(start, 'MMM dd, h:mm a') : <span className="text-muted-foreground">Not set</span>}</TableCell>
+                    <TableCell>{end ? format(end, 'MMM dd, h:mm a') : <span className="text-muted-foreground">Not set</span>}</TableCell>
                   </TableRow>
                 )
               })}

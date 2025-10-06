@@ -13,6 +13,7 @@ import { Trash2 } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
 import { useAppContext } from '@/context/app-provider';
 import MachinePanel from '@/components/gantt-chart/machine-panel';
+import SplitProcessDialog from '@/components/gantt-chart/split-process-dialog';
 
 const SEWING_PROCESS_ID = 'sewing';
 const WORKING_HOURS_START = 9;
@@ -22,6 +23,7 @@ export type DraggedItemData = {
     type: 'new';
     orderId: string;
     processId: string;
+    quantity: number;
     tna: TnaProcess | null;
 } | {
     type: 'existing';
@@ -77,6 +79,8 @@ export default function Home() {
   const [filterBuyer, setFilterBuyer] = useState<string[]>([]);
   const [filterDueDate, setFilterDueDate] = useState<DateRange | undefined>(undefined);
   const [draggedItem, setDraggedItem] = useState<DraggedItemData | null>(null);
+  const [processToSplit, setProcessToSplit] = useState<ScheduledProcess | null>(null);
+
 
   const buyerOptions = useMemo(() => [...new Set(ORDERS.map(o => o.buyer))], []);
 
@@ -92,7 +96,7 @@ export default function Home() {
     if (droppedItem.type === 'new') {
       const order = ORDERS.find(o => o.id === droppedItem.orderId)!;
       const process = PROCESSES.find(p => p.id === droppedItem.processId)!;
-      const durationMinutes = process.sam * order.quantity;
+      const durationMinutes = process.sam * droppedItem.quantity;
       const finalStartDateTime = viewMode === 'day'
         ? set(startDateTime, { hours: WORKING_HOURS_START, minutes: 0 })
         : startDateTime;
@@ -105,6 +109,7 @@ export default function Home() {
         startDateTime: finalStartDateTime,
         endDateTime: calculateEndDateTime(finalStartDateTime, durationMinutes),
         durationMinutes,
+        quantity: droppedItem.quantity,
       };
       otherProcesses = [...scheduledProcesses];
     } else { // 'existing'
@@ -203,8 +208,59 @@ export default function Home() {
   };
 
   const handleUndoSchedule = (scheduledProcessId: string) => {
-    setScheduledProcesses(prev => prev.filter(p => p.id !== scheduledProcessId));
+    setScheduledProcesses(prev => {
+      const processToUnschedule = prev.find(p => p.id === scheduledProcessId);
+      // If it's a split process, unschedule all its siblings too
+      if (processToUnschedule?.parentId) {
+        return prev.filter(p => p.parentId !== processToUnschedule.parentId);
+      }
+      return prev.filter(p => p.id !== scheduledProcessId);
+    });
   };
+
+  const handleOpenSplitDialog = (process: ScheduledProcess) => {
+    setProcessToSplit(process);
+  };
+
+  const handleConfirmSplit = (originalProcess: ScheduledProcess, newQuantities: number[]) => {
+    const processInfo = PROCESSES.find(p => p.id === originalProcess.processId)!;
+    const parentId = originalProcess.parentId || `${originalProcess.id}-split-${Date.now()}`;
+    
+    const newSplitProcesses: ScheduledProcess[] = newQuantities.map((quantity, index) => {
+      const durationMinutes = quantity * processInfo.sam;
+      return {
+        id: `${parentId}-child-${index}`,
+        orderId: originalProcess.orderId,
+        processId: originalProcess.processId,
+        machineId: originalProcess.machineId,
+        quantity: quantity,
+        durationMinutes: durationMinutes,
+        startDateTime: new Date(), // Temporary, will be updated below
+        endDateTime: new Date(),   // Temporary, will be updated below
+        isSplit: true,
+        parentId: parentId,
+      };
+    });
+
+    // Cascade the new processes on the same machine
+    let lastProcessEnd = originalProcess.startDateTime;
+    const cascadedSplitProcesses = newSplitProcesses.map(p => {
+      const newStart = lastProcessEnd;
+      const newEnd = calculateEndDateTime(newStart, p.durationMinutes);
+      lastProcessEnd = newEnd;
+      return { ...p, startDateTime: newStart, endDateTime: newEnd };
+    });
+
+    setScheduledProcesses(prev => {
+      const otherProcesses = prev.filter(p => 
+        p.id !== originalProcess.id && p.parentId !== originalProcess.parentId
+      );
+      return [...otherProcesses, ...cascadedSplitProcesses];
+    });
+
+    setProcessToSplit(null);
+  };
+
 
   const today = startOfToday();
   const dates = Array.from({ length: 30 }, (_, i) => addDays(today, i))
@@ -214,13 +270,19 @@ export default function Home() {
   const selectableProcesses = PROCESSES.filter(p => p.id !== 'outsourcing');
 
   const unplannedOrders = useMemo(() => {
+    const scheduledOrderProcesses = new Set(
+        scheduledProcesses.map(p => `${p.orderId}_${p.processId}`)
+    );
+    
     return ORDERS.filter(order => {
       const isProcessInOrder = order.processIds.includes(selectedProcessId);
       if (!isProcessInOrder) return false;
-      const isProcessScheduledForOrder = scheduledProcesses.some(sp => sp.orderId === order.id && sp.processId === selectedProcessId);
-      return !isProcessScheduledForOrder;
+      
+      const isProcessScheduled = scheduledOrderProcesses.has(`${order.id}_${selectedProcessId}`);
+      return !isProcessScheduled;
     });
   }, [scheduledProcesses, selectedProcessId]);
+  
 
   const chartRows = MACHINES.filter(m => m.processIds.includes(selectedProcessId));
 
@@ -228,11 +290,15 @@ export default function Home() {
     return scheduledProcesses.filter(sp => sp.processId === selectedProcessId);
   }, [scheduledProcesses, selectedProcessId]);
   
-  const sewingScheduledOrderIds = useMemo(() => 
-    new Set(scheduledProcesses
-      .filter(p => p.processId === SEWING_PROCESS_ID)
-      .map(p => p.orderId)
-    ), [scheduledProcesses]);
+  const sewingScheduledOrderIds = useMemo(() => {
+    const orderIds = new Set<string>();
+    scheduledProcesses.forEach(p => {
+      if (p.processId === SEWING_PROCESS_ID) {
+        orderIds.add(p.orderId);
+      }
+    });
+    return orderIds;
+  }, [scheduledProcesses]);
 
   const clearFilters = () => {
     setFilterOcn('');
@@ -333,6 +399,7 @@ export default function Home() {
                     onDrop={handleDropOnChart}
                     onUndoSchedule={handleUndoSchedule}
                     onProcessDragStart={handleDragStart}
+                    onSplitProcess={handleOpenSplitDialog}
                     viewMode={viewMode}
                     draggedItem={draggedItem}
                   />
@@ -340,6 +407,14 @@ export default function Home() {
           </div>
         </div>
       </main>
+      {processToSplit && (
+        <SplitProcessDialog
+          process={processToSplit}
+          isOpen={!!processToSplit}
+          onOpenChange={(isOpen) => !isOpen && setProcessToSplit(null)}
+          onConfirmSplit={handleConfirmSplit}
+        />
+      )}
     </div>
   );
 }

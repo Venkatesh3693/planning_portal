@@ -6,7 +6,7 @@ import type { ScheduledProcess } from '@/lib/types';
 import type { DraggedItemData } from '@/app/page';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover';
-import { Undo2, GripVertical } from 'lucide-react';
+import { Undo2, GripVertical, SlidersHorizontal } from 'lucide-react';
 import { format } from 'date-fns';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -15,12 +15,14 @@ type ScheduledProcessProps = {
   item: ScheduledProcess;
   onUndo?: (scheduledProcessId: string) => void;
   onDragStart?: (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => void;
+  onSplit?: (process: ScheduledProcess) => void;
 };
 
 export default function ScheduledProcessBar({ 
   item, 
   onUndo,
   onDragStart,
+  onSplit,
 }: ScheduledProcessProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -44,6 +46,11 @@ export default function ScheduledProcessBar({
 
   const handleUndo = () => {
     if (onUndo) onUndo(item.id);
+    setIsMenuOpen(false);
+  }
+  
+  const handleSplit = () => {
+    if (onSplit) onSplit(item);
     setIsMenuOpen(false);
   }
 
@@ -89,6 +96,7 @@ export default function ScheduledProcessBar({
             <div className="flex items-center gap-2 px-2 pointer-events-none w-full">
               <Icon className="h-4 w-4 shrink-0" />
               <span className="truncate text-xs font-semibold">{orderDetails.id}</span>
+              {item.isSplit && <span className="text-xs opacity-80">({item.quantity})</span>}
             </div>
           </div>
         </div>
@@ -103,16 +111,23 @@ export default function ScheduledProcessBar({
           <p className="text-sm"><strong>Start:</strong> {format(item.startDateTime, 'MMM d, yyyy @ h:mm a')}</p>
           <p className="text-sm"><strong>End:</strong> {format(item.endDateTime, 'MMM d, yyyy @ h:mm a')}</p>
           <p className="text-sm"><strong>Duration:</strong> {durationText}</p>
+          <p className="text-sm"><strong>Quantity:</strong> {item.quantity}</p>
           <p className="text-sm"><strong>Order ID:</strong> {orderDetails.id}</p>
         </div>
-        {onUndo && (
-          <div className="p-1">
+        <div className="p-1 border-t">
+          {onSplit && (
+            <Button variant="ghost" className="w-full justify-start" onClick={handleSplit}>
+              <SlidersHorizontal className="mr-2 h-4 w-4" />
+              <span>Split Process...</span>
+            </Button>
+          )}
+          {onUndo && (
             <Button variant="ghost" className="w-full justify-start" onClick={handleUndo}>
               <Undo2 className="mr-2 h-4 w-4" />
               <span>Return to Unplanned</span>
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </PopoverContent>
     </Popover>
   );

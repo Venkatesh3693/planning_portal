@@ -54,4 +54,7 @@ export type ScheduledProcess = {
   startDateTime: Date;
   endDateTime: Date;
   durationMinutes: number;
+  quantity: number;
+  isSplit?: boolean;
+  parentId?: string;
 };

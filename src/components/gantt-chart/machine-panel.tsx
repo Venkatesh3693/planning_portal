@@ -165,6 +165,7 @@ export default function MachinePanel({
                 type: 'new',
                 orderId: order.id,
                 processId: selectedProcessId,
+                quantity: order.quantity,
                 tna: tnaProcess
                   ? {
                       ...tnaProcess,
