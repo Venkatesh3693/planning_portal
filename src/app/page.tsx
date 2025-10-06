@@ -27,6 +27,7 @@ import { Filter, FilterX, ChevronDown, Trash2 } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAppContext } from '@/context/app-provider';
+import ScheduledProcessBar from '@/components/gantt-chart/scheduled-process';
 
 
 const ORDER_LEVEL_VIEW = 'order-level';
@@ -87,85 +88,87 @@ export default function Home() {
   const [filterDueDate, setFilterDueDate] = useState<DateRange | undefined>(undefined);
   const [draggedProcess, setDraggedProcess] = useState<ScheduledProcess | null>(null);
   const [draggedProcessTna, setDraggedProcessTna] = useState<TnaProcess | null>(null);
+  const [dragPreview, setDragPreview] = useState<React.ReactNode | null>(null);
+  const [dragPreviewPosition, setDragPreviewPosition] = useState({ x: 0, y: 0 });
+
 
   const buyerOptions = useMemo(() => [...new Set(ORDERS.map(o => o.buyer))], []);
 
   const handleDropOnChart = (orderId: string, processId: string, machineId: string, startDateTime: Date) => {
     let finalStartDateTime = startDateTime;
     if (viewMode === 'day') {
-        finalStartDateTime = set(startDateTime, { hours: 9, minutes: 0, seconds: 0, milliseconds: 0 });
+      finalStartDateTime = set(startDateTime, { hours: 9, minutes: 0, seconds: 0, milliseconds: 0 });
     }
-    
+
     if (draggedProcess) {
-        // Logic for moving an existing process
-        if (viewMode === 'day') {
-            finalStartDateTime = set(startDateTime, {
-                hours: draggedProcess.startDateTime.getHours(),
-                minutes: draggedProcess.startDateTime.getMinutes(),
-                seconds: 0,
-                milliseconds: 0
-            });
-        }
-        const proposedEndDateTime = calculateEndDateTime(finalStartDateTime, draggedProcess.durationMinutes);
-        
-        const otherProcesses = scheduledProcesses.filter(p => p.id !== draggedProcess.id);
-
-        const hasCollision = otherProcesses.some(p => {
-            if (p.machineId !== machineId) return false;
-            
-            const existingEndDateTime = p.endDateTime;
-            
-            const startsDuring = isAfter(finalStartDateTime, p.startDateTime) && isBefore(finalStartDateTime, existingEndDateTime);
-            const endsDuring = isAfter(proposedEndDateTime, p.startDateTime) && isBefore(proposedEndDateTime, existingEndDateTime);
-            const spansOver = isBefore(finalStartDateTime, p.startDateTime) && isAfter(proposedEndDateTime, existingEndDateTime);
-            const isSameStart = finalStartDateTime.getTime() === p.startDateTime.getTime();
-
-            return startsDuring || endsDuring || spansOver || isSameStart;
+      // Logic for moving an existing process
+      if (viewMode === 'day') {
+        finalStartDateTime = set(startDateTime, {
+          hours: draggedProcess.startDateTime.getHours(),
+          minutes: draggedProcess.startDateTime.getMinutes(),
+          seconds: 0,
+          milliseconds: 0
         });
+      }
+      const proposedEndDateTime = calculateEndDateTime(finalStartDateTime, draggedProcess.durationMinutes);
+      
+      const otherProcesses = scheduledProcesses.filter(p => p.id !== draggedProcess.id);
 
-        if (!hasCollision) {
-            setScheduledProcesses(prev => prev.map(p => 
-                p.id === draggedProcess.id 
-                ? { ...p, machineId: machineId, startDateTime: finalStartDateTime, endDateTime: proposedEndDateTime } 
-                : p
-            ));
-        }
+      const hasCollision = otherProcesses.some(p => {
+        if (p.machineId !== machineId) return false;
+        
+        const existingEndDateTime = p.endDateTime;
+        
+        const startsDuring = isAfter(finalStartDateTime, p.startDateTime) && isBefore(finalStartDateTime, existingEndDateTime);
+        const endsDuring = isAfter(proposedEndDateTime, p.startDateTime) && isBefore(proposedEndDateTime, existingEndDateTime);
+        const spansOver = isBefore(finalStartDateTime, p.startDateTime) && isAfter(proposedEndDateTime, existingEndDateTime);
+        const isSameStart = finalStartDateTime.getTime() === p.startDateTime.getTime();
 
+        return startsDuring || endsDuring || spansOver || isSameStart;
+      });
+
+      if (!hasCollision) {
+        setScheduledProcesses(prev => prev.map(p => 
+          p.id === draggedProcess.id 
+            ? { ...p, machineId: machineId, startDateTime: finalStartDateTime, endDateTime: proposedEndDateTime } 
+            : p
+        ));
+      }
     } else {
-        // Logic for adding a new process from the unplanned list
-        const order = ORDERS.find((o) => o.id === orderId);
-        const process = PROCESSES.find((p) => p.id === processId);
-        if (!order || !process) return;
+      // Logic for adding a new process from the unplanned list
+      const order = ORDERS.find((o) => o.id === orderId);
+      const process = PROCESSES.find((p) => p.id === processId);
+      if (!order || !process) return;
 
-        const durationMinutes = process.sam * order.quantity;
-        const endDateTime = calculateEndDateTime(finalStartDateTime, durationMinutes);
-        
-        const hasCollision = scheduledProcesses.some(p => {
-            if (p.machineId !== machineId) return false;
+      const durationMinutes = process.sam * order.quantity;
+      const endDateTime = calculateEndDateTime(finalStartDateTime, durationMinutes);
+      
+      const hasCollision = scheduledProcesses.some(p => {
+        if (p.machineId !== machineId) return false;
 
-            const existingEndDateTime = p.endDateTime;
+        const existingEndDateTime = p.endDateTime;
 
-            const startsDuring = isAfter(finalStartDateTime, p.startDateTime) && isBefore(finalStartDateTime, existingEndDateTime);
-            const endsDuring = isAfter(endDateTime, p.startDateTime) && isBefore(endDateTime, existingEndDateTime);
-            const spansOver = isBefore(finalStartDateTime, p.startDateTime) && isAfter(endDateTime, existingEndDateTime);
-            const isSameStart = finalStartDateTime.getTime() === p.startDateTime.getTime();
+        const startsDuring = isAfter(finalStartDateTime, p.startDateTime) && isBefore(finalStartDateTime, existingEndDateTime);
+        const endsDuring = isAfter(endDateTime, p.startDateTime) && isBefore(endDateTime, existingEndDateTime);
+        const spansOver = isBefore(finalStartDateTime, p.startDateTime) && isAfter(endDateTime, existingEndDateTime);
+        const isSameStart = finalStartDateTime.getTime() === p.startDateTime.getTime();
 
-            return startsDuring || endsDuring || spansOver || isSameStart;
-        });
-        
-        if(!hasCollision) {
-            const newScheduledProcess: ScheduledProcess = {
-                id: `${processId}-${orderId}-${new Date().getTime()}`,
-                orderId,
-                processId,
-                machineId,
-                startDateTime: finalStartDateTime,
-                endDateTime,
-                durationMinutes,
-            };
+        return startsDuring || endsDuring || spansOver || isSameStart;
+      });
+      
+      if(!hasCollision) {
+        const newScheduledProcess: ScheduledProcess = {
+          id: `${processId}-${orderId}-${new Date().getTime()}`,
+          orderId,
+          processId,
+          machineId,
+          startDateTime: finalStartDateTime,
+          endDateTime,
+          durationMinutes,
+        };
 
-            setScheduledProcesses(prev => [...prev, newScheduledProcess]);
-        }
+        setScheduledProcesses(prev => [...prev, newScheduledProcess]);
+      }
     }
     setDraggedProcessTna(null);
   };
@@ -192,15 +195,44 @@ export default function Home() {
   };
   
   const handleScheduledProcessDragStart = (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => {
-    setDraggedProcess(process);
     e.dataTransfer.setData('processId', process.processId);
     e.dataTransfer.setData('orderId', process.orderId);
     e.dataTransfer.setData('scheduledProcessId', process.id);
+    
+    // Set native drag image to an empty one
+    const img = new Image();
+    img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    e.dataTransfer.setDragImage(img, 0, 0);
+
+    // Set preview for custom drag layer
+    setDragPreview(
+      <div className="w-32">
+        <ScheduledProcessBar
+          item={process}
+          isOrderLevelView={isOrderLevelView}
+          isPreview
+        />
+      </div>
+    );
+    setDragPreviewPosition({ x: e.clientX, y: e.clientY });
+    
+    // Use a timeout to set the dragged process state, allowing the drag preview to render first
+    setTimeout(() => {
+        setDraggedProcess(process);
+    }, 0);
+  };
+  
+  const handleGanttDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    if(dragPreview) {
+      setDragPreviewPosition({ x: e.clientX, y: e.clientY });
+    }
   };
 
   const handleDragEnd = () => {
     setDraggedProcess(null);
     setDraggedProcessTna(null);
+    setDragPreview(null);
   };
 
   const today = startOfToday();
@@ -486,6 +518,7 @@ export default function Home() {
                     onUndoSchedule={handleUndoSchedule}
                     onScheduledProcessDragStart={handleScheduledProcessDragStart}
                     onScheduledProcessDragEnd={handleDragEnd}
+                    onGanttDragOver={handleGanttDragOver}
                     isOrderLevelView={isOrderLevelView}
                     viewMode={viewMode}
                     draggedProcess={draggedProcess}
@@ -495,6 +528,16 @@ export default function Home() {
           </div>
         </div>
       </main>
+      {dragPreview && (
+        <div
+            className="pointer-events-none fixed z-50"
+            style={{
+                transform: `translate(${dragPreviewPosition.x}px, ${dragPreviewPosition.y}px)`,
+            }}
+        >
+            {dragPreview}
+        </div>
+      )}
     </div>
   );
 }

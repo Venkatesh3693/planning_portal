@@ -12,14 +12,15 @@ import { Button } from '@/components/ui/button';
 
 type ScheduledProcessProps = {
   item: ScheduledProcess;
-  gridRow: number;
-  gridColStart: number;
-  durationInColumns: number;
-  onUndo: (scheduledProcessId: string) => void;
-  onDragStart: (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => void;
-  onDragEnd: () => void;
+  gridRow?: number;
+  gridColStart?: number;
+  durationInColumns?: number;
+  onUndo?: (scheduledProcessId: string) => void;
+  onDragStart?: (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => void;
+  onDragEnd?: () => void;
   isOrderLevelView?: boolean;
   isBeingDragged?: boolean;
+  isPreview?: boolean;
 };
 
 export default function ScheduledProcessBar({ 
@@ -32,6 +33,7 @@ export default function ScheduledProcessBar({
   onDragEnd,
   isOrderLevelView = false,
   isBeingDragged = false,
+  isPreview = false,
 }: ScheduledProcessProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -55,27 +57,50 @@ export default function ScheduledProcessBar({
 
 
   const handleUndo = () => {
-    onUndo(item.id);
+    if (onUndo) onUndo(item.id);
     setIsMenuOpen(false);
   }
 
   const handleContextMenu = (e: React.MouseEvent) => {
-    if (isOrderLevelView) return;
+    if (isOrderLevelView || isPreview) return;
     e.preventDefault();
     setIsMenuOpen(true);
   };
   
   const backgroundColor = processDetails.color ? processDetails.color : 'hsl(var(--accent))';
 
+  const handleInternalDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+    if (onDragStart) {
+      onDragStart(e, item);
+    }
+  };
+
+  if (isPreview) {
+     return (
+        <div
+          className="relative z-50 flex h-8 items-center overflow-hidden rounded-md text-white shadow-lg"
+          style={{ backgroundColor }}
+        >
+          <div className="flex items-center gap-2 px-2 pointer-events-none w-full">
+            <Icon className="h-3 w-3 shrink-0" />
+            <span className="truncate text-xs font-medium">{isOrderLevelView ? processDetails.name : orderDetails.id}</span>
+          </div>
+        </div>
+     );
+  }
+
   return (
     <Popover open={isMenuOpen} onOpenChange={setIsMenuOpen}>
       <PopoverAnchor asChild>
         <div
           onContextMenu={handleContextMenu}
+          draggable={!isOrderLevelView && !!onDragStart}
+          onDragStart={handleInternalDragStart}
+          onDragEnd={onDragEnd}
           data-scheduled-process-id={item.id}
           className={cn(
             "relative z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg transition-opacity duration-150",
-            isBeingDragged && "opacity-30"
+            isBeingDragged ? "opacity-0" : "opacity-100"
           )}
           style={{
             gridRowStart: gridRow,
@@ -85,18 +110,7 @@ export default function ScheduledProcessBar({
           title={`${orderDetails.id}: ${processDetails.name} (${durationText})`}
         >
           {!isOrderLevelView && (
-            <div
-              draggable={!isOrderLevelView}
-              onDragStart={(e) => {
-                e.stopPropagation();
-                onDragStart(e, item)
-              }}
-              onDragEnd={(e) => {
-                e.stopPropagation();
-                onDragEnd()
-              }}
-              className="flex items-center justify-center h-full w-6 cursor-grab active:cursor-grabbing"
-            >
+            <div className="flex items-center justify-center h-full w-6 cursor-grab active:cursor-grabbing">
               <GripVertical className="h-4 w-4 text-white/50" />
             </div>
           )}
@@ -140,6 +154,3 @@ export default function ScheduledProcessBar({
     </Popover>
   );
 }
-
-
-    

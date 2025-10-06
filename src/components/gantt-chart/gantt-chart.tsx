@@ -22,6 +22,7 @@ type GanttChartProps = {
   onUndoSchedule: (scheduledProcessId: string) => void;
   onScheduledProcessDragStart: (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => void;
   onScheduledProcessDragEnd: () => void;
+  onGanttDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
   isOrderLevelView?: boolean;
   viewMode: ViewMode;
   draggedProcess: ScheduledProcess | null;
@@ -73,6 +74,7 @@ export default function GanttChart({
   onUndoSchedule,
   onScheduledProcessDragStart,
   onScheduledProcessDragEnd,
+  onGanttDragOver,
   isOrderLevelView = false,
   viewMode,
   draggedProcess,
@@ -264,18 +266,8 @@ export default function GanttChart({
   }, [timeColumns, viewMode]);
 
 
-  const isBeingDragged = !!draggedProcess;
-
-  const handleLocalDragStart = (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => {
-    onScheduledProcessDragStart(e, process);
-  };
-  
-  const handleLocalDragEnd = () => {
-    onScheduledProcessDragEnd();
-  };
-
   return (
-    <div className="h-full w-full overflow-auto" ref={containerRef}>
+    <div className="h-full w-full overflow-auto" ref={containerRef} onDragOver={onGanttDragOver}>
         <div className="relative grid min-h-full" style={timelineGridStyle}>
             {/* Sticky Row Headers column background */}
             <div className="sticky left-0 z-30 col-start-1 row-start-1 row-end-[-1] bg-card"></div>
@@ -417,8 +409,8 @@ export default function GanttChart({
                             gridColStart={gridColStart}
                             durationInColumns={durationInColumns}
                             onUndo={onUndoSchedule}
-                            onDragStart={handleLocalDragStart}
-                            onDragEnd={handleLocalDragEnd}
+                            onDragStart={onScheduledProcessDragStart}
+                            onDragEnd={onScheduledProcessDragEnd}
                             isOrderLevelView={isOrderLevelView}
                             isBeingDragged={isItemBeingDragged}
                         />
@@ -450,8 +442,8 @@ export default function GanttChart({
                             gridColStart={gridColStart}
                             durationInColumns={durationInColumns}
                             onUndo={onUndoSchedule}
-                            onDragStart={handleLocalDragStart}
-                            onDragEnd={handleLocalDragEnd}
+                            onDragStart={onScheduledProcessDragStart}
+                            onDragEnd={onScheduledProcessDragEnd}
                             isOrderLevelView={isOrderLevelView}
                             isBeingDragged={isItemBeingDragged}
                         />
