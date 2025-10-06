@@ -1,3 +1,4 @@
+
 import type { Unit, Machine, Order, Process } from '@/lib/types';
 import { Scissors, Printer, Fingerprint, ExternalLink, MoveHorizontal, PackageCheck } from 'lucide-react';
 import { addDays, subDays, startOfToday } from 'date-fns';
@@ -24,9 +25,9 @@ export const MACHINES: Machine[] = [
 export const PROCESSES: Process[] = [
   { id: 'cutting', name: 'Cutting', sam: 5, icon: Scissors, color: 'hsl(var(--chart-1))', singleRunOutput: 500 },
   { id: 'printing', name: 'Printing', sam: 15, icon: Printer, color: 'hsl(var(--chart-2))', singleRunOutput: 250 },
-  { id: 'embroidery', name: 'Embroidery', sam: 20, icon: Fingerprint, color: 'hsl(var(--chart-3))', singleRunOutput: 200 },
+  { id: 'embroidery', name: 'Embroidery', sam: 6, icon: Fingerprint, color: 'hsl(var(--chart-3))', singleRunOutput: 200 },
   { id: 'outsourcing', name: 'Outsourcing', sam: 1, icon: ExternalLink, color: 'hsl(var(--muted-foreground))', singleRunOutput: 1000 },
-  { id: 'sewing', name: 'Sewing', sam: 25, icon: MoveHorizontal, color: 'hsl(var(--chart-4))', singleRunOutput: 150 },
+  { id: 'sewing', name: 'Sewing', sam: 10, icon: MoveHorizontal, color: 'hsl(var(--chart-4))', singleRunOutput: 150 },
   { id: 'packing', name: 'Packing', sam: 8, icon: PackageCheck, color: 'hsl(var(--chart-5))', singleRunOutput: 400 },
 ];
 
