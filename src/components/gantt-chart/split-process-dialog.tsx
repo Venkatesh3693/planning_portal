@@ -37,23 +37,34 @@ export default function SplitProcessDialog({
 }: SplitProcessDialogProps) {
   const [splits, setSplits] = useState<string[]>([]);
 
+  const totalOriginalQuantity = process?.quantity ?? 0;
+
   useEffect(() => {
     // Reset splits when a new process is selected
     if (process) {
-      setSplits([String(process.quantity)]);
+      // If it's already split, show the existing splits, otherwise start fresh
+      if (process.isSplit && process.parentId) {
+        // This part is tricky if we don't pass all siblings.
+        // For now, let's assume we always start fresh from a non-split or a single split item.
+        setSplits([String(process.quantity)]);
+      } else {
+        setSplits([String(process.quantity)]);
+      }
     }
   }, [process]);
   
   const processInfo = useMemo(() => process ? PROCESSES.find(p => p.id === process.processId) : null, [process]);
   const orderInfo = useMemo(() => process ? ORDERS.find(o => o.id === process.orderId) : null, [process]);
 
-  const totalOriginalQuantity = process?.quantity ?? 0;
 
   const totalSplitQuantity = useMemo(() => {
     return splits.reduce((sum, qty) => sum + (parseInt(qty, 10) || 0), 0);
   }, [splits]);
+  
+  const remainingQuantity = totalOriginalQuantity - splits.slice(1).reduce((sum, qty) => sum + (parseInt(qty, 10) || 0), 0);
 
-  const isInvalid = totalSplitQuantity !== totalOriginalQuantity || splits.some(q => (parseInt(q, 10) || 0) <= 0);
+  const isInvalid = remainingQuantity < 0 || totalSplitQuantity !== totalOriginalQuantity || splits.some(q => (parseInt(q, 10) || 0) < 0);
+
 
   const handleAddSplit = () => {
     setSplits(prev => [...prev, '0']);
@@ -68,13 +79,21 @@ export default function SplitProcessDialog({
   const handleQuantityChange = (index: number, value: string) => {
     const newSplits = [...splits];
     newSplits[index] = value;
+    
+    // Recalculate the first split's quantity
+    const subsequentSplitsQuantity = newSplits.slice(1).reduce((sum, qty) => sum + (parseInt(qty, 10) || 0), 0);
+    const newFirstSplitQuantity = totalOriginalQuantity - subsequentSplitsQuantity;
+    newSplits[0] = String(newFirstSplitQuantity);
+
     setSplits(newSplits);
   };
 
   const handleSubmit = () => {
     if (!isInvalid && process) {
-      const numericSplits = splits.map(s => parseInt(s, 10) || 0);
-      onConfirmSplit(process, numericSplits);
+      const numericSplits = splits.map(s => parseInt(s, 10) || 0).filter(q => q > 0);
+      if (numericSplits.length > 0) {
+        onConfirmSplit(process, numericSplits);
+      }
     }
   };
 
@@ -110,10 +129,11 @@ export default function SplitProcessDialog({
                 type="number"
                 min="0"
                 value={quantity}
+                readOnly={index === 0}
                 onChange={(e) => handleQuantityChange(index, e.target.value)}
                 className="text-right"
               />
-              {splits.length > 1 && (
+              {index > 0 && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -141,7 +161,7 @@ export default function SplitProcessDialog({
             <div className="px-4 pt-2 border-t mt-4">
                 <div className="flex justify-between font-medium">
                     <span>Total Split Quantity:</span>
-                    <span className={isInvalid ? 'text-destructive' : 'text-primary'}>
+                    <span className={totalSplitQuantity !== totalOriginalQuantity ? 'text-destructive' : 'text-primary'}>
                         {totalSplitQuantity.toLocaleString()}
                     </span>
                 </div>
@@ -151,9 +171,9 @@ export default function SplitProcessDialog({
                         {totalOriginalQuantity.toLocaleString()}
                     </span>
                 </div>
-                {isInvalid && (
+                {isInvalid && remainingQuantity < 0 && (
                      <p className="text-sm text-destructive text-right mt-1">
-                        The sum of batches must equal the original quantity.
+                        Total allocated quantity cannot exceed original.
                     </p>
                 )}
             </div>
