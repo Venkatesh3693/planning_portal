@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from 'react';
@@ -25,7 +26,7 @@ type GanttChartProps = {
   onGanttDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
   isOrderLevelView?: boolean;
   viewMode: ViewMode;
-  draggedProcess: ScheduledProcess | null;
+  draggedProcessId: string | null;
   draggedProcessTna: TnaProcess | null;
 };
 
@@ -77,7 +78,7 @@ export default function GanttChart({
   onGanttDragOver,
   isOrderLevelView = false,
   viewMode,
-  draggedProcess,
+  draggedProcessId,
   draggedProcessTna,
 }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
@@ -377,7 +378,7 @@ export default function GanttChart({
 
             {/* Scheduled processes */}
             {scheduledProcesses.map((item) => {
-                const isItemBeingDragged = draggedProcess?.id === item.id;
+                const isItemBeingDragged = draggedProcessId === item.id;
                 if (isOrderLevelView) {
                     const rowId = item.orderId;
                     const assignments = laneAssignments.get(rowId);
@@ -453,3 +454,4 @@ export default function GanttChart({
     
 
     
+
