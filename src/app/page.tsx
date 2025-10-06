@@ -124,7 +124,12 @@ export default function Home() {
       };
       otherProcesses = [...scheduledProcesses];
     } else { // 'existing'
-      const originalProcess = droppedItem.process;
+      // Convert date strings back to Date objects
+      const originalProcess: ScheduledProcess = {
+        ...droppedItem.process,
+        startDateTime: new Date(droppedItem.process.startDateTime),
+        endDateTime: new Date(droppedItem.process.endDateTime),
+      };
   
       const finalStartDateTime = viewMode === 'day'
         ? set(startDateTime, { hours: originalProcess.startDateTime.getHours(), minutes: originalProcess.startDateTime.getMinutes() })
@@ -461,4 +466,5 @@ export default function Home() {
     
 
     
+
 
