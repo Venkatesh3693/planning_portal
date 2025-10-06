@@ -352,8 +352,6 @@ export default function GanttChart({
                     lane = assignment.lane;
                 }
                 
-                const isBeingDragged = draggedItem?.type === 'existing' && draggedItem.process.id === item.id;
-
                 return (
                     <ScheduledProcessBar 
                         key={item.id} 
@@ -364,8 +362,6 @@ export default function GanttChart({
                         onUndo={onUndoSchedule}
                         onDragStart={onProcessDragStart}
                         isOrderLevelView={isOrderLevelView}
-                        isBeingDragged={isBeingDragged}
-                        isAnyDragging={!!draggedItem}
                     />
                 );
             })}
@@ -373,5 +369,7 @@ export default function GanttChart({
     </div>
   );
 }
+
+    
 
     

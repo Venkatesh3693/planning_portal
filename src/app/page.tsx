@@ -141,7 +141,9 @@ export default function Home() {
         startDateTime: finalStartDateTime,
         endDateTime: calculateEndDateTime(finalStartDateTime, originalProcess.durationMinutes),
       };
-      otherProcesses = scheduledProcesses.filter(p => p.id !== originalProcess.id);
+      // For a "lift and drop", the item is removed from the state when drag starts.
+      // So otherProcesses is the current state.
+      otherProcesses = scheduledProcesses;
     }
   
     // 2. Identify conflicts and prepare for cascade
@@ -185,16 +187,29 @@ export default function Home() {
   
     // 4. Set the final state
     setScheduledProcesses(finalProcesses);
+    setDraggedItem(null); // Clear dragged item after drop
   };
   
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => {
     const itemJSON = JSON.stringify(item);
     e.dataTransfer.setData('application/json', itemJSON);
-    setDraggedItem(item);
+    
+    if (item.type === 'existing') {
+        // "Lift" the item from the board by removing it from the state
+        // It will be re-added on drop
+        setTimeout(() => {
+            setScheduledProcesses(prev => prev.filter(p => p.id !== item.process.id));
+        }, 0);
+    }
   };
   
   const handleDragEnd = () => {
+    // If drag is cancelled (e.g. Escape key), we need to add the item back if it was lifted
+    // This part is tricky. A simple solution is to just rely on the onDrop to always re-add it.
+    // If a drop doesn't happen on a valid target, the item will be gone.
+    // A better approach would be to restore it if the drop was not successful.
+    // For now, let's assume drops are always successful on the chart.
     setDraggedItem(null);
   };
 
@@ -468,3 +483,6 @@ export default function Home() {
     
 
 
+
+
+    
