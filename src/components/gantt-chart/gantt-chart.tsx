@@ -23,7 +23,6 @@ type GanttChartProps = {
   onDrop: (rowId: string, startDateTime: Date, draggedItemJSON: string) => void;
   onUndoSchedule: (scheduledProcessId: string) => void;
   onProcessDragStart: (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => void;
-  isOrderLevelView?: boolean;
   viewMode: ViewMode;
   draggedItem: DraggedItemData | null;
 };
@@ -103,7 +102,7 @@ export default function GanttChart({
   
   const timelineGridStyle = {
     gridTemplateColumns: `min-content repeat(${timeColumns.length}, minmax(3rem, 1fr))`,
-    gridTemplateRows: `auto repeat(${totalGridRows || 1}, ${ROW_HEIGHT}px)`,
+    gridTemplateRows: `auto auto auto repeat(${totalGridRows || 1}, ${ROW_HEIGHT}px)`,
   };
 
   const topHeaders = React.useMemo(() => {
@@ -184,7 +183,7 @@ export default function GanttChart({
       rowHeader: (
           <div 
               className={cn( "sticky left-0 z-20 flex items-center justify-start p-2 border-b border-r whitespace-nowrap", rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/50' )}
-              style={{ gridRow: `${rowIndex + 2}`, gridColumn: 1 }}
+              style={{ gridRow: `${rowIndex + 4}`, gridColumn: 1 }}
           >
               <span className="font-semibold text-foreground text-sm">{row.name}</span>
           </div>
@@ -207,7 +206,7 @@ export default function GanttChart({
               isInTnaRange && !isDragOver && 'bg-green-500/10',
               'transition-colors duration-200'
           ),
-          style: { gridRow: `${rowIndex + 2}`, gridColumn: dateIndex + 2 }
+          style: { gridRow: `${rowIndex + 4}`, gridColumn: dateIndex + 2 }
         }
       })
     }));
@@ -216,34 +215,25 @@ export default function GanttChart({
   return (
     <div className="h-full w-full overflow-auto" ref={containerRef} onDragStart={handleInternalDragStart}>
         <div className={cn("relative grid min-h-full", isDragging && 'is-dragging')} style={timelineGridStyle}>
-            <div className="sticky left-0 top-0 z-50 col-start-1 row-start-1 grid grid-rows-3 border-b border-r bg-card">
-              <div className="row-span-2 border-b"></div>
-              <div></div>
-            </div>
+            <div className="sticky left-0 top-0 z-50 col-start-1 row-start-1 row-span-3 border-b border-r bg-card"></div>
             
-            <div className="sticky top-0 z-40 col-start-2 col-span-full grid grid-rows-3 border-b bg-card/95 backdrop-blur-sm">
-                <div className="row-span-2 grid" style={{gridTemplateColumns: `repeat(${timeColumns.length}, minmax(3rem, 1fr))`}}>
-                  {topHeaders.map(({name, start, span}) => (
-                      <div key={`top-${name}-${start}`} className="border-b border-r text-center" style={{ gridColumn: `${start-1} / span ${span}`}}>
-                          <span className="text-xs font-semibold text-foreground">{name}</span>
-                      </div>
-                  ))}
-                   {midHeaders.map(({name, start, span}) => (
-                      <div key={`mid-${name}-${start}`} className="border-b border-r-2 text-center" style={{ gridColumn: `${start-1} / span ${span}`}}>
-                          <span className="text-sm font-semibold text-foreground">{name}</span>
-                      </div>
-                  ))}
+            {topHeaders.map(({name, start, span}) => (
+                <div key={`top-${name}-${start}`} className="sticky top-0 z-40 bg-card/95 backdrop-blur-sm border-b border-r text-center" style={{ gridRow: 1, gridColumn: `${start} / span ${span}`}}>
+                    <span className="text-xs font-semibold text-foreground">{name}</span>
                 </div>
-                 <div className="grid" style={{gridTemplateColumns: `repeat(${timeColumns.length}, minmax(3rem, 1fr))`}}>
-                  {timeColumns.map((col, i) => (
-                      <div key={`bottom-header-${i}`} className="border-r text-center">
-                          <div className="text-[10px] font-medium text-muted-foreground">
-                            {viewMode === 'day' ? format(col.date, 'd') : format(col.date, 'ha')}
-                          </div>
-                      </div>
-                  ))}
+            ))}
+             {midHeaders.map(({name, start, span}) => (
+                <div key={`mid-${name}-${start}`} className="sticky top-0 z-40 bg-card/95 backdrop-blur-sm border-b border-r text-center" style={{ gridRow: 2, gridColumn: `${start} / span ${span}`}}>
+                    <span className="text-sm font-semibold text-foreground">{name}</span>
                 </div>
-            </div>
+            ))}
+            {timeColumns.map((col, i) => (
+                <div key={`bottom-header-${i}`} className="sticky top-0 z-40 bg-card/95 backdrop-blur-sm border-b border-r text-center" style={{ gridRow: 3, gridColumn: i + 2}}>
+                    <div className="text-[10px] font-medium text-muted-foreground">
+                      {viewMode === 'day' ? format(col.date, 'd') : format(col.date, 'ha')}
+                    </div>
+                </div>
+            ))}
             
             {rowElements.map(row => (
               <React.Fragment key={row.key}>
@@ -280,7 +270,7 @@ export default function GanttChart({
                     <ScheduledProcessBar 
                         key={item.id} 
                         item={item} 
-                        gridRow={position + 2} 
+                        gridRow={position + 4} 
                         gridColStart={dateIndex + 2}
                         durationInColumns={durationInColumns}
                         onUndo={onUndoSchedule}
