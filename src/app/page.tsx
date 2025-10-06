@@ -100,21 +100,13 @@ export default function Home() {
 
   const handleDropOnChart = (rowId: string, startDateTime: Date, e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    const droppedItemData = e.dataTransfer.getData('application/json');
-    if (!droppedItemData) return;
+    if (!draggedItem) return;
 
-    const droppedItem: DraggedItem = JSON.parse(droppedItemData, (key, value) => {
-      if (['startDateTime', 'endDateTime', 'startDate', 'endDate'].includes(key) && value) {
-        return new Date(value);
-      }
-      return value;
-    });
-
-    if (droppedItem.type === 'new') {
+    if (draggedItem.type === 'new') {
         if (isOrderLevelView) return; // Can't drop new items in order-level view
 
-        const order = ORDERS.find((o) => o.id === droppedItem.orderId);
-        const process = PROCESSES.find((p) => p.id === droppedItem.processId);
+        const order = ORDERS.find((o) => o.id === draggedItem.orderId);
+        const process = PROCESSES.find((p) => p.id === draggedItem.processId);
         if (!order || !process) return;
         
         let finalStartDateTime = startDateTime;
@@ -150,7 +142,7 @@ export default function Home() {
         });
     }
 
-    if (droppedItem.type === 'existing' && draggedItem) {
+    if (draggedItem.type === 'existing') {
         const { process: draggedProcess } = draggedItem;
         const machineId = isOrderLevelView ? draggedProcess.machineId : rowId;
         
@@ -163,17 +155,20 @@ export default function Home() {
         const proposedEndDateTime = calculateEndDateTime(finalStartDateTime, draggedProcess.durationMinutes);
 
         setScheduledProcesses(currentProcesses => {
-            const otherProcesses = currentProcesses.filter(p => p.id !== draggedProcess.id);
-            
-            const hasCollision = otherProcesses.some(p => {
+            const hasCollision = currentProcesses.some(p => {
+              // If the process `p` is the one we are dragging, skip it completely.
+              if (p.id === draggedItem.process.id) {
+                return false;
+              }
+
               if (p.machineId !== machineId) return false;
+              
               const newStart = finalStartDateTime;
               const newEnd = proposedEndDateTime;
               const existingStart = p.startDateTime;
               const existingEnd = p.endDateTime;
 
               // Check for overlap:
-              // (newStart is inside existing) OR (newEnd is inside existing) OR (existing is inside new)
               return (isAfter(newStart, existingStart) && isBefore(newStart, existingEnd)) ||
                      (isAfter(newEnd, existingStart) && isBefore(newEnd, existingEnd)) ||
                      (isBefore(newStart, existingStart) && isAfter(newEnd, existingEnd)) ||
@@ -189,7 +184,7 @@ export default function Home() {
               endDateTime: proposedEndDateTime,
             };
 
-            return [...otherProcesses, updatedProcess];
+            return currentProcesses.map(p => p.id === updatedProcess.id ? updatedProcess : p);
         });
     }
   };
@@ -470,5 +465,3 @@ export default function Home() {
     </div>
   );
 }
-
-    
