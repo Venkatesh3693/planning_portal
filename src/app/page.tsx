@@ -79,7 +79,7 @@ export default function Home() {
   const [filterBuyer, setFilterBuyer] = useState<string[]>([]);
   const [filterDueDate, setFilterDueDate] = useState<DateRange | undefined>(undefined);
   const [draggedItem, setDraggedItem] = useState<DraggedItemData | null>(null);
-  const [processToSplit, setProcessToSplit] = useState<ScheduledProcess | null>(null);
+  const [processToSplit, setProcessToSplit] = useState<ScheduledProcess[] | null>(null);
 
 
   const buyerOptions = useMemo(() => [...new Set(ORDERS.map(o => o.buyer))], []);
@@ -219,44 +219,61 @@ export default function Home() {
   };
 
   const handleOpenSplitDialog = (process: ScheduledProcess) => {
-    setProcessToSplit(process);
+    if (process.parentId) {
+      // It's a re-split, find all siblings
+      const siblings = scheduledProcesses.filter(p => p.parentId === process.parentId);
+      setProcessToSplit(siblings);
+    } else {
+      // First time splitting this process
+      setProcessToSplit([process]);
+    }
   };
-
-  const handleConfirmSplit = (originalProcess: ScheduledProcess, newQuantities: number[]) => {
-    const processInfo = PROCESSES.find(p => p.id === originalProcess.processId)!;
-    const parentId = originalProcess.parentId || `${originalProcess.id}-split-${Date.now()}`;
+  
+  const handleConfirmSplit = (originalProcesses: ScheduledProcess[], newQuantities: number[]) => {
+    const primaryProcess = originalProcesses[0];
+    const processInfo = PROCESSES.find(p => p.id === primaryProcess.processId)!;
     
+    // Use existing parentId or create a new one for the first split
+    const parentId = primaryProcess.parentId || `${primaryProcess.id}-split-${Date.now()}`;
+  
+    // Determine the anchor point for placement
+    const anchor = originalProcesses.reduce((earliest, p) => {
+      return p.startDateTime < earliest.startDateTime ? p : earliest;
+    }, originalProcesses[0]);
+  
     const newSplitProcesses: ScheduledProcess[] = newQuantities.map((quantity, index) => {
       const durationMinutes = quantity * processInfo.sam;
       return {
-        id: `${parentId}-child-${index}`,
-        orderId: originalProcess.orderId,
-        processId: originalProcess.processId,
-        machineId: originalProcess.machineId,
+        id: `${parentId}-child-${index}-${Date.now()}`,
+        orderId: primaryProcess.orderId,
+        processId: primaryProcess.processId,
+        machineId: anchor.machineId, // All new splits start on the anchor machine
         quantity: quantity,
         durationMinutes: durationMinutes,
-        startDateTime: new Date(), // Temporary, will be updated below
-        endDateTime: new Date(),   // Temporary, will be updated below
+        startDateTime: new Date(), // Temporary, will be cascaded below
+        endDateTime: new Date(),   // Temporary, will be cascaded below
         isSplit: true,
         parentId: parentId,
       };
     });
-
-    // Cascade the new processes on the same machine
-    let lastProcessEnd = originalProcess.startDateTime;
+  
+    // Cascade the new processes on the same machine from the anchor point
+    let lastProcessEnd = anchor.startDateTime;
     const cascadedSplitProcesses = newSplitProcesses.map(p => {
       const newStart = lastProcessEnd;
       const newEnd = calculateEndDateTime(newStart, p.durationMinutes);
       lastProcessEnd = newEnd;
       return { ...p, startDateTime: newStart, endDateTime: newEnd };
     });
-
+  
     setScheduledProcesses(prev => {
-      // Remove the original process that was split
-      const otherProcesses = prev.filter(p => p.id !== originalProcess.id);
+      // Remove all old processes that were part of this split group
+      const originalIds = originalProcesses.map(p => p.id);
+      const otherProcesses = prev.filter(p => !originalIds.includes(p.id));
+      
       return [...otherProcesses, ...cascadedSplitProcesses];
     });
-
+  
     setProcessToSplit(null);
   };
 
@@ -410,7 +427,7 @@ export default function Home() {
       </main>
       
       <SplitProcessDialog
-        process={processToSplit}
+        processes={processToSplit}
         isOpen={!!processToSplit}
         onOpenChange={(isOpen) => !isOpen && setProcessToSplit(null)}
         onConfirmSplit={handleConfirmSplit}
@@ -418,4 +435,6 @@ export default function Home() {
     </div>
   );
 }
+    
+
     

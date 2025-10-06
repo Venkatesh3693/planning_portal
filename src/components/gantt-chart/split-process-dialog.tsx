@@ -20,42 +20,54 @@ import { PlusCircle, X } from 'lucide-react';
 import { ORDERS, PROCESSES } from '@/lib/data';
 
 type SplitProcessDialogProps = {
-  process: ScheduledProcess | null;
+  processes: ScheduledProcess[] | null;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirmSplit: (
-    originalProcess: ScheduledProcess,
+    originalProcesses: ScheduledProcess[],
     newQuantities: number[]
   ) => void;
 };
 
 export default function SplitProcessDialog({
-  process,
+  processes,
   isOpen,
   onOpenChange,
   onConfirmSplit,
 }: SplitProcessDialogProps) {
   const [splits, setSplits] = useState<string[]>([]);
+  
+  const totalOriginalQuantity = useMemo(() => {
+    if (!processes) return 0;
+    // If it's a re-split, the parent is the source of truth for total quantity.
+    // We find an original order to get this.
+    const order = ORDERS.find(o => o.id === processes[0].orderId);
+    const processInfo = PROCESSES.find(p => p.id === processes[0].processId);
+    if (!order || !processInfo) return 0;
+    
+    // Find the original order quantity for this process
+    const scheduledForThisProcess = processes.filter(p => p.processId === processInfo.id);
+    const alreadyScheduled = scheduledForThisProcess.reduce((sum, p) => sum + p.quantity, 0);
 
-  const totalOriginalQuantity = process?.quantity ?? 0;
+    // If it's a fresh split, the process quantity is the original
+    if (processes.length === 1 && !processes[0].isSplit) {
+      return processes[0].quantity;
+    }
+    // If it is a re-split, the total is the sum of all siblings.
+    return processes.reduce((sum, p) => sum + p.quantity, 0);
+
+  }, [processes]);
 
   useEffect(() => {
-    // Reset splits when a new process is selected
-    if (process) {
-      // If it's already split, show the existing splits, otherwise start fresh
-      if (process.isSplit && process.parentId) {
-        // This part is tricky if we don't pass all siblings.
-        // For now, let's assume we always start fresh from a non-split or a single split item.
-        setSplits([String(process.quantity)]);
-      } else {
-        setSplits([String(process.quantity)]);
-      }
+    // Reset splits when a new process group is selected
+    if (processes) {
+      const initialSplits = processes.map(p => String(p.quantity));
+      setSplits(initialSplits);
     }
-  }, [process]);
-  
-  const processInfo = useMemo(() => process ? PROCESSES.find(p => p.id === process.processId) : null, [process]);
-  const orderInfo = useMemo(() => process ? ORDERS.find(o => o.id === process.orderId) : null, [process]);
+  }, [processes]);
 
+  const processInfo = useMemo(() => processes ? PROCESSES.find(p => p.id === processes[0].processId) : null, [processes]);
+  const orderInfo = useMemo(() => processes ? ORDERS.find(o => o.id === processes[0].orderId) : null, [processes]);
 
   const totalSplitQuantity = useMemo(() => {
     return splits.reduce((sum, qty) => sum + (parseInt(qty, 10) || 0), 0);
@@ -63,16 +75,22 @@ export default function SplitProcessDialog({
   
   const remainingQuantity = totalOriginalQuantity - splits.slice(1).reduce((sum, qty) => sum + (parseInt(qty, 10) || 0), 0);
 
-  const isInvalid = remainingQuantity < 0 || totalSplitQuantity !== totalOriginalQuantity || splits.some(q => (parseInt(q, 10) || 0) < 0);
-
+  const isInvalid = totalSplitQuantity !== totalOriginalQuantity || splits.some(q => (parseInt(q, 10) || 0) < 0);
 
   const handleAddSplit = () => {
-    setSplits(prev => [...prev, '0']);
+    const newSplits = [...splits, '0'];
+    const subsequentSplitsQuantity = newSplits.slice(1).reduce((sum, qty) => sum + (parseInt(qty, 10) || 0), 0);
+    const newFirstSplitQuantity = totalOriginalQuantity - subsequentSplitsQuantity;
+    newSplits[0] = String(newFirstSplitQuantity);
+    setSplits(newSplits);
   };
 
   const handleRemoveSplit = (index: number) => {
     if (splits.length <= 1) return;
     const newSplits = splits.filter((_, i) => i !== index);
+    const subsequentSplitsQuantity = newSplits.slice(1).reduce((sum, qty) => sum + (parseInt(qty, 10) || 0), 0);
+    const newFirstSplitQuantity = totalOriginalQuantity - subsequentSplitsQuantity;
+    newSplits[0] = String(newFirstSplitQuantity);
     setSplits(newSplits);
   };
 
@@ -80,34 +98,36 @@ export default function SplitProcessDialog({
     const newSplits = [...splits];
     newSplits[index] = value;
     
-    // Recalculate the first split's quantity
-    const subsequentSplitsQuantity = newSplits.slice(1).reduce((sum, qty) => sum + (parseInt(qty, 10) || 0), 0);
-    const newFirstSplitQuantity = totalOriginalQuantity - subsequentSplitsQuantity;
-    newSplits[0] = String(newFirstSplitQuantity);
-
+    // Recalculate the first split's quantity if other batches change
+    if (index > 0) {
+      const subsequentSplitsQuantity = newSplits.slice(1).reduce((sum, qty) => sum + (parseInt(qty, 10) || 0), 0);
+      const newFirstSplitQuantity = totalOriginalQuantity - subsequentSplitsQuantity;
+      newSplits[0] = String(newFirstSplitQuantity < 0 ? 0 : newFirstSplitQuantity);
+    }
+    
     setSplits(newSplits);
   };
 
   const handleSubmit = () => {
-    if (!isInvalid && process) {
+    if (!isInvalid && processes) {
       const numericSplits = splits.map(s => parseInt(s, 10) || 0).filter(q => q > 0);
       if (numericSplits.length > 0) {
-        onConfirmSplit(process, numericSplits);
+        onConfirmSplit(processes, numericSplits);
       }
     }
   };
 
-  if (!process || !processInfo || !orderInfo) return null;
+  if (!processes || !processInfo || !orderInfo) return null;
+  const isResplit = processes.length > 1 || processes[0].isSplit;
 
   return (
     <AlertDialog open={isOpen} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Split Process: {processInfo.name}</AlertDialogTitle>
+          <AlertDialogTitle>{isResplit ? "Re-Split" : "Split"} Process: {processInfo.name}</AlertDialogTitle>
           <AlertDialogDescription>
-            For Order {orderInfo.id}. Split the total quantity of{' '}
-            {totalOriginalQuantity.toLocaleString()} units into smaller batches. The
-            sum of all batches must equal the total quantity.
+            For Order {orderInfo.id}. Adjust the quantities for the total of{' '}
+            {totalOriginalQuantity.toLocaleString()} units. The sum must equal the total.
           </AlertDialogDescription>
         </AlertDialogHeader>
 
@@ -171,9 +191,9 @@ export default function SplitProcessDialog({
                         {totalOriginalQuantity.toLocaleString()}
                     </span>
                 </div>
-                {isInvalid && remainingQuantity < 0 && (
+                {isInvalid && totalSplitQuantity !== totalOriginalQuantity && (
                      <p className="text-sm text-destructive text-right mt-1">
-                        Total allocated quantity cannot exceed original.
+                        Total must be exactly {totalOriginalQuantity.toLocaleString()}.
                     </p>
                 )}
             </div>
@@ -190,3 +210,5 @@ export default function SplitProcessDialog({
     </AlertDialog>
   );
 }
+
+    
