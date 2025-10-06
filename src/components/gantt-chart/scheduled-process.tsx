@@ -65,11 +65,6 @@ export default function ScheduledProcessBar({
   const backgroundColor = processDetails.color || 'hsl(var(--accent))';
 
   const handleInternalDragStart = (e: React.DragEvent<HTMLDivElement>) => {
-    // Prevent dragging the ghost
-    if (isGhost) {
-      e.preventDefault();
-      return;
-    }
     if (onDragStart) {
       const draggedItem: DraggedItem = { type: 'existing', process: item };
       onDragStart(e, draggedItem);
@@ -81,7 +76,7 @@ export default function ScheduledProcessBar({
       <PopoverAnchor asChild>
         <div
           onContextMenu={handleContextMenu}
-          draggable={!isGhost && !!onDragStart}
+          draggable={!!onDragStart}
           onDragStart={handleInternalDragStart}
           className={cn(
             "relative z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg",

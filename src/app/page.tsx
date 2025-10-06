@@ -100,20 +100,20 @@ export default function Home() {
 
   const handleDropOnChart = (rowId: string, startDateTime: Date) => {
     if (!draggedItem) return;
-
+  
+    const processesToUpdate = [...scheduledProcesses];
     let droppedProcess: ScheduledProcess;
-    let baseProcesses = scheduledProcesses;
-
+  
     // Define the process being dropped/moved
     if (draggedItem.type === 'new') {
       const order = ORDERS.find(o => o.id === draggedItem.orderId)!;
       const process = PROCESSES.find(p => p.id === draggedItem.processId)!;
       const durationMinutes = process.sam * order.quantity;
-
+  
       const finalStartDateTime = viewMode === 'day'
         ? set(startDateTime, { hours: WORKING_HOURS_START, minutes: 0 })
         : startDateTime;
-
+  
       droppedProcess = {
         id: `${draggedItem.processId}-${draggedItem.orderId}-${Date.now()}`,
         orderId: draggedItem.orderId,
@@ -123,56 +123,49 @@ export default function Home() {
         endDateTime: calculateEndDateTime(finalStartDateTime, durationMinutes),
         durationMinutes,
       };
+      // Add the new process to the list
+      processesToUpdate.push(droppedProcess);
     } else { // 'existing'
-      const baseProcess = draggedItem.process;
-      // When moving an existing item, the base list is all *other* processes
-      baseProcesses = scheduledProcesses.filter(p => p.id !== baseProcess.id);
-
+      const originalProcess = processesToUpdate.find(p => p.id === draggedItem.process.id);
+      if (!originalProcess) return; // Should not happen
+  
       const finalStartDateTime = viewMode === 'day'
-        ? set(startDateTime, { hours: baseProcess.startDateTime.getHours(), minutes: baseProcess.startDateTime.getMinutes() })
+        ? set(startDateTime, { hours: originalProcess.startDateTime.getHours(), minutes: originalProcess.startDateTime.getMinutes() })
         : startDateTime;
-
+  
       droppedProcess = {
-        ...baseProcess,
-        machineId: isOrderLevelView ? baseProcess.machineId : rowId,
+        ...originalProcess,
+        machineId: isOrderLevelView ? originalProcess.machineId : rowId,
         startDateTime: finalStartDateTime,
-        endDateTime: calculateEndDateTime(finalStartDateTime, baseProcess.durationMinutes),
+        endDateTime: calculateEndDateTime(finalStartDateTime, originalProcess.durationMinutes),
       };
+      
+      // Update the existing process in the list
+      const index = processesToUpdate.findIndex(p => p.id === droppedProcess.id);
+      processesToUpdate[index] = droppedProcess;
     }
-
-    const finalProcesses: ScheduledProcess[] = [];
-    const processesOnSameMachine = baseProcesses
-      .filter(p => p.machineId === droppedProcess.machineId)
-      .sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
-    
-    // Add all processes from other machines first
-    finalProcesses.push(...baseProcesses.filter(p => p.machineId !== droppedProcess.machineId));
-    finalProcesses.push(droppedProcess);
-
+  
+    // Cascade logic
     let lastEndTime = droppedProcess.endDateTime;
-
+    const processesOnSameMachine = processesToUpdate
+      .filter(p => p.machineId === droppedProcess.machineId && p.id !== droppedProcess.id)
+      .sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
+  
     processesOnSameMachine.forEach(existingProcess => {
-      // Check for collision with the newly dropped/moved item
-      if (isAfter(droppedProcess.endDateTime, existingProcess.startDateTime) && isBefore(droppedProcess.startDateTime, existingProcess.endDateTime)) {
-        // Cascade: shift this process and subsequent ones
+      // Check for collision
+      if (isAfter(lastEndTime, existingProcess.startDateTime)) {
+        const index = processesToUpdate.findIndex(p => p.id === existingProcess.id);
         const shiftedProcess: ScheduledProcess = {
           ...existingProcess,
           startDateTime: lastEndTime,
           endDateTime: calculateEndDateTime(lastEndTime, existingProcess.durationMinutes),
         };
-        finalProcesses.push(shiftedProcess);
+        processesToUpdate[index] = shiftedProcess;
         lastEndTime = shiftedProcess.endDateTime;
-      } else {
-        // No collision, keep the process as is
-        finalProcesses.push(existingProcess);
-        // Update lastEndTime to the end of the latest process so far
-        if (isAfter(existingProcess.endDateTime, lastEndTime)) {
-          lastEndTime = existingProcess.endDateTime;
-        }
       }
     });
-
-    setScheduledProcesses(finalProcesses);
+  
+    setScheduledProcesses(processesToUpdate);
     setDraggedItem(null);
   };
 
