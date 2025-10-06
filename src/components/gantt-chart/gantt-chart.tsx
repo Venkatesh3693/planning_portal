@@ -191,10 +191,10 @@ export default function GanttChart({
           {rows.map((row, rowIndex) => (
             <div 
               key={row.id}
-              className={cn( "sticky left-0 z-20 flex items-center justify-start p-2 border-b border-r whitespace-nowrap", rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted' )}
-              style={{ gridRow: `${rowIndex + 4}` }}
+              className={cn( "sticky left-0 z-20 p-2 border-b border-r whitespace-nowrap", rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted' )}
+              style={{ gridRowStart: rowIndex + 4 }}
             >
-              <span className="font-semibold text-foreground text-sm">{row.name}</span>
+              <span className="font-semibold text-foreground text-sm flex items-center h-full">{row.name}</span>
             </div>
           ))}
 
@@ -221,7 +221,7 @@ export default function GanttChart({
                             isInTnaRange && !isDragOver && 'bg-green-500/10',
                             'transition-colors duration-200'
                         )}
-                        style={{ gridRow: `${rowIndex + 4}`, gridColumn: dateIndex + 2 }}
+                        style={{ gridRowStart: rowIndex + 4, gridColumn: dateIndex + 2 }}
                     />
                 )
               })}
