@@ -2,12 +2,11 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { addDays, startOfToday, format, isSameDay, set, addMinutes, isAfter, getDay, setHours, isBefore } from 'date-fns';
+import { addDays, startOfToday, getDay, set, isAfter, addMinutes } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, ORDERS, PROCESSES } from '@/lib/data';
 import type { Order, ScheduledProcess, TnaProcess } from '@/lib/types';
-import { cn } from '@/lib/utils';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
@@ -179,6 +178,7 @@ export default function Home() {
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => {
     const itemJSON = JSON.stringify(item);
     e.dataTransfer.setData('application/json', itemJSON);
+    setDraggedItem(item);
     
     if (item.type === 'existing') {
         // "Lift" the item from the board by removing it from the state
@@ -190,11 +190,15 @@ export default function Home() {
   };
   
   const handleDragEnd = () => {
-    // If drag is cancelled (e.g. Escape key), we need to add the item back if it was lifted
     // This part is tricky. A simple solution is to just rely on the onDrop to always re-add it.
     // If a drop doesn't happen on a valid target, the item will be gone.
     // A better approach would be to restore it if the drop was not successful.
     // For now, let's assume drops are always successful on the chart.
+    // We check if an item was being dragged and if it's not on the board anymore.
+    // This is not a perfect solution.
+    if(draggedItem && draggedItem.type === 'existing' && !scheduledProcesses.find(p => p.id === draggedItem.process.id)) {
+        setScheduledProcesses(prev => [...prev, draggedItem.process]);
+    }
     setDraggedItem(null);
   };
 
@@ -248,8 +252,13 @@ export default function Home() {
       const buyerMatch = filterBuyer.length > 0 ? filterBuyer.includes(order.buyer) : true;
       const dueDateMatch = (() => {
         if (!filterDueDate || !filterDueDate.from) return true;
-        if (!filterDueDate.to) return isSameDay(new Date(order.dueDate), filterDueDate.from);
-        return new Date(order.dueDate) >= filterDueDate.from && new Date(order.dueDate) <= filterDueDate.to;
+        const orderDueDate = new Date(order.dueDate);
+        const fromDate = filterDueDate.from;
+        if (!filterDueDate.to) return orderDueDate.getFullYear() === fromDate.getFullYear() &&
+                                     orderDueDate.getMonth() === fromDate.getMonth() &&
+                                     orderDueDate.getDate() === fromDate.getDate();
+
+        return orderDueDate >= fromDate && orderDueDate <= filterDueDate.to;
       })();
       return ocnMatch && buyerMatch && dueDateMatch;
     });
