@@ -160,15 +160,15 @@ export default function GanttChart({
             gridTemplateColumns,
           }}
         >
-           <div className="sticky left-0 z-30 flex flex-col" style={{ gridColumn: 'row-header' }}>
+           <div className="sticky left-0 z-40 flex flex-col bg-card" style={{ gridColumn: 'row-header' }}>
               <div className="flex h-full items-center justify-end border-b border-r bg-card pr-2 py-1">
-                <span className="text-xs font-semibold text-foreground">{viewMode === 'day' ? 'Month' : 'Week'}</span>
+                <span className="text-xs font-semibold text-foreground">Month</span>
               </div>
               <div className="flex h-full items-center justify-end border-b border-r bg-card pr-2 py-1">
-                <span className="text-sm font-semibold text-foreground">{viewMode === 'day' ? 'Week' : 'Day'}</span>
+                <span className="text-sm font-semibold text-foreground">Week</span>
               </div>
               <div className="flex h-full items-center justify-end border-b border-r bg-card pr-2">
-                <span className="text-[10px] font-medium text-muted-foreground leading-tight py-1">{viewMode === 'day' ? 'Day' : 'Hour'}</span>
+                <span className="text-[10px] font-medium text-muted-foreground leading-tight py-1">Day</span>
               </div>
            </div>
 
@@ -236,7 +236,7 @@ export default function GanttChart({
                       onDragOver={(e) => handleDragOver(e, row.id, col.date)}
                       onDragLeave={handleDragLeave}
                       onDrop={(e) => handleDrop(e, row.id, col.date)}
-                      className={cn('border-b border-r',
+                      className={cn('border-b border-r -z-0',
                           isDragOver ? 'bg-primary/20' : (rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/50'),
                           isInTnaRange && !isDragOver && 'bg-green-500/10',
                           'transition-colors duration-200'
