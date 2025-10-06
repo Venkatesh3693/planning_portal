@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from 'react';
-import { format, getMonth, isWithinInterval, startOfDay, startOfHour, endOfHour, addDays, addMinutes } from 'date-fns';
+import { format, getMonth, isWithinInterval, startOfDay, startOfHour, endOfHour, addDays } from 'date-fns';
 import type { ScheduledProcess } from '@/lib/types';
 import type { DraggedItemData } from '@/app/page';
 import { cn } from '@/lib/utils';
@@ -275,17 +275,23 @@ export default function GanttChart({
               const startColDate = viewMode === 'day' ? startOfDay(item.startDateTime) : startOfHour(item.startDateTime);
               const dateIndex = timeColumns.findIndex(d => d.date.getTime() === startColDate.getTime());
               if (dateIndex === -1) return null;
-
+              
               const endColDate = viewMode === 'day' ? startOfDay(item.endDateTime) : startOfHour(item.endDateTime);
               let endDateIndex = timeColumns.findIndex(d => d.date.getTime() === endColDate.getTime());
-              
-              if (item.endDateTime.getTime() === endColDate.getTime() && item.endDateTime.getTime() > item.startDateTime.getTime()) {
-                  const prevDate = viewMode === 'day' ? startOfDay(addDays(item.endDateTime, -1)) : startOfHour(addMinutes(item.endDateTime, -60));
-                  endDateIndex = timeColumns.findIndex(d => d.date.getTime() === prevDate.getTime());
-              }
 
-              if (endDateIndex === -1) {
-                endDateIndex = timeColumns.length -1;
+              // Correction: if the task ends exactly on the hour/day start, it should not occupy that new slot.
+              // We find the index of the last column it *should* occupy.
+              if (item.endDateTime.getTime() > item.startDateTime.getTime() && item.endDateTime.getTime() === endColDate.getTime()) {
+                  endDateIndex = endDateIndex - 1;
+              }
+              
+              if (endDateIndex < 0 || endDateIndex < dateIndex) {
+                 // If the item is too short to be displayed in a single cell, ensure it still shows up
+                 endDateIndex = dateIndex;
+              }
+              
+              if (endDateIndex >= timeColumns.length) {
+                endDateIndex = timeColumns.length - 1;
               }
 
               const durationInColumns = endDateIndex - dateIndex + 1;
@@ -318,5 +324,3 @@ export default function GanttChart({
     </div>
   );
 }
-
-    
