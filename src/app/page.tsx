@@ -105,9 +105,9 @@ export default function Home() {
       
       const proposedEndDateTime = calculateEndDateTime(finalStartDateTime, draggedProcess.durationMinutes);
       
-      const otherProcesses = scheduledProcesses.filter(p => p.id !== draggedProcess.id);
+      const otherProcessesForCollisionCheck = scheduledProcesses.filter(p => p.id !== draggedProcess.id);
       
-      const hasCollision = otherProcesses.some(p => {
+      const hasCollision = otherProcessesForCollisionCheck.some(p => {
         if (p.machineId !== machineId) return false;
         
         const existingEndDateTime = p.endDateTime;
@@ -121,14 +121,16 @@ export default function Home() {
       });
 
       if (!hasCollision) {
-        const updatedProcess = {
-            ...draggedProcess,
-            machineId,
-            startDateTime: finalStartDateTime,
-            endDateTime: proposedEndDateTime,
-        };
-        const updatedProcesses = scheduledProcesses.map(p => (p.id === updatedProcess.id ? updatedProcess : p));
-        setScheduledProcesses(updatedProcesses);
+        setScheduledProcesses(currentProcesses => {
+            const otherProcesses = currentProcesses.filter(p => p.id !== draggedProcess.id);
+            const updatedProcess = {
+                ...draggedProcess,
+                machineId: machineId,
+                startDateTime: finalStartDateTime,
+                endDateTime: proposedEndDateTime,
+            };
+            return [...otherProcesses, updatedProcess];
+        });
       }
     } else {
       // Logic for scheduling a new process from the side panel
@@ -540,5 +542,3 @@ export default function Home() {
     </div>
   );
 }
-
-    
