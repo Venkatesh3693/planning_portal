@@ -101,85 +101,101 @@ export default function Home() {
   const handleDropOnChart = (rowId: string, startDateTime: Date, e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     if (!draggedItem) return;
-  
-    setScheduledProcesses(currentProcesses => {
-      let finalStartDateTime = startDateTime;
-      if (viewMode === 'day') {
-        const originalHours = draggedItem.type === 'existing' ? draggedItem.process.startDateTime.getHours() : WORKING_HOURS_START;
-        const originalMinutes = draggedItem.type === 'existing' ? draggedItem.process.startDateTime.getMinutes() : 0;
-        finalStartDateTime = set(startDateTime, { hours: originalHours, minutes: originalMinutes });
-      }
-      
-      const machineId = (draggedItem.type === 'existing' && isOrderLevelView) ? draggedItem.process.machineId : rowId;
-      
-      let durationMinutes;
-      if (draggedItem.type === 'new') {
+
+    if (draggedItem.type === 'new') {
         const order = ORDERS.find(o => o.id === draggedItem.orderId);
         const process = PROCESSES.find(p => p.id === draggedItem.processId);
-        if (!order || !process) return currentProcesses;
-        durationMinutes = process.sam * order.quantity;
-      } else {
-        durationMinutes = draggedItem.process.durationMinutes;
-      }
-      
-      const proposedEndDateTime = calculateEndDateTime(finalStartDateTime, durationMinutes);
-      
-      const hasCollision = currentProcesses.some(p => {
-        if (p.machineId !== machineId) return false;
+        if (!order || !process) return;
+
+        const durationMinutes = process.sam * order.quantity;
+        const machineId = isOrderLevelView ? order.id : rowId;
+
+        const finalStartDateTime = viewMode === 'day' 
+            ? set(startDateTime, { hours: WORKING_HOURS_START, minutes: 0 }) 
+            : startDateTime;
+        const proposedEndDateTime = calculateEndDateTime(finalStartDateTime, durationMinutes);
+
+        setScheduledProcesses(currentProcesses => {
+            const hasCollision = currentProcesses.some(p => {
+                if (p.machineId !== machineId) return false;
+                
+                const newStart = finalStartDateTime;
+                const newEnd = proposedEndDateTime;
+                const existingStart = p.startDateTime;
+                const existingEnd = p.endDateTime;
+
+                return (isAfter(newStart, existingStart) && isBefore(newStart, existingEnd)) ||
+                       (isAfter(newEnd, existingStart) && isBefore(newEnd, existingEnd)) ||
+                       (isBefore(newStart, existingStart) && isAfter(newEnd, existingEnd)) ||
+                       newStart.getTime() === existingStart.getTime();
+            });
+
+            if (hasCollision) return currentProcesses;
+
+            const newProcess: ScheduledProcess = {
+                id: `${draggedItem.processId}-${draggedItem.orderId}-${Date.now()}`,
+                orderId: draggedItem.orderId,
+                processId: draggedItem.processId,
+                machineId,
+                startDateTime: finalStartDateTime,
+                endDateTime: proposedEndDateTime,
+                durationMinutes,
+            };
+            return [...currentProcesses, newProcess];
+        });
+    }
+
+    if (draggedItem.type === 'existing') {
+        const { process: draggedProcess } = draggedItem;
+        const machineId = isOrderLevelView ? draggedProcess.machineId : rowId;
+
+        const finalStartDateTime = viewMode === 'day' 
+            ? set(startDateTime, { hours: draggedProcess.startDateTime.getHours(), minutes: draggedProcess.startDateTime.getMinutes() })
+            : startDateTime;
         
-        const newStart = finalStartDateTime;
-        const newEnd = proposedEndDateTime;
-        const existingStart = p.startDateTime;
-        const existingEnd = p.endDateTime;
-  
-        return (isAfter(newStart, existingStart) && isBefore(newStart, existingEnd)) ||
-               (isAfter(newEnd, existingStart) && isBefore(newEnd, existingEnd)) ||
-               (isBefore(newStart, existingStart) && isAfter(newEnd, existingEnd)) ||
-               newStart.getTime() === existingStart.getTime();
-      });
-  
-      if (hasCollision) {
-        // On collision, if we were dragging an existing item, we must add it back to the state.
-        if (draggedItem.type === 'existing') {
-          return [...currentProcesses, draggedItem.process];
-        }
-        return currentProcesses;
-      }
-  
-      let newProcess: ScheduledProcess;
-      if (draggedItem.type === 'new') {
-        newProcess = {
-          id: `${draggedItem.processId}-${draggedItem.orderId}-${Date.now()}`,
-          orderId: draggedItem.orderId,
-          processId: draggedItem.processId,
-          machineId,
-          startDateTime: finalStartDateTime,
-          endDateTime: proposedEndDateTime,
-          durationMinutes,
-        };
-      } else { // 'existing'
-        newProcess = {
-          ...draggedItem.process,
-          machineId,
-          startDateTime: finalStartDateTime,
-          endDateTime: proposedEndDateTime,
-        };
-      }
-      
-      return [...currentProcesses, newProcess];
-    });
-  
+        const proposedEndDateTime = calculateEndDateTime(finalStartDateTime, draggedProcess.durationMinutes);
+
+        setScheduledProcesses(currentProcesses => {
+            const hasCollision = currentProcesses.some(p => {
+                // THE FIX: Ignore the item being dragged from the collision check
+                if (p.id === draggedProcess.id) {
+                  return false;
+                }
+
+                if (p.machineId !== machineId) return false;
+
+                const newStart = finalStartDateTime;
+                const newEnd = proposedEndDateTime;
+                const existingStart = p.startDateTime;
+                const existingEnd = p.endDateTime;
+
+                return (isAfter(newStart, existingStart) && isBefore(newStart, existingEnd)) ||
+                       (isAfter(newEnd, existingStart) && isBefore(newEnd, existingEnd)) ||
+                       (isBefore(newStart, existingStart) && isAfter(newEnd, existingEnd)) ||
+                       newStart.getTime() === existingStart.getTime();
+            });
+
+            if (hasCollision) {
+                return currentProcesses;
+            }
+
+            const updatedProcess: ScheduledProcess = {
+                ...draggedProcess,
+                machineId,
+                startDateTime: finalStartDateTime,
+                endDateTime: proposedEndDateTime,
+            };
+
+            return currentProcesses.map(p => p.id === updatedProcess.id ? updatedProcess : p);
+        });
+    }
+
     setDraggedItem(null);
   };
   
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, item: DraggedItem) => {
     e.dataTransfer.setData('application/json', JSON.stringify(item));
     setDraggedItem(item);
-
-    // If it's an existing item, remove it from the schedule temporarily
-    if (item.type === 'existing') {
-      setScheduledProcesses(prev => prev.filter(p => p.id !== item.process.id));
-    }
   };
   
   const handleUndoSchedule = (scheduledProcessId: string) => {
@@ -188,12 +204,7 @@ export default function Home() {
 
   const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    // If draggedItem still exists, it means the drop was not on a valid target.
-    // Restore the item if it was an existing one.
     if (draggedItem) {
-      if (draggedItem.type === 'existing') {
-        setScheduledProcesses(current => [...current, draggedItem.process]);
-      }
       setDraggedItem(null);
     }
   };

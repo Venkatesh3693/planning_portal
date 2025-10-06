@@ -311,8 +311,12 @@ export default function GanttChart({
             ])}
 
             {scheduledProcesses.map((item) => {
-                const isBeingDragged = false; // The item is not rendered while being dragged
+                const isBeingDragged = draggedItem?.type === 'existing' && draggedItem.process.id === item.id;
                 
+                if (isBeingDragged) {
+                    return null; // Don't render the ghost
+                }
+
                 const rowId = isOrderLevelView ? item.orderId : item.machineId;
                 const rowPosition = rowPositions.get(rowId);
                 if (!rowPosition) return null;
