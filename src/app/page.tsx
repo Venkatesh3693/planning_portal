@@ -187,6 +187,7 @@ export default function Home() {
             return currentProcesses.map(p => p.id === updatedProcess.id ? updatedProcess : p);
         });
     }
+    setDraggedItem(null);
   };
   
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, item: DraggedItem) => {
@@ -449,7 +450,7 @@ export default function Home() {
                 <GanttChart 
                     rows={chartRows} 
                     dates={dates}
-                    scheduledProcesses={chartProcesses}
+                    scheduledProcesses={scheduledProcesses}
                     onDrop={handleDropOnChart}
                     onUndoSchedule={handleUndoSchedule}
                     onProcessDragStart={handleDragStart}
