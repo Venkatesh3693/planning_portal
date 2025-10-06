@@ -97,74 +97,87 @@ export default function Home() {
 
   const handleDropOnChart = (rowId: string, startDateTime: Date, draggedItemJSON: string) => {
     if (!draggedItemJSON) return;
-
-    const draggedItem: DraggedItemData = JSON.parse(draggedItemJSON);
   
-    let processesToUpdate = [...scheduledProcesses];
-    let droppedProcess: ScheduledProcess;
+    const draggedItem: DraggedItemData = JSON.parse(draggedItemJSON);
+    
+    let processToPlace: ScheduledProcess;
+    let otherProcesses = [...scheduledProcesses];
   
     if (draggedItem.type === 'new') {
-        const order = ORDERS.find(o => o.id === draggedItem.orderId)!;
-        const process = PROCESSES.find(p => p.id === draggedItem.processId)!;
-        const durationMinutes = process.sam * order.quantity;
-    
-        const finalStartDateTime = viewMode === 'day'
-            ? set(startDateTime, { hours: WORKING_HOURS_START, minutes: 0 })
-            : startDateTime;
-    
-        droppedProcess = {
-            id: `${draggedItem.processId}-${draggedItem.orderId}-${Date.now()}`,
-            orderId: draggedItem.orderId,
-            processId: draggedItem.processId,
-            machineId: isOrderLevelView ? order.id : rowId,
-            startDateTime: finalStartDateTime,
-            endDateTime: calculateEndDateTime(finalStartDateTime, durationMinutes),
-            durationMinutes,
-        };
-        processesToUpdate.push(droppedProcess);
+      const order = ORDERS.find(o => o.id === draggedItem.orderId)!;
+      const process = PROCESSES.find(p => p.id === draggedItem.processId)!;
+      const durationMinutes = process.sam * order.quantity;
+      
+      const finalStartDateTime = viewMode === 'day'
+        ? set(startDateTime, { hours: WORKING_HOURS_START, minutes: 0 })
+        : startDateTime;
+  
+      processToPlace = {
+        id: `${draggedItem.processId}-${draggedItem.orderId}-${Date.now()}`,
+        orderId: draggedItem.orderId,
+        processId: draggedItem.processId,
+        machineId: isOrderLevelView ? order.id : rowId,
+        startDateTime: finalStartDateTime,
+        endDateTime: calculateEndDateTime(finalStartDateTime, durationMinutes),
+        durationMinutes,
+      };
     } else { // 'existing'
-        const originalProcess = processesToUpdate.find(p => p.id === draggedItem.processId);
-        if (!originalProcess) return;
-    
-        // Remove the original process to be replaced by the new one
-        processesToUpdate = processesToUpdate.filter(p => p.id !== draggedItem.processId);
-        
-        const finalStartDateTime = viewMode === 'day'
-            ? set(startDateTime, { hours: originalProcess.startDateTime.getHours(), minutes: originalProcess.startDateTime.getMinutes() })
-            : startDateTime;
-    
-        droppedProcess = {
-            ...originalProcess,
-            machineId: isOrderLevelView ? originalProcess.machineId : rowId,
-            startDateTime: finalStartDateTime,
-            endDateTime: calculateEndDateTime(finalStartDateTime, originalProcess.durationMinutes),
-        };
-        processesToUpdate.push(droppedProcess);
+      const originalProcess = scheduledProcesses.find(p => p.id === draggedItem.processId);
+      if (!originalProcess) return;
+  
+      otherProcesses = scheduledProcesses.filter(p => p.id !== draggedItem.processId);
+      
+      const finalStartDateTime = viewMode === 'day'
+        ? set(startDateTime, { hours: originalProcess.startDateTime.getHours(), minutes: originalProcess.startDateTime.getMinutes() })
+        : startDateTime;
+  
+      processToPlace = {
+        ...originalProcess,
+        machineId: isOrderLevelView ? originalProcess.machineId : rowId,
+        startDateTime: finalStartDateTime,
+        endDateTime: calculateEndDateTime(finalStartDateTime, originalProcess.durationMinutes),
+      };
     }
-  
+    
     // --- Cascade Logic ---
-    let lastEndTime = droppedProcess.endDateTime;
-    const processesOnSameMachine = processesToUpdate
-      .filter(p => p.machineId === droppedProcess.machineId && p.id !== droppedProcess.id)
+    const processesOnSameMachine = otherProcesses
+      .filter(p => p.machineId === processToPlace.machineId)
       .sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
+    
+    const unaffectedProcesses = otherProcesses.filter(p => p.machineId !== processToPlace.machineId);
+    
+    const finalProcesses: ScheduledProcess[] = [...unaffectedProcesses, processToPlace];
+    let lastProcessEnd = processToPlace.endDateTime;
   
-    const finalProcesses: ScheduledProcess[] = processesToUpdate.filter(p => p.machineId !== droppedProcess.machineId);
-    finalProcesses.push(droppedProcess);
+    // Find the first process that collides with the newly placed process
+    const firstCollisionIndex = processesOnSameMachine.findIndex(p =>
+      isAfter(processToPlace.endDateTime, p.startDateTime) && isAfter(p.endDateTime, processToPlace.startDateTime)
+    );
   
-    processesOnSameMachine.forEach(existingProcess => {
-      // Check for collision with the latest process placed/shifted
-      if (isAfter(lastEndTime, existingProcess.startDateTime)) {
+    if (firstCollisionIndex === -1) {
+      // No collision, just add the non-colliding processes
+      finalProcesses.push(...processesOnSameMachine);
+    } else {
+      // Add all processes before the collision
+      finalProcesses.push(...processesOnSameMachine.slice(0, firstCollisionIndex));
+  
+      // Start the cascade from the first colliding process
+      for (let i = firstCollisionIndex; i < processesOnSameMachine.length; i++) {
+        const currentProcess = processesOnSameMachine[i];
+        
+        const newStart = lastProcessEnd;
+        const newEnd = calculateEndDateTime(newStart, currentProcess.durationMinutes);
+  
         const shiftedProcess: ScheduledProcess = {
-          ...existingProcess,
-          startDateTime: lastEndTime,
-          endDateTime: calculateEndDateTime(lastEndTime, existingProcess.durationMinutes),
+          ...currentProcess,
+          startDateTime: newStart,
+          endDateTime: newEnd,
         };
+        
         finalProcesses.push(shiftedProcess);
-        lastEndTime = shiftedProcess.endDateTime;
-      } else {
-        finalProcesses.push(existingProcess);
+        lastProcessEnd = newEnd;
       }
-    });
+    }
   
     setScheduledProcesses(finalProcesses);
   };
@@ -438,5 +451,6 @@ export default function Home() {
     </div>
   );
 }
+    
 
     
