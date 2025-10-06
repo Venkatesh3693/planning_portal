@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { format, getWeek, getMonth, getYear, setHours, startOfDay, isWithinInterval } from 'date-fns';
 import type { ScheduledProcess } from '@/lib/types';
-import type { DraggedItem } from '@/app/page';
+import type { DraggedItemData } from '@/app/page';
 import { cn } from '@/lib/utils';
 import ScheduledProcessBar from './scheduled-process';
 
@@ -19,13 +19,11 @@ type GanttChartProps = {
   rows: Row[];
   dates: Date[];
   scheduledProcesses: ScheduledProcess[];
-  onDrop: (rowId: string, startDateTime: Date) => void;
+  onDrop: (rowId: string, startDateTime: Date, draggedItemJSON: string) => void;
   onUndoSchedule: (scheduledProcessId: string) => void;
-  onProcessDragStart: (e: React.DragEvent<HTMLDivElement>, item: DraggedItem) => void;
-  onDragEnd: (e: React.DragEvent<HTMLDivElement>) => void;
+  onProcessDragStart: (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => void;
   isOrderLevelView?: boolean;
   viewMode: ViewMode;
-  draggedItem: DraggedItem | null;
 };
 
 const ROW_HEIGHT = 32; // Corresponds to h-8
@@ -66,14 +64,13 @@ export default function GanttChart({
   onDrop,
   onUndoSchedule,
   onProcessDragStart,
-  onDragEnd,
   isOrderLevelView = false,
   viewMode,
-  draggedItem,
 }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [containerHeight, setContainerHeight] = React.useState(0);
+  const [draggedItemTna, setDraggedItemTna] = React.useState<{startDate: Date, endDate: Date} | null>(null);
   
   React.useEffect(() => {
     const measureContainer = () => {
@@ -99,6 +96,15 @@ export default function GanttChart({
     return columns;
   }, [dates, viewMode]);
 
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+    const draggedItemJSON = e.dataTransfer.getData('application/json');
+    if (!draggedItemJSON) return;
+    const draggedItem: DraggedItemData = JSON.parse(draggedItemJSON);
+    if (draggedItem.type === 'new' && draggedItem.tna) {
+      setDraggedItemTna({startDate: new Date(draggedItem.tna.startDate), endDate: new Date(draggedItem.tna.endDate)});
+    }
+  };
+
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>, rowId: string, date: Date) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
@@ -113,8 +119,15 @@ export default function GanttChart({
   
   const handleDrop = (e: React.DragEvent<HTMLDivElement>, rowId: string, date: Date) => {
     e.preventDefault();
-    onDrop(rowId, date);
+    const draggedItemJSON = e.dataTransfer.getData('application/json');
+    onDrop(rowId, date, draggedItemJSON);
     setDragOverCell(null);
+    setDraggedItemTna(null);
+  };
+
+  const handleDragEnd = () => {
+    setDragOverCell(null);
+    setDraggedItemTna(null);
   };
 
   const laneAssignments = React.useMemo(() => {
@@ -234,7 +247,7 @@ export default function GanttChart({
   }, [timeColumns, viewMode]);
 
   return (
-    <div className="h-full w-full overflow-auto" ref={containerRef} onDragEnd={onDragEnd}>
+    <div className="h-full w-full overflow-auto" ref={containerRef} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="relative grid min-h-full" style={timelineGridStyle}>
             <div className="sticky left-0 z-10 col-start-1 row-start-1 row-end-[-1] bg-card"></div>
             <div className="sticky left-0 top-0 z-50 border-b border-r bg-card" style={{gridRowEnd: 'span 3'}}></div>
@@ -276,13 +289,12 @@ export default function GanttChart({
                 const rowCells = timeColumns.map((col, dateIndex) => {
                   const isDragOver = dragOverCell?.rowId === row.id && dragOverCell.date.getTime() === col.date.getTime();
                   let isInTnaRange = false;
-                  if (draggedItem?.type === 'new' && draggedItem.tna) {
-                      const { tna } = draggedItem;
-                      const interval = { start: startOfDay(tna.startDate), end: startOfDay(tna.endDate) };
+                  if (draggedItemTna) {
+                      const interval = { start: startOfDay(draggedItemTna.startDate), end: startOfDay(draggedItemTna.endDate) };
                       if (viewMode === 'day') {
                           isInTnaRange = isWithinInterval(col.date, interval);
                       } else {
-                          isInTnaRange = isWithinInterval(col.date, { start: tna.startDate, end: tna.endDate });
+                          isInTnaRange = isWithinInterval(col.date, { start: draggedItemTna.startDate, end: draggedItemTna.endDate });
                       }
                   }
 
@@ -331,8 +343,6 @@ export default function GanttChart({
                     if (!assignment) return null;
                     lane = assignment.lane;
                 }
-                
-                const isGhost = draggedItem?.type === 'existing' && draggedItem.process.id === item.id;
 
                 return (
                     <ScheduledProcessBar 
@@ -344,7 +354,6 @@ export default function GanttChart({
                         onUndo={onUndoSchedule}
                         onDragStart={onProcessDragStart}
                         isOrderLevelView={isOrderLevelView}
-                        isGhost={isGhost}
                     />
                 );
             })}
@@ -352,3 +361,5 @@ export default function GanttChart({
     </div>
   );
 }
+
+    

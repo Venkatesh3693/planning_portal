@@ -3,7 +3,7 @@
 
 import { ORDERS, PROCESSES } from '@/lib/data';
 import type { ScheduledProcess } from '@/lib/types';
-import type { DraggedItem } from '@/app/page';
+import type { DraggedItemData } from '@/app/page';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover';
 import { Undo2, GripVertical } from 'lucide-react';
@@ -17,9 +17,8 @@ type ScheduledProcessProps = {
   gridColStart?: number;
   durationInColumns?: number;
   onUndo?: (scheduledProcessId: string) => void;
-  onDragStart?: (e: React.DragEvent<HTMLDivElement>, item: DraggedItem) => void;
+  onDragStart?: (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => void;
   isOrderLevelView?: boolean;
-  isGhost?: boolean;
 };
 
 export default function ScheduledProcessBar({ 
@@ -30,7 +29,6 @@ export default function ScheduledProcessBar({
   onUndo,
   onDragStart,
   isOrderLevelView = false,
-  isGhost = false,
 }: ScheduledProcessProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -66,7 +64,7 @@ export default function ScheduledProcessBar({
 
   const handleInternalDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     if (onDragStart) {
-      const draggedItem: DraggedItem = { type: 'existing', process: item };
+      const draggedItem: DraggedItemData = { type: 'existing', processId: item.id };
       onDragStart(e, draggedItem);
     }
   };
@@ -79,8 +77,7 @@ export default function ScheduledProcessBar({
           draggable={!!onDragStart}
           onDragStart={handleInternalDragStart}
           className={cn(
-            "relative z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg",
-            isGhost ? "opacity-30 pointer-events-none" : "cursor-grab active:cursor-grabbing"
+            "relative z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg cursor-grab active:cursor-grabbing"
           )}
           style={{
             gridRowStart: gridRow,
@@ -126,3 +123,5 @@ export default function ScheduledProcessBar({
     </Popover>
   );
 }
+
+    
