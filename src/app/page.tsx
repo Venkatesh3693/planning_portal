@@ -252,9 +252,8 @@ export default function Home() {
     });
 
     setScheduledProcesses(prev => {
-      const otherProcesses = prev.filter(p => 
-        p.id !== originalProcess.id && p.parentId !== originalProcess.parentId
-      );
+      // Remove the original process that was split
+      const otherProcesses = prev.filter(p => p.id !== originalProcess.id);
       return [...otherProcesses, ...cascadedSplitProcesses];
     });
 
