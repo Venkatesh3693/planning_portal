@@ -198,7 +198,7 @@ export default function GanttChart({
           {rows.map((row, rowIndex) => (
             <div 
               key={row.id}
-              className={cn( "sticky left-0 z-10 flex items-center justify-start p-2 border-b border-r whitespace-nowrap", rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/50' )}
+              className={cn( "sticky left-0 z-20 flex items-center justify-start p-2 border-b border-r whitespace-nowrap", rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/50' )}
               style={{ gridRow: `${rowIndex + 4}` }}
             >
               <span className="font-semibold text-foreground text-sm">{row.name}</span>
