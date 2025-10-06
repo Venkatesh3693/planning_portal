@@ -35,63 +35,46 @@ export default function SplitProcessDialog({
   onOpenChange,
   onConfirmSplit,
 }: SplitProcessDialogProps) {
-  const [splits, setSplits] = useState<number[]>([]);
+  const [splits, setSplits] = useState<string[]>([]);
 
   useEffect(() => {
     // Reset splits when a new process is selected
     if (process) {
-      setSplits([process.quantity]);
+      setSplits([String(process.quantity)]);
     }
   }, [process]);
   
   const processInfo = useMemo(() => process ? PROCESSES.find(p => p.id === process.processId) : null, [process]);
   const orderInfo = useMemo(() => process ? ORDERS.find(o => o.id === process.orderId) : null, [process]);
 
-  // Safely derive totalOriginalQuantity
   const totalOriginalQuantity = process?.quantity ?? 0;
 
   const totalSplitQuantity = useMemo(() => {
-    return splits.reduce((sum, qty) => sum + qty, 0);
+    return splits.reduce((sum, qty) => sum + (parseInt(qty, 10) || 0), 0);
   }, [splits]);
 
-  const isInvalid = totalSplitQuantity !== totalOriginalQuantity || splits.some(q => q <= 0);
+  const isInvalid = totalSplitQuantity !== totalOriginalQuantity || splits.some(q => (parseInt(q, 10) || 0) <= 0);
 
   const handleAddSplit = () => {
-    // Distribute remaining quantity
-    const remaining = totalOriginalQuantity - totalSplitQuantity;
-    if (splits.length > 0 && remaining > 0) {
-        const lastSplit = splits[splits.length - 1];
-        if(lastSplit > 1) {
-            const half = Math.floor(lastSplit / 2);
-            const newSplits = [...splits.slice(0, -1), half, lastSplit - half];
-            setSplits(newSplits);
-        }
-    } else {
-        setSplits(prev => [...prev, 0]);
-    }
+    setSplits(prev => [...prev, '0']);
   };
 
   const handleRemoveSplit = (index: number) => {
     if (splits.length <= 1) return;
-    const removedQty = splits[index];
     const newSplits = splits.filter((_, i) => i !== index);
-    // Add the removed quantity back to the first split
-    if (newSplits.length > 0) {
-        newSplits[0] += removedQty;
-    }
     setSplits(newSplits);
   };
 
   const handleQuantityChange = (index: number, value: string) => {
-    const newQuantity = parseInt(value, 10) || 0;
     const newSplits = [...splits];
-    newSplits[index] = newQuantity;
+    newSplits[index] = value;
     setSplits(newSplits);
   };
 
   const handleSubmit = () => {
     if (!isInvalid && process) {
-      onConfirmSplit(process, splits);
+      const numericSplits = splits.map(s => parseInt(s, 10) || 0);
+      onConfirmSplit(process, numericSplits);
     }
   };
 
