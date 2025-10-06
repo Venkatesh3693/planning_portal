@@ -78,7 +78,7 @@ export default function ScheduledProcessBar({
             onDragStart && 'cursor-grab active:cursor-grabbing'
           )}
           style={{
-            background: `linear-gradient(to right, ${baseColor}, hsl(var(--accent)))`,
+            backgroundColor: baseColor,
           }}
           title={`${orderDetails.id}: ${processDetails.name} (${durationText})`}
         >
