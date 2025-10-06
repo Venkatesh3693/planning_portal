@@ -91,112 +91,109 @@ export default function Home() {
   const [filterOcn, setFilterOcn] = useState('');
   const [filterBuyer, setFilterBuyer] = useState<string[]>([]);
   const [filterDueDate, setFilterDueDate] = useState<DateRange | undefined>(undefined);
-  const [draggedItem, setDraggedItem] = useState<DraggedItemData | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const buyerOptions = useMemo(() => [...new Set(ORDERS.map(o => o.buyer))], []);
   const isOrderLevelView = selectedProcessId === ORDER_LEVEL_VIEW;
 
   const handleDropOnChart = (rowId: string, startDateTime: Date, draggedItemJSON: string) => {
     if (!draggedItemJSON) return;
-
+  
     const droppedItem: DraggedItemData = JSON.parse(draggedItemJSON);
-
+  
+    // 1. Determine the process being dropped/moved
     let processToPlace: ScheduledProcess;
-    let otherProcesses = [...scheduledProcesses];
-
+    let otherProcesses: ScheduledProcess[];
+  
     if (droppedItem.type === 'new') {
-        const order = ORDERS.find(o => o.id === droppedItem.orderId)!;
-        const process = PROCESSES.find(p => p.id === droppedItem.processId)!;
-        const durationMinutes = process.sam * order.quantity;
-
-        const finalStartDateTime = viewMode === 'day'
-            ? set(startDateTime, { hours: WORKING_HOURS_START, minutes: 0 })
-            : startDateTime;
-
-        processToPlace = {
-            id: `${droppedItem.processId}-${droppedItem.orderId}-${Date.now()}`,
-            orderId: droppedItem.orderId,
-            processId: droppedItem.processId,
-            machineId: isOrderLevelView ? order.id : rowId,
-            startDateTime: finalStartDateTime,
-            endDateTime: calculateEndDateTime(finalStartDateTime, durationMinutes),
-            durationMinutes,
-        };
+      const order = ORDERS.find(o => o.id === droppedItem.orderId)!;
+      const process = PROCESSES.find(p => p.id === droppedItem.processId)!;
+      const durationMinutes = process.sam * order.quantity;
+      const finalStartDateTime = viewMode === 'day'
+        ? set(startDateTime, { hours: WORKING_HOURS_START, minutes: 0 })
+        : startDateTime;
+  
+      processToPlace = {
+        id: `${droppedItem.processId}-${droppedItem.orderId}-${Date.now()}`,
+        orderId: droppedItem.orderId,
+        processId: droppedItem.processId,
+        machineId: isOrderLevelView ? order.id : rowId,
+        startDateTime: finalStartDateTime,
+        endDateTime: calculateEndDateTime(finalStartDateTime, durationMinutes),
+        durationMinutes,
+      };
+      otherProcesses = [...scheduledProcesses];
     } else { // 'existing'
-        const originalProcess = scheduledProcesses.find(p => p.id === droppedItem.processId);
-        if (!originalProcess) return;
-
-        otherProcesses = scheduledProcesses.filter(p => p.id !== droppedItem.processId);
-
-        const finalStartDateTime = viewMode === 'day'
-            ? set(startDateTime, { hours: originalProcess.startDateTime.getHours(), minutes: originalProcess.startDateTime.getMinutes() })
-            : startDateTime;
-
-        processToPlace = {
-            ...originalProcess,
-            machineId: isOrderLevelView ? originalProcess.machineId : rowId,
-            startDateTime: finalStartDateTime,
-            endDateTime: calculateEndDateTime(finalStartDateTime, originalProcess.durationMinutes),
-        };
+      const originalProcess = scheduledProcesses.find(p => p.id === droppedItem.processId);
+      if (!originalProcess) return;
+  
+      const finalStartDateTime = viewMode === 'day'
+        ? set(startDateTime, { hours: originalProcess.startDateTime.getHours(), minutes: originalProcess.startDateTime.getMinutes() })
+        : startDateTime;
+  
+      processToPlace = {
+        ...originalProcess,
+        machineId: isOrderLevelView ? originalProcess.machineId : rowId,
+        startDateTime: finalStartDateTime,
+        endDateTime: calculateEndDateTime(finalStartDateTime, originalProcess.durationMinutes),
+      };
+      otherProcesses = scheduledProcesses.filter(p => p.id !== droppedItem.processId);
     }
-
+  
+    // 2. Identify conflicts and prepare for cascade
     const machineId = processToPlace.machineId;
-
     const processesOnSameMachine = otherProcesses
-        .filter(p => p.machineId === machineId)
-        .sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
-    
-    const unaffectedProcesses = otherProcesses.filter(p => p.machineId !== machineId);
-
-    const finalProcesses: ScheduledProcess[] = [...unaffectedProcesses];
-    
-    let lastProcessEnd = processToPlace.endDateTime;
-
-    // Add the newly placed/moved process first.
+      .filter(p => p.machineId === machineId)
+      .sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
+  
+    const finalProcesses: ScheduledProcess[] = otherProcesses.filter(p => p.machineId !== machineId);
     finalProcesses.push(processToPlace);
-    
-    let toCascade = processesOnSameMachine.filter(p => 
-        isAfter(lastProcessEnd, p.startDateTime) && isBefore(p.startDateTime, lastProcessEnd)
+  
+    // Find processes that start AFTER the new/moved process begins
+    let processesToCascade = processesOnSameMachine.filter(p => 
+      isAfter(p.startDateTime, processToPlace.startDateTime)
     );
-
-    const nonColliding = processesOnSameMachine.filter(p => !toCascade.find(c => c.id === p.id));
-    finalProcesses.push(...nonColliding);
-
-    while(toCascade.length > 0) {
-        const currentProcess = toCascade.shift()!;
-        
-        const newStart = lastProcessEnd;
-        const newEnd = calculateEndDateTime(newStart, currentProcess.durationMinutes);
-
-        finalProcesses.push({
-            ...currentProcess,
-            startDateTime: newStart,
-            endDateTime: newEnd,
-        });
-
-        lastProcessEnd = newEnd;
-
-        // Check if this shift causes further collisions
-        const furtherCollisions = toCascade.filter(p =>
-            isAfter(lastProcessEnd, p.startDateTime) && isBefore(p.startDateTime, lastProcessEnd)
-        );
-        
-        nonColliding.push(...toCascade.filter(p => !furtherCollisions.find(c => c.id === p.id)));
-
-        toCascade = furtherCollisions.sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
+  
+    // Add processes that the new one directly lands on top of
+    const directConflicts = processesOnSameMachine.filter(p =>
+      processToPlace.startDateTime < p.endDateTime && processToPlace.endDateTime > p.startDateTime && !processesToCascade.find(c => c.id === p.id)
+    );
+    processesToCascade = [...directConflicts, ...processesToCascade].sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
+  
+    // Add back unaffected processes on the same machine
+    const unaffectedOnMachine = processesOnSameMachine.filter(p => 
+      !processesToCascade.find(c => c.id === p.id)
+    );
+    finalProcesses.push(...unaffectedOnMachine);
+  
+    // 3. Perform the cascade
+    let lastProcessEnd = processToPlace.endDateTime;
+  
+    for (const processToShift of processesToCascade) {
+      const newStart = lastProcessEnd;
+      const newEnd = calculateEndDateTime(newStart, processToShift.durationMinutes);
+  
+      finalProcesses.push({
+        ...processToShift,
+        startDateTime: newStart,
+        endDateTime: newEnd,
+      });
+  
+      lastProcessEnd = newEnd;
     }
-
+  
+    // 4. Set the final state
     setScheduledProcesses(finalProcesses);
-};
+  };
   
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => {
     e.dataTransfer.setData('application/json', JSON.stringify(item));
-    setDraggedItem(item);
+    setIsDragging(true);
   };
   
   const handleDragEnd = () => {
-    setDraggedItem(null);
+    setIsDragging(false);
   };
 
   const handleUndoSchedule = (scheduledProcessId: string) => {
@@ -455,7 +452,7 @@ export default function Home() {
                     onProcessDragStart={handleDragStart}
                     isOrderLevelView={isOrderLevelView}
                     viewMode={viewMode}
-                    draggedItem={draggedItem}
+                    isDragging={isDragging}
                   />
               </div>
           </div>

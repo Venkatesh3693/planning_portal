@@ -24,7 +24,7 @@ type GanttChartProps = {
   onProcessDragStart: (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => void;
   isOrderLevelView?: boolean;
   viewMode: ViewMode;
-  draggedItem: DraggedItemData | null;
+  isDragging: boolean;
 };
 
 const ROW_HEIGHT = 32; // Corresponds to h-8
@@ -67,7 +67,7 @@ export default function GanttChart({
   onProcessDragStart,
   isOrderLevelView = false,
   viewMode,
-  draggedItem,
+  isDragging,
 }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -350,9 +350,6 @@ export default function GanttChart({
                     lane = assignment.lane;
                 }
                 
-                const isBeingDragged = draggedItem?.type === 'existing' && draggedItem.processId === item.id;
-                const isGhost = isBeingDragged;
-
                 return (
                     <ScheduledProcessBar 
                         key={item.id} 
@@ -363,7 +360,7 @@ export default function GanttChart({
                         onUndo={onUndoSchedule}
                         onDragStart={onProcessDragStart}
                         isOrderLevelView={isOrderLevelView}
-                        isGhost={isGhost}
+                        isDragging={isDragging}
                     />
                 );
             })}
