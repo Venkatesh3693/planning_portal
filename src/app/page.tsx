@@ -220,7 +220,11 @@ export default function Home() {
     );
     setDragPreviewPosition({ x: e.clientX, y: e.clientY });
     
-    setDraggedProcess(process);
+    setDraggedProcess({
+      ...process,
+      startDateTime: new Date(process.startDateTime),
+      endDateTime: new Date(process.endDateTime)
+    });
   };
   
   const handleGanttDragOver = (e: React.DragEvent<HTMLDivElement>) => {
