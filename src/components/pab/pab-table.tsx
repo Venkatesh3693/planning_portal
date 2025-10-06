@@ -87,12 +87,12 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
         </TableHeader>
         <TableBody>
           {Object.entries(pabData.data).map(([orderId, processData]) => (
-            <Collapsible asChild key={orderId} open={openOrders[orderId]}>
-                <>
+            <Collapsible asChild key={orderId} open={openOrders[orderId]} onOpenChange={() => toggleOrder(orderId)}>
+                <React.Fragment>
                 <TableRow className="bg-card hover:bg-muted/50 border-b-2 border-border font-medium">
                     <TableCell className="sticky left-0 bg-card z-10 min-w-[250px] p-0">
                         <CollapsibleTrigger asChild>
-                            <button className="flex items-center gap-2 cursor-pointer h-full p-4 w-full text-left" onClick={() => toggleOrder(orderId)}>
+                            <button className="flex items-center gap-2 cursor-pointer h-full p-4 w-full text-left">
                                 <ChevronRight className={cn("h-4 w-4 transition-transform", openOrders[orderId] && "rotate-90")} />
                                 <span className="font-semibold text-primary">{orderId}</span>
                             </button>
@@ -138,7 +138,7 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
                     })}
                     </>
                 </CollapsibleContent>
-                </>
+                </React.Fragment>
             </Collapsible>
           ))}
         </TableBody>
