@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { addDays, startOfToday, getDay, set, isAfter, addMinutes } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
@@ -80,7 +80,15 @@ export default function Home() {
   const [filterDueDate, setFilterDueDate] = useState<DateRange | undefined>(undefined);
   const [draggedItem, setDraggedItem] = useState<DraggedItemData | null>(null);
   const [processToSplit, setProcessToSplit] = useState<ScheduledProcess[] | null>(null);
+  const [dates, setDates] = useState<Date[]>([]);
 
+
+  useEffect(() => {
+    const today = startOfToday();
+    const generatedDates = Array.from({ length: 90 }, (_, i) => addDays(today, i))
+      .filter(date => getDay(date) !== 0); // Exclude Sundays
+    setDates(generatedDates);
+  }, []);
 
   const buyerOptions = useMemo(() => [...new Set(ORDERS.map(o => o.buyer))], []);
 
@@ -278,11 +286,6 @@ export default function Home() {
   };
 
 
-  const today = startOfToday();
-  const dates = Array.from({ length: 90 }, (_, i) => addDays(today, i))
-    .filter(date => getDay(date) !== 0); // Exclude Sundays
-
-  
   const selectableProcesses = PROCESSES.filter(p => p.id !== 'outsourcing');
 
   const unplannedOrders = useMemo(() => {
@@ -362,6 +365,14 @@ export default function Home() {
     const remainingProcesses = scheduledProcesses.filter(p => p.processId !== selectedProcessId);
     setScheduledProcesses(remainingProcesses);
   };
+
+  if (dates.length === 0) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <p>Loading schedule...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen flex-col" onDragEnd={handleDragEnd}>

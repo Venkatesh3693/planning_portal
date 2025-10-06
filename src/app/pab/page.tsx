@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -20,12 +20,24 @@ import { addDays, startOfToday, getDay } from 'date-fns';
 
 export default function PabPage() {
   const { scheduledProcesses } = useAppContext();
-  
-  const today = startOfToday();
-  const dates = Array.from({ length: 90 }, (_, i) => addDays(today, i))
-    .filter(date => getDay(date) !== 0); // Exclude Sundays
+  const [dates, setDates] = useState<Date[]>([]);
+
+  useEffect(() => {
+    const today = startOfToday();
+    const generatedDates = Array.from({ length: 90 }, (_, i) => addDays(today, i))
+      .filter(date => getDay(date) !== 0); // Exclude Sundays
+    setDates(generatedDates);
+  }, []);
     
   const pabData = usePabData(scheduledProcesses, ORDERS, PROCESSES, dates);
+
+  if (dates.length === 0) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <p>Loading PAB data...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen flex-col">
