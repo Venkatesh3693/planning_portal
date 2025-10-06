@@ -30,6 +30,9 @@ const ROW_HEIGHT_PX = 32;
 const WORKING_HOURS_START = 9;
 const WORKING_HOURS_END = 17;
 const WORKING_HOURS = Array.from({ length: WORKING_HOURS_END - WORKING_HOURS_START }, (_, i) => i + WORKING_HOURS_START);
+const DAY_CELL_WIDTH = '2.5rem';
+const HOUR_CELL_WIDTH = '3.5rem';
+
 
 const TopLeftCorner = () => (
   <div className="sticky top-0 left-0 z-40 bg-muted/30 border-r border-b border-border/60">
@@ -96,7 +99,7 @@ const Header = React.forwardRef<
   }, [timeColumns, viewMode]);
 
   const topHeaders = viewMode === 'day' ? monthHeaders : dayHeaders;
-  const cellWidth = viewMode === 'day' ? 'minmax(2.5rem, 1fr)' : 'minmax(3.5rem, 1fr)';
+  const cellWidth = viewMode === 'day' ? DAY_CELL_WIDTH : HOUR_CELL_WIDTH;
   const gridTemplateColumns = `repeat(${timeColumns.length}, ${cellWidth})`;
 
   return (
@@ -191,8 +194,9 @@ export default function GanttChart({
     setDragOverCell(null);
   };
   
-  const cellWidth = viewMode === 'day' ? 'minmax(2.5rem, 1fr)' : 'minmax(3.5rem, 1fr)';
+  const cellWidth = viewMode === 'day' ? DAY_CELL_WIDTH : HOUR_CELL_WIDTH;
   const gridTemplateColumns = `repeat(${timeColumns.length}, ${cellWidth})`;
+  const totalGridWidth = `calc(${timeColumns.length} * ${cellWidth})`;
 
   return (
     <div 
@@ -229,7 +233,7 @@ export default function GanttChart({
 
       {/* Bottom-Right Body (Timeline) */}
       <div ref={bodyRef} className="row-start-2 col-start-2 overflow-auto relative" onScroll={handleBodyScroll}>
-        <div className="relative" style={{ width: `calc(${timeColumns.length} * max(2.5rem, 4vw))`, height: `${rows.length * ROW_HEIGHT_PX}px`}}>
+        <div className="relative" style={{ width: totalGridWidth, height: `${rows.length * ROW_HEIGHT_PX}px`}}>
           {/* Main Timeline Grid Background */}
           <div className="absolute inset-0 grid" style={{ gridTemplateColumns, gridTemplateRows: `repeat(${rows.length}, ${ROW_HEIGHT_PX}px)` }}>
             {rows.map((row, rowIndex) => (
@@ -284,9 +288,8 @@ export default function GanttChart({
 
               const durationInColumns = endDateIndex - dateIndex + 1;
               
-              const totalWidth = `calc(${timeColumns.length} * max(2.5rem, 4vw))`;
-              const leftOffset = `calc((${dateIndex} / ${timeColumns.length}) * ${totalWidth})`;
-              const barWidth = `calc((${durationInColumns} / ${timeColumns.length}) * ${totalWidth})`;
+              const leftOffset = `calc((${dateIndex} / ${timeColumns.length}) * ${totalGridWidth})`;
+              const barWidth = `calc((${durationInColumns} / ${timeColumns.length}) * ${totalGridWidth})`;
 
               return (
                   <div 
@@ -312,3 +315,5 @@ export default function GanttChart({
     </div>
   );
 }
+
+    
