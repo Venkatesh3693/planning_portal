@@ -2,11 +2,12 @@
 "use client";
 
 import * as React from 'react';
-import { format, getWeek, getMonth, getYear, setHours, startOfDay, isWithinInterval } from 'date-fns';
+import { format, getWeek, getMonth, getYear, setHours, startOfDay, isWithinInterval, startOfHour, endOfHour } from 'date-fns';
 import type { ScheduledProcess } from '@/lib/types';
 import type { DraggedItemData } from '@/app/page';
 import { cn } from '@/lib/utils';
 import ScheduledProcessBar from './scheduled-process';
+import { PROCESSES } from '@/lib/data';
 
 type Row = {
   id: string;
@@ -32,31 +33,6 @@ const WORKING_HOURS_START = 9;
 const WORKING_HOURS_END = 17;
 const WORKING_HOURS = Array.from({ length: WORKING_HOURS_END - WORKING_HOURS_START }, (_, i) => i + WORKING_HOURS_START);
 
-const assignLanes = (processes: ScheduledProcess[]): { process: ScheduledProcess; lane: number }[] => {
-    if (!processes || processes.length === 0) return [];
-
-    const sortedProcesses = [...processes].sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
-    
-    const lanes: { process: ScheduledProcess, lane: number }[] = [];
-    const laneEndTimes: Date[] = [];
-
-    for (const process of sortedProcesses) {
-        let foundLane = false;
-        for (let i = 0; i < laneEndTimes.length; i++) {
-            if (process.startDateTime.getTime() >= laneEndTimes[i].getTime()) {
-                lanes.push({ process, lane: i });
-                laneEndTimes[i] = process.endDateTime;
-                foundLane = true;
-                break;
-            }
-        }
-        if (!foundLane) {
-            lanes.push({ process, lane: laneEndTimes.length });
-            laneEndTimes.push(process.endDateTime);
-        }
-    }
-    return lanes;
-};
 
 export default function GanttChart({
   rows,
@@ -71,19 +47,15 @@ export default function GanttChart({
 }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
-  const [containerHeight, setContainerHeight] = React.useState(0);
-  const [draggedItemTna, setDraggedItemTna] = React.useState<{startDate: Date, endDate: Date} | null>(null);
-  
+  const [isDragging, setIsDragging] = React.useState(false);
+
   React.useEffect(() => {
-    const measureContainer = () => {
-      if (containerRef.current) {
-        setContainerHeight(containerRef.current.offsetHeight);
-      }
-    };
-    measureContainer();
-    window.addEventListener('resize', measureContainer);
-    return () => window.removeEventListener('resize', measureContainer);
-  }, []);
+    if (draggedItem) {
+      setIsDragging(true);
+    } else {
+      setIsDragging(false);
+    }
+  }, [draggedItem]);
 
   const timeColumns = React.useMemo(() => {
     if (viewMode === 'day') {
@@ -103,10 +75,6 @@ export default function GanttChart({
     if (!draggedItemJSON) return;
     try {
         const item: DraggedItemData = JSON.parse(draggedItemJSON);
-        if (item.type === 'new' && item.tna) {
-          setDraggedItemTna({startDate: new Date(item.tna.startDate), endDate: new Date(item.tna.endDate)});
-        }
-        // This is needed to propagate the drag start to the main page
         onProcessDragStart(e, item);
     } catch(e) {
       // ignore if parsing fails
@@ -130,52 +98,9 @@ export default function GanttChart({
     const draggedItemJSON = e.dataTransfer.getData('application/json');
     onDrop(rowId, date, draggedItemJSON);
     setDragOverCell(null);
-    setDraggedItemTna(null);
   };
-
-  const handleDragEnd = () => {
-    setDragOverCell(null);
-    setDraggedItemTna(null);
-  };
-
-  const laneAssignments = React.useMemo(() => {
-    if (!isOrderLevelView) return new Map();
-
-    const assignmentsByRow = new Map<string, { process: ScheduledProcess; lane: number }[]>();
-    for (const row of rows) {
-      const processesForRow = scheduledProcesses.filter(p => p.orderId === row.id);
-      assignmentsByRow.set(row.id, assignLanes(processesForRow));
-    }
-    return assignmentsByRow;
-  }, [isOrderLevelView, rows, scheduledProcesses]);
-
-  const maxLanesPerRow = React.useMemo(() => {
-    if (!isOrderLevelView) return new Map<string, number>();
   
-    const maxLanes = new Map<string, number>();
-    for (const row of rows) {
-      const assignments = laneAssignments.get(row.id) || [];
-      maxLanes.set(row.id, Math.max(1, assignments.length > 0 ? Math.max(...assignments.map(a => a.lane)) + 1 : 1));
-    }
-    return maxLanes;
-  }, [isOrderLevelView, rows, laneAssignments]);
-  
-  const rowPositions = React.useMemo(() => {
-    const positions = new Map<string, { start: number, span: number }>();
-    let counter = 1;
-    rows.forEach(row => {
-        const span = isOrderLevelView ? (maxLanesPerRow.get(row.id) || 1) : 1;
-        positions.set(row.id, { start: counter, span });
-        counter += span;
-    });
-    return positions;
-  }, [rows, isOrderLevelView, maxLanesPerRow]);
-
-  const totalOccupiedRows = Array.from(rowPositions.values()).reduce((sum, pos) => sum + pos.span, 0);
-  const headerHeight = 44 * 2;
-  const remainingHeight = containerHeight > 0 ? containerHeight - headerHeight - (totalOccupiedRows * ROW_HEIGHT) : 0;
-  const numEmptyRows = Math.max(0, Math.floor(remainingHeight / ROW_HEIGHT));
-  const totalGridRows = totalOccupiedRows + numEmptyRows;
+  const totalGridRows = rows.length;
   
   const timelineGridStyle = {
     gridTemplateColumns: `min-content repeat(${timeColumns.length}, minmax(3rem, 1fr))`,
@@ -243,22 +168,57 @@ export default function GanttChart({
         if (group === currentGroup) {
           span++;
         } else {
-          headers.push({ name: format(col.date, 'MMM d'), start, span });
+          headers.push({ name: format(new Date(group), 'MMM d'), start, span });
           currentGroup = group;
           start = index + 2;
           span = 1;
         }
       });
-      headers.push({ name: format(timeColumns[timeColumns.length - 1].date, 'MMM d'), start, span });
+      headers.push({ name: format(new Date(currentGroup), 'MMM d'), start, span });
     }
     return headers;
   }, [timeColumns, viewMode]);
 
+  const rowElements = React.useMemo(() => {
+    return rows.map((row, rowIndex) => ({
+      key: row.id,
+      rowHeader: (
+          <div 
+              className={cn( "sticky left-0 z-20 flex items-center justify-start p-2 border-b border-r whitespace-nowrap", rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/50' )}
+              style={{ gridRow: `${rowIndex + 4}`, gridColumn: 1 }}
+          >
+              <span className="font-semibold text-foreground text-sm">{row.name}</span>
+          </div>
+      ),
+      cells: timeColumns.map((col, dateIndex) => {
+        const isDragOver = dragOverCell?.rowId === row.id && dragOverCell.date.getTime() === col.date.getTime();
+        let isInTnaRange = false;
+        if (draggedItem?.type === 'new' && draggedItem.tna) {
+            const interval = viewMode === 'day' 
+              ? { start: startOfDay(draggedItem.tna.startDate), end: startOfDay(draggedItem.tna.endDate) }
+              : { start: startOfHour(draggedItem.tna.startDate), end: endOfHour(draggedItem.tna.endDate) };
+            isInTnaRange = isWithinInterval(col.date, interval);
+        }
+        return {
+          key: `${row.id}-${dateIndex}`,
+          rowId: row.id,
+          date: col.date,
+          className: cn('border-b border-r',
+              isDragOver ? 'bg-primary/20' : (rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/50'),
+              isInTnaRange && !isDragOver && 'bg-green-500/10',
+              'transition-colors duration-200'
+          ),
+          style: { gridRow: `${rowIndex + 4}`, gridColumn: dateIndex + 2 }
+        }
+      })
+    }));
+  }, [rows, timeColumns, dragOverCell, draggedItem, viewMode]);
+
   return (
-    <div className="h-full w-full overflow-auto" ref={containerRef} onDragStart={handleInternalDragStart} onDragEnd={handleDragEnd}>
-        <div className="relative grid min-h-full" style={timelineGridStyle}>
-            <div className="sticky left-0 z-10 col-start-1 row-start-1 row-end-[-1] bg-card"></div>
-            <div className="sticky left-0 top-0 z-50 border-b border-r bg-card" style={{gridRowEnd: 'span 3'}}></div>
+    <div className="h-full w-full overflow-auto" ref={containerRef} onDragStart={handleInternalDragStart}>
+        <div className={cn("relative grid min-h-full", isDragging && 'is-dragging')} style={timelineGridStyle}>
+            <div className="sticky left-0 z-30 col-start-1 row-start-1 row-end-[-1] bg-card"></div>
+            <div className="sticky left-0 top-0 z-50 border-b border-r bg-card" style={{gridRowEnd: 'span 3', gridColumnEnd: 'span 1'}}></div>
             
             {topHeaders.map(({name, start, span}) => (
                 <div key={`top-${name}-${start}`} className="sticky top-0 z-20 border-b border-r bg-card/95 py-0 text-center backdrop-blur-sm" style={{ gridColumn: `${start} / span ${span}`, gridRow: 1 }}>
@@ -280,88 +240,46 @@ export default function GanttChart({
                 </div>
             ))}
             
-            {rows.map((row, rowIndex) => {
-                const position = rowPositions.get(row.id);
-                if (!position) return null;
-                
-                const rowHeader = (
-                    <div 
-                        key={`${row.id}-header`}
-                        className={cn( "sticky left-0 z-20 flex items-center justify-start p-2 border-b border-r whitespace-nowrap", rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/50' )}
-                        style={{ gridRow: `${position.start + 3} / span ${position.span}`, gridColumn: 1 }}
-                    >
-                        <span className="font-semibold text-foreground text-sm">{row.name}</span>
-                    </div>
-                );
-
-                const rowCells = timeColumns.map((col, dateIndex) => {
-                  const isDragOver = dragOverCell?.rowId === row.id && dragOverCell.date.getTime() === col.date.getTime();
-                  let isInTnaRange = false;
-                  if (draggedItemTna) {
-                      const interval = { start: startOfDay(draggedItemTna.startDate), end: startOfDay(draggedItemTna.endDate) };
-                      if (viewMode === 'day') {
-                          isInTnaRange = isWithinInterval(col.date, interval);
-                      } else {
-                          isInTnaRange = isWithinInterval(col.date, { start: draggedItemTna.startDate, end: draggedItemTna.endDate });
-                      }
-                  }
-
-                  return (
+            {rowElements.map(row => (
+              <React.Fragment key={row.key}>
+                {row.rowHeader}
+                {row.cells?.map(cell => (
                     <div
-                        key={`${row.id}-${dateIndex}`}
-                        onDragOver={(e) => handleDragOver(e, row.id, col.date)}
+                        key={cell.key}
+                        onDragOver={(e) => handleDragOver(e, cell.rowId, cell.date)}
                         onDragLeave={handleDragLeave}
-                        onDrop={(e) => handleDrop(e, row.id, col.date)}
-                        className={cn('border-b border-r',
-                            isDragOver ? 'bg-primary/20' : (rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/50'),
-                            isInTnaRange && !isDragOver && 'bg-green-500/10',
-                            'transition-colors duration-200'
-                        )}
-                        style={{ gridRow: `${position.start + 3} / span ${position.span}`, gridColumn: dateIndex + 2 }}
-                    ></div>
-                )});
-                return [rowHeader, ...rowCells];
-            })}
+                        onDrop={(e) => handleDrop(e, cell.rowId, cell.date)}
+                        className={cell.className}
+                        style={cell.style}
+                    />
+                ))}
+              </React.Fragment>
+            ))}
 
-            {/* Empty rows and headers to fill vertical space */}
-            {Array.from({ length: numEmptyRows }).map((_, i) => [
-              <div key={`empty-header-${i}`} className={cn("sticky left-0 z-10 border-b border-r", (totalOccupiedRows + i) % 2 === 0 ? 'bg-card' : 'bg-muted/50')} style={{ gridRow: totalOccupiedRows + i + 4, gridColumn: 1 }}></div>,
-              ...timeColumns.map((col, dateIndex) => (
-                <div key={`empty-${i}-${dateIndex}`} className={cn("border-b border-r", (totalOccupiedRows + i) % 2 === 0 ? 'bg-card' : 'bg-muted/50')} style={{ gridRow: totalOccupiedRows + i + 4, gridColumn: dateIndex + 2 }}></div>
-              ))
-            ])}
 
             {scheduledProcesses.map((item) => {
-                const rowId = isOrderLevelView ? item.orderId : item.machineId;
-                const rowPosition = rowPositions.get(rowId);
-                if (!rowPosition) return null;
+                const row = rows.find(r => r.id === item.machineId);
+                const position = rows.findIndex(r => r.id === item.machineId);
+                if (!row || position === -1) return null;
 
-                const startColDate = viewMode === 'day' ? startOfDay(item.startDateTime) : setHours(startOfDay(item.startDateTime), item.startDateTime.getHours());
+                const startColDate = viewMode === 'day' ? startOfDay(item.startDateTime) : startOfHour(item.startDateTime);
                 const dateIndex = timeColumns.findIndex(d => d.date.getTime() === startColDate.getTime());
                 if (dateIndex === -1) return null;
 
-                const durationInColumns = viewMode === 'day'
-                    ? Math.ceil(item.durationMinutes / (8 * 60))
-                    : Math.ceil(item.durationMinutes / 60);
+                const endColDate = viewMode === 'day' ? startOfDay(item.endDateTime) : startOfHour(item.endDateTime);
+                const endDateIndex = timeColumns.findIndex(d => d.date.getTime() === endColDate.getTime());
                 
-                let lane = 0;
-                if (isOrderLevelView) {
-                    const assignments = laneAssignments.get(rowId);
-                    const assignment = assignments?.find(a => a.process.id === item.id);
-                    if (!assignment) return null;
-                    lane = assignment.lane;
-                }
+                const durationInColumns = endDateIndex - dateIndex + 1;
                 
                 return (
                     <ScheduledProcessBar 
                         key={item.id} 
                         item={item} 
-                        gridRow={rowPosition.start + lane + 3} 
+                        gridRow={position + 4} 
                         gridColStart={dateIndex + 2}
                         durationInColumns={durationInColumns}
                         onUndo={onUndoSchedule}
                         onDragStart={onProcessDragStart}
-                        isOrderLevelView={isOrderLevelView}
                     />
                 );
             })}
@@ -369,7 +287,3 @@ export default function GanttChart({
     </div>
   );
 }
-
-    
-
-    
