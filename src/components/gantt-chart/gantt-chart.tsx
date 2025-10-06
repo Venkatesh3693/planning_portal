@@ -314,7 +314,7 @@ export default function GanttChart({
                 const isBeingDragged = draggedItem?.type === 'existing' && draggedItem.process.id === item.id;
                 
                 if (isBeingDragged) {
-                    return null; // Don't render the ghost
+                    return null; // Don't render the item if it's being dragged
                 }
 
                 const rowId = isOrderLevelView ? item.orderId : item.machineId;
@@ -347,7 +347,6 @@ export default function GanttChart({
                         onUndo={onUndoSchedule}
                         onDragStart={onProcessDragStart}
                         isOrderLevelView={isOrderLevelView}
-                        isBeingDragged={isBeingDragged}
                     />
                 );
             })}
@@ -355,5 +354,3 @@ export default function GanttChart({
     </div>
   );
 }
-
-    

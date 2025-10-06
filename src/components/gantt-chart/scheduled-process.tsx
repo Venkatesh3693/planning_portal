@@ -19,7 +19,6 @@ type ScheduledProcessProps = {
   onUndo?: (scheduledProcessId: string) => void;
   onDragStart?: (e: React.DragEvent<HTMLDivElement>, item: DraggedItem) => void;
   isOrderLevelView?: boolean;
-  isBeingDragged?: boolean;
 };
 
 export default function ScheduledProcessBar({ 
@@ -30,7 +29,6 @@ export default function ScheduledProcessBar({
   onUndo,
   onDragStart,
   isOrderLevelView = false,
-  isBeingDragged = false,
 }: ScheduledProcessProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -79,8 +77,7 @@ export default function ScheduledProcessBar({
           draggable={!!onDragStart}
           onDragStart={handleInternalDragStart}
           className={cn(
-            "relative z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg transition-opacity duration-150",
-            isBeingDragged ? "opacity-30" : "opacity-100",
+            "relative z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg",
             "cursor-grab active:cursor-grabbing"
           )}
           style={{
@@ -127,5 +124,3 @@ export default function ScheduledProcessBar({
     </Popover>
   );
 }
-
-    
