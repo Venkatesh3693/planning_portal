@@ -45,12 +45,8 @@ export default function GanttChart({
   draggedItem,
 }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
-
   const isDragging = !!draggedItem;
   
-  const headerRef = React.useRef<HTMLDivElement>(null);
-  const bodyRef = React.useRef<HTMLDivElement>(null);
-
   const timeColumns = React.useMemo(() => {
     if (viewMode === 'day') {
       return dates.map(date => ({ date, type: 'day' as const }));
@@ -85,6 +81,7 @@ export default function GanttChart({
   };
   
   const gridTemplateColumns = `${ROW_HEADER_WIDTH_PX}px repeat(${timeColumns.length}, minmax(2.5rem, 1fr))`;
+  const totalGridRows = rows.length;
 
   const topHeaders = React.useMemo(() => {
     const headers: { name: string; span: number }[] = [];
@@ -144,7 +141,7 @@ export default function GanttChart({
         if (group === currentGroup) {
           span++;
         } else {
-          headers.push({ name: format(new Date(group), 'MMM d'), span });
+          headers.push({ name: format(new Date(currentGroup), 'MMM d'), span });
           currentGroup = group;
           span = 1;
         }
@@ -154,154 +151,126 @@ export default function GanttChart({
     return headers;
   }, [timeColumns, viewMode]);
 
-  const handleScroll = () => {
-    if (headerRef.current && bodyRef.current) {
-      headerRef.current.scrollLeft = bodyRef.current.scrollLeft;
-    }
-  };
-
   return (
-    <div className={cn("h-full w-full flex flex-col overflow-hidden", isDragging && 'is-dragging')}>
-      {/* HEADER */}
-      <div ref={headerRef} className="flex-shrink-0 overflow-hidden">
-        <div style={{ gridTemplateColumns }} className="grid">
+    <div className={cn("h-full w-full overflow-auto relative", isDragging && 'is-dragging')}>
+        <div 
+          className="grid"
+          style={{
+            gridTemplateColumns,
+            gridTemplateRows: `auto auto auto repeat(${totalGridRows || 1}, ${ROW_HEIGHT_PX}px)`,
+          }}
+        >
+          {/* HEADER */}
           {/* Top Left Header Corner */}
-          <div className="sticky left-0 z-20 border-r border-b bg-card"></div>
+          <div className="sticky top-0 left-0 z-30 border-r border-b bg-card"></div>
+          <div className="sticky top-0 left-0 z-30 border-r border-b bg-card" style={{gridRow: 2}}></div>
+          <div className="sticky top-0 left-0 z-30 border-r border-b bg-card" style={{gridRow: 3}}></div>
           
           {/* Top Header Row */}
-          <div className="col-start-2 border-b">
-            <div className="grid grid-flow-col auto-cols-fr">
+          <div className="sticky top-0 z-20 col-start-2 border-b bg-card" style={{gridColumn: '2 / -1', gridRow: 1}}>
               {topHeaders.map(({ name, span }, i) => (
-                <div key={`top-header-${i}`} className="border-r text-center py-1" style={{ gridColumn: `span ${span}` }}>
+                <div key={`top-header-${i}`} className="inline-block border-r text-center py-1" style={{ width: `calc(${span} * 100% / ${timeColumns.length})` }}>
                   <span className="text-xs font-semibold text-foreground">{name}</span>
                 </div>
               ))}
-            </div>
           </div>
           
           {/* Mid Header Row */}
-          <div className="sticky left-0 z-20 border-r border-b bg-card"></div>
-          <div className="col-start-2 border-b">
-            <div className="grid grid-flow-col auto-cols-fr">
+          <div className="sticky top-0 z-20 col-start-2 border-b bg-card" style={{gridColumn: '2 / -1', gridRow: 2, top: 'calc(1.75rem)'}}>
               {midHeaders.map(({ name, span }, i) => (
-                <div key={`mid-header-${i}`} className="border-r text-center py-1" style={{ gridColumn: `span ${span}` }}>
+                <div key={`mid-header-${i}`} className="inline-block border-r text-center py-1" style={{ width: `calc(${span} * 100% / ${timeColumns.length})` }}>
                   <span className="text-sm font-semibold text-foreground">{name}</span>
                 </div>
               ))}
-            </div>
           </div>
-          
+
           {/* Bottom Header Row */}
-          <div className="sticky left-0 z-20 border-r border-b bg-card"></div>
-          <div className="col-start-2 border-b">
-            <div className="grid grid-flow-col auto-cols-fr">
-              {timeColumns.map((col, i) => (
-                <div key={`bottom-header-${i}`} className="border-r text-center py-1">
-                  <div className="text-[10px] font-medium text-muted-foreground leading-none">
-                    {viewMode === 'day' ? format(col.date, 'd') : format(col.date, 'ha').toLowerCase()}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* BODY */}
-      <div ref={bodyRef} onScroll={handleScroll} className="flex-1 overflow-auto relative">
-          <div 
-            className="grid"
-            style={{
-              gridTemplateColumns,
-              gridTemplateRows: `repeat(${rows.length}, ${ROW_HEIGHT_PX}px)`
-            }}
-          >
-            {/* Sticky Row Headers Column */}
-            {rows.map((row, rowIndex) => (
-              <div 
-                key={row.id}
-                className={cn( "sticky left-0 z-10 flex items-center justify-start p-2 border-b border-r whitespace-nowrap", rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/50' )}
-                style={{ gridRow: `${rowIndex + 1}` }}
-              >
-                <span className="font-semibold text-foreground text-sm">{row.name}</span>
+          {timeColumns.map((col, i) => (
+            <div key={`bottom-header-${i}`} className="sticky top-0 z-20 border-r border-b bg-card text-center py-1" style={{gridColumn: i+2, gridRow: 3, top: 'calc(3.5rem)'}}>
+              <div className="text-[10px] font-medium text-muted-foreground leading-none">
+                {viewMode === 'day' ? format(col.date, 'd') : format(col.date, 'ha').toLowerCase()}
               </div>
-            ))}
-
-            {/* Grid Cells */}
-            {rows.map((row, rowIndex) => (
-              <React.Fragment key={row.id}>
-                {timeColumns.map((col, dateIndex) => {
-                  const isDragOver = dragOverCell?.rowId === row.id && dragOverCell.date.getTime() === col.date.getTime();
-                  let isInTnaRange = false;
-                  if (draggedItem?.type === 'new' && draggedItem.tna) {
-                      const interval = viewMode === 'day' 
-                        ? { start: startOfDay(draggedItem.tna.startDate), end: startOfDay(draggedItem.tna.endDate) }
-                        : { start: startOfHour(draggedItem.tna.startDate), end: endOfHour(draggedItem.tna.endDate) };
-                      isInTnaRange = isWithinInterval(col.date, interval);
-                  }
-                  return (
-                      <div
-                          key={`${row.id}-${dateIndex}`}
-                          onDragOver={(e) => handleDragOver(e, row.id, col.date)}
-                          onDragLeave={handleDragLeave}
-                          onDrop={(e) => handleDrop(e, row.id, col.date)}
-                          className={cn('border-b border-r',
-                              isDragOver ? 'bg-primary/20' : (rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/50'),
-                              isInTnaRange && !isDragOver && 'bg-green-500/10',
-                              'transition-colors duration-200'
-                          )}
-                          style={{ gridRow: `${rowIndex + 1}`, gridColumn: dateIndex + 2 }}
-                      />
-                  )
-                })}
-              </React.Fragment>
-            ))}
-
-            {/* Scheduled Process Bars */}
-            <div 
-              className="col-start-2 contents"
-              style={{ 
-                gridRow: `1 / span ${rows.length}`,
-                gridColumn: `2 / span ${timeColumns.length}`
-              }}
-            >
-              {scheduledProcesses.map((item) => {
-                  const position = rows.findIndex(r => r.id === item.machineId);
-                  if (position === -1) return null;
-
-                  const startColDate = viewMode === 'day' ? startOfDay(item.startDateTime) : startOfHour(item.startDateTime);
-                  const dateIndex = timeColumns.findIndex(d => d.date.getTime() === startColDate.getTime());
-                  if (dateIndex === -1) return null;
-
-                  const endColDate = viewMode === 'day' ? startOfDay(item.endDateTime) : startOfHour(item.endDateTime);
-                  let endDateIndex = timeColumns.findIndex(d => d.date.getTime() === endColDate.getTime());
-                  
-                  if (item.endDateTime.getTime() === endColDate.getTime() && item.endDateTime.getTime() > item.startDateTime.getTime()) {
-                      const prevDate = viewMode === 'day' ? startOfDay(addDays(item.endDateTime, -1)) : startOfHour(addMinutes(item.endDateTime, -60));
-                      endDateIndex = timeColumns.findIndex(d => d.date.getTime() === prevDate.getTime());
-                  }
-
-                  if (endDateIndex === -1) {
-                    endDateIndex = timeColumns.length -1;
-                  }
-
-                  const durationInColumns = endDateIndex - dateIndex + 1;
-                  
-                  return (
-                      <ScheduledProcessBar 
-                          key={item.id} 
-                          item={item} 
-                          gridRow={position + 1} 
-                          gridColStart={dateIndex + 2}
-                          durationInColumns={durationInColumns}
-                          onUndo={onUndoSchedule}
-                          onDragStart={onProcessDragStart}
-                      />
-                  );
-              })}
             </div>
-          </div>
-      </div>
+          ))}
+
+          {/* BODY */}
+          {/* Sticky Row Headers Column */}
+          {rows.map((row, rowIndex) => (
+            <div 
+              key={row.id}
+              className={cn( "sticky left-0 z-10 flex items-center justify-start p-2 border-b border-r whitespace-nowrap", rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/50' )}
+              style={{ gridRow: `${rowIndex + 4}` }}
+            >
+              <span className="font-semibold text-foreground text-sm">{row.name}</span>
+            </div>
+          ))}
+
+          {/* Grid Cells */}
+          {rows.map((row, rowIndex) => (
+            <React.Fragment key={row.id}>
+              {timeColumns.map((col, dateIndex) => {
+                const isDragOver = dragOverCell?.rowId === row.id && dragOverCell.date.getTime() === col.date.getTime();
+                let isInTnaRange = false;
+                if (draggedItem?.type === 'new' && draggedItem.tna) {
+                    const interval = viewMode === 'day' 
+                      ? { start: startOfDay(draggedItem.tna.startDate), end: startOfDay(draggedItem.tna.endDate) }
+                      : { start: startOfHour(draggedItem.tna.startDate), end: endOfHour(draggedItem.tna.endDate) };
+                    isInTnaRange = isWithinInterval(col.date, interval);
+                }
+                return (
+                    <div
+                        key={`${row.id}-${dateIndex}`}
+                        onDragOver={(e) => handleDragOver(e, row.id, col.date)}
+                        onDragLeave={handleDragLeave}
+                        onDrop={(e) => handleDrop(e, row.id, col.date)}
+                        className={cn('border-b border-r',
+                            isDragOver ? 'bg-primary/20' : (rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted/50'),
+                            isInTnaRange && !isDragOver && 'bg-green-500/10',
+                            'transition-colors duration-200'
+                        )}
+                        style={{ gridRow: `${rowIndex + 4}`, gridColumn: dateIndex + 2 }}
+                    />
+                )
+              })}
+            </React.Fragment>
+          ))}
+
+          {/* Scheduled Process Bars */}
+          {scheduledProcesses.map((item) => {
+              const position = rows.findIndex(r => r.id === item.machineId);
+              if (position === -1) return null;
+
+              const startColDate = viewMode === 'day' ? startOfDay(item.startDateTime) : startOfHour(item.startDateTime);
+              const dateIndex = timeColumns.findIndex(d => d.date.getTime() === startColDate.getTime());
+              if (dateIndex === -1) return null;
+
+              const endColDate = viewMode === 'day' ? startOfDay(item.endDateTime) : startOfHour(item.endDateTime);
+              let endDateIndex = timeColumns.findIndex(d => d.date.getTime() === endColDate.getTime());
+              
+              if (item.endDateTime.getTime() === endColDate.getTime() && item.endDateTime.getTime() > item.startDateTime.getTime()) {
+                  const prevDate = viewMode === 'day' ? startOfDay(addDays(item.endDateTime, -1)) : startOfHour(addMinutes(item.endDateTime, -60));
+                  endDateIndex = timeColumns.findIndex(d => d.date.getTime() === prevDate.getTime());
+              }
+
+              if (endDateIndex === -1) {
+                endDateIndex = timeColumns.length -1;
+              }
+
+              const durationInColumns = endDateIndex - dateIndex + 1;
+              
+              return (
+                  <ScheduledProcessBar 
+                      key={item.id} 
+                      item={item} 
+                      gridRow={position + 4} 
+                      gridColStart={dateIndex + 2}
+                      durationInColumns={durationInColumns}
+                      onUndo={onUndoSchedule}
+                      onDragStart={onProcessDragStart}
+                  />
+              );
+          })}
+        </div>
     </div>
   );
 }
