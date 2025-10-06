@@ -1,9 +1,8 @@
 
-
 "use client";
 
 import * as React from 'react';
-import { format, isSameDay, getWeek, getMonth, getYear, addMinutes, startOfDay, eachDayOfInterval, setHours, isWithinInterval } from 'date-fns';
+import { format, getWeek, getMonth, getYear, setHours, startOfDay, isWithinInterval } from 'date-fns';
 import type { ScheduledProcess, TnaProcess } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import ScheduledProcessBar from './scheduled-process';
@@ -15,19 +14,28 @@ type Row = {
 
 type ViewMode = 'day' | 'hour';
 
+type DraggedItem = {
+    type: 'new';
+    orderId: string;
+    processId: string;
+    tna: TnaProcess | null;
+} | {
+    type: 'existing';
+    process: ScheduledProcess;
+};
+
 type GanttChartProps = {
   rows: Row[];
   dates: Date[];
   scheduledProcesses: ScheduledProcess[];
-  onDrop: (machineId: string, startDateTime: Date, e: React.DragEvent<HTMLDivElement>) => void;
+  onDrop: (rowId: string, startDateTime: Date, e: React.DragEvent<HTMLDivElement>) => void;
   onUndoSchedule: (scheduledProcessId: string) => void;
   onScheduledProcessDragStart: (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => void;
   onScheduledProcessDragEnd: () => void;
   onGanttDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
   isOrderLevelView?: boolean;
   viewMode: ViewMode;
-  draggedProcessId: string | null;
-  draggedProcessTna: TnaProcess | null;
+  draggedItem: DraggedItem | null;
 };
 
 const ROW_HEIGHT = 32; // Corresponds to h-8
@@ -78,8 +86,7 @@ export default function GanttChart({
   onGanttDragOver,
   isOrderLevelView = false,
   viewMode,
-  draggedProcessId,
-  draggedProcessTna,
+  draggedItem,
 }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -113,7 +120,7 @@ export default function GanttChart({
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>, rowId: string, date: Date) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-     if (dragOverCell?.rowId !== rowId || dragOverCell?.date.getTime() !== date.getTime()) {
+    if (!dragOverCell || dragOverCell.rowId !== rowId || dragOverCell.date.getTime() !== date.getTime()) {
       setDragOverCell({ rowId, date });
     }
   };
@@ -314,10 +321,14 @@ export default function GanttChart({
                   const isDragOver = dragOverCell && dragOverCell.rowId === row.id && dragOverCell.date.getTime() === col.date.getTime();
                   
                   let isInTnaRange = false;
-                  if (draggedProcessTna && viewMode === 'day') {
-                      isInTnaRange = isWithinInterval(col.date, { start: startOfDay(draggedProcessTna.startDate), end: startOfDay(draggedProcessTna.endDate) });
-                  } else if (draggedProcessTna && viewMode === 'hour') {
-                      isInTnaRange = isWithinInterval(col.date, { start: draggedProcessTna.startDate, end: draggedProcessTna.endDate });
+                  if (draggedItem?.type === 'new' && draggedItem.tna) {
+                      const { tna } = draggedItem;
+                      const interval = { start: startOfDay(tna.startDate), end: startOfDay(tna.endDate) };
+                      if (viewMode === 'day') {
+                          isInTnaRange = isWithinInterval(col.date, interval);
+                      } else if (viewMode === 'hour') {
+                          isInTnaRange = isWithinInterval(col.date, { start: tna.startDate, end: tna.endDate });
+                      }
                   }
 
 
@@ -376,82 +387,59 @@ export default function GanttChart({
 
             {/* Scheduled processes */}
             {scheduledProcesses.map((item) => {
-                const isItemBeingDragged = draggedProcessId === item.id;
-                if (isOrderLevelView) {
-                    const rowId = item.orderId;
-                    const assignments = laneAssignments.get(rowId);
-                    const assignment = assignments?.find(a => a.process.id === item.id);
-                    if (!assignment) return null;
-
+                const isItemBeingDragged = draggedItem?.type === 'existing' && draggedItem.process.id === item.id;
+                
+                const getGridPosition = () => {
+                    const rowId = isOrderLevelView ? item.orderId : item.machineId;
                     const rowPosition = rowPositions.get(rowId);
                     if (!rowPosition) return null;
 
-                    const dateIndex = timeColumns.findIndex(d => isSameDay(d.date, item.startDateTime));
-                    if (dateIndex === -1) return null;
-
-                    const gridRow = rowPosition.start + assignment.lane + 3;
-                    const durationInColumns = viewMode === 'day' 
-                        ? Math.ceil(item.durationMinutes / (8 * 60)) 
-                        : Math.ceil(item.durationMinutes / 60);
-                    const gridColStart = dateIndex + 2; 
-
-                    return (
-                        <ScheduledProcessBar 
-                            key={item.id} 
-                            item={item} 
-                            gridRow={gridRow} 
-                            gridColStart={gridColStart}
-                            durationInColumns={durationInColumns}
-                            onUndo={onUndoSchedule}
-                            onDragStart={onScheduledProcessDragStart}
-                            onDragEnd={onScheduledProcessDragEnd}
-                            isOrderLevelView={isOrderLevelView}
-                            isBeingDragged={isItemBeingDragged}
-                        />
+                    const startDate = startOfDay(item.startDateTime);
+                    const dateIndex = timeColumns.findIndex(d => 
+                        viewMode === 'day' 
+                        ? d.date.getTime() === startDate.getTime()
+                        : d.date.getTime() === setHours(startDate, item.startDateTime.getHours()).getTime()
                     );
-                } else { // Machine level view
-                    const rowId = item.machineId;
-                    const rowPosition = rowPositions.get(rowId);
-                    if (!rowPosition) return null;
-                    
-                    const dateIndex = timeColumns.findIndex(d => {
-                      if (viewMode === 'day') return isSameDay(d.date, item.startDateTime);
-                      return d.date.getTime() === setHours(startOfDay(item.startDateTime), item.startDateTime.getHours()).getTime();
-                    });
                     if (dateIndex === -1) return null;
-                    
-                    const gridRow = rowPosition.start + 3;
-                    const gridColStart = dateIndex + 2;
-                    
-                    const durationInColumns = viewMode === 'day' 
+
+                    const durationInColumns = viewMode === 'day'
                         ? Math.ceil(item.durationMinutes / (8 * 60))
                         : Math.ceil(item.durationMinutes / 60);
+                    
+                    let lane = 0;
+                    if (isOrderLevelView) {
+                        const assignments = laneAssignments.get(rowId);
+                        const assignment = assignments?.find(a => a.process.id === item.id);
+                        if (!assignment) return null;
+                        lane = assignment.lane;
+                    }
 
+                    return {
+                        gridRow: rowPosition.start + lane + 3,
+                        gridColStart: dateIndex + 2,
+                        durationInColumns,
+                    };
+                };
+                
+                const position = getGridPosition();
+                if (!position) return null;
 
-                    return (
-                        <ScheduledProcessBar 
-                            key={item.id} 
-                            item={item} 
-                            gridRow={gridRow} 
-                            gridColStart={gridColStart}
-                            durationInColumns={durationInColumns}
-                            onUndo={onUndoSchedule}
-                            onDragStart={onScheduledProcessDragStart}
-                            onDragEnd={onScheduledProcessDragEnd}
-                            isOrderLevelView={isOrderLevelView}
-                            isBeingDragged={isItemBeingDragged}
-                        />
-                    );
-                }
+                return (
+                    <ScheduledProcessBar 
+                        key={item.id} 
+                        item={item} 
+                        gridRow={position.gridRow} 
+                        gridColStart={position.gridColStart}
+                        durationInColumns={position.durationInColumns}
+                        onUndo={onUndoSchedule}
+                        onDragStart={onScheduledProcessDragStart}
+                        onDragEnd={onScheduledProcessDragEnd}
+                        isOrderLevelView={isOrderLevelView}
+                        isBeingDragged={isItemBeingDragged}
+                    />
+                );
             })}
         </div>
     </div>
   );
 }
-
-    
-
-    
-
-
-
