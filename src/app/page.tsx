@@ -150,8 +150,8 @@ export default function Home() {
         });
     }
 
-    if (droppedItem.type === 'existing') {
-        const { process: draggedProcess } = droppedItem;
+    if (droppedItem.type === 'existing' && draggedItem) {
+        const { process: draggedProcess } = draggedItem;
         const machineId = isOrderLevelView ? draggedProcess.machineId : rowId;
         
         let finalStartDateTime = startDateTime;
