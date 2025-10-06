@@ -157,6 +157,10 @@ export default function MachinePanel({
         <ScrollArea className="h-full pr-4">
           <div className="space-y-2 p-2 pt-0">
             {filteredUnplannedOrders.map((order) => {
+              const process = PROCESSES.find(p => p.id === selectedProcessId);
+              const durationMinutes = process ? process.sam * order.quantity : 0;
+              const durationDays = (durationMinutes / (8 * 60)).toFixed(1);
+
               const tnaProcess =
                 order?.tna?.processes.find(
                   (p) => p.processId === selectedProcessId
@@ -189,7 +193,7 @@ export default function MachinePanel({
                       <span>
                         Ship: {format(new Date(order.dueDate), 'MMM dd')}
                       </span>
-                      <span>Qty: {order.quantity}</span>
+                      <span>{durationDays} days</span>
                     </div>
                   </div>
                 </div>
