@@ -53,6 +53,9 @@ export function Header({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <Link href="/pab">
+                  <DropdownMenuItem>PAB Mode</DropdownMenuItem>
+                </Link>
                 <Link href="/capacity">
                   <DropdownMenuItem>Capacity management</DropdownMenuItem>
                 </Link>
