@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useRef, useMemo, useEffect } from 'react';
@@ -99,39 +100,40 @@ export default function Home() {
       // Logic for moving an existing process
       let finalStartDateTime = startDateTime;
       if (viewMode === 'day') {
-        const originalDate = draggedProcess.startDateTime;
-        finalStartDateTime = setHours(setMinutes(startDateTime, originalDate.getMinutes()), originalDate.getHours());
+          const originalDate = draggedProcess.startDateTime;
+          finalStartDateTime = setHours(setMinutes(startDateTime, originalDate.getMinutes()), originalDate.getHours());
       }
       
       const proposedEndDateTime = calculateEndDateTime(finalStartDateTime, draggedProcess.durationMinutes);
-      
-      const otherProcessesForCollisionCheck = scheduledProcesses.filter(p => p.id !== draggedProcess.id);
-      
-      const hasCollision = otherProcessesForCollisionCheck.some(p => {
-        if (p.machineId !== machineId) return false;
-        
-        const existingEndDateTime = p.endDateTime;
-        
-        const startsDuring = isAfter(finalStartDateTime, p.startDateTime) && isBefore(finalStartDateTime, existingEndDateTime);
-        const endsDuring = isAfter(proposedEndDateTime, p.startDateTime) && isBefore(proposedEndDateTime, existingEndDateTime);
-        const spansOver = isBefore(finalStartDateTime, p.startDateTime) && isAfter(proposedEndDateTime, existingEndDateTime);
-        const isSameStart = finalStartDateTime.getTime() === p.startDateTime.getTime();
 
-        return startsDuring || endsDuring || spansOver || isSameStart;
+      setScheduledProcesses(currentProcesses => {
+        const otherProcesses = currentProcesses.filter(p => p.id !== draggedProcess.id);
+
+        const hasCollision = otherProcesses.some(p => {
+          if (p.machineId !== machineId) return false;
+          
+          const existingEndDateTime = p.endDateTime;
+          
+          const startsDuring = isAfter(finalStartDateTime, p.startDateTime) && isBefore(finalStartDateTime, existingEndDateTime);
+          const endsDuring = isAfter(proposedEndDateTime, p.startDateTime) && isBefore(proposedEndDateTime, existingEndDateTime);
+          const spansOver = isBefore(finalStartDateTime, p.startDateTime) && isAfter(proposedEndDateTime, existingEndDateTime);
+          const isSameStart = finalStartDateTime.getTime() === p.startDateTime.getTime();
+          return startsDuring || endsDuring || spansOver || isSameStart;
+        });
+
+        if (!hasCollision) {
+          const updatedProcess = {
+              ...draggedProcess,
+              machineId: machineId,
+              startDateTime: finalStartDateTime,
+              endDateTime: proposedEndDateTime,
+          };
+          return [...otherProcesses, updatedProcess];
+        }
+        
+        return currentProcesses;
       });
 
-      if (!hasCollision) {
-        setScheduledProcesses(currentProcesses => {
-            const otherProcesses = currentProcesses.filter(p => p.id !== draggedProcess.id);
-            const updatedProcess = {
-                ...draggedProcess,
-                machineId: machineId,
-                startDateTime: finalStartDateTime,
-                endDateTime: proposedEndDateTime,
-            };
-            return [...otherProcesses, updatedProcess];
-        });
-      }
     } else {
       // Logic for scheduling a new process from the side panel
       let finalStartDateTime = startDateTime;
