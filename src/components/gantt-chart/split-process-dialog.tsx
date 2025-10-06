@@ -20,7 +20,7 @@ import { PlusCircle, X } from 'lucide-react';
 import { ORDERS, PROCESSES } from '@/lib/data';
 
 type SplitProcessDialogProps = {
-  process: ScheduledProcess;
+  process: ScheduledProcess | null;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirmSplit: (
@@ -35,17 +35,20 @@ export default function SplitProcessDialog({
   onOpenChange,
   onConfirmSplit,
 }: SplitProcessDialogProps) {
-  const [splits, setSplits] = useState<number[]>([process.quantity]);
+  const [splits, setSplits] = useState<number[]>([]);
 
   useEffect(() => {
     // Reset splits when a new process is selected
-    setSplits([process.quantity]);
+    if (process) {
+      setSplits([process.quantity]);
+    }
   }, [process]);
+  
+  const processInfo = useMemo(() => process ? PROCESSES.find(p => p.id === process.processId) : null, [process]);
+  const orderInfo = useMemo(() => process ? ORDERS.find(o => o.id === process.orderId) : null, [process]);
 
-  const processInfo = useMemo(() => PROCESSES.find(p => p.id === process.processId), [process.processId]);
-  const orderInfo = useMemo(() => ORDERS.find(o => o.id === process.orderId), [process.orderId]);
-
-  const totalOriginalQuantity = process.quantity;
+  // Safely derive totalOriginalQuantity
+  const totalOriginalQuantity = process?.quantity ?? 0;
 
   const totalSplitQuantity = useMemo(() => {
     return splits.reduce((sum, qty) => sum + qty, 0);
@@ -87,12 +90,12 @@ export default function SplitProcessDialog({
   };
 
   const handleSubmit = () => {
-    if (!isInvalid) {
+    if (!isInvalid && process) {
       onConfirmSplit(process, splits);
     }
   };
 
-  if (!processInfo || !orderInfo) return null;
+  if (!process || !processInfo || !orderInfo) return null;
 
   return (
     <AlertDialog open={isOpen} onOpenChange={onOpenChange}>

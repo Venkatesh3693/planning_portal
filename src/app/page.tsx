@@ -270,16 +270,18 @@ export default function Home() {
   const selectableProcesses = PROCESSES.filter(p => p.id !== 'outsourcing');
 
   const unplannedOrders = useMemo(() => {
-    const scheduledOrderProcesses = new Set(
-        scheduledProcesses.map(p => `${p.orderId}_${p.processId}`)
-    );
+    const scheduledOrderProcesses = new Map<string, number>();
+     scheduledProcesses.forEach(p => {
+        const key = `${p.orderId}_${p.processId}`;
+        scheduledOrderProcesses.set(key, (scheduledOrderProcesses.get(key) || 0) + p.quantity);
+     });
     
     return ORDERS.filter(order => {
       const isProcessInOrder = order.processIds.includes(selectedProcessId);
       if (!isProcessInOrder) return false;
       
-      const isProcessScheduled = scheduledOrderProcesses.has(`${order.id}_${selectedProcessId}`);
-      return !isProcessScheduled;
+      const scheduledQuantity = scheduledOrderProcesses.get(`${order.id}_${selectedProcessId}`) || 0;
+      return scheduledQuantity < order.quantity;
     });
   }, [scheduledProcesses, selectedProcessId]);
   
@@ -407,14 +409,13 @@ export default function Home() {
           </div>
         </div>
       </main>
-      {processToSplit && (
-        <SplitProcessDialog
-          process={processToSplit}
-          isOpen={!!processToSplit}
-          onOpenChange={(isOpen) => !isOpen && setProcessToSplit(null)}
-          onConfirmSplit={handleConfirmSplit}
-        />
-      )}
+      
+      <SplitProcessDialog
+        process={processToSplit}
+        isOpen={!!processToSplit}
+        onOpenChange={(isOpen) => !isOpen && setProcessToSplit(null)}
+        onConfirmSplit={handleConfirmSplit}
+      />
     </div>
   );
 }
