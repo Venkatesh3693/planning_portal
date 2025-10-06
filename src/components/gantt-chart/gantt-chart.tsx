@@ -236,7 +236,7 @@ export default function GanttChart({
   return (
     <div className="h-full w-full overflow-auto" ref={containerRef} onDragEnd={onDragEnd}>
         <div className="relative grid min-h-full" style={timelineGridStyle}>
-            <div className="sticky left-0 z-30 col-start-1 row-start-1 row-end-[-1] bg-card"></div>
+            <div className="sticky left-0 z-10 col-start-1 row-start-1 row-end-[-1] bg-card"></div>
             <div className="sticky left-0 top-0 z-50 border-b border-r bg-card" style={{gridRowEnd: 'span 3'}}></div>
             
             {topHeaders.map(({name, start, span}) => (
@@ -352,5 +352,3 @@ export default function GanttChart({
     </div>
   );
 }
-
-    
