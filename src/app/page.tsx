@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useRef, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { addDays, startOfToday, format, isSameDay, set, addMinutes, isBefore, isAfter, getDay, setHours, setMinutes, startOfDay } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
@@ -27,15 +27,13 @@ import { Filter, FilterX, ChevronDown, Trash2 } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAppContext } from '@/context/app-provider';
-import ScheduledProcessBar from '@/components/gantt-chart/scheduled-process';
-
 
 const ORDER_LEVEL_VIEW = 'order-level';
 const SEWING_PROCESS_ID = 'sewing';
 const WORKING_HOURS_START = 9;
 const WORKING_HOURS_END = 17;
 
-type DraggedItem = {
+export type DraggedItem = {
     type: 'new';
     orderId: string;
     processId: string;
@@ -90,165 +88,126 @@ export default function Home() {
 
   const [selectedProcessId, setSelectedProcessId] = useState<string>(ORDER_LEVEL_VIEW);
   const [viewMode, setViewMode] = useState<'day' | 'hour'>('day');
-  const [isOrdersPanelVisible, setIsOrdersPanelVisible] = useState(true);
   
   const [filterOcn, setFilterOcn] = useState('');
   const [filterBuyer, setFilterBuyer] = useState<string[]>([]);
   const [filterDueDate, setFilterDueDate] = useState<DateRange | undefined>(undefined);
   
   const [draggedItem, setDraggedItem] = useState<DraggedItem | null>(null);
-  const [dragPreview, setDragPreview] = useState<React.ReactNode | null>(null);
-  const [dragPreviewPosition, setDragPreviewPosition] = useState({ x: 0, y: 0 });
-
 
   const buyerOptions = useMemo(() => [...new Set(ORDERS.map(o => o.buyer))], []);
+  const isOrderLevelView = selectedProcessId === ORDER_LEVEL_VIEW;
 
   const handleDropOnChart = (rowId: string, startDateTime: Date, e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const data = e.dataTransfer.getData('application/json');
-    if (!data) return;
+    const droppedItemData = e.dataTransfer.getData('application/json');
+    if (!droppedItemData) return;
 
-    const droppedItem: DraggedItem = JSON.parse(data, (key, value) => {
-        if (key === 'startDateTime' || key === 'endDateTime' || key === 'startDate' || key === 'endDate') {
-            return new Date(value);
-        }
-        return value;
+    const droppedItem: DraggedItem = JSON.parse(droppedItemData, (key, value) => {
+      // Reviver function to convert date strings back to Date objects
+      if (key === 'startDateTime' || key === 'endDateTime' || key === 'startDate' || key === 'endDate') {
+        return new Date(value);
+      }
+      return value;
     });
 
-    // Handle dropping an existing process
-    if (droppedItem.type === 'existing') {
-        const { process } = droppedItem;
-        let finalStartDateTime = startDateTime;
-        if (viewMode === 'day') {
-            const originalStartDate = new Date(process.startDateTime);
-            finalStartDateTime = setHours(setMinutes(startDateTime, originalStartDate.getMinutes()), originalStartDate.getHours());
-        }
-        
-        const proposedEndDateTime = calculateEndDateTime(finalStartDateTime, process.durationMinutes);
-        const newMachineId = isOrderLevelView ? process.machineId : rowId;
-
-        setScheduledProcesses(currentProcesses => {
-            const otherProcesses = currentProcesses.filter(p => p.id !== process.id);
-            const hasCollision = otherProcesses.some(p => {
-                if (p.machineId !== newMachineId) return false;
-                const existingProcessStart = new Date(p.startDateTime);
-                const existingProcessEnd = new Date(p.endDateTime);
-                const startsDuring = isAfter(finalStartDateTime, existingProcessStart) && isBefore(finalStartDateTime, existingProcessEnd);
-                const endsDuring = isAfter(proposedEndDateTime, existingProcessStart) && isBefore(proposedEndDateTime, existingProcessEnd);
-                const spansOver = isBefore(finalStartDateTime, existingProcessStart) && isAfter(proposedEndDateTime, existingProcessEnd);
-                const isSameStart = finalStartDateTime.getTime() === existingProcessStart.getTime();
-                return startsDuring || endsDuring || spansOver || isSameStart;
-            });
-            
-            if (hasCollision) return currentProcesses;
-
-            const updatedProcess: ScheduledProcess = {
-                ...process,
-                machineId: newMachineId,
-                startDateTime: finalStartDateTime,
-                endDateTime: proposedEndDateTime,
-            };
-            return [...otherProcesses, updatedProcess];
-        });
-    }
-
-    // Handle dropping a new process
-    if (droppedItem.type === 'new') {
-        if (isOrderLevelView) return; // Can't drop new items in order-level view
-
-        let finalStartDateTime = startDateTime;
-        if (viewMode === 'day') {
-            finalStartDateTime = set(startDateTime, { hours: 9, minutes: 0, seconds: 0, milliseconds: 0 });
-        }
+    setScheduledProcesses(currentProcesses => {
+      // Handle dropping a NEW process from the order list
+      if (droppedItem.type === 'new') {
+        if (isOrderLevelView) return currentProcesses; // Can't drop new items in order-level view
 
         const order = ORDERS.find((o) => o.id === droppedItem.orderId);
         const process = PROCESSES.find((p) => p.id === droppedItem.processId);
-        if (!order || !process) return;
+        if (!order || !process) return currentProcesses;
+        
+        let finalStartDateTime = startDateTime;
+        if (viewMode === 'day') {
+          finalStartDateTime = set(startDateTime, { hours: WORKING_HOURS_START, minutes: 0 });
+        }
 
         const durationMinutes = process.sam * order.quantity;
         const endDateTime = calculateEndDateTime(finalStartDateTime, durationMinutes);
 
-        setScheduledProcesses(currentProcesses => {
-            const hasCollision = currentProcesses.some(p => {
-                if (p.machineId !== rowId) return false;
-                const existingEndDateTime = p.endDateTime;
-                const startsDuring = isAfter(finalStartDateTime, p.startDateTime) && isBefore(finalStartDateTime, existingEndDateTime);
-                const endsDuring = isAfter(endDateTime, p.startDateTime) && isBefore(endDateTime, existingEndDateTime);
-                const spansOver = isBefore(finalStartDateTime, p.startDateTime) && isAfter(endDateTime, existingEndDateTime);
-                const isSameStart = finalStartDateTime.getTime() === p.startDateTime.getTime();
-                return startsDuring || endsDuring || spansOver || isSameStart;
-            });
-
-            if (hasCollision) return currentProcesses;
-
-            const newScheduledProcess: ScheduledProcess = {
-                id: `${process.id}-${order.id}-${new Date().getTime()}`,
-                orderId: order.id,
-                processId: process.id,
-                machineId: rowId,
-                startDateTime: finalStartDateTime,
-                endDateTime,
-                durationMinutes,
-            };
-            return [...currentProcesses, newScheduledProcess];
+        const hasCollision = currentProcesses.some(p => {
+            if (p.machineId !== rowId) return false;
+            const existingEnd = p.endDateTime;
+            const newStart = finalStartDateTime;
+            return (isAfter(newStart, p.startDateTime) && isBefore(newStart, existingEnd)) ||
+                   (isAfter(endDateTime, p.startDateTime) && isBefore(endDateTime, existingEnd)) ||
+                   (isBefore(newStart, p.startDateTime) && isAfter(endDateTime, existingEnd)) ||
+                   newStart.getTime() === p.startDateTime.getTime();
         });
-    }
+        
+        if (hasCollision) return currentProcesses;
+
+        const newScheduledProcess: ScheduledProcess = {
+            id: `${process.id}-${order.id}-${Date.now()}`,
+            orderId: order.id,
+            processId: process.id,
+            machineId: rowId,
+            startDateTime: finalStartDateTime,
+            endDateTime,
+            durationMinutes,
+        };
+        return [...currentProcesses, newScheduledProcess];
+      }
+
+      // Handle dragging an EXISTING process
+      if (droppedItem.type === 'existing') {
+        const { process: draggedProcess } = droppedItem;
+        const machineId = isOrderLevelView ? draggedProcess.machineId : rowId;
+        
+        let finalStartDateTime = startDateTime;
+        if (viewMode === 'day') {
+            const originalStart = draggedProcess.startDateTime;
+            finalStartDateTime = setHours(setMinutes(startDateTime, originalStart.getMinutes()), originalStart.getHours());
+        }
+
+        const proposedEndDateTime = calculateEndDateTime(finalStartDateTime, draggedProcess.durationMinutes);
+
+        const otherProcesses = currentProcesses.filter(p => p.id !== draggedProcess.id);
+        
+        const hasCollision = otherProcesses.some(p => {
+          if (p.machineId !== machineId) return false;
+          const existingEnd = p.endDateTime;
+          const newStart = finalStartDateTime;
+          return (isAfter(newStart, p.startDateTime) && isBefore(newStart, existingEnd)) ||
+                 (isAfter(proposedEndDateTime, p.startDateTime) && isBefore(proposedEndDateTime, existingEnd)) ||
+                 (isBefore(newStart, p.startDateTime) && isAfter(proposedEndDateTime, existingEnd)) ||
+                 newStart.getTime() === p.startDateTime.getTime();
+        });
+
+        if (hasCollision) return currentProcesses;
+
+        const updatedProcess: ScheduledProcess = {
+          ...draggedProcess,
+          machineId,
+          startDateTime: finalStartDateTime,
+          endDateTime: proposedEndDateTime,
+        };
+
+        return [...otherProcesses, updatedProcess];
+      }
+      
+      return currentProcesses;
+    });
   };
   
-  const handleDragStartNew = (e: React.DragEvent<HTMLDivElement>, orderId: string, processId: string) => {
-    const order = ORDERS.find(o => o.id === orderId);
-    const tnaProcess = order?.tna?.processes.find(p => p.processId === processId);
-
-    const item: DraggedItem = {
-      type: 'new',
-      orderId,
-      processId,
-      tna: tnaProcess ? {
-        ...tnaProcess,
-        startDate: new Date(tnaProcess.startDate),
-        endDate: new Date(tnaProcess.endDate)
-      } : null,
-    };
-    
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, item: DraggedItem) => {
     e.dataTransfer.setData('application/json', JSON.stringify(item));
+    if (item.type === 'existing') {
+      const img = new Image();
+      img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+      e.dataTransfer.setDragImage(img, 0, 0);
+    }
     setDraggedItem(item);
   };
   
   const handleUndoSchedule = (scheduledProcessId: string) => {
     setScheduledProcesses(prev => prev.filter(p => p.id !== scheduledProcessId));
   };
-  
-  const handleScheduledProcessDragStart = (e: React.DragEvent<HTMLDivElement>, process: ScheduledProcess) => {
-    const item: DraggedItem = { type: 'existing', process };
-    e.dataTransfer.setData('application/json', JSON.stringify(item));
-    setDraggedItem(item);
-
-    const img = new Image();
-    img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-    e.dataTransfer.setDragImage(img, 0, 0);
-
-    setDragPreview(
-      <div className="w-32">
-        <ScheduledProcessBar
-          item={process}
-          isOrderLevelView={isOrderLevelView}
-          isPreview
-        />
-      </div>
-    );
-    setDragPreviewPosition({ x: e.clientX, y: e.clientY });
-  };
-  
-  const handleGanttDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    if(dragPreview) {
-      setDragPreviewPosition({ x: e.clientX, y: e.clientY });
-    }
-  };
 
   const handleDragEnd = () => {
     setDraggedItem(null);
-    setDragPreview(null);
   };
 
   const today = startOfToday();
@@ -270,26 +229,16 @@ export default function Home() {
     ...PROCESSES.filter(p => p.id !== 'outsourcing')
   ];
 
-  const isOrderLevelView = selectedProcessId === ORDER_LEVEL_VIEW;
-
   const unplannedOrders = useMemo(() => {
-    // In order level view, all orders that have at least one process NOT scheduled are "unplanned"
     if (isOrderLevelView) {
-      return ORDERS.filter(order => {
-        const unscheduledProcesses = getUnscheduledProcessesForOrder(order);
-        return unscheduledProcesses.length > 0;
-      });
+      return ORDERS.filter(order => getUnscheduledProcessesForOrder(order).length > 0);
     }
-    
-    // In process level view, an order is "unplanned" for THIS process if this process is not scheduled
     return ORDERS.filter(order => {
       const isProcessInOrder = order.processIds.includes(selectedProcessId);
       if (!isProcessInOrder) return false;
-
       const isProcessScheduledForOrder = scheduledProcesses.some(sp => sp.orderId === order.id && sp.processId === selectedProcessId);
       return !isProcessScheduledForOrder;
     });
-
   }, [scheduledProcesses, isOrderLevelView, selectedProcessId]);
 
   const chartRows = isOrderLevelView 
@@ -319,16 +268,8 @@ export default function Home() {
 
     if (!isOrderLevelView) {
       baseOrders = selectedProcessId === SEWING_PROCESS_ID
-        ? unplannedOrders.filter(order => {
-            const unscheduled = getUnscheduledProcessesForOrder(order);
-            return unscheduled.some(p => p.id === selectedProcessId);
-          })
-        : unplannedOrders.filter(order => {
-            const isSewingScheduled = sewingScheduledOrderIds.has(order.id);
-            if (!isSewingScheduled) return false;
-            const unscheduled = getUnscheduledProcessesForOrder(order);
-            return unscheduled.some(p => p.id === selectedProcessId);
-          });
+        ? unplannedOrders
+        : unplannedOrders.filter(order => sewingScheduledOrderIds.has(order.id));
     }
     
     return baseOrders.filter(order => {
@@ -341,9 +282,7 @@ export default function Home() {
       })();
       return ocnMatch && buyerMatch && dueDateMatch;
     });
-
-  }, [unplannedOrders, selectedProcessId, isOrderLevelView, sewingScheduledOrderIds, getUnscheduledProcessesForOrder, filterOcn, filterBuyer, filterDueDate]);
-
+  }, [unplannedOrders, selectedProcessId, isOrderLevelView, sewingScheduledOrderIds, filterOcn, filterBuyer, filterDueDate]);
 
   const hasActiveFilters = !!(filterOcn || filterBuyer.length > 0 || filterDueDate);
   
@@ -361,10 +300,7 @@ export default function Home() {
 
   return (
     <div className="flex h-screen flex-col">
-      <Header 
-        isOrdersPanelVisible={!isOrderLevelView}
-        setIsOrdersPanelVisible={setIsOrdersPanelVisible}
-      />
+      <Header />
       <main className="flex flex-1 flex-col overflow-hidden">
         <div className="flex-shrink-0 border-b p-4 flex justify-between items-center">
           <Tabs value={selectedProcessId} onValueChange={setSelectedProcessId}>
@@ -470,21 +406,21 @@ export default function Home() {
                     <ScrollArea className="h-full pr-4">
                       <div className="space-y-2 p-2 pt-0">
                         {filteredUnplannedOrders.map((order) => {
-                          const unscheduled = getUnscheduledProcessesForOrder(order);
-                          const canDrag = unscheduled.some(p => p.id === selectedProcessId);
-
-                          if (!canDrag && !isOrderLevelView) return null;
+                          const tnaProcess = order?.tna?.processes.find(p => p.processId === selectedProcessId) ?? null;
+                          const item: DraggedItem = {
+                            type: 'new',
+                            orderId: order.id,
+                            processId: selectedProcessId,
+                            tna: tnaProcess ? { ...tnaProcess, startDate: new Date(tnaProcess.startDate), endDate: new Date(tnaProcess.endDate) } : null,
+                          };
 
                           return (
                             <div
                               key={order.id}
                               draggable
-                              onDragStart={(e) => handleDragStartNew(e, order.id, selectedProcessId)}
+                              onDragStart={(e) => handleDragStart(e, item)}
                               onDragEnd={handleDragEnd}
-                              className={cn(
-                                "cursor-grab active:cursor-grabbing p-2 text-sm font-medium text-card-foreground rounded-md",
-                                "hover:bg-primary/10"
-                              )}
+                              className="cursor-grab active:cursor-grabbing p-2 text-sm font-medium text-card-foreground rounded-md hover:bg-primary/10"
                               title={order.id}
                             >
                               <div className="flex flex-col">
@@ -524,9 +460,8 @@ export default function Home() {
                     scheduledProcesses={chartProcesses}
                     onDrop={handleDropOnChart}
                     onUndoSchedule={handleUndoSchedule}
-                    onScheduledProcessDragStart={handleScheduledProcessDragStart}
-                    onScheduledProcessDragEnd={handleDragEnd}
-                    onGanttDragOver={handleGanttDragOver}
+                    onProcessDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
                     isOrderLevelView={isOrderLevelView}
                     viewMode={viewMode}
                     draggedItem={draggedItem}
@@ -535,16 +470,8 @@ export default function Home() {
           </div>
         </div>
       </main>
-      {dragPreview && (
-        <div
-            className="pointer-events-none fixed z-50"
-            style={{
-                transform: `translate(${dragPreviewPosition.x}px, ${dragPreviewPosition.y}px)`,
-            }}
-        >
-            {dragPreview}
-        </div>
-      )}
     </div>
   );
 }
+
+    
