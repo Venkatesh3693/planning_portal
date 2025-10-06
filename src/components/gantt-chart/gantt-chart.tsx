@@ -161,14 +161,14 @@ export default function GanttChart({
         }}
       >
         {/* Sticky Top-Left Corner */}
-        <div className="sticky top-0 left-0 z-40 flex flex-col bg-card" style={{ gridRow: '1 / 4', gridColumn: 'row-header' }}>
-          <div className="flex h-full items-center justify-end border-b border-r bg-card pr-2 py-1">
+        <div className="sticky top-0 left-0 z-40 bg-card border-r border-b" style={{ gridRow: '1 / 4', gridColumn: 'row-header' }}>
+           <div className="flex h-full items-center justify-end border-b bg-card pr-2 py-1">
             <span className="text-xs font-semibold text-foreground">Month</span>
           </div>
-          <div className="flex h-full items-center justify-end border-b border-r bg-card pr-2 py-1">
+          <div className="flex h-full items-center justify-end border-b bg-card pr-2 py-1">
             <span className="text-sm font-semibold text-foreground">Week</span>
           </div>
-          <div className="flex h-full items-center justify-end border-b border-r bg-card pr-2">
+          <div className="flex h-full items-center justify-end bg-card pr-2">
             <span className="text-[10px] font-medium text-muted-foreground leading-tight py-1">Day</span>
           </div>
         </div>
@@ -205,7 +205,7 @@ export default function GanttChart({
             <div
                 key={row.id}
                 className={cn(
-                  "sticky left-0 z-20 p-2 border-b border-r whitespace-nowrap flex items-center justify-start", 
+                  "sticky left-0 z-20 p-2 border-b border-r whitespace-nowrap justify-start flex items-center", 
                   rowIndex % 2 === 0 ? 'bg-card' : 'bg-muted'
                 )}
                 style={{ gridRowStart: rowIndex + 4, gridColumn: 'row-header' }}
