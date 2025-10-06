@@ -157,7 +157,6 @@ export default function Home() {
         const proposedEndDateTime = calculateEndDateTime(finalStartDateTime, draggedProcess.durationMinutes);
   
         const hasCollision = currentProcesses.some(p => {
-          // THE FIX: Ignore the item being dragged from the collision check
           if (p.id === draggedProcess.id) {
             return false;
           }
