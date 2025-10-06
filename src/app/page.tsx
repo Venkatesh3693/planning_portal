@@ -96,6 +96,7 @@ export default function Home() {
 
   const handleDropOnChart = (orderId: string, processId: string, machineId: string, startDateTime: Date) => {
     if (draggedProcess) {
+      // Logic for moving an existing process
       let finalStartDateTime = startDateTime;
       if (viewMode === 'day') {
         const originalDate = draggedProcess.startDateTime;
@@ -120,17 +121,17 @@ export default function Home() {
       });
 
       if (!hasCollision) {
-        const updatedProcess = { 
-          ...draggedProcess, 
-          machineId: machineId, 
-          startDateTime: finalStartDateTime, 
-          endDateTime: proposedEndDateTime 
+        const updatedProcess = {
+            ...draggedProcess,
+            machineId,
+            startDateTime: finalStartDateTime,
+            endDateTime: proposedEndDateTime,
         };
-        setScheduledProcesses(prev => 
-          prev.map(p => (p.id === updatedProcess.id ? updatedProcess : p))
-        );
+        const updatedProcesses = scheduledProcesses.map(p => (p.id === updatedProcess.id ? updatedProcess : p));
+        setScheduledProcesses(updatedProcesses);
       }
     } else {
+      // Logic for scheduling a new process from the side panel
       let finalStartDateTime = startDateTime;
       if (viewMode === 'day') {
         finalStartDateTime = set(startDateTime, { hours: 9, minutes: 0, seconds: 0, milliseconds: 0 });
@@ -171,6 +172,7 @@ export default function Home() {
       }
     }
     setDraggedProcessTna(null);
+    setDraggedProcess(null); // Clear dragged process after drop
   };
   
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, orderId: string, processId: string) => {
@@ -538,3 +540,5 @@ export default function Home() {
     </div>
   );
 }
+
+    
