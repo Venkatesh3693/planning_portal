@@ -113,20 +113,16 @@ export default function GanttChart({
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>, rowId: string, date: Date) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    if (isOrderLevelView) return;
     setDragOverCell({ rowId, date });
   };
 
   const handleDragLeave = () => {
-    if(isOrderLevelView) return;
     setDragOverCell(null);
   };
   
   const handleDrop = (e: React.DragEvent<HTMLDivElement>, rowId: string, date: Date) => {
     e.preventDefault();
     setDragOverCell(null);
-    if(isOrderLevelView) return;
-
     onDrop(rowId, date, e);
   };
 
@@ -454,4 +450,5 @@ export default function GanttChart({
     
 
     
+
 
