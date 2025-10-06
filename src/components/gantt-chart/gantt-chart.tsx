@@ -61,16 +61,6 @@ export default function GanttChart({
     return columns;
   }, [dates, viewMode]);
 
-  const handleInternalDragStart = (e: React.DragEvent<HTMLDivElement>) => {
-    const draggedItemJSON = e.dataTransfer.getData('application/json');
-    if (!draggedItemJSON) return;
-    try {
-        const item: DraggedItemData = JSON.parse(draggedItemJSON);
-        onProcessDragStart(e, item);
-    } catch(e) {
-      // ignore if parsing fails
-    }
-  };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>, rowId: string, date: Date) => {
     e.preventDefault();
@@ -99,73 +89,69 @@ export default function GanttChart({
   };
 
   const topHeaders = React.useMemo(() => {
-    const headers: { name: string; start: number; span: number }[] = [];
+    const headers: { name: string; span: number }[] = [];
     if (timeColumns.length === 0) return headers;
-    let currentGroup: string | number, span = 0, start = 2;
+    let currentGroup: string | number, span = 0;
 
     if (viewMode === 'day') {
       currentGroup = `${getMonth(timeColumns[0].date)}-${getYear(timeColumns[0].date)}`;
-      timeColumns.forEach((col, index) => {
+      timeColumns.forEach((col) => {
         const group = `${getMonth(col.date)}-${getYear(col.date)}`;
         if (group === currentGroup) {
           span++;
         } else {
-          headers.push({ name: format(new Date(getYear(timeColumns[index - 1].date), getMonth(timeColumns[index - 1].date)), "MMM ''yy"), start, span });
+          headers.push({ name: format(new Date(getYear(col.date), getMonth(col.date) - 1), "MMM ''yy"), span });
           currentGroup = group;
-          start = index + 2;
           span = 1;
         }
       });
-      headers.push({ name: format(new Date(getYear(timeColumns[timeColumns.length - 1].date), getMonth(timeColumns[timeColumns.length - 1].date)), "MMM ''yy"), start, span });
+      headers.push({ name: format(new Date(getYear(timeColumns[timeColumns.length - 1].date), getMonth(timeColumns[timeColumns.length - 1].date)), "MMM ''yy"), span });
     } else { // hour view
       currentGroup = getWeek(timeColumns[0].date);
-      timeColumns.forEach((col, index) => {
+      timeColumns.forEach((col) => {
         if (getWeek(col.date) === currentGroup) {
           span++;
         } else {
-          headers.push({ name: `W${currentGroup}`, start, span });
+          headers.push({ name: `W${currentGroup}`, span });
           currentGroup = getWeek(col.date);
-          start = index + 2;
           span = 1;
         }
       });
-      headers.push({ name: `W${currentGroup}`, start, span });
+      headers.push({ name: `W${currentGroup}`, span });
     }
     return headers;
   }, [timeColumns, viewMode]);
   
   const midHeaders = React.useMemo(() => {
-    const headers: { name: string; start: number; span: number }[] = [];
+    const headers: { name: string; span: number }[] = [];
     if (timeColumns.length === 0) return headers;
-    let currentGroup: string | number, span = 0, start = 2;
+    let currentGroup: string | number, span = 0;
 
     if (viewMode === 'day') {
       currentGroup = getWeek(timeColumns[0].date);
-      timeColumns.forEach((col, index) => {
+      timeColumns.forEach((col) => {
         if (getWeek(col.date) === currentGroup) {
             span++;
         } else {
-            headers.push({ name: `W${currentGroup}`, start, span });
+            headers.push({ name: `W${currentGroup}`, span });
             currentGroup = getWeek(col.date);
-            start = index + 2;
             span = 1;
         }
       });
-      headers.push({ name: `W${currentGroup}`, start, span });
+      headers.push({ name: `W${currentGroup}`, span });
     } else { // hour view
       currentGroup = format(timeColumns[0].date, 'yyyy-MM-dd');
-      timeColumns.forEach((col, index) => {
+      timeColumns.forEach((col) => {
         const group = format(col.date, 'yyyy-MM-dd');
         if (group === currentGroup) {
           span++;
         } else {
-          headers.push({ name: format(new Date(group), 'MMM d'), start, span });
+          headers.push({ name: format(new Date(group), 'MMM d'), span });
           currentGroup = group;
-          start = index + 2;
           span = 1;
         }
       });
-      headers.push({ name: format(new Date(currentGroup), 'MMM d'), start, span });
+      headers.push({ name: format(new Date(currentGroup), 'MMM d'), span });
     }
     return headers;
   }, [timeColumns, viewMode]);
@@ -205,29 +191,45 @@ export default function GanttChart({
     }));
   }, [rows, timeColumns, dragOverCell, draggedItem, viewMode]);
 
+  let topHeaderColStart = 2;
+  let midHeaderColStart = 2;
+
   return (
-    <div className="h-full w-full overflow-auto" ref={containerRef} onDragStart={handleInternalDragStart}>
+    <div className="h-full w-full overflow-auto" ref={containerRef}>
         <div className={cn("relative grid min-h-full group/gantt", isDragging && 'is-dragging')} style={timelineGridStyle}>
-            <div className="sticky top-0 z-30 col-start-1 col-span-full">
-              <div className="sticky left-0 bg-card border-b border-r" style={{gridRow: 1, gridColumn: 1}}>&nbsp;</div>
-              {topHeaders.map(({name, start, span}) => (
-                  <div key={`top-${name}-${start}`} className="bg-card/95 backdrop-blur-sm border-b border-r text-center" style={{ gridRow: 1, gridColumn: `${start} / span ${span}`}}>
-                      <span className="text-xs font-semibold text-foreground py-1">{name}</span>
-                  </div>
-              ))}
-               {midHeaders.map(({name, start, span}) => (
-                  <div key={`mid-${name}-${start}`} className="bg-card/95 backdrop-blur-sm border-b border-r text-center" style={{ gridRow: 2, gridColumn: `${start} / span ${span}`}}>
-                      <span className="text-sm font-semibold text-foreground py-1">{name}</span>
-                  </div>
-              ))}
-              {timeColumns.map((col, i) => (
-                  <div key={`bottom-header-${i}`} className="bg-card/95 backdrop-blur-sm border-b border-r text-center" style={{ gridRow: 3, gridColumn: i + 2}}>
-                      <div className="text-[10px] font-medium text-muted-foreground leading-[1] py-1">
-                        {viewMode === 'day' ? format(col.date, 'd') : format(col.date, 'ha')}
-                      </div>
-                  </div>
-              ))}
-            </div>
+            {/* Corner header */}
+            <div className="sticky top-0 left-0 z-30 bg-card border-b border-r" style={{gridRow: '1 / 4', gridColumn: 1}} />
+
+            {/* Top Headers */}
+            {topHeaders.map(({ name, span }, i) => {
+              const start = topHeaderColStart;
+              topHeaderColStart += span;
+              return (
+                <div key={`top-header-${i}`} className="sticky top-0 z-20 bg-card/95 backdrop-blur-sm border-b border-r text-center py-1" style={{ gridRow: 1, gridColumn: `${start} / span ${span}` }}>
+                  <span className="text-xs font-semibold text-foreground">{name}</span>
+                </div>
+              );
+            })}
+
+            {/* Mid Headers */}
+            {midHeaders.map(({ name, span }, i) => {
+              const start = midHeaderColStart;
+              midHeaderColStart += span;
+              return (
+                <div key={`mid-header-${i}`} className="sticky top-0 z-20 bg-card/95 backdrop-blur-sm border-b border-r text-center py-1" style={{ gridRow: 2, gridColumn: `${start} / span ${span}` }}>
+                  <span className="text-sm font-semibold text-foreground">{name}</span>
+                </div>
+              );
+            })}
+            
+            {/* Bottom Headers */}
+            {timeColumns.map((col, i) => (
+                <div key={`bottom-header-${i}`} className="sticky top-0 z-20 bg-card/95 backdrop-blur-sm border-b border-r text-center" style={{ gridRow: 3, gridColumn: i + 2}}>
+                    <div className="text-[10px] font-medium text-muted-foreground leading-none py-1">
+                      {viewMode === 'day' ? format(col.date, 'd') : format(col.date, 'ha')}
+                    </div>
+                </div>
+            ))}
             
             {rowElements.map(row => (
               <React.Fragment key={row.key}>
@@ -276,3 +278,4 @@ export default function GanttChart({
     </div>
   );
 }
+
