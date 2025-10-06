@@ -58,7 +58,7 @@ export const ORDERS: Order[] = [
         buyer: 'H&M',
         style: 'Pants',
         color: 'Black',
-        quantity: 200,
+        quantity: 1200,
         processIds: ['cutting', 'embroidery', 'sewing', 'packing'],
         dueDate: addDays(today, 15),
         tna: {
