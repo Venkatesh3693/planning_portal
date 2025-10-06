@@ -84,7 +84,7 @@ export default function GanttChart({
     setDragOverCell(null);
   };
   
-  const gridTemplateColumns = `${ROW_HEADER_WIDTH_PX}px repeat(${timeColumns.length}, minmax(3rem, 1fr))`;
+  const gridTemplateColumns = `${ROW_HEADER_WIDTH_PX}px repeat(${timeColumns.length}, minmax(2.5rem, 1fr))`;
 
   const topHeaders = React.useMemo(() => {
     const headers: { name: string; span: number }[] = [];
@@ -164,39 +164,46 @@ export default function GanttChart({
     <div className={cn("h-full w-full flex flex-col overflow-hidden", isDragging && 'is-dragging')}>
       {/* HEADER */}
       <div ref={headerRef} className="flex-shrink-0 overflow-hidden">
-        <div className="sticky left-0 grid bg-card" style={{ gridTemplateColumns }}>
-            <div className="border-r border-b"></div>
-            <div className="col-start-2 border-b">
-                <div className="grid grid-flow-col auto-cols-fr">
-                    {topHeaders.map(({ name, span }, i) => (
-                        <div key={`top-header-${i}`} className="border-r text-center py-1" style={{ gridColumn: `span ${span}` }}>
-                            <span className="text-xs font-semibold text-foreground">{name}</span>
-                        </div>
-                    ))}
+        <div style={{ gridTemplateColumns }} className="grid">
+          {/* Top Left Header Corner */}
+          <div className="sticky left-0 z-20 border-r border-b bg-card"></div>
+          
+          {/* Top Header Row */}
+          <div className="col-start-2 border-b">
+            <div className="grid grid-flow-col auto-cols-fr">
+              {topHeaders.map(({ name, span }, i) => (
+                <div key={`top-header-${i}`} className="border-r text-center py-1" style={{ gridColumn: `span ${span}` }}>
+                  <span className="text-xs font-semibold text-foreground">{name}</span>
                 </div>
+              ))}
             </div>
-            <div className="border-r border-b"></div>
-            <div className="col-start-2 border-b">
-                <div className="grid grid-flow-col auto-cols-fr">
-                    {midHeaders.map(({ name, span }, i) => (
-                        <div key={`mid-header-${i}`} className="border-r text-center py-1" style={{ gridColumn: `span ${span}` }}>
-                            <span className="text-sm font-semibold text-foreground">{name}</span>
-                        </div>
-                    ))}
+          </div>
+          
+          {/* Mid Header Row */}
+          <div className="sticky left-0 z-20 border-r border-b bg-card"></div>
+          <div className="col-start-2 border-b">
+            <div className="grid grid-flow-col auto-cols-fr">
+              {midHeaders.map(({ name, span }, i) => (
+                <div key={`mid-header-${i}`} className="border-r text-center py-1" style={{ gridColumn: `span ${span}` }}>
+                  <span className="text-sm font-semibold text-foreground">{name}</span>
                 </div>
+              ))}
             </div>
-            <div className="border-r border-b"></div>
-            <div className="col-start-2 border-b">
-                <div className="grid grid-flow-col auto-cols-fr">
-                    {timeColumns.map((col, i) => (
-                        <div key={`bottom-header-${i}`} className="border-r text-center">
-                            <div className="text-[10px] font-medium text-muted-foreground leading-none py-1">
-                                {viewMode === 'day' ? format(col.date, 'd') : format(col.date, 'ha')}
-                            </div>
-                        </div>
-                    ))}
+          </div>
+          
+          {/* Bottom Header Row */}
+          <div className="sticky left-0 z-20 border-r border-b bg-card"></div>
+          <div className="col-start-2 border-b">
+            <div className="grid grid-flow-col auto-cols-fr">
+              {timeColumns.map((col, i) => (
+                <div key={`bottom-header-${i}`} className="border-r text-center py-1">
+                  <div className="text-[10px] font-medium text-muted-foreground leading-none">
+                    {viewMode === 'day' ? format(col.date, 'd') : format(col.date, 'ha').toLowerCase()}
+                  </div>
                 </div>
+              ))}
             </div>
+          </div>
         </div>
       </div>
 
