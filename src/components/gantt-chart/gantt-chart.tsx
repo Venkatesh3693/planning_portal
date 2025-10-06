@@ -208,25 +208,26 @@ export default function GanttChart({
   return (
     <div className="h-full w-full overflow-auto" ref={containerRef} onDragStart={handleInternalDragStart}>
         <div className={cn("relative grid min-h-full group/gantt", isDragging && 'is-dragging')} style={timelineGridStyle}>
-            <div className="sticky left-0 top-0 z-50 col-start-1 row-start-1 row-span-3 border-b border-r bg-card"></div>
-            
-            {topHeaders.map(({name, start, span}) => (
-                <div key={`top-${name}-${start}`} className="sticky top-0 z-40 bg-card/95 backdrop-blur-sm border-b border-r text-center py-1" style={{ gridRow: 1, gridColumn: `${start} / span ${span}`}}>
-                    <span className="text-xs font-semibold text-foreground">{name}</span>
-                </div>
-            ))}
-             {midHeaders.map(({name, start, span}) => (
-                <div key={`mid-${name}-${start}`} className="sticky top-[1.8rem] z-40 bg-card/95 backdrop-blur-sm border-b border-r text-center py-1" style={{ gridRow: 2, gridColumn: `${start} / span ${span}`}}>
-                    <span className="text-sm font-semibold text-foreground">{name}</span>
-                </div>
-            ))}
-            {timeColumns.map((col, i) => (
-                <div key={`bottom-header-${i}`} className="sticky top-[3.8rem] z-40 bg-card/95 backdrop-blur-sm border-b border-r text-center" style={{ gridRow: 3, gridColumn: i + 2}}>
-                    <div className="text-[10px] font-medium text-muted-foreground leading-[1]">
-                      {viewMode === 'day' ? format(col.date, 'd') : format(col.date, 'ha')}
-                    </div>
-                </div>
-            ))}
+            <div className="sticky top-0 z-30 col-start-1 col-span-full">
+              <div className="sticky left-0 bg-card border-b border-r" style={{gridRow: 1, gridColumn: 1}}>&nbsp;</div>
+              {topHeaders.map(({name, start, span}) => (
+                  <div key={`top-${name}-${start}`} className="bg-card/95 backdrop-blur-sm border-b border-r text-center" style={{ gridRow: 1, gridColumn: `${start} / span ${span}`}}>
+                      <span className="text-xs font-semibold text-foreground py-1">{name}</span>
+                  </div>
+              ))}
+               {midHeaders.map(({name, start, span}) => (
+                  <div key={`mid-${name}-${start}`} className="bg-card/95 backdrop-blur-sm border-b border-r text-center" style={{ gridRow: 2, gridColumn: `${start} / span ${span}`}}>
+                      <span className="text-sm font-semibold text-foreground py-1">{name}</span>
+                  </div>
+              ))}
+              {timeColumns.map((col, i) => (
+                  <div key={`bottom-header-${i}`} className="bg-card/95 backdrop-blur-sm border-b border-r text-center" style={{ gridRow: 3, gridColumn: i + 2}}>
+                      <div className="text-[10px] font-medium text-muted-foreground leading-[1] py-1">
+                        {viewMode === 'day' ? format(col.date, 'd') : format(col.date, 'ha')}
+                      </div>
+                  </div>
+              ))}
+            </div>
             
             {rowElements.map(row => (
               <React.Fragment key={row.key}>
