@@ -26,6 +26,7 @@ export type TnaProcess = {
   processId: string;
   startDate: string | Date;
   endDate: string | Date;
+  setupTime: number; // in minutes
 };
 
 export type Tna = {

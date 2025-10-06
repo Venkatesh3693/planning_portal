@@ -21,7 +21,7 @@ import {
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
 import { ORDERS, PROCESSES } from '@/lib/data';
-import type { Order, ScheduledProcess } from '@/lib/types';
+import type { Order, Process, ScheduledProcess } from '@/lib/types';
 import { format } from 'date-fns';
 import {
   Table,
@@ -47,10 +47,47 @@ export default function OrdersPage() {
     if (!order.tna) return null;
     
     const { ckDate } = order.tna;
+    
+    const calculateProcessBatchSize = (order: Order): number => {
+        if (!order.tna) return 0;
+    
+        const sewingProcess = PROCESSES.find(p => p.id === 'sewing');
+        if (!sewingProcess) return 0;
+    
+        const samSewing = sewingProcess.sam;
+        
+        let maxSetupRatio = 0;
+        let maxSingleRunOutput = 0;
+    
+        order.processIds.forEach(pid => {
+            const process = PROCESSES.find(p => p.id === pid);
+            const tnaProcess = order.tna?.processes.find(tp => tp.processId === pid);
+    
+            if (process && tnaProcess) {
+                // Calculate max S_i / (SAM_sewing - SAM_i)
+                const samDiff = samSewing - process.sam;
+                if (samDiff > 0) {
+                    const ratio = tnaProcess.setupTime / samDiff;
+                    if (ratio > maxSetupRatio) {
+                        maxSetupRatio = ratio;
+                    }
+                }
+    
+                // Find max Single Run Output
+                if (process.singleRunOutput > maxSingleRunOutput) {
+                    maxSingleRunOutput = process.singleRunOutput;
+                }
+            }
+        });
+    
+        return Math.ceil(Math.max(maxSetupRatio, maxSingleRunOutput));
+    };
+    
+    const processBatchSize = calculateProcessBatchSize(order);
 
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-sm">
             <div className="p-3 bg-muted rounded-md">
                 <div className="font-medium text-muted-foreground">CK Date</div>
                 <div className="font-semibold text-lg">{format(new Date(ckDate), 'MMM dd, yyyy')}</div>
@@ -63,6 +100,10 @@ export default function OrdersPage() {
                 <div className="font-medium text-muted-foreground">Order Quantity</div>
                 <div className="font-semibold text-lg">{order.quantity.toLocaleString()} units</div>
             </div>
+            <div className="p-3 bg-primary/10 rounded-md ring-1 ring-primary/20">
+                <div className="font-medium text-primary/80">Process Batch Size</div>
+                <div className="font-semibold text-lg text-primary">{processBatchSize.toLocaleString()} units</div>
+            </div>
         </div>
 
         <div className="border rounded-md">
@@ -71,6 +112,7 @@ export default function OrdersPage() {
               <TableRow className="bg-transparent hover:bg-transparent">
                 <TableHead>Process</TableHead>
                 <TableHead>SAM</TableHead>
+                <TableHead>Setup Time</TableHead>
                 <TableHead>Single Run Output</TableHead>
                 <TableHead>Produced Qty</TableHead>
                 <TableHead>T&A Start</TableHead>
@@ -90,6 +132,7 @@ export default function OrdersPage() {
                   <TableRow key={process.id} className="bg-transparent even:bg-transparent hover:bg-muted/30">
                     <TableCell className="font-medium">{process.name}</TableCell>
                     <TableCell>{process.sam}</TableCell>
+                    <TableCell>{tnaProcess ? `${tnaProcess.setupTime} min` : '-'}</TableCell>
                     <TableCell>{process.singleRunOutput}</TableCell>
                     <TableCell>
                         <span className="text-muted-foreground">Not Started</span>

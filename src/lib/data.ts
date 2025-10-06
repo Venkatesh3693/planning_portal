@@ -45,10 +45,10 @@ export const ORDERS: Order[] = [
         tna: {
             ckDate: subDays(today, 5),
             processes: [
-                { processId: 'cutting', startDate: subDays(today, 2), endDate: subDays(today, 1) },
-                { processId: 'printing', startDate: today, endDate: addDays(today, 1) },
-                { processId: 'sewing', startDate: addDays(today, 2), endDate: addDays(today, 5) },
-                { processId: 'packing', startDate: addDays(today, 6), endDate: addDays(today, 8) },
+                { processId: 'cutting', startDate: subDays(today, 2), endDate: subDays(today, 1), setupTime: 45 },
+                { processId: 'printing', startDate: today, endDate: addDays(today, 1), setupTime: 90 },
+                { processId: 'sewing', startDate: addDays(today, 2), endDate: addDays(today, 5), setupTime: 120 },
+                { processId: 'packing', startDate: addDays(today, 6), endDate: addDays(today, 8), setupTime: 15 },
             ]
         }
     },
@@ -64,10 +64,10 @@ export const ORDERS: Order[] = [
         tna: {
             ckDate: subDays(today, 10),
             processes: [
-                { processId: 'cutting', startDate: subDays(today, 5), endDate: subDays(today, 3) },
-                { processId: 'embroidery', startDate: subDays(today, 2), endDate: addDays(today, 2) },
-                { processId: 'sewing', startDate: addDays(today, 3), endDate: addDays(today, 9) },
-                { processId: 'packing', startDate: addDays(today, 10), endDate: addDays(today, 13) },
+                { processId: 'cutting', startDate: subDays(today, 5), endDate: subDays(today, 3), setupTime: 60 },
+                { processId: 'embroidery', startDate: subDays(today, 2), endDate: addDays(today, 2), setupTime: 150 },
+                { processId: 'sewing', startDate: addDays(today, 3), endDate: addDays(today, 9), setupTime: 180 },
+                { processId: 'packing', startDate: addDays(today, 10), endDate: addDays(today, 13), setupTime: 20 },
             ]
         }
     },
@@ -83,10 +83,10 @@ export const ORDERS: Order[] = [
         tna: {
             ckDate: subDays(today, 8),
             processes: [
-                { processId: 'cutting', startDate: subDays(today, 6), endDate: subDays(today, 5) },
-                { processId: 'sewing', startDate: subDays(today, 4), endDate: addDays(today, 1) },
-                { processId: 'outsourcing', startDate: addDays(today, 2), endDate: addDays(today, 3) },
-                { processId: 'packing', startDate: addDays(today, 4), endDate: addDays(today, 5) },
+                { processId: 'cutting', startDate: subDays(today, 6), endDate: subDays(today, 5), setupTime: 30 },
+                { processId: 'sewing', startDate: subDays(today, 4), endDate: addDays(today, 1), setupTime: 100 },
+                { processId: 'outsourcing', startDate: addDays(today, 2), endDate: addDays(today, 3), setupTime: 0 },
+                { processId: 'packing', startDate: addDays(today, 4), endDate: addDays(today, 5), setupTime: 10 },
             ]
         }
     }
