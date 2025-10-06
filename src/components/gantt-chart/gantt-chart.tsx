@@ -19,7 +19,7 @@ type GanttChartProps = {
   rows: Row[];
   dates: Date[];
   scheduledProcesses: ScheduledProcess[];
-  onDrop: (rowId: string, startDateTime: Date, e: React.DragEvent<HTMLDivElement>) => void;
+  onDrop: (rowId: string, startDateTime: Date) => void;
   onUndoSchedule: (scheduledProcessId: string) => void;
   onProcessDragStart: (e: React.DragEvent<HTMLDivElement>, item: DraggedItem) => void;
   onDragEnd: (e: React.DragEvent<HTMLDivElement>) => void;
@@ -112,20 +112,30 @@ export default function GanttChart({
   };
   
   const handleDrop = (e: React.DragEvent<HTMLDivElement>, rowId: string, date: Date) => {
-    onDrop(rowId, date, e);
+    e.preventDefault();
+    onDrop(rowId, date);
     setDragOverCell(null);
   };
+
+  const processesToRender = React.useMemo(() => {
+    if (!draggedItem || draggedItem.type !== 'existing') {
+        return scheduledProcesses;
+    }
+    // Filter out the item currently being dragged so it doesn't appear on the chart
+    return scheduledProcesses.filter(p => p.id !== draggedItem.process.id);
+  }, [scheduledProcesses, draggedItem]);
+
 
   const laneAssignments = React.useMemo(() => {
     if (!isOrderLevelView) return new Map();
 
     const assignmentsByRow = new Map<string, { process: ScheduledProcess; lane: number }[]>();
     for (const row of rows) {
-      const processesForRow = scheduledProcesses.filter(p => p.orderId === row.id);
+      const processesForRow = processesToRender.filter(p => p.orderId === row.id);
       assignmentsByRow.set(row.id, assignLanes(processesForRow));
     }
     return assignmentsByRow;
-  }, [isOrderLevelView, rows, scheduledProcesses]);
+  }, [isOrderLevelView, rows, processesToRender]);
 
   const maxLanesPerRow = React.useMemo(() => {
     if (!isOrderLevelView) return new Map<string, number>();
@@ -310,13 +320,7 @@ export default function GanttChart({
               ))
             ])}
 
-            {scheduledProcesses.map((item) => {
-                const isBeingDragged = draggedItem?.type === 'existing' && draggedItem.process.id === item.id;
-                
-                if (isBeingDragged) {
-                    return null;
-                }
-
+            {processesToRender.map((item) => {
                 const rowId = isOrderLevelView ? item.orderId : item.machineId;
                 const rowPosition = rowPositions.get(rowId);
                 if (!rowPosition) return null;
