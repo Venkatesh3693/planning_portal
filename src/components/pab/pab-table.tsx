@@ -83,12 +83,15 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
         <TableBody>
         {Object.entries(pabData.data).map(([orderId, processData]) => (
             <React.Fragment key={orderId}>
-                <TableRow className="bg-card hover:bg-muted/50 border-b-2 border-border font-medium">
-                    <TableCell className="sticky left-0 bg-inherit z-10 min-w-[250px] p-0">
-                        <button onClick={() => toggleOrder(orderId)} className="flex items-center gap-2 cursor-pointer h-full p-4 w-full text-left">
+                <TableRow 
+                    className="bg-card hover:bg-muted/50 border-b-2 border-border font-medium"
+                    onClick={() => toggleOrder(orderId)}
+                >
+                    <TableCell className="sticky left-0 bg-background z-10 min-w-[250px]">
+                        <div className="flex items-center gap-2 cursor-pointer w-full text-left">
                             <ChevronRight className={cn("h-4 w-4 transition-transform", openOrders[orderId] && "rotate-90")} />
                             <span className="font-semibold text-primary">{orderId}</span>
-                        </button>
+                        </div>
                     </TableCell>
                     <TableCell colSpan={dates.length}></TableCell>
                 </TableRow>
@@ -103,7 +106,7 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
                     return (
                       <React.Fragment key={`${orderId}-${processId}`}>
                         <TableRow className="hover:bg-muted/30 even:bg-muted/20 bg-muted/10">
-                            <TableCell className="sticky left-0 bg-inherit z-10 min-w-[250px]">
+                            <TableCell className="sticky left-0 bg-background z-10 min-w-[250px]">
                                 <div className="pl-10 font-medium">{processName}</div>
                             </TableCell>
                             {dates.map((date) => {
@@ -140,7 +143,7 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
                             })}
                         </TableRow>
                          <TableRow className="hover:bg-muted/30 even:bg-muted/20 text-xs text-muted-foreground">
-                            <TableCell className="sticky left-0 bg-inherit z-10 min-w-[250px]">
+                            <TableCell className="sticky left-0 bg-background z-10 min-w-[250px]">
                                 <div className="pl-12">Input</div>
                             </TableCell>
                             {dates.map(date => {
@@ -155,7 +158,7 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
                             })}
                         </TableRow>
                         <TableRow className="hover:bg-muted/30 even:bg-muted/20 text-xs text-muted-foreground border-b-2">
-                            <TableCell className="sticky left-0 bg-inherit z-10 min-w-[250px]">
+                            <TableCell className="sticky left-0 bg-background z-10 min-w-[250px]">
                                 <div className="pl-12">Output</div>
                             </TableCell>
                             {dates.map(date => {
