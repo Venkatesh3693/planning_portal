@@ -202,15 +202,35 @@ export default function GanttChart({
 
   // --- Start of Percentage-Based Calculation Logic ---
   const timelineStart = timeColumns[0]?.date;
-  const timelineEnd = timeColumns[timeColumns.length - 1]?.date;
   
   const totalTimelineDurationMs = React.useMemo(() => {
-    if (!timelineStart || !timelineEnd) return 1;
-    // For 'day' view, the duration of one unit is 24 hours.
-    // For 'hour' view, it's 1 hour. We add one unit to the end to get the full span.
-    const finalEnd = viewMode === 'day' ? addDays(timelineEnd, 1) : addDays(timelineEnd, 1);
-    return differenceInMilliseconds(finalEnd, timelineStart);
-  }, [timelineStart, timelineEnd, viewMode]);
+    if (!timelineStart) return 1;
+    // Calculate total working minutes in the visible timeline
+    const totalWorkingMinutes = dates.length * (WORKING_HOURS_END - WORKING_HOURS_START) * 60;
+    return totalWorkingMinutes * 60 * 1000; // Convert to milliseconds
+  }, [dates, timelineStart]);
+
+
+  const getOffsetMs = (startDate: Date) => {
+    if (!timelineStart) return 0;
+    
+    let offsetMinutes = 0;
+    let currentDate = new Date(timelineStart);
+
+    while (startOfDay(currentDate) < startOfDay(startDate)) {
+      offsetMinutes += (WORKING_HOURS_END - WORKING_HOURS_START) * 60;
+      currentDate = addDays(currentDate, 1);
+    }
+
+    const startHour = startDate.getHours();
+    const startMinute = startDate.getMinutes();
+
+    if (startHour >= WORKING_HOURS_START && startHour < WORKING_HOURS_END) {
+        offsetMinutes += (startHour - WORKING_HOURS_START) * 60 + startMinute;
+    }
+
+    return offsetMinutes * 60 * 1000;
+  }
   // --- End of Percentage-Based Calculation Logic ---
 
   return (
@@ -285,12 +305,8 @@ export default function GanttChart({
               const rowIndex = rows.findIndex(r => r.id === item.machineId);
               if (rowIndex === -1) return null;
               
-              // New percentage-based calculation
-              const itemStart = item.startDateTime;
-              const itemEnd = item.endDateTime;
-
-              const offsetMs = differenceInMilliseconds(itemStart, timelineStart);
-              const durationMs = differenceInMilliseconds(itemEnd, itemStart);
+              const offsetMs = getOffsetMs(item.startDateTime);
+              const durationMs = item.durationMinutes * 60 * 1000;
 
               if (durationMs <= 0) return null;
 
