@@ -3,7 +3,7 @@
 
 import { useMemo } from 'react';
 import type { ScheduledProcess, Order, Process } from '@/lib/types';
-import { format, startOfDay } from 'date-fns';
+import { format, startOfDay, addDays, isAfter, isBefore } from 'date-fns';
 import { WORK_DAY_MINUTES } from '@/lib/data';
 
 export type PabData = {
@@ -28,41 +28,44 @@ export function usePabData(
 
     const processMap = new Map(processes.map(p => [p.id, p]));
 
-    // --- Step A: Aggregate Daily Output & Find Earliest Start Times ---
+    // --- Step A: Aggregate Daily Output & Find Date Ranges ---
     const dailyAggregatedOutput: Record<string, Record<string, Record<string, number>>> = {}; // { orderId: { processId: { date: output } } }
-    const earliestStartTimes: Record<string, Record<string, Date>> = {}; // { orderId: { processId: date } }
+    const processDateRanges: Record<string, Record<string, { start: Date, end: Date }>> = {}; // { orderId: { processId: { start, end } } }
 
     for (const p of scheduledProcesses) {
       const processInfo = processMap.get(p.processId);
       if (!processInfo) continue;
 
+      // Initialize data structures for the order
       if (!dailyAggregatedOutput[p.orderId]) dailyAggregatedOutput[p.orderId] = {};
       if (!dailyAggregatedOutput[p.orderId][p.processId]) dailyAggregatedOutput[p.orderId][p.processId] = {};
+      if (!processDateRanges[p.orderId]) processDateRanges[p.orderId] = {};
       
-      if (!earliestStartTimes[p.orderId]) earliestStartTimes[p.orderId] = {};
-      if (!earliestStartTimes[p.orderId][p.processId] || p.startDateTime < earliestStartTimes[p.orderId][p.processId]) {
-        earliestStartTimes[p.orderId][p.processId] = p.startDateTime;
+      // Update the date range for the process
+      const currentRange = processDateRanges[p.orderId][p.processId];
+      if (!currentRange) {
+        processDateRanges[p.orderId][p.processId] = { start: p.startDateTime, end: p.endDateTime };
+      } else {
+        if (isBefore(p.startDateTime, currentRange.start)) currentRange.start = p.startDateTime;
+        if (isAfter(p.endDateTime, currentRange.end)) currentRange.end = p.endDateTime;
       }
-
+      
       const outputPerMinute = 1 / processInfo.sam;
 
       let current = new Date(p.startDateTime);
       let remainingDuration = p.durationMinutes;
 
-      while (remainingDuration > 0 && current <= p.endDateTime) {
-        const dateKey = format(current, 'yyyy-MM-dd');
+      while (remainingDuration > 0 && current < p.endDateTime) {
+        const dateKey = format(startOfDay(current), 'yyyy-MM-dd');
         // A simple assumption for now - can be refined with working hours logic
         const minutesInDay = Math.min(remainingDuration, WORK_DAY_MINUTES); 
         
         const outputForDay = minutesInDay * outputPerMinute;
-
-        if (!dailyAggregatedOutput[p.orderId][p.processId][dateKey]) {
-          dailyAggregatedOutput[p.orderId][p.processId][dateKey] = 0;
-        }
-        dailyAggregatedOutput[p.orderId][p.processId][dateKey] += outputForDay;
+        
+        dailyAggregatedOutput[p.orderId][p.processId][dateKey] = (dailyAggregatedOutput[p.orderId][p.processId][dateKey] || 0) + outputForDay;
         
         remainingDuration -= minutesInDay;
-        current = startOfDay(new Date(current.getTime() + 86400000));
+        current = startOfDay(addDays(current, 1));
       }
     }
     
@@ -71,56 +74,73 @@ export function usePabData(
     const processSequences: PabData['processSequences'] = {};
     
     for (const order of orders) {
-      const orderProcessStarts = earliestStartTimes[order.id];
-      if (!orderProcessStarts) continue;
+      const orderProcessRanges = processDateRanges[order.id];
+      if (!orderProcessRanges) continue;
 
       finalPabData[order.id] = {};
       
-      // Dynamically sort processes based on their actual earliest start time
+      const scheduledProcessIds = Object.keys(orderProcessRanges);
+      
       const standardProcessOrder = new Map(order.processIds.map((pid, i) => [pid, i]));
-      const dynamicSequence = Object.keys(orderProcessStarts).sort((a, b) => {
-          const timeA = orderProcessStarts[a].getTime();
-          const timeB = orderProcessStarts[b].getTime();
+      const dynamicSequence = scheduledProcessIds.sort((a, b) => {
+          const timeA = orderProcessRanges[a].start.getTime();
+          const timeB = orderProcessRanges[b].start.getTime();
           if (timeA !== timeB) return timeA - timeB;
-          // Tie-break with standard process order
           return (standardProcessOrder.get(a) ?? 99) - (standardProcessOrder.get(b) ?? 99);
       });
+
+      if (dynamicSequence.length === 0) continue;
+      
       processSequences[order.id] = dynamicSequence;
 
-      let previousProcessId: string | null = null;
-      for (const processId of processSequences[order.id]) {
+      for (let i = 0; i < dynamicSequence.length; i++) {
+        const processId = dynamicSequence[i];
+        const predecessorId = i > 0 ? dynamicSequence[i - 1] : null;
+
         finalPabData[order.id][processId] = {};
         const dailyOutputs = dailyAggregatedOutput[order.id]?.[processId] || {};
         
+        // Define the active window for displaying this process's PAB
+        const processStartDate = startOfDay(orderProcessRanges[processId].start);
+        let activeWindowEndDate;
+        const successorId = i < dynamicSequence.length - 1 ? dynamicSequence[i+1] : null;
+        if (successorId) {
+          activeWindowEndDate = startOfDay(orderProcessRanges[successorId].end);
+        } else {
+          // If it's the last process, the window ends on its own last day
+          activeWindowEndDate = startOfDay(orderProcessRanges[processId].end);
+        }
+        
         let yesterdayPab = 0;
         for (const date of dates) {
-          const dateKey = format(date, 'yyyy-MM-dd');
+          const currentDate = startOfDay(date);
+
+          if (currentDate < processStartDate) continue;
+          if (currentDate > activeWindowEndDate) break;
+
+          const dateKey = format(currentDate, 'yyyy-MM-dd');
+          const yesterdayKey = format(addDays(currentDate, -1), 'yyyy-MM-dd');
           
           let inputFromPrevious = 0;
-          
-          // The FIRST process in the DYNAMIC sequence gets the full order quantity as input.
-          if (processId === dynamicSequence[0]) {
-            const firstScheduledDateKey = format(orderProcessStarts[processId], 'yyyy-MM-dd');
+          if (i === 0) { // The true first process
+            const firstScheduledDateKey = format(processStartDate, 'yyyy-MM-dd');
             if (dateKey === firstScheduledDateKey) {
               inputFromPrevious = order.quantity;
             }
-          } else if (previousProcessId) {
-            // All other processes get input from the output of their dynamic predecessor
-            const prevProcessOutputs = dailyAggregatedOutput[order.id]?.[previousProcessId] || {};
-            inputFromPrevious = prevProcessOutputs[dateKey] || 0; // Input for today is output from prev process today
+          } else if (predecessorId) {
+            const prevProcessOutputs = dailyAggregatedOutput[order.id]?.[predecessorId] || {};
+            inputFromPrevious = prevProcessOutputs[yesterdayKey] || 0;
           }
 
           const outputToday = dailyOutputs[dateKey] || 0;
           
           const todayPab = yesterdayPab + inputFromPrevious - outputToday;
 
-          // Only store and display PAB if there's a reason to (activity or remaining balance)
           if (todayPab !== 0 || yesterdayPab !== 0 || inputFromPrevious > 0 || outputToday > 0) {
             finalPabData[order.id][processId][dateKey] = todayPab;
           }
           yesterdayPab = todayPab;
         }
-        previousProcessId = processId;
       }
     }
     
