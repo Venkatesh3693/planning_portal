@@ -51,6 +51,22 @@ export default function OrdersPage() {
     );
   };
 
+  const getEhdForOrder = (orderId: string) => {
+    const packingProcesses = scheduledProcesses.filter(
+      (p) => p.orderId === orderId && p.processId === 'packing'
+    );
+
+    if (packingProcesses.length === 0) {
+      return null;
+    }
+
+    const latestEndDate = packingProcesses.reduce((latest, current) => {
+      return isAfter(current.endDateTime, latest) ? current.endDateTime : latest;
+    }, packingProcesses[0].endDateTime);
+
+    return latestEndDate;
+  };
+
   const TnaPlan = ({ order, scheduledProcesses }: { order: Order, scheduledProcesses: ScheduledProcess[] }) => {
     if (!order.tna) return null;
     
@@ -216,35 +232,46 @@ export default function OrdersPage() {
                       <TableHead>Display Color</TableHead>
                       <TableHead className="text-right">Quantity</TableHead>
                       <TableHead>Due Date</TableHead>
+                      <TableHead>EHD</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {orders.map((order) => (
-                      <TableRow key={order.id}>
-                        <TableCell>
-                          <DialogTrigger asChild>
-                            <span 
-                              className="font-medium text-primary cursor-pointer hover:underline"
-                              onClick={() => handleOrderClick(order)}
-                            >
-                              {order.id}
-                            </span>
-                          </DialogTrigger>
-                        </TableCell>
-                        <TableCell>{order.ocn}</TableCell>
-                        <TableCell>{order.buyer}</TableCell>
-                        <TableCell>{order.style}</TableCell>
-                        <TableCell>{order.color}</TableCell>
-                        <TableCell>
-                          <ColorPicker 
-                            color={order.displayColor}
-                            onColorChange={(newColor) => handleColorChange(order.id, newColor)}
-                          />
-                        </TableCell>
-                        <TableCell className="text-right">{order.quantity}</TableCell>
-                        <TableCell>{format(new Date(order.dueDate), 'PPP')}</TableCell>
-                      </TableRow>
-                    ))}
+                    {orders.map((order) => {
+                      const ehd = getEhdForOrder(order.id);
+                      return (
+                        <TableRow key={order.id}>
+                          <TableCell>
+                            <DialogTrigger asChild>
+                              <span 
+                                className="font-medium text-primary cursor-pointer hover:underline"
+                                onClick={() => handleOrderClick(order)}
+                              >
+                                {order.id}
+                              </span>
+                            </DialogTrigger>
+                          </TableCell>
+                          <TableCell>{order.ocn}</TableCell>
+                          <TableCell>{order.buyer}</TableCell>
+                          <TableCell>{order.style}</TableCell>
+                          <TableCell>{order.color}</TableCell>
+                          <TableCell>
+                            <ColorPicker 
+                              color={order.displayColor}
+                              onColorChange={(newColor) => handleColorChange(order.id, newColor)}
+                            />
+                          </TableCell>
+                          <TableCell className="text-right">{order.quantity}</TableCell>
+                          <TableCell>{format(new Date(order.dueDate), 'PPP')}</TableCell>
+                          <TableCell>
+                            {ehd ? (
+                              format(ehd, 'PPP')
+                            ) : (
+                              <span className="text-muted-foreground">Not Packed</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>
