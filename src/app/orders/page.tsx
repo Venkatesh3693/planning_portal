@@ -34,6 +34,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { useAppContext } from '@/context/app-provider';
 import ColorPicker from '@/components/orders/color-picker';
+import { cn } from '@/lib/utils';
 
 export default function OrdersPage() {
   const { orders, setOrders, scheduledProcesses } = useAppContext();
@@ -238,6 +239,7 @@ export default function OrdersPage() {
                   <TableBody>
                     {orders.map((order) => {
                       const ehd = getEhdForOrder(order.id);
+                      const isLate = ehd && isAfter(ehd, new Date(order.dueDate));
                       return (
                         <TableRow key={order.id}>
                           <TableCell>
@@ -262,7 +264,7 @@ export default function OrdersPage() {
                           </TableCell>
                           <TableCell className="text-right">{order.quantity}</TableCell>
                           <TableCell>{format(new Date(order.dueDate), 'PPP')}</TableCell>
-                          <TableCell>
+                          <TableCell className={cn(isLate && "text-destructive font-semibold")}>
                             {ehd ? (
                               format(ehd, 'PPP')
                             ) : (
