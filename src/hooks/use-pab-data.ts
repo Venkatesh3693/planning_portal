@@ -3,7 +3,7 @@
 
 import { useMemo } from 'react';
 import type { ScheduledProcess, Order, Process } from '@/lib/types';
-import { format, startOfDay, addDays, isAfter, isBefore } from 'date-fns';
+import { format, startOfDay, addDays, isAfter, isBefore, getDay } from 'date-fns';
 import { WORK_DAY_MINUTES } from '@/lib/data';
 
 export type PabData = {
@@ -57,9 +57,14 @@ export function usePabData(
       let current = new Date(p.startDateTime);
       let remainingDuration = p.durationMinutes;
 
-      while (remainingDuration > 0 && current < p.endDateTime) {
+      while (remainingDuration > 0) {
+        // Skip non-working days (e.g., Sunday)
+        if (getDay(current) === 0) {
+            current = startOfDay(addDays(current, 1));
+            continue;
+        }
+
         const dateKey = format(startOfDay(current), 'yyyy-MM-dd');
-        // A simple assumption for now - can be refined with working hours logic
         const minutesInDay = Math.min(remainingDuration, WORK_DAY_MINUTES); 
         
         const outputForDay = minutesInDay * outputPerMinute;
