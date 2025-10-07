@@ -3,7 +3,7 @@
 
 import { useMemo } from 'react';
 import type { ScheduledProcess, Order, Process } from '@/lib/types';
-import { format, isSameDay, startOfDay } from 'date-fns';
+import { format, startOfDay } from 'date-fns';
 import { WORK_DAY_MINUTES } from '@/lib/data';
 
 export type PabData = {
@@ -22,12 +22,11 @@ export function usePabData(
 ): PabData {
 
   const pabData = useMemo(() => {
-    if (!scheduledProcesses.length || !orders.length || !processes.length) {
+    if (!scheduledProcesses.length || !orders.length || !processes.length || !dates.length) {
       return INITIAL_PAB_DATA;
     }
 
     const processMap = new Map(processes.map(p => [p.id, p]));
-    const ordersWithScheduledItems = new Set(scheduledProcesses.map(p => p.orderId));
 
     // --- Step A: Aggregate Daily Output ---
     const dailyAggregatedOutput: Record<string, Record<string, Record<string, number>>> = {}; // { orderId: { processId: { date: output } } }
@@ -39,16 +38,15 @@ export function usePabData(
       if (!dailyAggregatedOutput[p.orderId]) dailyAggregatedOutput[p.orderId] = {};
       if (!dailyAggregatedOutput[p.orderId][p.processId]) dailyAggregatedOutput[p.orderId][p.processId] = {};
       
-      // Calculate output per minute for this process on this machine
       const outputPerMinute = 1 / processInfo.sam;
 
-      // Distribute the duration of the scheduled process across the relevant days
       let current = new Date(p.startDateTime);
       let remainingDuration = p.durationMinutes;
 
-      while (remainingDuration > 0 && current < p.endDateTime) {
+      while (remainingDuration > 0 && current <= p.endDateTime) {
         const dateKey = format(current, 'yyyy-MM-dd');
-        const minutesInDay = Math.min(remainingDuration, WORK_DAY_MINUTES); // Simple assumption for now
+        // A simple assumption for now - can be refined with working hours logic
+        const minutesInDay = Math.min(remainingDuration, WORK_DAY_MINUTES); 
         
         const outputForDay = minutesInDay * outputPerMinute;
 
@@ -58,53 +56,54 @@ export function usePabData(
         dailyAggregatedOutput[p.orderId][p.processId][dateKey] += outputForDay;
         
         remainingDuration -= minutesInDay;
-        current = startOfDay(new Date(current.getTime() + 86400000)); // Move to next day
+        current = startOfDay(new Date(current.getTime() + 86400000));
       }
     }
-
+    
     // --- Step B: Calculate PAB Iteratively ---
     const finalPabData: PabData['data'] = {};
     const processSequences: PabData['processSequences'] = {};
     
     for (const order of orders) {
-      if (!ordersWithScheduledItems.has(order.id)) continue;
-      
+      const scheduledOrderProcesses = dailyAggregatedOutput[order.id];
+      if (!scheduledOrderProcesses) continue; // Skip orders with no scheduled processes at all
+
       finalPabData[order.id] = {};
-      processSequences[order.id] = order.processIds.filter(pid => pid !== 'outsourcing');
+      // Filter the sequence to only include processes that have been scheduled
+      processSequences[order.id] = order.processIds.filter(pid => scheduledOrderProcesses[pid]);
 
       let previousProcessId: string | null = null;
       for (const processId of processSequences[order.id]) {
         finalPabData[order.id][processId] = {};
-        const dailyOutputs = dailyAggregatedOutput[order.id]?.[processId] || {};
+        const dailyOutputs = scheduledOrderProcesses[processId] || {};
         
         let yesterdayPab = 0;
         for (const date of dates) {
           const dateKey = format(date, 'yyyy-MM-dd');
-          
+          const prevDate = new Date(date.getTime() - 86400000);
+          const prevDateKey = format(prevDate, 'yyyy-MM-dd');
+
           let inputFromPrevious = 0;
           if (processId === 'cutting') {
-            // Special case for cutting: input is the full order quantity on the first scheduled day
             const scheduledDates = Object.keys(dailyOutputs).sort();
             if (scheduledDates.length > 0 && dateKey === scheduledDates[0]) {
               inputFromPrevious = order.quantity;
             }
           } else if (previousProcessId) {
-            const yesterdayKey = format(new Date(date.getTime() - 86400000), 'yyyy-MM-dd');
             const prevProcessOutputs = dailyAggregatedOutput[order.id]?.[previousProcessId] || {};
-            inputFromPrevious = prevProcessOutputs[yesterdayKey] || 0;
+            // Input for today is the output from the previous process yesterday
+            inputFromPrevious = prevProcessOutputs[prevDateKey] || 0;
           }
 
           const outputToday = dailyOutputs[dateKey] || 0;
           
-          // Only calculate PAB if there is some activity (input or output)
-          if (inputFromPrevious > 0 || outputToday > 0 || yesterdayPab > 0) {
-            const todayPab = yesterdayPab + inputFromPrevious - outputToday;
+          const todayPab = yesterdayPab + inputFromPrevious - outputToday;
+
+          // Only store and display PAB if there's a reason to (activity or remaining balance)
+          if (todayPab !== 0 || yesterdayPab !== 0 || inputFromPrevious > 0 || outputToday > 0) {
             finalPabData[order.id][processId][dateKey] = todayPab;
-            yesterdayPab = todayPab;
-          } else {
-             // If no activity, just carry over if it's relevant to show
-             // For simplicity, we'll only show PAB on days with activity or a non-zero balance
           }
+          yesterdayPab = todayPab;
         }
         previousProcessId = processId;
       }
