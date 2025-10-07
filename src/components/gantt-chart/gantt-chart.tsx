@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from 'react';
-import { format, getMonth, isWithinInterval, startOfDay, startOfHour, endOfHour, addDays, differenceInMilliseconds } from 'date-fns';
+import { format, getMonth, isWithinInterval, startOfDay, startOfHour, endOfHour, addDays, differenceInMilliseconds, endOfDay } from 'date-fns';
 import type { ScheduledProcess } from '@/lib/types';
 import type { DraggedItemData } from '@/app/page';
 import { cn } from '@/lib/utils';
@@ -200,39 +200,6 @@ export default function GanttChart({
   const gridTemplateColumns = `repeat(${timeColumns.length}, ${cellWidth})`;
   const totalGridWidth = `calc(${timeColumns.length} * ${cellWidth})`;
 
-  // --- Start of Percentage-Based Calculation Logic ---
-  const timelineStart = timeColumns[0]?.date;
-  
-  const totalTimelineDurationMs = React.useMemo(() => {
-    if (!timelineStart) return 1;
-    // Calculate total working minutes in the visible timeline
-    const totalWorkingMinutes = dates.length * (WORKING_HOURS_END - WORKING_HOURS_START) * 60;
-    return totalWorkingMinutes * 60 * 1000; // Convert to milliseconds
-  }, [dates, timelineStart]);
-
-
-  const getOffsetMs = (startDate: Date) => {
-    if (!timelineStart) return 0;
-    
-    let offsetMinutes = 0;
-    let currentDate = new Date(timelineStart);
-
-    while (startOfDay(currentDate) < startOfDay(startDate)) {
-      offsetMinutes += (WORKING_HOURS_END - WORKING_HOURS_START) * 60;
-      currentDate = addDays(currentDate, 1);
-    }
-
-    const startHour = startDate.getHours();
-    const startMinute = startDate.getMinutes();
-
-    if (startHour >= WORKING_HOURS_START && startHour < WORKING_HOURS_END) {
-        offsetMinutes += (startHour - WORKING_HOURS_START) * 60 + startMinute;
-    }
-
-    return offsetMinutes * 60 * 1000;
-  }
-  // --- End of Percentage-Based Calculation Logic ---
-
   return (
     <div 
       className={cn("h-full w-full overflow-hidden relative grid", isDragging && 'is-dragging')}
@@ -301,28 +268,40 @@ export default function GanttChart({
           </div>
 
           {/* Scheduled Process Bars */}
-          {timelineStart && scheduledProcesses.map((item) => {
+          {scheduledProcesses.map((item) => {
               const rowIndex = rows.findIndex(r => r.id === item.machineId);
               if (rowIndex === -1) return null;
+
+              const getColumnIndex = (date: Date) => {
+                if (viewMode === 'day') {
+                  const startOfTargetDay = startOfDay(date);
+                  return timeColumns.findIndex(col => col.date.getTime() === startOfTargetDay.getTime());
+                }
+                const startOfTargetHour = startOfHour(date);
+                return timeColumns.findIndex(col => col.date.getTime() === startOfTargetHour.getTime());
+              };
+
+              const startIndex = getColumnIndex(item.startDateTime);
+              // For end date, we want the cell it finishes in.
+              // If it finishes at midnight, it belongs to the previous day's cell.
+              const endOfProcess = item.endDateTime;
+              const effectiveEndDate = endOfProcess.getHours() === 0 && endOfProcess.getMinutes() === 0
+                ? addDays(endOfProcess, -1)
+                : endOfProcess;
+              const endIndex = getColumnIndex(effectiveEndDate);
+
+              if (startIndex === -1 || endIndex === -1) return null;
               
-              const offsetMs = getOffsetMs(item.startDateTime);
-              const durationMs = item.durationMinutes * 60 * 1000;
-
-              if (durationMs <= 0) return null;
-
-              const leftPercent = (offsetMs / totalTimelineDurationMs) * 100;
-              const widthPercent = (durationMs / totalTimelineDurationMs) * 100;
+              const span = endIndex - startIndex + 1;
               
-              if (leftPercent < 0 || leftPercent > 100) return null;
-
               return (
                   <div 
                     key={item.id}
                     className="absolute z-10"
                     style={{
                       top: `${rowIndex * ROW_HEIGHT_PX}px`,
-                      left: `${leftPercent}%`,
-                      width: `${widthPercent}%`,
+                      left: `calc(${startIndex} * ${cellWidth})`,
+                      width: `calc(${span} * ${cellWidth})`,
                       height: `${ROW_HEIGHT_PX}px`,
                     }}
                   >
@@ -340,3 +319,4 @@ export default function GanttChart({
     </div>
   );
 }
+
