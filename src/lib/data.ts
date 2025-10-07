@@ -21,6 +21,9 @@ export const MACHINES: Machine[] = [
   { id: 'm7', name: 'Cutting Machine Beta', processIds: ['cutting'], unitId: 'u3', isMoveable: false },
   { id: 'm8', name: 'Sewing Station 3', processIds: ['sewing'], unitId: 'u3', isMoveable: true },
   { id: 'm9', name: 'Sewing Station 4', processIds: ['sewing'], unitId: 'u3', isMoveable: false },
+  { id: 'm12', name: 'Packing table 1', processIds: ['packing'], unitId: 'u3', isMoveable: false },
+  { id: 'm13', name: 'Packing table 2', processIds: ['packing'], unitId: 'u3', isMoveable: false },
+  { id: 'm14', name: 'Packing table 3', processIds: ['packing'], unitId: 'u3', isMoveable: false },
 ];
 
 export const ORDER_COLORS = [
@@ -41,7 +44,7 @@ export const PROCESSES: Process[] = [
   { id: 'embroidery', name: 'Embroidery', sam: 6, icon: Fingerprint, color: 'hsl(var(--chart-3))', singleRunOutput: 200 },
   { id: 'outsourcing', name: 'Outsourcing', sam: 1, icon: ExternalLink, color: 'hsl(var(--muted-foreground))', singleRunOutput: 1000 },
   { id: 'sewing', name: 'Sewing', sam: 15, icon: MoveHorizontal, color: 'hsl(var(--chart-4))', singleRunOutput: 150 },
-  { id: 'packing', name: 'Packing', sam: 8, icon: PackageCheck, color: 'hsl(var(--chart-5))', singleRunOutput: 400 },
+  { id: 'packing', name: 'Packing', sam: 0.5, icon: PackageCheck, color: 'hsl(var(--chart-5))', singleRunOutput: 400 },
 ];
 
 const today = startOfToday();
