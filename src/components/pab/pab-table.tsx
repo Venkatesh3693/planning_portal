@@ -108,8 +108,8 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
                         const processStartDate = pabData.processStartDates[orderId]?.[processId];
 
                         return (
-                        <CollapsibleContent asChild key={`${orderId}-${processId}`}>
-                          <React.Fragment>
+                        <CollapsibleContent key={`${orderId}-${processId}`} asChild>
+                          <>
                             <TableRow className="hover:bg-muted/30 even:bg-muted/20 bg-muted/10">
                                 <TableCell className="sticky left-0 bg-inherit z-10 min-w-[250px]">
                                     <div className="pl-10 font-medium">{processName}</div>
@@ -177,7 +177,7 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
                                     );
                                 })}
                             </TableRow>
-                          </React.Fragment>
+                          </>
                         </CollapsibleContent>
                         );
                     })}
