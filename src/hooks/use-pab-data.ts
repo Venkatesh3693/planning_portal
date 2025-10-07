@@ -3,7 +3,7 @@
 
 import { useMemo } from 'react';
 import type { ScheduledProcess, Order, Process } from '@/lib/types';
-import { format, startOfDay, addDays, isAfter, isBefore, getDay, addMinutes, subDays } from 'date-fns';
+import { format, startOfDay, addDays, isAfter, isBefore, getDay, addMinutes } from 'date-fns';
 import { WORK_DAY_MINUTES } from '@/lib/data';
 
 export type PabData = {
@@ -117,8 +117,6 @@ export function usePabData(
       dynamicSequence.forEach(pid => {
         processStartDates[order.id][pid] = orderProcessRanges[pid].start;
       });
-
-      let predecessorTotalOutput = 0;
 
       for (let i = 0; i < dynamicSequence.length; i++) {
         const processId = dynamicSequence[i];

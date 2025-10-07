@@ -2,10 +2,10 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { addDays, startOfToday, getDay, set, isAfter, addMinutes, startOfDay } from 'date-fns';
+import { addDays, startOfToday, getDay, set, isAfter, addMinutes } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
-import { MACHINES, ORDERS, PROCESSES } from '@/lib/data';
+import { MACHINES, PROCESSES } from '@/lib/data';
 import type { Order, ScheduledProcess, TnaProcess } from '@/lib/types';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -70,7 +70,7 @@ const calculateEndDateTime = (startDateTime: Date, totalDurationMinutes: number)
 
 
 export default function Home() {
-  const { scheduledProcesses, setScheduledProcesses } = useAppContext();
+  const { scheduledProcesses, setScheduledProcesses, orders } = useAppContext();
 
   const [selectedProcessId, setSelectedProcessId] = useState<string>(PROCESSES[0].id);
   const [viewMode, setViewMode] = useState<'day' | 'hour'>('day');
@@ -90,7 +90,7 @@ export default function Home() {
     setDates(generatedDates);
   }, []);
 
-  const buyerOptions = useMemo(() => [...new Set(ORDERS.map(o => o.buyer))], []);
+  const buyerOptions = useMemo(() => [...new Set(orders.map(o => o.buyer))], [orders]);
 
   const handleDropOnChart = (rowId: string, startDateTime: Date, draggedItemJSON: string) => {
     if (!draggedItemJSON) return;
@@ -102,11 +102,11 @@ export default function Home() {
     let otherProcesses: ScheduledProcess[];
   
     if (droppedItem.type === 'new') {
-      const order = ORDERS.find(o => o.id === droppedItem.orderId)!;
+      const order = orders.find(o => o.id === droppedItem.orderId)!;
       const process = PROCESSES.find(p => p.id === droppedItem.processId)!;
       const durationMinutes = process.sam * droppedItem.quantity;
       const finalStartDateTime = viewMode === 'day' 
-        ? set(startDateTime, { hours: WORKING_HOURS_START })
+        ? set(startDateTime, { hours: WORKING_HOURS_START, minutes: 0, seconds: 0, milliseconds: 0 })
         : startDateTime;
   
       processToPlace = {
@@ -129,7 +129,7 @@ export default function Home() {
       };
   
       const finalStartDateTime = viewMode === 'day'
-        ? set(startDateTime, { hours: WORKING_HOURS_START })
+        ? set(startDateTime, { hours: WORKING_HOURS_START, minutes: 0, seconds: 0, milliseconds: 0 })
         : startDateTime;
   
       processToPlace = {
@@ -295,14 +295,14 @@ export default function Home() {
         scheduledOrderProcesses.set(key, (scheduledOrderProcesses.get(key) || 0) + p.quantity);
      });
     
-    return ORDERS.filter(order => {
+    return orders.filter(order => {
       const isProcessInOrder = order.processIds.includes(selectedProcessId);
       if (!isProcessInOrder) return false;
       
       const scheduledQuantity = scheduledOrderProcesses.get(`${order.id}_${selectedProcessId}`) || 0;
       return scheduledQuantity < order.quantity;
     });
-  }, [scheduledProcesses, selectedProcessId]);
+  }, [scheduledProcesses, selectedProcessId, orders]);
   
 
   const chartRows = MACHINES.filter(m => m.processIds.includes(selectedProcessId));
@@ -446,7 +446,3 @@ export default function Home() {
     </div>
   );
 }
-    
-
-    
-

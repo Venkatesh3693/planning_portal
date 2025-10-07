@@ -1,7 +1,7 @@
 
 "use client";
 
-import { ORDERS, PROCESSES } from '@/lib/data';
+import { PROCESSES } from '@/lib/data';
 import type { ScheduledProcess } from '@/lib/types';
 import type { DraggedItemData } from '@/app/page';
 import { cn } from '@/lib/utils';
@@ -10,6 +10,7 @@ import { Undo2, GripVertical, SlidersHorizontal } from 'lucide-react';
 import { format } from 'date-fns';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { useAppContext } from '@/context/app-provider';
 
 type ScheduledProcessProps = {
   item: ScheduledProcess;
@@ -25,9 +26,10 @@ export default function ScheduledProcessBar({
   onSplit,
 }: ScheduledProcessProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { orders } = useAppContext();
 
   const processDetails = PROCESSES.find(p => p.id === item.processId);
-  const orderDetails = ORDERS.find(o => o.id === item.orderId);
+  const orderDetails = orders.find(o => o.id === item.orderId);
 
   if (!processDetails || !orderDetails) return null;
 

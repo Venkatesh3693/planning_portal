@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/dialog';
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
-import { ORDERS as initialOrders, PROCESSES } from '@/lib/data';
+import { PROCESSES } from '@/lib/data';
 import type { Order, Process, ScheduledProcess } from '@/lib/types';
 import { format, isAfter, isBefore } from 'date-fns';
 import {
@@ -36,9 +36,8 @@ import { useAppContext } from '@/context/app-provider';
 import ColorPicker from '@/components/orders/color-picker';
 
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
+  const { orders, setOrders, scheduledProcesses } = useAppContext();
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const { scheduledProcesses } = useAppContext();
 
   const handleOrderClick = (order: Order) => {
     setSelectedOrder(order);
