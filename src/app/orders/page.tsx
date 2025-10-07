@@ -22,7 +22,7 @@ import { Header } from '@/components/layout/header';
 import Link from 'next/link';
 import { PROCESSES } from '@/lib/data';
 import type { Order, Process, ScheduledProcess } from '@/lib/types';
-import { format, isAfter, isBefore } from 'date-fns';
+import { format, isAfter, isBefore, startOfDay } from 'date-fns';
 import {
   Table,
   TableBody,
@@ -239,7 +239,7 @@ export default function OrdersPage() {
                   <TableBody>
                     {orders.map((order) => {
                       const ehd = getEhdForOrder(order.id);
-                      const isLate = ehd && isAfter(ehd, new Date(order.dueDate));
+                      const isLate = ehd && isAfter(startOfDay(ehd), startOfDay(new Date(order.dueDate)));
                       return (
                         <TableRow key={order.id}>
                           <TableCell>
