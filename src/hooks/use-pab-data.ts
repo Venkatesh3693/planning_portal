@@ -114,21 +114,41 @@ export function usePabData(
         const dailyOutputs = dailyAggregatedOutput[order.id]?.[processId] || {};
         
         let yesterdayPab = 0;
-        for (const date of dates) {
-          const currentDate = startOfDay(date);
+
+        // Keep track of the last input day for the predecessor process
+        let lastPredecessorOutputDay = -1;
+
+        for (let dateIndex = 0; dateIndex < dates.length; dateIndex++) {
+          const currentDate = startOfDay(dates[dateIndex]);
           const dateKey = format(currentDate, 'yyyy-MM-dd');
+          
+          const isDateBeforeProcessStart = processStartDates[order.id]?.[processId] ? isBefore(currentDate, startOfDay(processStartDates[order.id][processId])) : true;
+          if (isDateBeforeProcessStart) {
+              finalPabData[order.id][processId][dateKey] = 0;
+              yesterdayPab = 0;
+              continue;
+          }
           
           let inputFromPrevious = 0;
 
           if (i === 0) { // The true first process in the dynamic sequence
-              const firstScheduledDateKey = format(startOfDay(orderProcessRanges[processId].start), 'yyyy-MM-dd');
+              const firstScheduledDateKey = format(startOfDay(processStartDates[order.id][processId].getTime()), 'yyyy-MM-dd');
               if (dateKey === firstScheduledDateKey) {
                   inputFromPrevious = order.quantity;
               }
           } else if (predecessorId) {
-              const yesterdayKey = format(addDays(currentDate, -1), 'yyyy-MM-dd');
-              const prevProcessOutputs = dailyAggregatedOutput[order.id]?.[predecessorId] || {};
-              inputFromPrevious = prevProcessOutputs[yesterdayKey] || 0;
+              // Find the last output from the predecessor process, up to yesterday
+              for (let j = dateIndex - 1; j > lastPredecessorOutputDay; j--) {
+                if (getDay(dates[j]) === 0) continue; // Skip Sundays
+
+                const prevDateKey = format(dates[j], 'yyyy-MM-dd');
+                const prevProcessOutputs = dailyAggregatedOutput[order.id]?.[predecessorId] || {};
+                
+                if (prevProcessOutputs[prevDateKey] > 0) {
+                    inputFromPrevious += prevProcessOutputs[prevDateKey];
+                    lastPredecessorOutputDay = j;
+                }
+              }
           }
 
           const outputToday = dailyOutputs[dateKey] || 0;
