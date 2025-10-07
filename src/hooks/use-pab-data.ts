@@ -61,6 +61,7 @@ export function usePabData(
       while (remainingDuration > 0) {
         if (getDay(current) === 0) { // Skip Sundays
             current = startOfDay(addDays(current, 1));
+            current.setHours(9,0,0,0);
             continue;
         }
 
@@ -117,6 +118,7 @@ export function usePabData(
         processStartDates[order.id][pid] = orderProcessRanges[pid].start;
       });
 
+      let predecessorTotalOutput = 0;
 
       for (let i = 0; i < dynamicSequence.length; i++) {
         const processId = dynamicSequence[i];
@@ -127,6 +129,7 @@ export function usePabData(
         const dailyOutputs = dailyAggregatedOutput[order.id]?.[processId] || {};
         
         let yesterdayPab = 0;
+        let consumedInput = 0;
 
         for (let dateIndex = 0; dateIndex < dates.length; dateIndex++) {
           const currentDate = startOfDay(dates[dateIndex]);
@@ -139,37 +142,17 @@ export function usePabData(
                   inputFromPrevious = order.quantity;
               }
           } else if (predecessorId) {
-            let dayToSearch = addDays(currentDate, -1);
-            while (isAfter(dayToSearch, subDays(dates[0], 1))) {
-                const searchDateKey = format(dayToSearch, 'yyyy-MM-dd');
-                const predecessorOutputOnDay = dailyAggregatedOutput[order.id]?.[predecessorId]?.[searchDateKey] || 0;
-                
-                if (predecessorOutputOnDay > 0) {
-                    inputFromPrevious = predecessorOutputOnDay;
-                    
-                    const inputsForCurrentDay = dailyInputs[order.id]?.[processId] || {};
-                    const alreadyAccountedFor = Object.values(inputsForCurrentDay).reduce((a, b) => a + b, 0);
-
-                    if (inputFromPrevious <= alreadyAccountedFor) {
-                        inputFromPrevious = 0;
-                    } else {
-                       // This logic is complex - for now, we find the last output and assume it hasn't been used.
-                       // A more robust solution might track which outputs have been consumed.
-                    }
-
-                    break; // Stop searching once we find the last output
-                }
-                
-                // If it's a non-working day, we need to find the output from the last *working* day.
-                if (getDay(dayToSearch) === 0) { // Sunday
-                   // continue
-                }
-                
-                dayToSearch = addDays(dayToSearch, -1);
-            }
+             const predecessorOutputs = dailyAggregatedOutput[order.id]?.[predecessorId] || {};
+              let availableInput = 0;
+              for (const d of dates.slice(0, dateIndex)) {
+                const prevDateKey = format(d, 'yyyy-MM-dd');
+                availableInput += predecessorOutputs[prevDateKey] || 0;
+              }
+              inputFromPrevious = availableInput - consumedInput;
           }
 
           dailyInputs[order.id][processId][dateKey] = inputFromPrevious;
+          consumedInput += inputFromPrevious;
           const outputToday = dailyOutputs[dateKey] || 0;
           const todayPab = yesterdayPab + inputFromPrevious - outputToday;
           
