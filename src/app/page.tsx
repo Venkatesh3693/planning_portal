@@ -106,7 +106,7 @@ export default function Home() {
       const process = PROCESSES.find(p => p.id === droppedItem.processId)!;
       const durationMinutes = process.sam * droppedItem.quantity;
       const finalStartDateTime = viewMode === 'day' 
-        ? startOfDay(startDateTime)
+        ? set(startDateTime, { hours: WORKING_HOURS_START })
         : startDateTime;
   
       processToPlace = {
@@ -129,7 +129,7 @@ export default function Home() {
       };
   
       const finalStartDateTime = viewMode === 'day'
-        ? startOfDay(startDateTime)
+        ? set(startDateTime, { hours: WORKING_HOURS_START })
         : startDateTime;
   
       processToPlace = {
@@ -449,3 +449,4 @@ export default function Home() {
     
 
     
+
