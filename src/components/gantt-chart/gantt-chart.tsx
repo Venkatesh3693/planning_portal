@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from 'react';
-import { format, getMonth, isWithinInterval, startOfDay, startOfHour, endOfHour, addDays } from 'date-fns';
+import { format, getMonth, isWithinInterval, startOfDay, startOfHour, endOfHour, addDays, differenceInMilliseconds } from 'date-fns';
 import type { ScheduledProcess } from '@/lib/types';
 import type { DraggedItemData } from '@/app/page';
 import { cn } from '@/lib/utils';
@@ -155,7 +155,7 @@ export default function GanttChart({
     const columns: { date: Date; type: 'hour' }[] = [];
     dates.forEach(day => {
       WORKING_HOURS.forEach(hour => {
-        columns.push({ date: startOfHour(day.setHours(hour)), type: 'hour' });
+        columns.push({ date: startOfHour(new Date(day).setHours(hour)), type: 'hour' });
       });
     });
     return columns;
@@ -199,6 +199,19 @@ export default function GanttChart({
   const cellWidth = viewMode === 'day' ? DAY_CELL_WIDTH : HOUR_CELL_WIDTH;
   const gridTemplateColumns = `repeat(${timeColumns.length}, ${cellWidth})`;
   const totalGridWidth = `calc(${timeColumns.length} * ${cellWidth})`;
+
+  // --- Start of Percentage-Based Calculation Logic ---
+  const timelineStart = timeColumns[0]?.date;
+  const timelineEnd = timeColumns[timeColumns.length - 1]?.date;
+  
+  const totalTimelineDurationMs = React.useMemo(() => {
+    if (!timelineStart || !timelineEnd) return 1;
+    // For 'day' view, the duration of one unit is 24 hours.
+    // For 'hour' view, it's 1 hour. We add one unit to the end to get the full span.
+    const finalEnd = viewMode === 'day' ? addDays(timelineEnd, 1) : addDays(timelineEnd, 1);
+    return differenceInMilliseconds(finalEnd, timelineStart);
+  }, [timelineStart, timelineEnd, viewMode]);
+  // --- End of Percentage-Based Calculation Logic ---
 
   return (
     <div 
@@ -268,37 +281,23 @@ export default function GanttChart({
           </div>
 
           {/* Scheduled Process Bars */}
-          {scheduledProcesses.map((item) => {
+          {timelineStart && scheduledProcesses.map((item) => {
               const rowIndex = rows.findIndex(r => r.id === item.machineId);
               if (rowIndex === -1) return null;
-
-              const normalizer = viewMode === 'day' ? startOfDay : startOfHour;
-
-              const startColDate = normalizer(item.startDateTime);
-              const dateIndex = timeColumns.findIndex(d => d.date.getTime() === startColDate.getTime());
-              if (dateIndex === -1) return null;
               
-              const endColDate = normalizer(item.endDateTime);
-              let endDateIndex = timeColumns.findIndex(d => d.date.getTime() === endColDate.getTime());
+              // New percentage-based calculation
+              const itemStart = item.startDateTime;
+              const itemEnd = item.endDateTime;
 
-              // Correction: if the task ends exactly on the hour/day start, it should not occupy that new slot.
-              // We find the index of the last column it *should* occupy.
-              if (item.endDateTime.getTime() > item.startDateTime.getTime() && item.endDateTime.getTime() === endColDate.getTime()) {
-                  endDateIndex = endDateIndex - 1;
-              }
-              
-              if (endDateIndex < 0) {
-                 endDateIndex = dateIndex;
-              }
-              
-              if (endDateIndex >= timeColumns.length) {
-                endDateIndex = timeColumns.length - 1;
-              }
+              const offsetMs = differenceInMilliseconds(itemStart, timelineStart);
+              const durationMs = differenceInMilliseconds(itemEnd, itemStart);
 
-              const durationInColumns = endDateIndex - dateIndex + 1;
+              if (durationMs <= 0) return null;
+
+              const leftPercent = (offsetMs / totalTimelineDurationMs) * 100;
+              const widthPercent = (durationMs / totalTimelineDurationMs) * 100;
               
-              const leftOffset = `calc((${dateIndex} / ${timeColumns.length}) * ${totalGridWidth})`;
-              const barWidth = `calc((${durationInColumns} / ${timeColumns.length}) * ${totalGridWidth})`;
+              if (leftPercent < 0 || leftPercent > 100) return null;
 
               return (
                   <div 
@@ -306,8 +305,8 @@ export default function GanttChart({
                     className="absolute z-10"
                     style={{
                       top: `${rowIndex * ROW_HEIGHT_PX}px`,
-                      left: leftOffset,
-                      width: barWidth,
+                      left: `${leftPercent}%`,
+                      width: `${widthPercent}%`,
                       height: `${ROW_HEIGHT_PX}px`,
                     }}
                   >
