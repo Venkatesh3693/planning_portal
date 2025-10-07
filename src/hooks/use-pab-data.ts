@@ -11,9 +11,10 @@ export type PabData = {
   processSequences: Record<string, string[]>; // { orderId: [processId1, processId2, ...] }
   processDetails: Record<string, { name: string }>;
   dailyOutputs: Record<string, Record<string, Record<string, number>>>; // { orderId: { processId: { date: output } } }
+  processStartDates: Record<string, Record<string, Date>>; // { orderId: { processId: startDate } }
 };
 
-const INITIAL_PAB_DATA: PabData = { data: {}, processSequences: {}, processDetails: {}, dailyOutputs: {} };
+const INITIAL_PAB_DATA: PabData = { data: {}, processSequences: {}, processDetails: {}, dailyOutputs: {}, processStartDates: {} };
 
 export function usePabData(
   scheduledProcesses: ScheduledProcess[],
@@ -73,6 +74,7 @@ export function usePabData(
     // --- Step B: Calculate PAB Iteratively ---
     const finalPabData: PabData['data'] = {};
     const processSequences: PabData['processSequences'] = {};
+    const processStartDates: PabData['processStartDates'] = {};
     
     for (const order of orders) {
       const orderProcessRanges = processDateRanges[order.id];
@@ -93,6 +95,11 @@ export function usePabData(
       if (dynamicSequence.length === 0) continue;
       
       processSequences[order.id] = dynamicSequence;
+      processStartDates[order.id] = {};
+      dynamicSequence.forEach(pid => {
+        processStartDates[order.id][pid] = orderProcessRanges[pid].start;
+      });
+
 
       for (let i = 0; i < dynamicSequence.length; i++) {
         const processId = dynamicSequence[i];
@@ -122,11 +129,8 @@ export function usePabData(
           const outputToday = dailyOutputs[dateKey] || 0;
           
           const todayPab = yesterdayPab + inputFromPrevious - outputToday;
-
-          // Always store the calculated PAB to maintain the chain.
-          // The UI will decide whether to display it.
-          finalPabData[order.id][processId][dateKey] = todayPab;
           
+          finalPabData[order.id][processId][dateKey] = todayPab;
           yesterdayPab = todayPab;
         }
       }
@@ -137,7 +141,7 @@ export function usePabData(
       processDetails[p.id] = { name: p.name };
     }
 
-    return { data: finalPabData, processSequences, processDetails, dailyOutputs: dailyAggregatedOutput };
+    return { data: finalPabData, processSequences, processDetails, dailyOutputs: dailyAggregatedOutput, processStartDates };
 
   }, [scheduledProcesses, orders, processes, dates]);
 

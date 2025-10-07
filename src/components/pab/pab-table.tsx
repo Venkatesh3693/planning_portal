@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { PabData } from '@/hooks/use-pab-data';
-import { format, getMonth } from 'date-fns';
+import { format, getMonth, isBefore, startOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import {
   Collapsible,
@@ -103,6 +103,8 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
                     {pabData.processSequences[orderId]?.map((processId) => {
                         const processName = pabData.processDetails[processId]?.name || processId;
                         const dailyPabs = processData[processId] || {};
+                        const processStartDate = pabData.processStartDates[orderId]?.[processId];
+
                         return (
                         <CollapsibleContent asChild key={`${orderId}-${processId}`}>
                             <TableRow className="hover:bg-muted/30 even:bg-muted/20">
@@ -112,11 +114,16 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
                                 {dates.map((date) => {
                                     const dateKey = format(date, 'yyyy-MM-dd');
                                     const pab = dailyPabs[dateKey];
-                                    const hasOutput = (pabData.dailyOutputs[orderId]?.[processId]?.[dateKey] || 0) > 0;
                                     
-                                    // Display cell only if there is a non-zero balance or if there was production output that day.
-                                    let shouldDisplay = (pab && Math.round(pab) !== 0) || hasOutput;
-
+                                    // New display logic
+                                    const isDateBeforeProcessStart = processStartDate ? isBefore(startOfDay(date), startOfDay(processStartDate)) : true;
+                                    
+                                    let shouldDisplay = false;
+                                    if (!isDateBeforeProcessStart) {
+                                      const hasOutput = (pabData.dailyOutputs[orderId]?.[processId]?.[dateKey] || 0) > 0;
+                                      shouldDisplay = (pab !== undefined && Math.round(pab) !== 0) || hasOutput;
+                                    }
+                                    
                                     let cellContent: React.ReactNode = <span className="text-muted-foreground/30">-</span>;
                                     
                                     if (pab !== undefined && shouldDisplay) {
