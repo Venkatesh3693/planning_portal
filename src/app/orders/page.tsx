@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/dialog';
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
-import { ORDERS, PROCESSES } from '@/lib/data';
+import { ORDERS as initialOrders, PROCESSES } from '@/lib/data';
 import type { Order, Process, ScheduledProcess } from '@/lib/types';
 import { format, isAfter, isBefore } from 'date-fns';
 import {
@@ -33,16 +33,25 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent } from '@/components/ui/card';
 import { useAppContext } from '@/context/app-provider';
+import ColorPicker from '@/components/orders/color-picker';
 
 export default function OrdersPage() {
+  const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const { scheduledProcesses } = useAppContext();
-
 
   const handleOrderClick = (order: Order) => {
     setSelectedOrder(order);
   };
   
+  const handleColorChange = (orderId: string, newColor: string) => {
+    setOrders(currentOrders => 
+        currentOrders.map(o => 
+            o.id === orderId ? { ...o, displayColor: newColor } : o
+        )
+    );
+  };
+
   const TnaPlan = ({ order, scheduledProcesses }: { order: Order, scheduledProcesses: ScheduledProcess[] }) => {
     if (!order.tna) return null;
     
@@ -205,12 +214,13 @@ export default function OrdersPage() {
                       <TableHead>Buyer</TableHead>
                       <TableHead>Style</TableHead>
                       <TableHead>Color</TableHead>
+                      <TableHead>Display Color</TableHead>
                       <TableHead className="text-right">Quantity</TableHead>
                       <TableHead>Due Date</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {ORDERS.map((order) => (
+                    {orders.map((order) => (
                       <TableRow key={order.id}>
                         <TableCell>
                           <DialogTrigger asChild>
@@ -226,6 +236,12 @@ export default function OrdersPage() {
                         <TableCell>{order.buyer}</TableCell>
                         <TableCell>{order.style}</TableCell>
                         <TableCell>{order.color}</TableCell>
+                        <TableCell>
+                          <ColorPicker 
+                            color={order.displayColor}
+                            onColorChange={(newColor) => handleColorChange(order.id, newColor)}
+                          />
+                        </TableCell>
                         <TableCell className="text-right">{order.quantity}</TableCell>
                         <TableCell>{format(new Date(order.dueDate), 'PPP')}</TableCell>
                       </TableRow>

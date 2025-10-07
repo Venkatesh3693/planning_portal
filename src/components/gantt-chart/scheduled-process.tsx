@@ -70,7 +70,7 @@ export default function ScheduledProcessBar({
     }
   };
   
-  const baseColor = processDetails.color || 'hsl(var(--accent))';
+  const baseColor = orderDetails.displayColor || processDetails.color || 'hsl(var(--accent))';
 
   return (
     <Popover open={isMenuOpen} onOpenChange={setIsMenuOpen}>
@@ -132,5 +132,3 @@ export default function ScheduledProcessBar({
     </Popover>
   );
 }
-
-    

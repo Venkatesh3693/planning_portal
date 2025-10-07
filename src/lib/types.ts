@@ -44,6 +44,7 @@ export type Order = {
   processIds: string[];
   dueDate: Date;
   tna?: Tna;
+  displayColor?: string;
 };
 
 export type ScheduledProcess = {

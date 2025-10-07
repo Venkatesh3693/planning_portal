@@ -23,6 +23,17 @@ export const MACHINES: Machine[] = [
   { id: 'm9', name: 'Sewing Station 4', processIds: ['sewing'], unitId: 'u3', isMoveable: false },
 ];
 
+export const ORDER_COLORS = [
+    'hsl(var(--chart-1))',
+    'hsl(var(--chart-2))',
+    'hsl(var(--chart-3))',
+    'hsl(var(--chart-4))',
+    'hsl(var(--chart-5))',
+    'hsl(217, 91%, 60%)', // primary
+    'hsl(330, 84%, 50%)', // A vibrant pink
+    'hsl(50, 95%, 55%)',  // A bright yellow
+];
+
 
 export const PROCESSES: Process[] = [
   { id: 'cutting', name: 'Cutting', sam: 5, icon: Scissors, color: 'hsl(var(--chart-1))', singleRunOutput: 500 },
@@ -45,6 +56,7 @@ export const ORDERS: Order[] = [
         quantity: 500,
         processIds: ['cutting', 'printing', 'sewing', 'packing'],
         dueDate: addDays(today, 10),
+        displayColor: ORDER_COLORS[0],
         tna: {
             ckDate: subDays(today, 5),
             processes: [
@@ -64,6 +76,7 @@ export const ORDERS: Order[] = [
         quantity: 1200,
         processIds: ['cutting', 'embroidery', 'sewing', 'packing'],
         dueDate: addDays(today, 15),
+        displayColor: ORDER_COLORS[1],
         tna: {
             ckDate: subDays(today, 10),
             processes: [
@@ -83,6 +96,7 @@ export const ORDERS: Order[] = [
         quantity: 150,
         processIds: ['cutting', 'sewing', 'packing', 'outsourcing'],
         dueDate: addDays(today, 7),
+        displayColor: ORDER_COLORS[2],
         tna: {
             ckDate: subDays(today, 8),
             processes: [
