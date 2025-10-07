@@ -11,10 +11,11 @@ export type PabData = {
   processSequences: Record<string, string[]>; // { orderId: [processId1, processId2, ...] }
   processDetails: Record<string, { name: string }>;
   dailyOutputs: Record<string, Record<string, Record<string, number>>>; // { orderId: { processId: { date: output } } }
+  dailyInputs: Record<string, Record<string, Record<string, number>>>; // { orderId: { processId: { date: input } } }
   processStartDates: Record<string, Record<string, Date>>; // { orderId: { processId: startDate } }
 };
 
-const INITIAL_PAB_DATA: PabData = { data: {}, processSequences: {}, processDetails: {}, dailyOutputs: {}, processStartDates: {} };
+const INITIAL_PAB_DATA: PabData = { data: {}, processSequences: {}, processDetails: {}, dailyOutputs: {}, dailyInputs: {}, processStartDates: {} };
 
 export function usePabData(
   scheduledProcesses: ScheduledProcess[],
@@ -58,26 +59,36 @@ export function usePabData(
       let remainingDuration = p.durationMinutes;
 
       while (remainingDuration > 0) {
-        // Skip non-working days (e.g., Sunday)
-        if (getDay(current) === 0) {
+        if (getDay(current) === 0) { // Skip Sundays
             current = startOfDay(addDays(current, 1));
             continue;
         }
 
+        const endOfWorkDay = new Date(current).setHours(17, 0, 0, 0);
+        const minutesLeftInCurrentTime = (endOfWorkDay - current.getTime()) / (1000 * 60);
+        const minutesToProcessToday = Math.min(remainingDuration, minutesLeftInCurrentTime);
+
+        if (minutesToProcessToday <= 0) {
+            current = startOfDay(addDays(current, 1));
+            current.setHours(9, 0, 0, 0);
+            continue;
+        }
+
         const dateKey = format(startOfDay(current), 'yyyy-MM-dd');
-        const minutesInDay = Math.min(remainingDuration, WORK_DAY_MINUTES); 
-        
-        const outputForDay = minutesInDay * outputPerMinute;
+        const outputForDay = minutesToProcessToday * outputPerMinute;
         
         dailyAggregatedOutput[p.orderId][p.processId][dateKey] = (dailyAggregatedOutput[p.orderId][p.processId][dateKey] || 0) + outputForDay;
         
-        remainingDuration -= minutesInDay;
-        current = startOfDay(addDays(current, 1));
+        remainingDuration -= minutesToProcessToday;
+        
+        const newTime = addMinutes(current, minutesToProcessToday);
+        current = newTime;
       }
     }
     
     // --- Step B: Calculate PAB Iteratively ---
     const finalPabData: PabData['data'] = {};
+    const dailyInputs: PabData['dailyInputs'] = {};
     const processSequences: PabData['processSequences'] = {};
     const processStartDates: PabData['processStartDates'] = {};
     
@@ -86,6 +97,7 @@ export function usePabData(
       if (!orderProcessRanges) continue;
 
       finalPabData[order.id] = {};
+      dailyInputs[order.id] = {};
       
       const scheduledProcessIds = Object.keys(orderProcessRanges);
       
@@ -111,48 +123,36 @@ export function usePabData(
         const predecessorId = i > 0 ? dynamicSequence[i - 1] : null;
 
         finalPabData[order.id][processId] = {};
+        dailyInputs[order.id][processId] = {};
         const dailyOutputs = dailyAggregatedOutput[order.id]?.[processId] || {};
         
         let yesterdayPab = 0;
-
-        // Keep track of the last input day for the predecessor process
-        let lastPredecessorOutputDay = -1;
+        let lastPredecessorOutputDayIndex = -1;
 
         for (let dateIndex = 0; dateIndex < dates.length; dateIndex++) {
           const currentDate = startOfDay(dates[dateIndex]);
           const dateKey = format(currentDate, 'yyyy-MM-dd');
           
-          const isDateBeforeProcessStart = processStartDates[order.id]?.[processId] ? isBefore(currentDate, startOfDay(processStartDates[order.id][processId])) : true;
-          if (isDateBeforeProcessStart) {
-              finalPabData[order.id][processId][dateKey] = 0;
-              yesterdayPab = 0;
-              continue;
-          }
-          
           let inputFromPrevious = 0;
-
-          if (i === 0) { // The true first process in the dynamic sequence
-              const firstScheduledDateKey = format(startOfDay(processStartDates[order.id][processId].getTime()), 'yyyy-MM-dd');
+          if (i === 0) { // First process
+              const firstScheduledDateKey = format(startOfDay(processStartDates[order.id][processId]), 'yyyy-MM-dd');
               if (dateKey === firstScheduledDateKey) {
                   inputFromPrevious = order.quantity;
               }
           } else if (predecessorId) {
-              // Find the last output from the predecessor process, up to yesterday
-              for (let j = dateIndex - 1; j > lastPredecessorOutputDay; j--) {
-                if (getDay(dates[j]) === 0) continue; // Skip Sundays
-
-                const prevDateKey = format(dates[j], 'yyyy-MM-dd');
-                const prevProcessOutputs = dailyAggregatedOutput[order.id]?.[predecessorId] || {};
-                
-                if (prevProcessOutputs[prevDateKey] > 0) {
-                    inputFromPrevious += prevProcessOutputs[prevDateKey];
-                    lastPredecessorOutputDay = j;
-                }
+              // Look back from yesterday to find the last working day with output
+              for (let j = dateIndex - 1; j > lastPredecessorOutputDayIndex; j--) {
+                  const prevDateKey = format(dates[j], 'yyyy-MM-dd');
+                  const predecessorOutputs = dailyAggregatedOutput[order.id]?.[predecessorId] || {};
+                  if ((predecessorOutputs[prevDateKey] || 0) > 0) {
+                      inputFromPrevious += predecessorOutputs[prevDateKey];
+                      lastPredecessorOutputDayIndex = j;
+                  }
               }
           }
 
+          dailyInputs[order.id][processId][dateKey] = inputFromPrevious;
           const outputToday = dailyOutputs[dateKey] || 0;
-          
           const todayPab = yesterdayPab + inputFromPrevious - outputToday;
           
           finalPabData[order.id][processId][dateKey] = todayPab;
@@ -166,7 +166,7 @@ export function usePabData(
       processDetails[p.id] = { name: p.name };
     }
 
-    return { data: finalPabData, processSequences, processDetails, dailyOutputs: dailyAggregatedOutput, processStartDates };
+    return { data: finalPabData, processSequences, processDetails, dailyOutputs: dailyAggregatedOutput, dailyInputs, processStartDates };
 
   }, [scheduledProcesses, orders, processes, dates]);
 

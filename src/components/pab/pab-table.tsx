@@ -103,28 +103,30 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
                     {pabData.processSequences[orderId]?.map((processId) => {
                         const processName = pabData.processDetails[processId]?.name || processId;
                         const dailyPabs = processData[processId] || {};
+                        const dailyInputs = pabData.dailyInputs[orderId]?.[processId] || {};
+                        const dailyOutputs = pabData.dailyOutputs[orderId]?.[processId] || {};
                         const processStartDate = pabData.processStartDates[orderId]?.[processId];
 
                         return (
                         <CollapsibleContent asChild key={`${orderId}-${processId}`}>
-                            <TableRow className="hover:bg-muted/30 even:bg-muted/20">
+                          <>
+                            <TableRow className="hover:bg-muted/30 even:bg-muted/20 bg-muted/10">
                                 <TableCell className="sticky left-0 bg-inherit z-10 min-w-[250px]">
-                                    <div className="pl-10">{processName}</div>
+                                    <div className="pl-10 font-medium">{processName}</div>
                                 </TableCell>
                                 {dates.map((date) => {
                                     const dateKey = format(date, 'yyyy-MM-dd');
                                     const pab = dailyPabs[dateKey];
                                     
-                                    // New display logic
                                     const isDateBeforeProcessStart = processStartDate ? isBefore(startOfDay(date), startOfDay(processStartDate)) : true;
                                     
                                     let shouldDisplay = false;
                                     if (!isDateBeforeProcessStart) {
-                                      const hasOutput = (pabData.dailyOutputs[orderId]?.[processId]?.[dateKey] || 0) > 0;
-                                      shouldDisplay = (pab !== undefined && Math.round(pab) !== 0) || hasOutput;
+                                      const hasActivity = (dailyInputs[dateKey] || 0) > 0 || (dailyOutputs[dateKey] || 0) > 0;
+                                      shouldDisplay = (pab !== undefined && Math.round(pab) !== 0) || hasActivity;
                                     }
                                     
-                                    let cellContent: React.ReactNode = <span className="text-muted-foreground/30">-</span>;
+                                    let cellContent: React.ReactNode = null;
                                     
                                     if (pab !== undefined && shouldDisplay) {
                                         const isNegative = pab < 0;
@@ -139,12 +141,43 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
                                         )
                                     }
                                     return (
-                                        <TableCell key={date.toISOString()} className="p-1">
+                                        <TableCell key={date.toISOString()} className="p-1 h-12">
                                             {cellContent}
                                         </TableCell>
                                     );
                                 })}
                             </TableRow>
+                             <TableRow className="hover:bg-muted/30 even:bg-muted/20 text-xs text-muted-foreground">
+                                <TableCell className="sticky left-0 bg-inherit z-10 min-w-[250px]">
+                                    <div className="pl-12">Input</div>
+                                </TableCell>
+                                {dates.map(date => {
+                                    const dateKey = format(date, 'yyyy-MM-dd');
+                                    const inputValue = dailyInputs[dateKey] || 0;
+                                    const isDateBeforeProcessStart = processStartDate ? isBefore(startOfDay(date), startOfDay(processStartDate)) : true;
+                                    return (
+                                        <TableCell key={`input-${dateKey}`} className="text-center p-1">
+                                            {inputValue > 0 && !isDateBeforeProcessStart ? Math.round(inputValue).toLocaleString() : null}
+                                        </TableCell>
+                                    );
+                                })}
+                            </TableRow>
+                            <TableRow className="hover:bg-muted/30 even:bg-muted/20 text-xs text-muted-foreground border-b-2">
+                                <TableCell className="sticky left-0 bg-inherit z-10 min-w-[250px]">
+                                    <div className="pl-12">Output</div>
+                                </TableCell>
+                                {dates.map(date => {
+                                    const dateKey = format(date, 'yyyy-MM-dd');
+                                    const outputValue = dailyOutputs[dateKey] || 0;
+                                     const isDateBeforeProcessStart = processStartDate ? isBefore(startOfDay(date), startOfDay(processStartDate)) : true;
+                                    return (
+                                        <TableCell key={`output-${dateKey}`} className="text-center p-1">
+                                           {outputValue > 0 && !isDateBeforeProcessStart ? Math.round(outputValue).toLocaleString() : null}
+                                        </TableCell>
+                                    );
+                                })}
+                            </TableRow>
+                          </>
                         </CollapsibleContent>
                         );
                     })}
