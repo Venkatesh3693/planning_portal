@@ -193,14 +193,18 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
                                 }
                             } else if (row.type === 'input') {
                                 const inputValue = pabData.dailyInputs[row.content.orderId]?.[row.content.processId]?.[dateKey] || 0;
-                                cellContent = inputValue > 0 ? Math.round(inputValue).toLocaleString() : null;
+                                if (inputValue > 0) {
+                                  cellContent = <span className="text-xs text-muted-foreground">{Math.round(inputValue).toLocaleString()}</span>;
+                                }
                             } else if (row.type === 'output') {
                                 const outputValue = pabData.dailyOutputs[row.content.orderId]?.[row.content.processId]?.[dateKey] || 0;
-                                cellContent = outputValue > 0 ? Math.round(outputValue).toLocaleString() : null;
+                                if (outputValue > 0) {
+                                  cellContent = <span className="text-xs text-muted-foreground">{Math.round(outputValue).toLocaleString()}</span>;
+                                }
                             }
 
                             return (
-                              <div key={`${row.id}-${dateIndex}`} className={cn("border-b border-r flex items-center justify-center p-1 text-sm", rowIndex % 2 !== 0 && row.type !== 'order' ? 'bg-muted/30' : 'bg-background')}>
+                              <div key={`${row.id}-${dateIndex}`} className={cn("border-b border-r flex items-center justify-center p-1", rowIndex % 2 !== 0 && row.type !== 'order' ? 'bg-muted/30' : 'bg-background')}>
                                 {cellContent}
                               </div>
                             )
