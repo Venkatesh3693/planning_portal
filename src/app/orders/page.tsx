@@ -239,7 +239,7 @@ export default function OrdersPage() {
                   <TableBody>
                     {orders.map((order) => {
                       const ehd = getEhdForOrder(order.id);
-                      const isLate = ehd && isAfter(startOfDay(ehd), startOfDay(new Date(order.dueDate)));
+                      const isLate = ehd && startOfDay(ehd).getTime() > startOfDay(new Date(order.dueDate)).getTime();
                       return (
                         <TableRow key={order.id}>
                           <TableCell>
