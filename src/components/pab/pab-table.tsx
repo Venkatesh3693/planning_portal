@@ -2,17 +2,19 @@
 'use client';
 
 import * as React from 'react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { PabData } from '@/hooks/use-pab-data';
 import { format, getMonth, isBefore, startOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { ChevronRight } from 'lucide-react';
 
-
 type PabTableProps = {
   pabData: PabData;
   dates: Date[];
 };
+
+const ROW_HEIGHT_PX = 32;
+const CELL_WIDTH_PX = 60;
+const SIDEBAR_WIDTH_PX = 250;
 
 export default function PabTable({ pabData, dates }: PabTableProps) {
   const [openOrders, setOpenOrders] = React.useState<Record<string, boolean>>(() => {
@@ -22,6 +24,10 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
     });
     return initialState;
   });
+
+  const headerRef = React.useRef<HTMLDivElement>(null);
+  const sidebarRef = React.useRef<HTMLDivElement>(null);
+  const bodyRef = React.useRef<HTMLDivElement>(null);
 
   const toggleOrder = (orderId: string) => {
     setOpenOrders(prev => ({ ...prev, [orderId]: !prev[orderId] }));
@@ -37,7 +43,7 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
       const month = getMonth(date);
       if (month !== currentMonth) {
         if (currentMonth !== -1) {
-          headers.push({ name: format(dates[index-1], "MMM ''yy"), span });
+          headers.push({ name: format(dates[index - 1], "MMM ''yy"), span });
         }
         currentMonth = month;
         span = 1;
@@ -50,6 +56,30 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
     });
     return headers;
   }, [dates]);
+  
+  const flattenedRows = React.useMemo(() => {
+    const rows: {type: string, id: string, content: any}[] = [];
+    Object.entries(pabData.data).forEach(([orderId, processData]) => {
+      rows.push({ type: 'order', id: orderId, content: { orderId } });
+      if (openOrders[orderId]) {
+        pabData.processSequences[orderId]?.forEach(processId => {
+          rows.push({ type: 'process', id: `${orderId}-${processId}`, content: { orderId, processId } });
+          rows.push({ type: 'input', id: `${orderId}-${processId}-input`, content: { orderId, processId } });
+          rows.push({ type: 'output', id: `${orderId}-${processId}-output`, content: { orderId, processId } });
+        });
+      }
+    });
+    return rows;
+  }, [pabData, openOrders]);
+
+  const handleBodyScroll = () => {
+    if (headerRef.current && bodyRef.current) {
+        headerRef.current.scrollLeft = bodyRef.current.scrollLeft;
+    }
+    if (sidebarRef.current && bodyRef.current) {
+        sidebarRef.current.scrollTop = bodyRef.current.scrollTop;
+    }
+  };
 
   if (Object.keys(pabData.data).length === 0) {
     return (
@@ -58,127 +88,129 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
       </div>
     );
   }
+  
+  const gridTemplateColumns = `repeat(${dates.length}, ${CELL_WIDTH_PX}px)`;
+  const totalGridWidth = dates.length * CELL_WIDTH_PX;
+  const totalGridHeight = flattenedRows.length * ROW_HEIGHT_PX;
+
 
   return (
-    <div className="border rounded-lg overflow-hidden">
-      <Table className="min-w-full">
-        <TableHeader>
-          <TableRow className="bg-muted/30 hover:bg-muted/30">
-            <TableHead className="sticky left-0 bg-muted/30 z-20 min-w-[250px] font-semibold text-foreground border-b">Order / Process</TableHead>
-            {monthHeaders.map(({ name, span }, i) => (
-              <TableHead key={`month-header-${i}`} colSpan={span} className="text-center font-semibold text-foreground border-b">
-                {name}
-              </TableHead>
-            ))}
-          </TableRow>
-          <TableRow className="bg-muted/30 hover:bg-muted/30">
-            <TableHead className="sticky left-0 bg-muted/30 z-20 min-w-[250px]"></TableHead>
-            {dates.map((date) => (
-              <TableHead key={date.toISOString()} className="text-center min-w-[50px] p-2">
-                {format(date, 'd')}
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-        {Object.entries(pabData.data).map(([orderId, processData]) => (
-            <React.Fragment key={orderId}>
-                <TableRow 
-                    className="bg-card hover:bg-muted/50 border-b-2 border-border font-medium"
-                    onClick={() => toggleOrder(orderId)}
-                >
-                    <TableCell className="sticky left-0 bg-background z-10 min-w-[250px]">
-                        <div className="flex items-center gap-2 cursor-pointer w-full text-left">
-                            <ChevronRight className={cn("h-4 w-4 transition-transform", openOrders[orderId] && "rotate-90")} />
-                            <span className="font-semibold text-primary">{orderId}</span>
-                        </div>
-                    </TableCell>
-                    <TableCell colSpan={dates.length}></TableCell>
-                </TableRow>
-                
-                {openOrders[orderId] && pabData.processSequences[orderId]?.map((processId) => {
-                    const processName = pabData.processDetails[processId]?.name || processId;
-                    const dailyPabs = processData[processId] || {};
-                    const dailyInputs = pabData.dailyInputs[orderId]?.[processId] || {};
-                    const dailyOutputs = pabData.dailyOutputs[orderId]?.[processId] || {};
-                    const processStartDate = pabData.processStartDates[orderId]?.[processId];
+    <div className="border rounded-lg overflow-hidden h-full">
+        <div 
+          className="grid h-full w-full relative"
+          style={{
+            gridTemplateColumns: `${SIDEBAR_WIDTH_PX}px 1fr`,
+            gridTemplateRows: `auto auto 1fr`,
+          }}
+        >
+            {/* Top-Left Corner */}
+            <div className="sticky top-0 left-0 z-30 bg-muted border-r border-b">
+                <div className="h-8 border-b flex items-center px-4 font-semibold text-foreground">Order / Process</div>
+                <div className="h-8 flex items-center px-4"></div>
+            </div>
 
-                    return (
-                      <React.Fragment key={`${orderId}-${processId}`}>
-                        <TableRow className="hover:bg-muted/30 even:bg-muted/20 bg-muted/10">
-                            <TableCell className="sticky left-0 bg-background z-10 min-w-[250px]">
-                                <div className="pl-10 font-medium">{processName}</div>
-                            </TableCell>
-                            {dates.map((date) => {
-                                const dateKey = format(date, 'yyyy-MM-dd');
-                                const pab = dailyPabs[dateKey];
-                                
+            {/* Header */}
+            <div ref={headerRef} className="sticky top-0 z-20 bg-muted border-b overflow-hidden">
+                <div className="grid" style={{ gridTemplateColumns, width: totalGridWidth }}>
+                  {monthHeaders.map(({ name, span }, i) => (
+                    <div key={`month-header-${i}`} style={{ gridColumn: `span ${span}` }} className="h-8 flex items-center justify-center border-r border-b font-semibold text-foreground">
+                      {name}
+                    </div>
+                  ))}
+                </div>
+                <div className="grid" style={{ gridTemplateColumns, width: totalGridWidth }}>
+                  {dates.map((date) => (
+                      <div key={date.toISOString()} className="h-8 flex items-center justify-center border-r text-muted-foreground">
+                        {format(date, 'd')}
+                      </div>
+                  ))}
+                </div>
+            </div>
+
+            {/* Sidebar */}
+            <div ref={sidebarRef} className="row-start-3 overflow-hidden bg-background border-r z-20">
+                <div style={{ height: totalGridHeight }}>
+                  {flattenedRows.map((row, index) => {
+                      let content: React.ReactNode;
+                      let rowClasses = "flex items-center px-4 border-b";
+
+                      if (row.type === 'order') {
+                        content = (
+                          <div onClick={() => toggleOrder(row.content.orderId)} className="flex items-center gap-2 cursor-pointer w-full font-semibold text-primary">
+                              <ChevronRight className={cn("h-4 w-4 transition-transform", openOrders[row.content.orderId] && "rotate-90")} />
+                              {row.content.orderId}
+                          </div>
+                        );
+                        rowClasses += " bg-muted/50"
+                      } else if (row.type === 'process') {
+                        content = <div className="pl-8 font-medium">{pabData.processDetails[row.content.processId]?.name || row.content.processId}</div>;
+                        rowClasses += " bg-background";
+                      } else if (row.type === 'input') {
+                        content = <div className="pl-10 text-sm text-muted-foreground">Input</div>;
+                        rowClasses += " bg-background";
+                      } else if (row.type === 'output') {
+                        content = <div className="pl-10 text-sm text-muted-foreground">Output</div>;
+                        rowClasses += " bg-background";
+                      }
+                      return (
+                        <div key={row.id} style={{height: ROW_HEIGHT_PX}} className={cn(rowClasses, index % 2 !== 0 && row.type !== 'order' && 'bg-muted/30')}>
+                           {content}
+                        </div>
+                      )
+                  })}
+                </div>
+            </div>
+
+            {/* Body */}
+            <div ref={bodyRef} className="row-start-3 col-start-2 overflow-auto" onScroll={handleBodyScroll}>
+                <div className="relative" style={{ width: totalGridWidth, height: totalGridHeight }}>
+                  <div className="absolute inset-0 grid" style={{ gridTemplateColumns, gridTemplateRows: `repeat(${flattenedRows.length}, ${ROW_HEIGHT_PX}px)` }}>
+                    {flattenedRows.map((row, rowIndex) => (
+                       <React.Fragment key={row.id}>
+                          {dates.map((date, dateIndex) => {
+                            let cellContent: React.ReactNode = null;
+                            const dateKey = format(date, 'yyyy-MM-dd');
+
+                            if (row.type === 'process') {
+                                const pab = pabData.data[row.content.orderId]?.[row.content.processId]?.[dateKey];
+                                const processStartDate = pabData.processStartDates[row.content.orderId]?.[row.content.processId];
                                 const isDateBeforeProcessStart = processStartDate ? isBefore(startOfDay(date), startOfDay(processStartDate)) : true;
                                 
-                                let shouldDisplay = false;
-                                if (!isDateBeforeProcessStart) {
-                                  const hasActivity = (dailyInputs[dateKey] || 0) > 0 || (dailyOutputs[dateKey] || 0) > 0;
-                                  shouldDisplay = (pab !== undefined && Math.round(pab) !== 0) || hasActivity;
-                                }
-                                
-                                let cellContent: React.ReactNode = null;
-                                
+                                const hasActivity = (pabData.dailyInputs[row.content.orderId]?.[row.content.processId]?.[dateKey] || 0) > 0 || (pabData.dailyOutputs[row.content.orderId]?.[row.content.processId]?.[dateKey] || 0) > 0;
+                                const shouldDisplay = !isDateBeforeProcessStart && ((pab !== undefined && Math.round(pab) !== 0) || hasActivity);
+
                                 if (pab !== undefined && shouldDisplay) {
                                     const isNegative = pab < 0;
                                     cellContent = (
                                         <div className={cn(
-                                            "w-full h-full p-2 text-center rounded text-xs font-semibold",
+                                            "w-full h-full flex items-center justify-center text-xs font-semibold rounded",
                                             isNegative ? 'bg-destructive/20 text-destructive-foreground' : 'bg-green-500/20 text-green-900',
                                             'dark:text-foreground'
                                         )}>
                                             {Math.round(pab).toLocaleString()}
                                         </div>
-                                    )
+                                    );
                                 }
-                                return (
-                                    <TableCell key={date.toISOString()} className="p-1 h-12">
-                                        {cellContent}
-                                    </TableCell>
-                                );
-                            })}
-                        </TableRow>
-                         <TableRow className="hover:bg-muted/30 even:bg-muted/20 text-xs text-muted-foreground">
-                            <TableCell className="sticky left-0 bg-background z-10 min-w-[250px]">
-                                <div className="pl-12">Input</div>
-                            </TableCell>
-                            {dates.map(date => {
-                                const dateKey = format(date, 'yyyy-MM-dd');
-                                const inputValue = dailyInputs[dateKey] || 0;
-                                const isDateBeforeProcessStart = processStartDate ? isBefore(startOfDay(date), startOfDay(processStartDate)) : true;
-                                return (
-                                    <TableCell key={`input-${dateKey}`} className="text-center p-1">
-                                        {inputValue > 0 && !isDateBeforeProcessStart ? Math.round(inputValue).toLocaleString() : null}
-                                    </TableCell>
-                                );
-                            })}
-                        </TableRow>
-                        <TableRow className="hover:bg-muted/30 even:bg-muted/20 text-xs text-muted-foreground border-b-2">
-                            <TableCell className="sticky left-0 bg-background z-10 min-w-[250px]">
-                                <div className="pl-12">Output</div>
-                            </TableCell>
-                            {dates.map(date => {
-                                const dateKey = format(date, 'yyyy-MM-dd');
-                                const outputValue = dailyOutputs[dateKey] || 0;
-                                 const isDateBeforeProcessStart = processStartDate ? isBefore(startOfDay(date), startOfDay(processStartDate)) : true;
-                                return (
-                                    <TableCell key={`output-${dateKey}`} className="text-center p-1">
-                                       {outputValue > 0 && !isDateBeforeProcessStart ? Math.round(outputValue).toLocaleString() : null}
-                                    </TableCell>
-                                );
-                            })}
-                        </TableRow>
-                      </React.Fragment>
-                    );
-                })}
-            </React.Fragment>
-          ))}
-          </TableBody>
-      </Table>
+                            } else if (row.type === 'input') {
+                                const inputValue = pabData.dailyInputs[row.content.orderId]?.[row.content.processId]?.[dateKey] || 0;
+                                cellContent = inputValue > 0 ? Math.round(inputValue).toLocaleString() : null;
+                            } else if (row.type === 'output') {
+                                const outputValue = pabData.dailyOutputs[row.content.orderId]?.[row.content.processId]?.[dateKey] || 0;
+                                cellContent = outputValue > 0 ? Math.round(outputValue).toLocaleString() : null;
+                            }
+
+                            return (
+                              <div key={`${row.id}-${dateIndex}`} className={cn("border-b border-r flex items-center justify-center p-1 text-sm", rowIndex % 2 !== 0 && row.type !== 'order' ? 'bg-muted/30' : 'bg-background')}>
+                                {cellContent}
+                              </div>
+                            )
+                          })}
+                       </React.Fragment>
+                    ))}
+                  </div>
+                </div>
+            </div>
+        </div>
     </div>
   );
 }
