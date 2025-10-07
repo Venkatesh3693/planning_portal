@@ -112,8 +112,14 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
                                 {dates.map((date) => {
                                     const dateKey = format(date, 'yyyy-MM-dd');
                                     const pab = dailyPabs[dateKey];
+                                    const hasOutput = (pabData.dailyOutputs[orderId]?.[processId]?.[dateKey] || 0) > 0;
+                                    
+                                    // Display cell only if there is a non-zero balance or if there was production output that day.
+                                    let shouldDisplay = (pab && Math.round(pab) !== 0) || hasOutput;
+
                                     let cellContent: React.ReactNode = <span className="text-muted-foreground/30">-</span>;
-                                    if (pab !== undefined) {
+                                    
+                                    if (pab !== undefined && shouldDisplay) {
                                         const isNegative = pab < 0;
                                         cellContent = (
                                             <div className={cn(
@@ -142,4 +148,3 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
     </div>
   );
 }
-
