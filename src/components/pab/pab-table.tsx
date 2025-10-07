@@ -84,7 +84,7 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
         {Object.entries(pabData.data).map(([orderId, processData]) => (
             <React.Fragment key={orderId}>
                 <TableRow className="bg-card hover:bg-muted/50 border-b-2 border-border font-medium">
-                    <TableCell className="sticky left-0 bg-card z-10 min-w-[250px] p-0">
+                    <TableCell className="sticky left-0 bg-inherit z-10 min-w-[250px] p-0">
                         <button onClick={() => toggleOrder(orderId)} className="flex items-center gap-2 cursor-pointer h-full p-4 w-full text-left">
                             <ChevronRight className={cn("h-4 w-4 transition-transform", openOrders[orderId] && "rotate-90")} />
                             <span className="font-semibold text-primary">{orderId}</span>
