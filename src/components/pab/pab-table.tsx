@@ -8,7 +8,6 @@ import { format, getMonth, isBefore, startOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import {
   Collapsible,
-  CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { ChevronRight } from 'lucide-react';
@@ -85,9 +84,10 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
             ))}
           </TableRow>
         </TableHeader>
+        <TableBody>
         {Object.entries(pabData.data).map(([orderId, processData]) => (
             <Collapsible asChild key={orderId} open={openOrders[orderId]} onOpenChange={() => toggleOrder(orderId)}>
-                <TableBody>
+                <React.Fragment>
                     <TableRow className="bg-card hover:bg-muted/50 border-b-2 border-border font-medium">
                         <TableCell className="sticky left-0 bg-card z-10 min-w-[250px] p-0">
                             <CollapsibleTrigger asChild>
@@ -100,7 +100,7 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
                         <TableCell colSpan={dates.length}></TableCell>
                     </TableRow>
                     
-                    {pabData.processSequences[orderId]?.map((processId) => {
+                    {openOrders[orderId] && pabData.processSequences[orderId]?.map((processId) => {
                         const processName = pabData.processDetails[processId]?.name || processId;
                         const dailyPabs = processData[processId] || {};
                         const dailyInputs = pabData.dailyInputs[orderId]?.[processId] || {};
@@ -108,8 +108,7 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
                         const processStartDate = pabData.processStartDates[orderId]?.[processId];
 
                         return (
-                        <CollapsibleContent key={`${orderId}-${processId}`} asChild>
-                          <>
+                          <React.Fragment key={`${orderId}-${processId}`}>
                             <TableRow className="hover:bg-muted/30 even:bg-muted/20 bg-muted/10">
                                 <TableCell className="sticky left-0 bg-inherit z-10 min-w-[250px]">
                                     <div className="pl-10 font-medium">{processName}</div>
@@ -177,13 +176,13 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
                                     );
                                 })}
                             </TableRow>
-                          </>
-                        </CollapsibleContent>
+                          </React.Fragment>
                         );
                     })}
-                </TableBody>
+                </React.Fragment>
             </Collapsible>
           ))}
+          </TableBody>
       </Table>
     </div>
   );
