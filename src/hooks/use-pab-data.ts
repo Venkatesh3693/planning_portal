@@ -100,27 +100,27 @@ export function usePabData(
       finalPabData[order.id] = {};
       dailyInputs[order.id] = {};
       
-      const scheduledProcessIds = Object.keys(orderProcessRanges);
+      const scheduledProcessIds = new Set(Object.keys(orderProcessRanges));
       
-      const standardProcessOrder = new Map(order.processIds.map((pid, i) => [pid, i]));
-      const dynamicSequence = scheduledProcessIds.sort((a, b) => {
-          const timeA = orderProcessRanges[a].start.getTime();
-          const timeB = orderProcessRanges[b].start.getTime();
-          if (timeA !== timeB) return timeA - timeB;
-          return (standardProcessOrder.get(a) ?? 99) - (standardProcessOrder.get(b) ?? 99);
-      });
+      // Use the static sequence from the order, but only include processes that are actually scheduled.
+      const staticSequence = order.processIds.filter(pid => scheduledProcessIds.has(pid));
 
-      if (dynamicSequence.length === 0) continue;
+      if (staticSequence.length === 0) continue;
       
-      processSequences[order.id] = dynamicSequence;
+      processSequences[order.id] = staticSequence;
       processStartDates[order.id] = {};
-      dynamicSequence.forEach(pid => {
-        processStartDates[order.id][pid] = orderProcessRanges[pid].start;
+      staticSequence.forEach(pid => {
+        if (orderProcessRanges[pid]) {
+          processStartDates[order.id][pid] = orderProcessRanges[pid].start;
+        }
       });
 
-      for (let i = 0; i < dynamicSequence.length; i++) {
-        const processId = dynamicSequence[i];
-        const predecessorId = i > 0 ? dynamicSequence[i - 1] : null;
+      for (let i = 0; i < staticSequence.length; i++) {
+        const processId = staticSequence[i];
+        const predecessorId = i > 0 ? staticSequence[i - 1] : null;
+
+        // Skip if this process wasn't actually scheduled
+        if (!processStartDates[order.id][processId]) continue;
 
         finalPabData[order.id][processId] = {};
         dailyInputs[order.id][processId] = {};
@@ -134,16 +134,18 @@ export function usePabData(
           const dateKey = format(currentDate, 'yyyy-MM-dd');
           
           let inputFromPrevious = 0;
-          if (i === 0) { // First process
+          // First process in the *static sequence* gets the full order quantity as input.
+          if (i === 0) { 
               const firstScheduledDateKey = format(startOfDay(processStartDates[order.id][processId]), 'yyyy-MM-dd');
               if (dateKey === firstScheduledDateKey) {
                   inputFromPrevious = order.quantity;
               }
           } else if (predecessorId) {
              const predecessorOutputs = dailyAggregatedOutput[order.id]?.[predecessorId] || {};
+              // Sum up all output from the predecessor *up to yesterday*.
               let availableInput = 0;
-              for (const d of dates.slice(0, dateIndex)) {
-                const prevDateKey = format(d, 'yyyy-MM-dd');
+              for (let d_idx = 0; d_idx < dateIndex; d_idx++) {
+                const prevDateKey = format(dates[d_idx], 'yyyy-MM-dd');
                 availableInput += predecessorOutputs[prevDateKey] || 0;
               }
               inputFromPrevious = availableInput - consumedInput;
