@@ -44,7 +44,7 @@ export const PROCESSES: Process[] = [
   { id: 'embroidery', name: 'Embroidery', sam: 6, icon: Fingerprint, color: 'hsl(var(--chart-3))', singleRunOutput: 200 },
   { id: 'outsourcing', name: 'Outsourcing', sam: 1, icon: ExternalLink, color: 'hsl(var(--muted-foreground))', singleRunOutput: 1000 },
   { id: 'sewing', name: 'Sewing', sam: 15, icon: MoveHorizontal, color: 'hsl(var(--chart-4))', singleRunOutput: 150 },
-  { id: 'packing', name: 'Packing', sam: 0.5, icon: PackageCheck, color: 'hsl(var(--chart-5))', singleRunOutput: 400 },
+  { id: 'packing', name: 'Packing', sam: 2, icon: PackageCheck, color: 'hsl(var(--chart-5))', singleRunOutput: 400 },
 ];
 
 const today = startOfToday();
