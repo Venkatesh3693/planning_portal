@@ -272,14 +272,13 @@ export default function GanttChart({
               const rowIndex = rows.findIndex(r => r.id === item.machineId);
               if (rowIndex === -1) return null;
 
-              const startNormalizer = viewMode === 'day' ? startOfDay : startOfHour;
-              const endNormalizer = viewMode === 'day' ? startOfDay : startOfHour;
+              const normalizer = viewMode === 'day' ? startOfDay : startOfHour;
 
-              const startColDate = startNormalizer(item.startDateTime);
+              const startColDate = normalizer(item.startDateTime);
               const dateIndex = timeColumns.findIndex(d => d.date.getTime() === startColDate.getTime());
               if (dateIndex === -1) return null;
               
-              const endColDate = endNormalizer(item.endDateTime);
+              const endColDate = normalizer(item.endDateTime);
               let endDateIndex = timeColumns.findIndex(d => d.date.getTime() === endColDate.getTime());
 
               // Correction: if the task ends exactly on the hour/day start, it should not occupy that new slot.
@@ -288,8 +287,7 @@ export default function GanttChart({
                   endDateIndex = endDateIndex - 1;
               }
               
-              if (endDateIndex < 0 || endDateIndex < dateIndex) {
-                 // If the item is too short to be displayed in a single cell, ensure it still shows up
+              if (endDateIndex < 0) {
                  endDateIndex = dateIndex;
               }
               

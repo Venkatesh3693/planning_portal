@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { addDays, startOfToday, getDay, set, isAfter, addMinutes } from 'date-fns';
+import { addDays, startOfToday, getDay, set, isAfter, addMinutes, startOfDay } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, ORDERS, PROCESSES } from '@/lib/data';
@@ -105,8 +105,8 @@ export default function Home() {
       const order = ORDERS.find(o => o.id === droppedItem.orderId)!;
       const process = PROCESSES.find(p => p.id === droppedItem.processId)!;
       const durationMinutes = process.sam * droppedItem.quantity;
-      const finalStartDateTime = viewMode === 'day'
-        ? set(startDateTime, { hours: WORKING_HOURS_START, minutes: 0 })
+      const finalStartDateTime = viewMode === 'day' 
+        ? startOfDay(startDateTime)
         : startDateTime;
   
       processToPlace = {
@@ -129,7 +129,7 @@ export default function Home() {
       };
   
       const finalStartDateTime = viewMode === 'day'
-        ? set(startDateTime, { hours: originalProcess.startDateTime.getHours(), minutes: originalProcess.startDateTime.getMinutes() })
+        ? startOfDay(startDateTime)
         : startDateTime;
   
       processToPlace = {
