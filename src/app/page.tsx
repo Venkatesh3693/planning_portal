@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { addDays, startOfToday, getDay, set, isAfter, addMinutes } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
-import { MACHINES, PROCESSES } from '@/lib/data';
+import { MACHINES, PROCESSES, ORDERS } from '@/lib/data';
 import type { Order, ScheduledProcess, TnaProcess } from '@/lib/types';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,8 @@ import type { DateRange } from 'react-day-picker';
 import { useAppContext } from '@/context/app-provider';
 import MachinePanel from '@/components/gantt-chart/machine-panel';
 import SplitProcessDialog from '@/components/gantt-chart/split-process-dialog';
+import PabTable from '@/components/pab/pab-table';
+import { usePabData } from '@/hooks/use-pab-data';
 
 const SEWING_PROCESS_ID = 'sewing';
 const WORKING_HOURS_START = 9;
@@ -89,6 +91,8 @@ export default function Home() {
       .filter(date => getDay(date) !== 0); // Exclude Sundays
     setDates(generatedDates);
   }, []);
+  
+  const pabData = usePabData(scheduledProcesses, orders, PROCESSES, dates);
 
   const buyerOptions = useMemo(() => [...new Set(orders.map(o => o.buyer))], [orders]);
 
@@ -289,6 +293,8 @@ export default function Home() {
   const selectableProcesses = PROCESSES.filter(p => p.id !== 'outsourcing');
 
   const unplannedOrders = useMemo(() => {
+    if (selectedProcessId === 'pab') return [];
+
     const scheduledOrderProcesses = new Map<string, number>();
      scheduledProcesses.forEach(p => {
         const key = `${p.orderId}_${p.processId}`;
@@ -308,6 +314,7 @@ export default function Home() {
   const chartRows = MACHINES.filter(m => m.processIds.includes(selectedProcessId));
 
   const chartProcesses = useMemo(() => {
+    if (selectedProcessId === 'pab') return [];
     return scheduledProcesses.filter(sp => sp.processId === selectedProcessId);
   }, [scheduledProcesses, selectedProcessId]);
   
@@ -328,6 +335,7 @@ export default function Home() {
   };
 
   const filteredUnplannedOrders = useMemo(() => {
+    if (selectedProcessId === 'pab') return [];
     let baseOrders = unplannedOrders;
 
     if (selectedProcessId !== SEWING_PROCESS_ID) {
@@ -362,6 +370,7 @@ export default function Home() {
   };
 
   const handleClearSchedule = () => {
+    if (selectedProcessId === 'pab') return;
     const remainingProcesses = scheduledProcesses.filter(p => p.processId !== selectedProcessId);
     setScheduledProcesses(remainingProcesses);
   };
@@ -373,6 +382,8 @@ export default function Home() {
       </div>
     );
   }
+  
+  const isPabView = selectedProcessId === 'pab';
 
   return (
     <div className="flex h-screen flex-col" onDragEnd={handleDragEnd}>
@@ -386,54 +397,69 @@ export default function Home() {
                   {process.name}
                 </TabsTrigger>
               ))}
+              <TabsTrigger value="pab">PAB Mode</TabsTrigger>
             </TabsList>
           </Tabs>
           <div className="flex items-center gap-4">
-            <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'day' | 'hour')}>
-              <TabsList>
-                <TabsTrigger value="day">Day View</TabsTrigger>
-                <TabsTrigger value="hour">Hour View</TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={handleClearSchedule} title={`Clear all scheduled ${PROCESSES.find(p=>p.id === selectedProcessId)?.name} processes`}>
+            {!isPabView && (
+              <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'day' | 'hour')}>
+                <TabsList>
+                  <TabsTrigger value="day">Day View</TabsTrigger>
+                  <TabsTrigger value="hour">Hour View</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            )}
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="text-destructive hover:text-destructive" 
+              onClick={handleClearSchedule} 
+              title={`Clear all scheduled ${PROCESSES.find(p=>p.id === selectedProcessId)?.name} processes`}
+              disabled={isPabView}
+            >
                 <Trash2 className="h-4 w-4" />
                 <span className="sr-only">Clear Schedule for Process</span>
             </Button>
           </div>
         </div>
-        <div className="flex-1 overflow-hidden p-4">
-          <div className="grid h-full items-start gap-4 grid-cols-[20rem_1fr]">
-            
-            <MachinePanel
-              selectedProcessId={selectedProcessId}
-              filteredUnplannedOrders={filteredUnplannedOrders}
-              handleDragStart={handleDragStart}
-              sewingScheduledOrderIds={sewingScheduledOrderIds}
-              hasActiveFilters={hasActiveFilters}
-              filterOcn={filterOcn}
-              setFilterOcn={setFilterOcn}
-              filterBuyer={filterBuyer}
-              buyerOptions={buyerOptions}
-              handleBuyerFilterChange={handleBuyerFilterChange}
-              filterDueDate={filterDueDate}
-              setFilterDueDate={setFilterDueDate}
-              clearFilters={clearFilters}
-            />
-            
-            <div className="h-full flex-1 overflow-auto rounded-lg border bg-card">
-                <GanttChart 
-                    rows={chartRows} 
-                    dates={dates}
-                    scheduledProcesses={chartProcesses}
-                    onDrop={handleDropOnChart}
-                    onUndoSchedule={handleUndoSchedule}
-                    onProcessDragStart={handleDragStart}
-                    onSplitProcess={handleOpenSplitDialog}
-                    viewMode={viewMode}
-                    draggedItem={draggedItem}
-                  />
-              </div>
-          </div>
+        <div className="flex-1 overflow-auto p-4">
+          {isPabView ? (
+             <div className="h-full flex-1 overflow-auto rounded-lg border bg-card">
+              <PabTable pabData={pabData} dates={dates} />
+            </div>
+          ) : (
+            <div className="grid h-full items-start gap-4 grid-cols-[20rem_1fr]">
+              <MachinePanel
+                selectedProcessId={selectedProcessId}
+                filteredUnplannedOrders={filteredUnplannedOrders}
+                handleDragStart={handleDragStart}
+                sewingScheduledOrderIds={sewingScheduledOrderIds}
+                hasActiveFilters={hasActiveFilters}
+                filterOcn={filterOcn}
+                setFilterOcn={setFilterOcn}
+                filterBuyer={filterBuyer}
+                buyerOptions={buyerOptions}
+                handleBuyerFilterChange={handleBuyerFilterChange}
+                filterDueDate={filterDueDate}
+                setFilterDueDate={setFilterDueDate}
+                clearFilters={clearFilters}
+              />
+              
+              <div className="h-full flex-1 overflow-auto rounded-lg border bg-card">
+                  <GanttChart 
+                      rows={chartRows} 
+                      dates={dates}
+                      scheduledProcesses={chartProcesses}
+                      onDrop={handleDropOnChart}
+                      onUndoSchedule={handleUndoSchedule}
+                      onProcessDragStart={handleDragStart}
+                      onSplitProcess={handleOpenSplitDialog}
+                      viewMode={viewMode}
+                      draggedItem={draggedItem}
+                    />
+                </div>
+            </div>
+          )}
         </div>
       </main>
       
