@@ -3,7 +3,7 @@
 
 import { useMemo } from 'react';
 import type { ScheduledProcess, Order, Process } from '@/lib/types';
-import { format, startOfDay, addDays, isAfter, isBefore, getDay } from 'date-fns';
+import { format, startOfDay, addDays, isAfter, isBefore, getDay, addMinutes } from 'date-fns';
 import { WORK_DAY_MINUTES } from '@/lib/data';
 
 export type PabData = {
@@ -66,7 +66,7 @@ export function usePabData(
 
         const endOfWorkDay = new Date(current).setHours(17, 0, 0, 0);
         const minutesLeftInCurrentTime = (endOfWorkDay - current.getTime()) / (1000 * 60);
-        const minutesToProcessToday = Math.min(remainingDuration, minutesLeftInCurrentTime);
+        const minutesToProcessToday = Math.min(remainingDuration, minutesLeftInCurrentTime, WORK_DAY_MINUTES);
 
         if (minutesToProcessToday <= 0) {
             current = startOfDay(addDays(current, 1));
@@ -127,7 +127,6 @@ export function usePabData(
         const dailyOutputs = dailyAggregatedOutput[order.id]?.[processId] || {};
         
         let yesterdayPab = 0;
-        let lastPredecessorOutputDayIndex = -1;
 
         for (let dateIndex = 0; dateIndex < dates.length; dateIndex++) {
           const currentDate = startOfDay(dates[dateIndex]);
@@ -140,15 +139,34 @@ export function usePabData(
                   inputFromPrevious = order.quantity;
               }
           } else if (predecessorId) {
-              // Look back from yesterday to find the last working day with output
-              for (let j = dateIndex - 1; j > lastPredecessorOutputDayIndex; j--) {
-                  const prevDateKey = format(dates[j], 'yyyy-MM-dd');
-                  const predecessorOutputs = dailyAggregatedOutput[order.id]?.[predecessorId] || {};
-                  if ((predecessorOutputs[prevDateKey] || 0) > 0) {
-                      inputFromPrevious += predecessorOutputs[prevDateKey];
-                      lastPredecessorOutputDayIndex = j;
-                  }
-              }
+            let dayToSearch = addDays(currentDate, -1);
+            while (isAfter(dayToSearch, subDays(dates[0], 1))) {
+                const searchDateKey = format(dayToSearch, 'yyyy-MM-dd');
+                const predecessorOutputOnDay = dailyAggregatedOutput[order.id]?.[predecessorId]?.[searchDateKey] || 0;
+                
+                if (predecessorOutputOnDay > 0) {
+                    inputFromPrevious = predecessorOutputOnDay;
+                    
+                    const inputsForCurrentDay = dailyInputs[order.id]?.[processId] || {};
+                    const alreadyAccountedFor = Object.values(inputsForCurrentDay).reduce((a, b) => a + b, 0);
+
+                    if (inputFromPrevious <= alreadyAccountedFor) {
+                        inputFromPrevious = 0;
+                    } else {
+                       // This logic is complex - for now, we find the last output and assume it hasn't been used.
+                       // A more robust solution might track which outputs have been consumed.
+                    }
+
+                    break; // Stop searching once we find the last output
+                }
+                
+                // If it's a non-working day, we need to find the output from the last *working* day.
+                if (getDay(dayToSearch) === 0) { // Sunday
+                   // continue
+                }
+                
+                dayToSearch = addDays(dayToSearch, -1);
+            }
           }
 
           dailyInputs[order.id][processId][dateKey] = inputFromPrevious;
