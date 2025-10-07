@@ -17,13 +17,11 @@ export const MACHINES: Machine[] = [
   { id: 'm11', name: 'Embroidery Station 2', processIds: ['embroidery'], unitId: 'u2', isMoveable: false },
   { id: 'm4', name: 'Sewing Station 1', processIds: ['sewing'], unitId: 'u2', isMoveable: true },
   { id: 'm5', name: 'Sewing Station 2', processIds: ['sewing'], unitId: 'u2', isMoveable: true },
-  { id: 'm6', name: 'Finishing & QC', processIds: ['packing'], unitId: 'u3', isMoveable: false },
   { id: 'm7', name: 'Cutting Machine Beta', processIds: ['cutting'], unitId: 'u3', isMoveable: false },
   { id: 'm8', name: 'Sewing Station 3', processIds: ['sewing'], unitId: 'u3', isMoveable: true },
   { id: 'm9', name: 'Sewing Station 4', processIds: ['sewing'], unitId: 'u3', isMoveable: false },
   { id: 'm12', name: 'Packing table 1', processIds: ['packing'], unitId: 'u3', isMoveable: false },
   { id: 'm13', name: 'Packing table 2', processIds: ['packing'], unitId: 'u3', isMoveable: false },
-  { id: 'm14', name: 'Packing table 3', processIds: ['packing'], unitId: 'u3', isMoveable: false },
 ];
 
 export const ORDER_COLORS = [
