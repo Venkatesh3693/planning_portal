@@ -272,11 +272,14 @@ export default function GanttChart({
               const rowIndex = rows.findIndex(r => r.id === item.machineId);
               if (rowIndex === -1) return null;
 
-              const startColDate = viewMode === 'day' ? startOfDay(item.startDateTime) : startOfHour(item.startDateTime);
+              const startNormalizer = viewMode === 'day' ? startOfDay : startOfHour;
+              const endNormalizer = viewMode === 'day' ? startOfDay : startOfHour;
+
+              const startColDate = startNormalizer(item.startDateTime);
               const dateIndex = timeColumns.findIndex(d => d.date.getTime() === startColDate.getTime());
               if (dateIndex === -1) return null;
               
-              const endColDate = viewMode === 'day' ? startOfDay(item.endDateTime) : startOfHour(item.endDateTime);
+              const endColDate = endNormalizer(item.endDateTime);
               let endDateIndex = timeColumns.findIndex(d => d.date.getTime() === endColDate.getTime());
 
               // Correction: if the task ends exactly on the hour/day start, it should not occupy that new slot.
