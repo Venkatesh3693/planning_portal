@@ -31,27 +31,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const serializedState = localStorage.getItem(STORE_KEY);
       let loadedProcesses: ScheduledProcess[] = [];
-      let ordersToLoad: Order[] = initialOrders; // Default to initial orders
+      let ordersToLoad: Order[] = []; // Start with empty
 
       if (serializedState) {
         const store: StoreData = JSON.parse(serializedState);
         
-        // "Hydrate or Re-initialize" logic for orders
         if (store.orders && store.orders.length > 0) {
           ordersToLoad = store.orders;
         }
-        
-        if (store.scheduledProcesses) {
-          loadedProcesses = store.scheduledProcesses.map(p => ({
-            ...p,
-            startDateTime: new Date(p.startDateTime),
-            endDateTime: new Date(p.endDateTime),
-          }));
-        }
       }
-
+      
       // "Recover and Migrate" logic
-      // This runs whether we loaded from localStorage or are using initial data
+      // If after trying to load, we have no orders, re-initialize from default.
+      if (ordersToLoad.length === 0) {
+        ordersToLoad = initialOrders;
+      }
+      
       const finalOrders = ordersToLoad.map(loadedOrder => {
           const initialOrder = initialOrders.find(o => o.id === loadedOrder.id);
           
@@ -76,6 +71,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
           };
       });
 
+      if (serializedState) {
+        const store: StoreData = JSON.parse(serializedState);
+        if (store.scheduledProcesses) {
+          loadedProcesses = store.scheduledProcesses.map(p => ({
+            ...p,
+            startDateTime: new Date(p.startDateTime),
+            endDateTime: new Date(p.endDateTime),
+          }));
+        }
+      }
+
       setScheduledProcesses(loadedProcesses);
       setOrders(finalOrders);
 
@@ -96,7 +102,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     
     try {
       // Don't save an empty order list if it was just transiently empty during loading
-      if(orders.length === 0) return;
+      if(orders.length === 0 && scheduledProcesses.length === 0) return;
 
       const store: StoreData = { scheduledProcesses, orders };
       const serializedState = JSON.stringify(store);
@@ -106,16 +112,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [scheduledProcesses, orders, isLoaded]);
 
+  const value = { scheduledProcesses, setScheduledProcesses, orders, setOrders };
+
   if (!isLoaded) {
     return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <p>Loading your schedule...</p>
-      </div>
+      <AppContext.Provider value={value}>
+        <div className="flex h-screen w-full items-center justify-center">
+          <p>Loading your schedule...</p>
+        </div>
+      </AppContext.Provider>
     );
   }
 
   return (
-    <AppContext.Provider value={{ scheduledProcesses, setScheduledProcesses, orders, setOrders }}>
+    <AppContext.Provider value={value}>
       {children}
     </AppContext.Provider>
   );
