@@ -79,9 +79,43 @@ const calculateMinDays = (order: Order, sewingSam: number, rampUpScheme: RampUpE
   return minutes / WORK_DAY_MINUTES;
 };
 
+const calculateAverageEfficiency = (
+  scheme: RampUpEntry[],
+  totalProductionDays: number
+): number => {
+  if (scheme.length === 0 || totalProductionDays === 0 || totalProductionDays === Infinity) return 0;
+
+  let weightedSum = 0;
+  const sortedScheme = [...scheme]
+    .map(s => ({ ...s, efficiency: Number(s.efficiency) || 0 }))
+    .filter(s => s.efficiency > 0)
+    .sort((a, b) => a.day - b.day);
+
+  if (sortedScheme.length === 0) return 0;
+
+  let lastDay = 0;
+  let lastEfficiency = 0;
+
+  for (const entry of sortedScheme) {
+    const daysInThisStep = entry.day - lastDay;
+    if (daysInThisStep > 0) {
+      weightedSum += daysInThisStep * lastEfficiency;
+    }
+    lastDay = entry.day;
+    lastEfficiency = entry.efficiency;
+  }
+
+  const daysAtPeak = Math.ceil(totalProductionDays) - lastDay + 1;
+  if (daysAtPeak > 0) {
+    weightedSum += daysAtPeak * lastEfficiency;
+  }
+
+  return weightedSum / Math.ceil(totalProductionDays);
+};
+
 type RampUpDialogState = {
   order: Order;
-  totalProductionDays: number;
+  singleLineMinDays: number;
 };
 
 export default function OrdersPage() {
@@ -89,7 +123,6 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>(staticOrders);
   
   useEffect(() => {
-    // Merge locally stored ramp-up schemes into the orders state
     if (isScheduleLoaded) {
       const colorMapRaw = localStorage.getItem('stitchplan_order_colors');
       const colorMap = colorMapRaw ? JSON.parse(colorMapRaw) : {};
@@ -97,7 +130,7 @@ export default function OrdersPage() {
       setOrders(currentOrders => 
         currentOrders.map((o, index) => ({ 
           ...o,
-          sewingRampUpScheme: sewingRampUpSchemes[o.id],
+          sewingRampUpScheme: sewingRampUpSchemes[o.id] || [{ day: 1, efficiency: o.budgetedEfficiency || 85 }],
           displayColor: colorMap[o.id] || ORDER_COLORS[index % ORDER_COLORS.length]
         }))
       );
@@ -307,6 +340,8 @@ export default function OrdersPage() {
                       <TableHead>Order ID</TableHead>
                       <TableHead>Buyer</TableHead>
                       <TableHead>Order Type</TableHead>
+                      <TableHead>Budgeted Eff.</TableHead>
+                      <TableHead>Avg. Eff.</TableHead>
                       <TableHead>Ramp-up</TableHead>
                       <TableHead>No. of Lines</TableHead>
                       <TableHead>Min. Sewing Days</TableHead>
@@ -323,11 +358,12 @@ export default function OrdersPage() {
                       const isLate = ehd && isAfter(startOfDay(ehd), startOfDay(new Date(order.dueDate)));
                       
                       const sewingProcess = PROCESSES.find(p => p.id === SEWING_PROCESS_ID);
-                      const rampUpScheme = order.sewingRampUpScheme || [{ day: 1, efficiency: order.budgetedEfficiency || 100 }];
-                      const singleLineMinDays = sewingProcess ? calculateMinDays(order, sewingProcess.sam, rampUpScheme) : 0;
+                      const singleLineMinDays = sewingProcess ? calculateMinDays(order, sewingProcess.sam, order.sewingRampUpScheme!) : 0;
                       
                       const numLines = sewingLines[order.id] || 1;
-                      const totalProductionDays = singleLineMinDays / numLines;
+                      const totalProductionDays = singleLineMinDays > 0 && numLines > 0 ? singleLineMinDays / numLines : 0;
+                      
+                      const avgEfficiency = calculateAverageEfficiency(order.sewingRampUpScheme!, totalProductionDays);
 
                       return (
                         <TableRow key={order.id}>
@@ -343,8 +379,14 @@ export default function OrdersPage() {
                           </TableCell>
                           <TableCell>{order.buyer}</TableCell>
                           <TableCell>Firm PO</TableCell>
+                          <TableCell>{order.budgetedEfficiency}%</TableCell>
                           <TableCell>
-                              <Button variant="outline" size="sm" onClick={() => setRampUpState({ order, totalProductionDays })}>
+                            <Badge variant={avgEfficiency < order.budgetedEfficiency! ? 'destructive' : 'secondary'}>
+                                {avgEfficiency.toFixed(2)}%
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                              <Button variant="outline" size="sm" onClick={() => setRampUpState({ order, singleLineMinDays })}>
                                 <LineChart className="h-4 w-4 mr-2" />
                                 Scheme
                               </Button>
@@ -412,10 +454,12 @@ export default function OrdersPage() {
             <RampUpDialog
               key={rampUpState.order.id} // Re-mount component when order changes
               order={rampUpState.order}
-              totalProductionDays={rampUpState.totalProductionDays}
+              singleLineMinDays={rampUpState.singleLineMinDays}
+              numLines={sewingLines[rampUpState.order.id] || 1}
               isOpen={!!rampUpState}
               onOpenChange={(isOpen) => !isOpen && setRampUpState(null)}
               onSave={handleRampUpSave}
+              calculateAverageEfficiency={calculateAverageEfficiency}
             />
           )}
 

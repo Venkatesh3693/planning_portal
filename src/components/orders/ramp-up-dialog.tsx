@@ -15,15 +15,16 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { PlusCircle, X } from 'lucide-react';
 
 type RampUpDialogProps = {
   order: Order;
-  totalProductionDays: number;
+  singleLineMinDays: number;
+  numLines: number;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (orderId: string, scheme: RampUpEntry[]) => void;
+  calculateAverageEfficiency: (scheme: RampUpEntry[], totalProductionDays: number) => number;
 };
 
 // Use a local state type that can handle string for efficiency and has a unique id
@@ -37,10 +38,12 @@ let nextId = 0;
 
 export default function RampUpDialog({
   order,
-  totalProductionDays,
+  singleLineMinDays,
+  numLines,
   isOpen,
   onOpenChange,
   onSave,
+  calculateAverageEfficiency,
 }: RampUpDialogProps) {
   const [scheme, setScheme] = useState<EditableRampUpEntry[]>([]);
 
@@ -53,38 +56,18 @@ export default function RampUpDialog({
     }
   }, [order]);
 
+  const totalProductionDays = useMemo(() => {
+    if (singleLineMinDays > 0 && numLines > 0) {
+      return singleLineMinDays / numLines;
+    }
+    return 0;
+  }, [singleLineMinDays, numLines]);
+
   const averageEfficiency = useMemo(() => {
-    if (scheme.length === 0 || totalProductionDays === 0 || totalProductionDays === Infinity) return 0;
-    
-    let weightedSum = 0;
-    const sortedScheme = [...scheme]
-      .map(s => ({ ...s, efficiency: Number(s.efficiency) || 0}))
-      .filter(s => s.efficiency > 0)
-      .sort((a,b) => a.day - b.day);
-    
-    let lastDay = 0;
-    let lastEfficiency = 0;
-    
-    // Iterate through the defined ramp-up points
-    for (const entry of sortedScheme) {
-      // Days at the previous efficiency level
-      const daysInThisStep = entry.day - lastDay;
-      if (daysInThisStep > 0) {
-        weightedSum += daysInThisStep * lastEfficiency;
-      }
-      lastDay = entry.day;
-      lastEfficiency = entry.efficiency;
-    }
-    
-    // Add the final peak efficiency for the remaining days
-    const daysAtPeak = Math.ceil(totalProductionDays) - lastDay + 1;
-    if (daysAtPeak > 0) {
-        weightedSum += daysAtPeak * lastEfficiency;
-    }
+    const numericScheme = scheme.map(s => ({...s, efficiency: Number(s.efficiency) || 0}));
+    return calculateAverageEfficiency(numericScheme, totalProductionDays);
+  }, [scheme, totalProductionDays, calculateAverageEfficiency]);
 
-    return weightedSum / Math.ceil(totalProductionDays);
-
-  }, [scheme, totalProductionDays]);
 
   const handleAddDay = () => {
     const nextDay = scheme.length > 0 ? Math.max(...scheme.map(s => s.day)) + 1 : 1;
@@ -116,7 +99,6 @@ export default function RampUpDialog({
   }
 
   const handleSave = () => {
-    // Filter out empty/invalid entries and convert to number before saving
     const validScheme: RampUpEntry[] = scheme
       .map(s => ({
           day: s.day,
@@ -125,7 +107,6 @@ export default function RampUpDialog({
       .filter(s => s.efficiency > 0 && s.efficiency <= 100 && s.day > 0)
       .sort((a, b) => a.day - b.day);
       
-    // Remove duplicate day entries, keeping the one with higher efficiency
     const uniqueDayScheme = Object.values(
       validScheme.reduce((acc, curr) => {
         if (!acc[curr.day] || acc[curr.day].efficiency < curr.efficiency) {
@@ -172,11 +153,14 @@ export default function RampUpDialog({
               />
               <Input
                 id={`eff-${entry.id}`}
-                type="number"
-                min="1"
-                max="100"
+                type="text"
                 value={entry.efficiency}
-                onChange={(e) => handleEfficiencyChange(entry.id, e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '' || (Number(val) >= 0 && Number(val) <= 100 && !val.includes('.'))) {
+                    handleEfficiencyChange(entry.id, val);
+                  }
+                }}
               />
               {scheme.length > 1 && (
                 <Button
@@ -204,16 +188,20 @@ export default function RampUpDialog({
           </div>
           
           <div className="px-4 pt-4 border-t mt-4">
-            <div className="flex justify-between font-medium">
-                <span>Weighted Avg. Efficiency:</span>
-                <span className="text-primary">
-                    {averageEfficiency.toFixed(2)}%
-                </span>
+             <div className="flex justify-between text-sm text-muted-foreground">
+                <span>Number of Lines:</span>
+                <span>{numLines}</span>
             </div>
             <div className="flex justify-between text-sm text-muted-foreground">
                 <span>Total Production Days:</span>
                 <span>
-                    {Math.ceil(totalProductionDays)}
+                    {totalProductionDays.toFixed(2)}
+                </span>
+            </div>
+             <div className="flex justify-between font-medium mt-2">
+                <span>Weighted Avg. Efficiency:</span>
+                <span className="text-primary">
+                    {averageEfficiency.toFixed(2)}%
                 </span>
             </div>
           </div>
