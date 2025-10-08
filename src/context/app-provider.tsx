@@ -17,6 +17,7 @@ type AppContextType = {
   setScheduledProcesses: Dispatch<SetStateAction<ScheduledProcess[]>>;
   orders: Order[];
   setOrders: Dispatch<SetStateAction<Order[]>>;
+  isLoaded: boolean;
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -26,24 +27,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Load state from localStorage on initial mount
+  // Load state from localStorage on initial client mount
   useEffect(() => {
     try {
       const serializedState = localStorage.getItem(STORE_KEY);
       let loadedProcesses: ScheduledProcess[] = [];
-      let ordersToLoad: Order[] = []; // Start with empty
+      let ordersToLoad: Order[] = [];
 
       if (serializedState) {
         const store: StoreData = JSON.parse(serializedState);
         
-        if (store.orders && store.orders.length > 0) {
+        // "Recover" logic: If localStorage has empty/invalid orders, use initialOrders
+        if (store.orders && Array.isArray(store.orders) && store.orders.length > 0) {
           ordersToLoad = store.orders;
+        } else {
+          ordersToLoad = initialOrders;
         }
-      }
-      
-      // "Recover and Migrate" logic
-      // If after trying to load, we have no orders, re-initialize from default.
-      if (ordersToLoad.length === 0) {
+      } else {
+        // If no stored state, start with initial data
         ordersToLoad = initialOrders;
       }
       
@@ -87,7 +88,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     } catch (err) {
       console.error("Could not load state from localStorage, falling back to initial data.", err);
-      // If anything fails, we default to the initial state completely
       setOrders(initialOrders);
       setScheduledProcesses([]);
     } finally {
@@ -97,12 +97,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Save state to localStorage whenever it changes
   useEffect(() => {
-    // Don't save until the initial state has been loaded
     if (!isLoaded) return;
     
     try {
-      // Don't save an empty order list if it was just transiently empty during loading
-      if(orders.length === 0 && scheduledProcesses.length === 0) return;
+      if(orders.length === 0 && scheduledProcesses.length === 0) {
+         const hasStoredData = !!localStorage.getItem(STORE_KEY);
+         if (!hasStoredData) return;
+      }
 
       const store: StoreData = { scheduledProcesses, orders };
       const serializedState = JSON.stringify(store);
@@ -112,21 +113,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [scheduledProcesses, orders, isLoaded]);
 
-  const value = { scheduledProcesses, setScheduledProcesses, orders, setOrders };
-
-  if (!isLoaded) {
-    return (
-      <AppContext.Provider value={value}>
-        <div className="flex h-screen w-full items-center justify-center">
-          <p>Loading your schedule...</p>
-        </div>
-      </AppContext.Provider>
-    );
-  }
+  const value = { scheduledProcesses, setScheduledProcesses, orders, setOrders, isLoaded };
 
   return (
     <AppContext.Provider value={value}>
-      {children}
+      {!isLoaded ? (
+        <div className="flex h-screen w-full items-center justify-center">
+          <p>Loading your schedule...</p>
+        </div>
+      ) : (
+        children
+      )}
     </AppContext.Provider>
   );
 }

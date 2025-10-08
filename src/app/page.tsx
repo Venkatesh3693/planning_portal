@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { addDays, startOfToday, getDay, set, isAfter, addMinutes } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
-import { MACHINES, PROCESSES, ORDERS } from '@/lib/data';
+import { MACHINES, PROCESSES } from '@/lib/data';
 import type { Order, ScheduledProcess, TnaProcess } from '@/lib/types';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -72,7 +72,7 @@ const calculateEndDateTime = (startDateTime: Date, totalDurationMinutes: number)
 
 
 export default function Home() {
-  const { scheduledProcesses, setScheduledProcesses, orders } = useAppContext();
+  const { scheduledProcesses, setScheduledProcesses, orders, isLoaded } = useAppContext();
 
   const [selectedProcessId, setSelectedProcessId] = useState<string>('sewing');
   const [viewMode, setViewMode] = useState<'day' | 'hour'>('day');
@@ -293,7 +293,7 @@ export default function Home() {
   const selectableProcesses = PROCESSES.filter(p => p.id !== 'outsourcing');
 
   const unplannedOrders = useMemo(() => {
-    if (selectedProcessId === 'pab') return [];
+    if (selectedProcessId === 'pab' || !isLoaded) return [];
 
     const scheduledOrderProcesses = new Map<string, number>();
      scheduledProcesses.forEach(p => {
@@ -308,7 +308,7 @@ export default function Home() {
       const scheduledQuantity = scheduledOrderProcesses.get(`${order.id}_${selectedProcessId}`) || 0;
       return scheduledQuantity < order.quantity;
     });
-  }, [scheduledProcesses, selectedProcessId, orders]);
+  }, [scheduledProcesses, selectedProcessId, orders, isLoaded]);
   
 
   const chartRows = MACHINES.filter(m => m.processIds.includes(selectedProcessId));
@@ -375,12 +375,8 @@ export default function Home() {
     setScheduledProcesses(remainingProcesses);
   };
 
-  if (dates.length === 0) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <p>Loading schedule...</p>
-      </div>
-    );
+  if (dates.length === 0 || !isLoaded) {
+    return null; // AppProvider will show a loading screen
   }
   
   const isPabView = selectedProcessId === 'pab';
