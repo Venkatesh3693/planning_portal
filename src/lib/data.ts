@@ -48,8 +48,8 @@ export const PROCESSES: Process[] = [
 const today = startOfToday();
 
 export const ORDERS: Order[] = [
-    { 
-        id: 'ZAR4531-Shirt-Blue', 
+    {
+        id: 'ZAR4531-Shirt-Blue',
         ocn: 'ZAR4531',
         buyer: 'Zara',
         style: 'Shirt',
@@ -69,8 +69,8 @@ export const ORDERS: Order[] = [
             ]
         }
     },
-    { 
-        id: 'HNM1234-Pants-Black', 
+    {
+        id: 'HNM1234-Pants-Black',
         ocn: 'HNM1234',
         buyer: 'H&M',
         style: 'Pants',
@@ -90,8 +90,8 @@ export const ORDERS: Order[] = [
             ]
         }
     },
-    { 
-        id: 'GAP9876-TShirt-White', 
+    {
+        id: 'GAP9876-TShirt-White',
         ocn: 'GAP9876',
         buyer: 'Gap',
         style: 'T-Shirt',

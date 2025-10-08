@@ -32,19 +32,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const serializedState = localStorage.getItem(STORE_KEY);
       if (serializedState) {
         const store: StoreData = JSON.parse(serializedState);
-        // Important: Convert date strings back to Date objects
+        
         const processesWithDates = store.scheduledProcesses.map(p => ({
           ...p,
           startDateTime: new Date(p.startDateTime),
           endDateTime: new Date(p.endDateTime),
         }));
         
-        const loadedOrders = store.orders || [];
+        const loadedOrders = store.orders || initialOrders;
 
         const ordersWithDates = loadedOrders.map(loadedOrder => {
             const initialOrder = initialOrders.find(o => o.id === loadedOrder.id);
             
             // Merge initial data with loaded data to add new fields like leadTime
+            // This ensures that new properties in the codebase are added to older
+            // data stored in localStorage, preventing data loss and errors.
             const mergedOrderData = {
                 ...(initialOrder || {}),
                 ...loadedOrder,
@@ -70,6 +72,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     } catch (err) {
       console.error("Could not load state from localStorage", err);
+      // If loading fails, we default to initial state
+      setOrders(initialOrders);
+      setScheduledProcesses([]);
     } finally {
       setIsLoaded(true);
     }
