@@ -1,6 +1,8 @@
+
 import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
+import { ScheduleProvider } from '@/context/schedule-provider';
 
 export const metadata: Metadata = {
   title: 'StitchPlan',
@@ -23,7 +25,9 @@ export default function RootLayout({
         />
       </head>
       <body className="font-body antialiased h-full bg-background">
-        {children}
+        <ScheduleProvider>
+          {children}
+        </ScheduleProvider>
         <Toaster />
       </body>
     </html>

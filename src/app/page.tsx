@@ -11,7 +11,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
-import { ScheduleProvider, useSchedule } from '@/context/schedule-provider';
+import { useSchedule } from '@/context/schedule-provider';
 import MachinePanel from '@/components/gantt-chart/machine-panel';
 import SplitProcessDialog from '@/components/gantt-chart/split-process-dialog';
 import PabTable from '@/components/pab/pab-table';
@@ -508,8 +508,6 @@ function GanttPageContent() {
 
 export default function Home() {
   return (
-    <ScheduleProvider>
-      <GanttPageContent />
-    </ScheduleProvider>
+    <GanttPageContent />
   );
 }
