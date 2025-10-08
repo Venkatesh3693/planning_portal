@@ -294,6 +294,9 @@ export default function OrdersPage() {
             <TableHeader>
               <TableRow className="bg-transparent hover:bg-transparent">
                 <TableHead>Process</TableHead>
+                <TableHead className="text-right">SAM</TableHead>
+                <TableHead className="text-right">Setup (min)</TableHead>
+                <TableHead className="text-right">Single Run</TableHead>
                 <TableHead>Latest Start</TableHead>
                 <TableHead>Planned Start</TableHead>
                 <TableHead>Planned End</TableHead>
@@ -311,9 +314,12 @@ export default function OrdersPage() {
                 return (
                   <TableRow key={process.id} className="bg-transparent even:bg-transparent hover:bg-muted/30">
                     <TableCell className="font-medium">{process.name}</TableCell>
+                    <TableCell className="text-right">{process.sam}</TableCell>
+                    <TableCell className="text-right">{tnaProcess?.setupTime || '-'}</TableCell>
+                    <TableCell className="text-right">{process.singleRunOutput}</TableCell>
                     <TableCell>{tnaProcess?.latestStartDate ? format(tnaProcess.latestStartDate, 'MMM dd') : '-'}</TableCell>
                     <TableCell>{tnaProcess?.plannedStartDate ? format(tnaProcess.plannedStartDate, 'MMM dd') : '-'}</TableCell>
-                    <TableCell>{tnaProcess?.plannedEndDate ? format(tnaProcess.plannedEndDate, 'MMM dd') : '-'}</TableCell>
+                    <TableCell>{tnaProcess?.plannedEndDate ? format(tnaProcess?.plannedEndDate, 'MMM dd') : '-'}</TableCell>
                     <TableCell>{start ? format(start, 'MMM dd, h:mm a') : <span className="text-muted-foreground">Not set</span>}</TableCell>
                     <TableCell>{end ? format(end, 'MMM dd, h:mm a') : <span className="text-muted-foreground">Not set</span>}</TableCell>
                   </TableRow>
@@ -487,5 +493,7 @@ export default function OrdersPage() {
     </div>
   );
 }
+
+    
 
     
