@@ -70,7 +70,7 @@ const calculateMinDays = (order: Order, sewingSam: number, rampUpScheme: RampUpE
 
 type RampUpDialogState = {
   order: Order;
-  minDays: number;
+  totalProductionDays: number;
 };
 
 export default function OrdersPage() {
@@ -316,7 +316,7 @@ export default function OrdersPage() {
                       const singleLineMinDays = sewingProcess ? calculateMinDays(order, sewingProcess.sam, rampUpScheme) : 0;
                       
                       const numLines = sewingLines[order.id] || 1;
-                      const minDays = singleLineMinDays / numLines;
+                      const minDays = Math.ceil(singleLineMinDays / numLines);
 
                       return (
                         <TableRow key={order.id}>
@@ -333,7 +333,7 @@ export default function OrdersPage() {
                           <TableCell>{order.buyer}</TableCell>
                           <TableCell>Firm PO</TableCell>
                           <TableCell>
-                              <Button variant="outline" size="sm" onClick={() => setRampUpState({ order, minDays: singleLineMinDays })}>
+                              <Button variant="outline" size="sm" onClick={() => setRampUpState({ order, totalProductionDays: singleLineMinDays })}>
                                 <LineChart className="h-4 w-4 mr-2" />
                                 Scheme
                               </Button>
@@ -350,7 +350,7 @@ export default function OrdersPage() {
                           <TableCell>
                             {minDays > 0 && minDays !== Infinity ? (
                               <Badge variant="secondary" title="Minimum days to complete sewing">
-                                {Math.ceil(minDays)} days
+                                {minDays} days
                               </Badge>
                             ) : (
                               <span className="text-muted-foreground">-</span>
@@ -401,7 +401,7 @@ export default function OrdersPage() {
             <RampUpDialog
               key={rampUpState.order.id} // Re-mount component when order changes
               order={rampUpState.order}
-              totalProductionDays={rampUpState.minDays}
+              totalProductionDays={rampUpState.totalProductionDays}
               isOpen={!!rampUpState}
               onOpenChange={(isOpen) => !isOpen && setRampUpState(null)}
               onSave={handleRampUpSave}
@@ -413,6 +413,5 @@ export default function OrdersPage() {
     </div>
   );
 }
-
 
     

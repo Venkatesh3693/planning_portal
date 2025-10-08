@@ -71,34 +71,49 @@ const calculateEndDateTime = (startDateTime: Date, totalDurationMinutes: number)
 };
 
 const calculateSewingDuration = (quantity: number, sam: number, rampUpScheme: RampUpEntry[], numLines: number): number => {
+    if (quantity === 0 || sam === 0 || numLines === 0) return 0;
+    
     let remainingQty = quantity;
     let totalMinutes = 0;
-    let dayIndex = 0;
+    let dayIndexInScheme = 0;
+    let currentDayOfProduction = 0;
 
     while (remainingQty > 0) {
-        const efficiency = rampUpScheme[dayIndex]?.efficiency ?? rampUpScheme[rampUpScheme.length - 1]?.efficiency;
+        currentDayOfProduction++;
+
+        const schemeDay = Math.floor(totalMinutes / WORK_DAY_MINUTES);
+        
+        let efficiency;
+        // Find the correct efficiency for the current production day
+        const currentSchemeEntry = rampUpScheme.find((entry, idx) => {
+            const nextEntry = rampUpScheme[idx + 1];
+            if (!nextEntry) return true; // Last entry
+            return schemeDay < nextEntry.day;
+        });
+
+        efficiency = currentSchemeEntry?.efficiency ?? rampUpScheme[rampUpScheme.length - 1]?.efficiency;
+
         if (!efficiency) {
-            // Avoid infinite loops if efficiency is 0 or undefined. Treat as 100% as a fallback.
+            // Fallback for safety, should not happen with valid schemes
             const effectiveSam = sam;
-            const outputPerMinute = 1 / effectiveSam;
+            const outputPerMinute = (1 / effectiveSam) * numLines;
             totalMinutes += remainingQty / outputPerMinute;
             remainingQty = 0;
             continue;
         }
 
         const effectiveSam = sam / (efficiency / 100);
-        const outputPerMinute = 1 / effectiveSam;
-        const maxOutputForDay = WORK_DAY_MINUTES * outputPerMinute * numLines; // Factoring in number of lines
+        const outputPerMinute = (1 / effectiveSam) * numLines;
+        
+        const minutesLeftInWorkDay = WORK_DAY_MINUTES - (totalMinutes % WORK_DAY_MINUTES);
+        const maxOutputForRestOfDay = minutesLeftInWorkDay * outputPerMinute;
 
-        if (remainingQty <= maxOutputForDay) {
-            totalMinutes += remainingQty / (outputPerMinute * numLines);
+        if (remainingQty <= maxOutputForRestOfDay) {
+            totalMinutes += remainingQty / outputPerMinute;
             remainingQty = 0;
         } else {
-            totalMinutes += WORK_DAY_MINUTES;
-            remainingQty -= maxOutputForDay;
-            if (dayIndex < rampUpScheme.length - 1) {
-                dayIndex++;
-            }
+            totalMinutes += minutesLeftInWorkDay;
+            remainingQty -= maxOutputForRestOfDay;
         }
     }
     return totalMinutes;
@@ -513,3 +528,5 @@ export default function Home() {
     <GanttPageContent />
   );
 }
+
+    
