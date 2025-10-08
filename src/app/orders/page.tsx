@@ -230,6 +230,7 @@ export default function OrdersPage() {
                       <TableHead>Order Type</TableHead>
                       <TableHead>Display Color</TableHead>
                       <TableHead className="text-right">Quantity</TableHead>
+                      <TableHead>Lead Time</TableHead>
                       <TableHead>Due Date</TableHead>
                       <TableHead>EHD</TableHead>
                     </TableRow>
@@ -237,7 +238,7 @@ export default function OrdersPage() {
                   <TableBody>
                     {orders.map((order) => {
                       const ehd = getEhdForOrder(order.id);
-                      const isLate = ehd && startOfDay(ehd).getTime() > startOfDay(new Date(order.dueDate)).getTime();
+                      const isLate = ehd && isAfter(startOfDay(ehd), startOfDay(new Date(order.dueDate)));
                       return (
                         <TableRow key={order.id}>
                           <TableCell>
@@ -259,6 +260,7 @@ export default function OrdersPage() {
                             />
                           </TableCell>
                           <TableCell className="text-right">{order.quantity}</TableCell>
+                          <TableCell>{order.leadTime ? `${order.leadTime} days` : '-'}</TableCell>
                           <TableCell>{format(new Date(order.dueDate), 'PPP')}</TableCell>
                           <TableCell className={cn(isLate && "text-destructive font-semibold")}>
                             {ehd ? (

@@ -45,6 +45,7 @@ export type Order = {
   dueDate: Date;
   tna?: Tna;
   displayColor?: string;
+  leadTime?: number;
 };
 
 export type ScheduledProcess = {
