@@ -99,7 +99,7 @@ export const ORDERS: Order[] = [
         style: 'T-Shirt',
         color: 'White',
         quantity: 150,
-        processIds: ['cutting', 'sewing', 'packing', 'outsourcing'],
+        processIds: ['cutting', 'printing', 'sewing', 'packing'],
         dueDate: addDays(today, 7),
         displayColor: ORDER_COLORS[2],
         leadTime: 45,
@@ -108,8 +108,8 @@ export const ORDERS: Order[] = [
             ckDate: subDays(today, 8),
             processes: [
                 { processId: 'cutting', startDate: subDays(today, 6), endDate: subDays(today, 5), setupTime: 30 },
+                { processId: 'printing', startDate: addDays(today, 2), endDate: addDays(today, 3), setupTime: 90 },
                 { processId: 'sewing', startDate: subDays(today, 4), endDate: addDays(today, 1), setupTime: 100 },
-                { processId: 'outsourcing', startDate: addDays(today, 2), endDate: addDays(today, 3), setupTime: 0 },
                 { processId: 'packing', startDate: addDays(today, 4), endDate: addDays(today, 5), setupTime: 10 },
             ]
         }
