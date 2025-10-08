@@ -42,6 +42,12 @@ export default function RampUpDialog({
     }
   }, [order]);
 
+  const averageEfficiency = useMemo(() => {
+    if (scheme.length === 0) return 0;
+    const totalEfficiency = scheme.reduce((sum, entry) => sum + entry.efficiency, 0);
+    return totalEfficiency / scheme.length;
+  }, [scheme]);
+
   const handleAddDay = () => {
     const nextDay = scheme.length > 0 ? Math.max(...scheme.map(s => s.day)) + 1 : 1;
     const lastEfficiency = scheme.length > 0 ? scheme[scheme.length - 1].efficiency : 0;
@@ -139,6 +145,15 @@ export default function RampUpDialog({
               <PlusCircle className="mr-2 h-4 w-4" />
               Add Day
             </Button>
+          </div>
+          
+          <div className="px-4 pt-4 border-t mt-4">
+            <div className="flex justify-between font-medium">
+                <span>Average Efficiency:</span>
+                <span className="text-primary">
+                    {averageEfficiency.toFixed(2)}%
+                </span>
+            </div>
           </div>
         </div>
 
