@@ -296,6 +296,7 @@ export default function OrdersPage() {
                       <TableHead>Buyer</TableHead>
                       <TableHead>Order Type</TableHead>
                       <TableHead>Ramp-up</TableHead>
+                      <TableHead>Min. Sewing Days</TableHead>
                       <TableHead>Display Color</TableHead>
                       <TableHead className="text-right">Quantity</TableHead>
                       <TableHead>Lead Time</TableHead>
@@ -327,17 +328,19 @@ export default function OrdersPage() {
                           <TableCell>{order.buyer}</TableCell>
                           <TableCell>Firm PO</TableCell>
                           <TableCell>
-                              <div className='flex items-center gap-2'>
-                                <Button variant="outline" size="sm" onClick={() => setRampUpState({ order, minDays })}>
-                                  <LineChart className="h-4 w-4 mr-2" />
-                                  Scheme
-                                </Button>
-                                {minDays > 0 && minDays !== Infinity && (
-                                  <Badge variant="secondary" title="Minimum days to complete sewing">
-                                    {Math.ceil(minDays)} days
-                                  </Badge>
-                                )}
-                              </div>
+                              <Button variant="outline" size="sm" onClick={() => setRampUpState({ order, minDays })}>
+                                <LineChart className="h-4 w-4 mr-2" />
+                                Scheme
+                              </Button>
+                          </TableCell>
+                          <TableCell>
+                            {minDays > 0 && minDays !== Infinity ? (
+                              <Badge variant="secondary" title="Minimum days to complete sewing">
+                                {Math.ceil(minDays)} days
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
                           </TableCell>
                           <TableCell>
                             <ColorPicker 
@@ -397,3 +400,5 @@ export default function OrdersPage() {
   );
 }
 
+
+    
