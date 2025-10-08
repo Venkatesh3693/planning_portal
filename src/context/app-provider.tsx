@@ -29,10 +29,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Load state from localStorage on initial client mount
   useEffect(() => {
+    // This effect now only runs on the client
     try {
       const serializedState = localStorage.getItem(STORE_KEY);
       let loadedProcesses: ScheduledProcess[] = [];
-      let ordersToLoad: Order[] = [];
+      let ordersToLoad: Order[] = initialOrders;
 
       if (serializedState) {
         const store: StoreData = JSON.parse(serializedState);
@@ -40,12 +41,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // "Recover" logic: If localStorage has empty/invalid orders, use initialOrders
         if (store.orders && Array.isArray(store.orders) && store.orders.length > 0) {
           ordersToLoad = store.orders;
-        } else {
-          ordersToLoad = initialOrders;
         }
-      } else {
-        // If no stored state, start with initial data
-        ordersToLoad = initialOrders;
       }
       
       const finalOrders = ordersToLoad.map(loadedOrder => {
@@ -88,7 +84,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     } catch (err) {
       console.error("Could not load state from localStorage, falling back to initial data.", err);
-      setOrders(initialOrders);
+      // On error, fall back to initial data.
+      setOrders(initialOrders.map(o => ({ ...o, dueDate: new Date(o.dueDate) })));
       setScheduledProcesses([]);
     } finally {
       setIsLoaded(true);
@@ -101,6 +98,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     
     try {
       if(orders.length === 0 && scheduledProcesses.length === 0) {
+         // Avoid wiping data on initial load if local storage is just empty
          const hasStoredData = !!localStorage.getItem(STORE_KEY);
          if (!hasStoredData) return;
       }
