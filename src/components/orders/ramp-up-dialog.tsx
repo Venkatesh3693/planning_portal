@@ -26,6 +26,12 @@ type RampUpDialogProps = {
   onSave: (orderId: string, scheme: RampUpEntry[]) => void;
 };
 
+// Use a local state type that can handle string for efficiency
+type EditableRampUpEntry = {
+  day: number;
+  efficiency: number | string;
+};
+
 export default function RampUpDialog({
   order,
   totalProductionDays,
@@ -33,7 +39,7 @@ export default function RampUpDialog({
   onOpenChange,
   onSave,
 }: RampUpDialogProps) {
-  const [scheme, setScheme] = useState<RampUpEntry[]>([]);
+  const [scheme, setScheme] = useState<EditableRampUpEntry[]>([]);
 
   useEffect(() => {
     if (order) {
@@ -57,13 +63,14 @@ export default function RampUpDialog({
       const daysInThisStep = entry.day - lastDay;
       weightedSum += daysInThisStep * lastEfficiency;
       lastDay = entry.day;
-      lastEfficiency = entry.efficiency;
+      lastEfficiency = Number(entry.efficiency) || 0;
     }
     
     // Add the final peak efficiency for the remaining days
     const remainingDays = totalProductionDays - lastDay + 1;
     if (remainingDays > 0) {
-        const peakEfficiency = sortedScheme[sortedScheme.length -1].efficiency;
+        const peakEfficiencyEntry = sortedScheme.find(s => s.day === lastDay);
+        const peakEfficiency = Number(peakEfficiencyEntry?.efficiency) || 0;
         weightedSum += remainingDays * peakEfficiency;
     }
 
@@ -81,7 +88,7 @@ export default function RampUpDialog({
     setScheme(scheme.filter(s => s.day !== dayToRemove).map((s, i) => ({ ...s, day: i + 1 })));
   };
 
-  const handleEfficiencyChange = (dayToChange: number, newEfficiency: number) => {
+  const handleEfficiencyChange = (dayToChange: number, newEfficiency: string) => {
     setScheme(
       scheme.map(s =>
         s.day === dayToChange ? { ...s, efficiency: newEfficiency } : s
@@ -98,8 +105,12 @@ export default function RampUpDialog({
   }
 
   const handleSave = () => {
-    // Filter out empty/invalid entries before saving
-    const validScheme = scheme
+    // Filter out empty/invalid entries and convert to number before saving
+    const validScheme: RampUpEntry[] = scheme
+      .map(s => ({
+          day: s.day,
+          efficiency: Number(s.efficiency) || 0
+      }))
       .filter(s => s.efficiency > 0 && s.efficiency <= 100)
       .sort((a, b) => a.day - b.day);
     onSave(order.id, validScheme);
@@ -143,7 +154,7 @@ export default function RampUpDialog({
                 min="1"
                 max="100"
                 value={entry.efficiency}
-                onChange={(e) => handleEfficiencyChange(entry.day, parseInt(e.target.value, 10) || 0)}
+                onChange={(e) => handleEfficiencyChange(entry.day, e.target.value)}
               />
               {scheme.length > 1 && (
                 <Button
