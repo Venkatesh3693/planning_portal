@@ -110,7 +110,12 @@ export function generateTnaPlan(
 
     const processBatchSize = calculateProcessBatchSize(order, processes);
     const batchMetrics = metrics.map(({ processId, durationDays }) => {
-        const daysToProduceBatch = Math.ceil((processBatchSize / order.quantity) * durationDays);
+        let daysToProduceBatch;
+        if (order.quantity < processBatchSize) {
+            daysToProduceBatch = durationDays;
+        } else {
+            daysToProduceBatch = Math.ceil((processBatchSize / order.quantity) * durationDays);
+        }
         return { processId, daysToProduceBatch };
     });
 
