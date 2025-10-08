@@ -74,7 +74,7 @@ const calculateEndDateTime = (startDateTime: Date, totalDurationMinutes: number)
 export default function Home() {
   const { scheduledProcesses, setScheduledProcesses, orders } = useAppContext();
 
-  const [selectedProcessId, setSelectedProcessId] = useState<string>(PROCESSES[0].id);
+  const [selectedProcessId, setSelectedProcessId] = useState<string>('sewing');
   const [viewMode, setViewMode] = useState<'day' | 'hour'>('day');
   
   const [filterOcn, setFilterOcn] = useState('');
