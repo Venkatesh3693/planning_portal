@@ -20,6 +20,7 @@ import { PlusCircle, X } from 'lucide-react';
 
 type RampUpDialogProps = {
   order: Order;
+  totalProductionDays: number;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (orderId: string, scheme: RampUpEntry[]) => void;
@@ -27,6 +28,7 @@ type RampUpDialogProps = {
 
 export default function RampUpDialog({
   order,
+  totalProductionDays,
   isOpen,
   onOpenChange,
   onSave,
@@ -43,10 +45,31 @@ export default function RampUpDialog({
   }, [order]);
 
   const averageEfficiency = useMemo(() => {
-    if (scheme.length === 0) return 0;
-    const totalEfficiency = scheme.reduce((sum, entry) => sum + entry.efficiency, 0);
-    return totalEfficiency / scheme.length;
-  }, [scheme]);
+    if (scheme.length === 0 || totalProductionDays === 0) return 0;
+    
+    let weightedSum = 0;
+    const sortedScheme = [...scheme].sort((a,b) => a.day - b.day);
+    
+    let lastDay = 0;
+    let lastEfficiency = 0;
+    
+    for (const entry of sortedScheme) {
+      const daysInThisStep = entry.day - lastDay;
+      weightedSum += daysInThisStep * lastEfficiency;
+      lastDay = entry.day;
+      lastEfficiency = entry.efficiency;
+    }
+    
+    // Add the final peak efficiency for the remaining days
+    const remainingDays = totalProductionDays - lastDay + 1;
+    if (remainingDays > 0) {
+        const peakEfficiency = sortedScheme[sortedScheme.length -1].efficiency;
+        weightedSum += remainingDays * peakEfficiency;
+    }
+
+    return weightedSum / totalProductionDays;
+
+  }, [scheme, totalProductionDays]);
 
   const handleAddDay = () => {
     const nextDay = scheme.length > 0 ? Math.max(...scheme.map(s => s.day)) + 1 : 1;
@@ -149,9 +172,15 @@ export default function RampUpDialog({
           
           <div className="px-4 pt-4 border-t mt-4">
             <div className="flex justify-between font-medium">
-                <span>Average Efficiency:</span>
+                <span>Weighted Avg. Efficiency:</span>
                 <span className="text-primary">
                     {averageEfficiency.toFixed(2)}%
+                </span>
+            </div>
+            <div className="flex justify-between text-sm text-muted-foreground">
+                <span>Total Production Days:</span>
+                <span>
+                    {Math.ceil(totalProductionDays)}
                 </span>
             </div>
           </div>

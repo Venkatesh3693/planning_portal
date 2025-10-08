@@ -67,6 +67,11 @@ const calculateMinDays = (order: Order, sewingSam: number, rampUpScheme: RampUpE
   return days;
 };
 
+type RampUpDialogState = {
+  order: Order;
+  minDays: number;
+};
+
 export default function OrdersPage() {
   const { scheduledProcesses, sewingRampUpSchemes, updateSewingRampUpScheme, isScheduleLoaded } = useSchedule();
   const [orders, setOrders] = useState<Order[]>(staticOrders);
@@ -89,7 +94,7 @@ export default function OrdersPage() {
 
   
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [rampUpOrder, setRampUpOrder] = useState<Order | null>(null);
+  const [rampUpState, setRampUpState] = useState<RampUpDialogState | null>(null);
 
   const handleOrderClick = (order: Order) => {
     setSelectedOrder(order);
@@ -109,7 +114,7 @@ export default function OrdersPage() {
   
   const handleRampUpSave = (orderId: string, scheme: RampUpEntry[]) => {
     updateSewingRampUpScheme(orderId, scheme);
-    setRampUpOrder(null);
+    setRampUpState(null);
   };
 
   const getEhdForOrder = (orderId: string) => {
@@ -323,7 +328,7 @@ export default function OrdersPage() {
                           <TableCell>Firm PO</TableCell>
                           <TableCell>
                               <div className='flex items-center gap-2'>
-                                <Button variant="outline" size="sm" onClick={() => setRampUpOrder(order)}>
+                                <Button variant="outline" size="sm" onClick={() => setRampUpState({ order, minDays })}>
                                   <LineChart className="h-4 w-4 mr-2" />
                                   Scheme
                                 </Button>
@@ -375,11 +380,13 @@ export default function OrdersPage() {
             )}
           </Dialog>
 
-          {rampUpOrder && (
+          {rampUpState && (
             <RampUpDialog
-              order={rampUpOrder}
-              isOpen={!!rampUpOrder}
-              onOpenChange={(isOpen) => !isOpen && setRampUpOrder(null)}
+              key={rampUpState.order.id} // Re-mount component when order changes
+              order={rampUpState.order}
+              totalProductionDays={rampUpState.minDays}
+              isOpen={!!rampUpState}
+              onOpenChange={(isOpen) => !isOpen && setRampUpState(null)}
               onSave={handleRampUpSave}
             />
           )}
@@ -389,3 +396,4 @@ export default function OrdersPage() {
     </div>
   );
 }
+
