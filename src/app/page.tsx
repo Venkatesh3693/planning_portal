@@ -70,7 +70,7 @@ const calculateEndDateTime = (startDateTime: Date, totalDurationMinutes: number)
   return currentDateTime;
 };
 
-const calculateSewingDuration = (quantity: number, sam: number, rampUpScheme: RampUpEntry[]): number => {
+const calculateSewingDuration = (quantity: number, sam: number, rampUpScheme: RampUpEntry[], numLines: number): number => {
     let remainingQty = quantity;
     let totalMinutes = 0;
     let dayIndex = 0;
@@ -88,10 +88,10 @@ const calculateSewingDuration = (quantity: number, sam: number, rampUpScheme: Ra
 
         const effectiveSam = sam / (efficiency / 100);
         const outputPerMinute = 1 / effectiveSam;
-        const maxOutputForDay = WORK_DAY_MINUTES * outputPerMinute;
+        const maxOutputForDay = WORK_DAY_MINUTES * outputPerMinute * numLines; // Factoring in number of lines
 
         if (remainingQty <= maxOutputForDay) {
-            totalMinutes += remainingQty / outputPerMinute;
+            totalMinutes += remainingQty / (outputPerMinute * numLines);
             remainingQty = 0;
         } else {
             totalMinutes += WORK_DAY_MINUTES;
@@ -106,7 +106,7 @@ const calculateSewingDuration = (quantity: number, sam: number, rampUpScheme: Ra
 
 
 function GanttPageContent() {
-  const { scheduledProcesses, setScheduledProcesses, sewingRampUpSchemes, isScheduleLoaded } = useSchedule();
+  const { scheduledProcesses, setScheduledProcesses, sewingRampUpSchemes, sewingLines, isScheduleLoaded } = useSchedule();
   
   const orders = useMemo(() => {
     if (!isScheduleLoaded) return [];
@@ -153,7 +153,8 @@ function GanttPageContent() {
       let durationMinutes;
       if (process.id === SEWING_PROCESS_ID) {
         const rampUpScheme = order.sewingRampUpScheme || [{ day: 1, efficiency: order.budgetedEfficiency || 100 }];
-        durationMinutes = calculateSewingDuration(droppedItem.quantity, process.sam, rampUpScheme);
+        const numLines = sewingLines[order.id] || 1;
+        durationMinutes = calculateSewingDuration(droppedItem.quantity, process.sam, rampUpScheme, numLines);
       } else {
         durationMinutes = process.sam * droppedItem.quantity;
       }
@@ -285,7 +286,8 @@ function GanttPageContent() {
       let durationMinutes;
       if (processInfo.id === SEWING_PROCESS_ID) {
         const rampUpScheme = orderInfo.sewingRampUpScheme || [{ day: 1, efficiency: orderInfo.budgetedEfficiency || 100 }];
-        durationMinutes = calculateSewingDuration(quantity, processInfo.sam, rampUpScheme);
+        const numLines = sewingLines[orderInfo.id] || 1;
+        durationMinutes = calculateSewingDuration(quantity, processInfo.sam, rampUpScheme, numLines);
       } else {
         durationMinutes = quantity * processInfo.sam;
       }

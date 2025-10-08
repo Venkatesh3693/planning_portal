@@ -7,12 +7,15 @@ import type { ScheduledProcess, RampUpEntry } from '@/lib/types';
 const STORE_KEY = 'stitchplan_schedule_v2'; // Renamed to avoid conflicts with old structure
 
 type SewingRampUpSchemes = Record<string, RampUpEntry[]>;
+type SewingLines = Record<string, number>;
 
 type ScheduleContextType = {
   scheduledProcesses: ScheduledProcess[];
   setScheduledProcesses: Dispatch<SetStateAction<ScheduledProcess[]>>;
   sewingRampUpSchemes: SewingRampUpSchemes;
   updateSewingRampUpScheme: (orderId: string, scheme: RampUpEntry[]) => void;
+  sewingLines: SewingLines;
+  setSewingLines: (orderId: string, lines: number) => void;
   isScheduleLoaded: boolean;
 };
 
@@ -21,6 +24,7 @@ const ScheduleContext = createContext<ScheduleContextType | undefined>(undefined
 export function ScheduleProvider({ children }: { children: ReactNode }) {
   const [scheduledProcesses, setScheduledProcesses] = useState<ScheduledProcess[]>([]);
   const [sewingRampUpSchemes, setSewingRampUpSchemes] = useState<SewingRampUpSchemes>({});
+  const [sewingLines, setSewingLinesState] = useState<SewingLines>({});
   const [isScheduleLoaded, setIsScheduleLoaded] = useState(false);
 
   useEffect(() => {
@@ -38,6 +42,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         
         setScheduledProcesses(loadedProcesses);
         setSewingRampUpSchemes(storedData.sewingRampUpSchemes || {});
+        setSewingLinesState(storedData.sewingLines || {});
       }
     } catch (err) {
       console.error("Could not load schedule from localStorage", err);
@@ -52,16 +57,21 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
       const stateToSave = {
         scheduledProcesses,
         sewingRampUpSchemes,
+        sewingLines,
       };
       const serializedState = JSON.stringify(stateToSave);
       localStorage.setItem(STORE_KEY, serializedState);
     } catch (err) {
       console.error("Could not save schedule to localStorage", err);
     }
-  }, [scheduledProcesses, sewingRampUpSchemes, isScheduleLoaded]);
+  }, [scheduledProcesses, sewingRampUpSchemes, sewingLines, isScheduleLoaded]);
 
   const updateSewingRampUpScheme = (orderId: string, scheme: RampUpEntry[]) => {
     setSewingRampUpSchemes(prev => ({ ...prev, [orderId]: scheme }));
+  };
+
+  const setSewingLines = (orderId: string, lines: number) => {
+    setSewingLinesState(prev => ({ ...prev, [orderId]: lines }));
   };
 
   const value = { 
@@ -69,6 +79,8 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     setScheduledProcesses, 
     sewingRampUpSchemes,
     updateSewingRampUpScheme,
+    sewingLines,
+    setSewingLines,
     isScheduleLoaded 
   };
 

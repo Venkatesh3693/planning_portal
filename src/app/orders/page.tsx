@@ -39,6 +39,7 @@ import { Button } from '@/components/ui/button';
 import RampUpDialog from '@/components/orders/ramp-up-dialog';
 import { Badge } from '@/components/ui/badge';
 import { LineChart } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 
 const SEWING_PROCESS_ID = 'sewing';
 
@@ -73,7 +74,7 @@ type RampUpDialogState = {
 };
 
 export default function OrdersPage() {
-  const { scheduledProcesses, sewingRampUpSchemes, updateSewingRampUpScheme, isScheduleLoaded } = useSchedule();
+  const { scheduledProcesses, sewingRampUpSchemes, updateSewingRampUpScheme, isScheduleLoaded, sewingLines, setSewingLines } = useSchedule();
   const [orders, setOrders] = useState<Order[]>(staticOrders);
   
   useEffect(() => {
@@ -296,6 +297,7 @@ export default function OrdersPage() {
                       <TableHead>Buyer</TableHead>
                       <TableHead>Order Type</TableHead>
                       <TableHead>Ramp-up</TableHead>
+                      <TableHead>No. of Lines</TableHead>
                       <TableHead>Min. Sewing Days</TableHead>
                       <TableHead>Display Color</TableHead>
                       <TableHead className="text-right">Quantity</TableHead>
@@ -311,8 +313,11 @@ export default function OrdersPage() {
                       
                       const sewingProcess = PROCESSES.find(p => p.id === SEWING_PROCESS_ID);
                       const rampUpScheme = order.sewingRampUpScheme || [{ day: 1, efficiency: order.budgetedEfficiency || 100 }];
-                      const minDays = sewingProcess ? calculateMinDays(order, sewingProcess.sam, rampUpScheme) : 0;
+                      const singleLineMinDays = sewingProcess ? calculateMinDays(order, sewingProcess.sam, rampUpScheme) : 0;
                       
+                      const numLines = sewingLines[order.id] || 1;
+                      const minDays = singleLineMinDays / numLines;
+
                       return (
                         <TableRow key={order.id}>
                           <TableCell>
@@ -328,10 +333,19 @@ export default function OrdersPage() {
                           <TableCell>{order.buyer}</TableCell>
                           <TableCell>Firm PO</TableCell>
                           <TableCell>
-                              <Button variant="outline" size="sm" onClick={() => setRampUpState({ order, minDays })}>
+                              <Button variant="outline" size="sm" onClick={() => setRampUpState({ order, minDays: singleLineMinDays })}>
                                 <LineChart className="h-4 w-4 mr-2" />
                                 Scheme
                               </Button>
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={numLines}
+                              onChange={(e) => setSewingLines(order.id, parseInt(e.target.value, 10) || 1)}
+                              className="w-16 h-8 text-center"
+                            />
                           </TableCell>
                           <TableCell>
                             {minDays > 0 && minDays !== Infinity ? (
