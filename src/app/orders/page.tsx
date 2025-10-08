@@ -46,13 +46,16 @@ const SEWING_PROCESS_ID = 'sewing';
 const calculateMinDays = (order: Order, sewingSam: number, rampUpScheme: RampUpEntry[]) => {
   if (!order.quantity || !sewingSam) return 0;
   
+  const scheme = rampUpScheme || [];
+  if (scheme.length === 0) return Infinity; // Or handle as an error
+
   let remainingQty = order.quantity;
   let minutes = 0;
 
   while (remainingQty > 0) {
     const currentDay = Math.floor(minutes / WORK_DAY_MINUTES) + 1;
-    let efficiency = rampUpScheme[rampUpScheme.length - 1]?.efficiency; // Default to peak
-    for (const entry of rampUpScheme) {
+    let efficiency = scheme[scheme.length - 1]?.efficiency; // Default to peak
+    for (const entry of scheme) {
         if(currentDay >= entry.day) {
             efficiency = entry.efficiency;
         }
@@ -358,12 +361,12 @@ export default function OrdersPage() {
                       const isLate = ehd && isAfter(startOfDay(ehd), startOfDay(new Date(order.dueDate)));
                       
                       const sewingProcess = PROCESSES.find(p => p.id === SEWING_PROCESS_ID);
-                      const singleLineMinDays = sewingProcess ? calculateMinDays(order, sewingProcess.sam, order.sewingRampUpScheme!) : 0;
+                      const singleLineMinDays = sewingProcess ? calculateMinDays(order, sewingProcess.sam, order.sewingRampUpScheme || []) : 0;
                       
                       const numLines = sewingLines[order.id] || 1;
                       const totalProductionDays = singleLineMinDays > 0 && numLines > 0 ? singleLineMinDays / numLines : 0;
                       
-                      const avgEfficiency = calculateAverageEfficiency(order.sewingRampUpScheme!, totalProductionDays);
+                      const avgEfficiency = calculateAverageEfficiency(order.sewingRampUpScheme || [], totalProductionDays);
 
                       return (
                         <TableRow key={order.id}>
@@ -381,7 +384,7 @@ export default function OrdersPage() {
                           <TableCell>Firm PO</TableCell>
                           <TableCell>{order.budgetedEfficiency}%</TableCell>
                           <TableCell>
-                            <Badge variant={avgEfficiency < order.budgetedEfficiency! ? 'destructive' : 'secondary'}>
+                            <Badge variant={avgEfficiency < (order.budgetedEfficiency || 0) ? 'destructive' : 'secondary'}>
                                 {avgEfficiency.toFixed(2)}%
                             </Badge>
                           </TableCell>
@@ -468,3 +471,5 @@ export default function OrdersPage() {
     </div>
   );
 }
+
+    
