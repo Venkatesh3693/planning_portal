@@ -38,16 +38,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (serializedState) {
         const store: StoreData = JSON.parse(serializedState);
         
-        // "Recover" logic: If localStorage has empty/invalid orders, use initialOrders
+        // Recover logic: If localStorage has empty/invalid orders, use initialOrders as a base
         if (store.orders && Array.isArray(store.orders) && store.orders.length > 0) {
-          ordersToLoad = store.orders;
+           ordersToLoad = store.orders;
+        } else {
+          // If local storage is empty or corrupted, we start with the default orders
+          ordersToLoad = initialOrders;
         }
       }
       
       const finalOrders = ordersToLoad.map(loadedOrder => {
           const initialOrder = initialOrders.find(o => o.id === loadedOrder.id);
           
-          // Merge initial data with loaded data to add new fields
+          // Merge initial data with loaded data to add new fields like leadTime
           const mergedOrderData = {
               ...(initialOrder || {}),
               ...loadedOrder,
@@ -97,12 +100,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!isLoaded) return;
     
     try {
-      if(orders.length === 0 && scheduledProcesses.length === 0) {
-         // Avoid wiping data on initial load if local storage is just empty
-         const hasStoredData = !!localStorage.getItem(STORE_KEY);
-         if (!hasStoredData) return;
-      }
-
       const store: StoreData = { scheduledProcesses, orders };
       const serializedState = JSON.stringify(store);
       localStorage.setItem(STORE_KEY, serializedState);
