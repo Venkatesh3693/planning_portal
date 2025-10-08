@@ -39,19 +39,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
           endDateTime: new Date(p.endDateTime),
         }));
         
-        const ordersWithDates = (store.orders || initialOrders).map(o => ({
-            ...o,
-            dueDate: new Date(o.dueDate),
-            tna: o.tna ? {
-                ...o.tna,
-                ckDate: new Date(o.tna.ckDate),
-                processes: o.tna.processes.map(p => ({
-                    ...p,
-                    startDate: new Date(p.startDate),
-                    endDate: new Date(p.endDate),
-                }))
-            } : undefined
-        }));
+        const loadedOrders = store.orders || [];
+
+        const ordersWithDates = loadedOrders.map(loadedOrder => {
+            const initialOrder = initialOrders.find(o => o.id === loadedOrder.id);
+            
+            // Merge initial data with loaded data to add new fields like leadTime
+            const mergedOrderData = {
+                ...(initialOrder || {}),
+                ...loadedOrder,
+            };
+
+            return {
+                ...mergedOrderData,
+                dueDate: new Date(mergedOrderData.dueDate),
+                tna: mergedOrderData.tna ? {
+                    ...mergedOrderData.tna,
+                    ckDate: new Date(mergedOrderData.tna.ckDate),
+                    processes: mergedOrderData.tna.processes.map(p => ({
+                        ...p,
+                        startDate: new Date(p.startDate),
+                        endDate: new Date(p.endDate),
+                    }))
+                } : undefined
+            };
+        });
 
         setScheduledProcesses(processesWithDates);
         setOrders(ordersWithDates);
