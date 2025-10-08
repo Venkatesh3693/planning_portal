@@ -47,25 +47,36 @@ const calculateMinDays = (order: Order, sewingSam: number, rampUpScheme: RampUpE
   if (!order.quantity || !sewingSam) return 0;
   
   let remainingQty = order.quantity;
-  let days = 0;
-  let dayIndex = 0;
+  let minutes = 0;
 
   while (remainingQty > 0) {
-    days++;
-    const efficiency = rampUpScheme[dayIndex]?.efficiency ?? rampUpScheme[rampUpScheme.length - 1]?.efficiency;
-    if (!efficiency) {
+    const currentDay = Math.floor(minutes / WORK_DAY_MINUTES) + 1;
+    let efficiency = rampUpScheme[rampUpScheme.length - 1]?.efficiency; // Default to peak
+    for (const entry of rampUpScheme) {
+        if(currentDay >= entry.day) {
+            efficiency = entry.efficiency;
+        }
+    }
+
+    if (!efficiency || efficiency <= 0) {
       return Infinity; // Avoid infinite loops if efficiency is 0 or undefined
     }
 
     const effectiveSam = sewingSam / (efficiency / 100);
-    const dailyOutput = WORK_DAY_MINUTES / effectiveSam;
-    remainingQty -= dailyOutput;
+    const outputPerMinute = 1 / effectiveSam;
+    
+    const minutesToNextDay = WORK_DAY_MINUTES - (minutes % WORK_DAY_MINUTES);
+    const maxOutputForRestOfDay = minutesToNextDay * outputPerMinute;
 
-    if (dayIndex < rampUpScheme.length -1) {
-      dayIndex++;
+    if (remainingQty <= maxOutputForRestOfDay) {
+      minutes += remainingQty / outputPerMinute;
+      remainingQty = 0;
+    } else {
+      minutes += minutesToNextDay;
+      remainingQty -= maxOutputForRestOfDay;
     }
   }
-  return days;
+  return minutes / WORK_DAY_MINUTES;
 };
 
 type RampUpDialogState = {
@@ -316,7 +327,7 @@ export default function OrdersPage() {
                       const singleLineMinDays = sewingProcess ? calculateMinDays(order, sewingProcess.sam, rampUpScheme) : 0;
                       
                       const numLines = sewingLines[order.id] || 1;
-                      const minDays = Math.ceil(singleLineMinDays / numLines);
+                      const totalProductionDays = singleLineMinDays / numLines;
 
                       return (
                         <TableRow key={order.id}>
@@ -333,7 +344,7 @@ export default function OrdersPage() {
                           <TableCell>{order.buyer}</TableCell>
                           <TableCell>Firm PO</TableCell>
                           <TableCell>
-                              <Button variant="outline" size="sm" onClick={() => setRampUpState({ order, totalProductionDays: singleLineMinDays })}>
+                              <Button variant="outline" size="sm" onClick={() => setRampUpState({ order, totalProductionDays })}>
                                 <LineChart className="h-4 w-4 mr-2" />
                                 Scheme
                               </Button>
@@ -348,9 +359,9 @@ export default function OrdersPage() {
                             />
                           </TableCell>
                           <TableCell>
-                            {minDays > 0 && minDays !== Infinity ? (
-                              <Badge variant="secondary" title="Minimum days to complete sewing">
-                                {minDays} days
+                            {singleLineMinDays > 0 && singleLineMinDays !== Infinity ? (
+                              <Badge variant="secondary" title="Minimum days to complete sewing on a single line">
+                                {Math.ceil(singleLineMinDays)} days
                               </Badge>
                             ) : (
                               <span className="text-muted-foreground">-</span>
@@ -413,5 +424,3 @@ export default function OrdersPage() {
     </div>
   );
 }
-
-    

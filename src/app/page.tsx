@@ -71,35 +71,23 @@ const calculateEndDateTime = (startDateTime: Date, totalDurationMinutes: number)
 };
 
 const calculateSewingDuration = (quantity: number, sam: number, rampUpScheme: RampUpEntry[], numLines: number): number => {
-    if (quantity === 0 || sam === 0 || numLines === 0) return 0;
+    if (quantity <= 0 || sam <= 0 || numLines <= 0) return 0;
     
     let remainingQty = quantity;
     let totalMinutes = 0;
-    let dayIndexInScheme = 0;
-    let currentDayOfProduction = 0;
-
+    
     while (remainingQty > 0) {
-        currentDayOfProduction++;
-
-        const schemeDay = Math.floor(totalMinutes / WORK_DAY_MINUTES);
+        const currentProductionDay = Math.floor(totalMinutes / WORK_DAY_MINUTES) + 1;
         
-        let efficiency;
-        // Find the correct efficiency for the current production day
-        const currentSchemeEntry = rampUpScheme.find((entry, idx) => {
-            const nextEntry = rampUpScheme[idx + 1];
-            if (!nextEntry) return true; // Last entry
-            return schemeDay < nextEntry.day;
-        });
-
-        efficiency = currentSchemeEntry?.efficiency ?? rampUpScheme[rampUpScheme.length - 1]?.efficiency;
-
-        if (!efficiency) {
-            // Fallback for safety, should not happen with valid schemes
-            const effectiveSam = sam;
-            const outputPerMinute = (1 / effectiveSam) * numLines;
-            totalMinutes += remainingQty / outputPerMinute;
-            remainingQty = 0;
-            continue;
+        let efficiency = rampUpScheme[rampUpScheme.length - 1]?.efficiency; // Default to peak
+        for (const entry of rampUpScheme) {
+          if(currentProductionDay >= entry.day) {
+            efficiency = entry.efficiency;
+          }
+        }
+        
+        if (!efficiency || efficiency <= 0) {
+            return Infinity; // Avoid infinite loops
         }
 
         const effectiveSam = sam / (efficiency / 100);
@@ -528,5 +516,3 @@ export default function Home() {
     <GanttPageContent />
   );
 }
-
-    
