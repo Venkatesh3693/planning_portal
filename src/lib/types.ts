@@ -24,9 +24,12 @@ export type Process = {
 
 export type TnaProcess = {
   processId: string;
-  startDate: string | Date;
-  endDate: string | Date;
+  startDate: string | Date; // Original T&A date, can be kept for reference
+  endDate: string | Date;   // Original T&A date, can be kept for reference
   setupTime: number; // in minutes
+  latestStartDate?: Date;
+  plannedStartDate?: Date;
+  plannedEndDate?: Date;
 };
 
 export type Tna = {

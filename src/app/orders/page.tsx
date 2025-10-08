@@ -21,7 +21,7 @@ import {
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
 import { PROCESSES, ORDERS as staticOrders, ORDER_COLORS, WORK_DAY_MINUTES } from '@/lib/data';
-import type { Order, Process, ScheduledProcess, RampUpEntry } from '@/lib/types';
+import type { Order, Process, ScheduledProcess, RampUpEntry, Tna } from '@/lib/types';
 import { format, isAfter, isBefore, startOfDay } from 'date-fns';
 import {
   Table,
@@ -38,16 +38,15 @@ import { useSchedule } from '@/context/schedule-provider';
 import { Button } from '@/components/ui/button';
 import RampUpDialog from '@/components/orders/ramp-up-dialog';
 import { Badge } from '@/components/ui/badge';
-import { LineChart } from 'lucide-react';
+import { LineChart, Zap } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { generateTnaPlan } from '@/lib/tna-calculator';
 
 const SEWING_PROCESS_ID = 'sewing';
 
 const calculateMinDays = (order: Order, sewingSam: number, rampUpScheme: RampUpEntry[]) => {
-  if (!order.quantity || !sewingSam) return 0;
-  
   const scheme = rampUpScheme || [];
-  if (scheme.length === 0) return Infinity; // Or handle as an error
+  if (!order.quantity || !sewingSam || scheme.length === 0) return 0;
 
   let remainingQty = order.quantity;
   let minutes = 0;
@@ -164,6 +163,24 @@ export default function OrdersPage() {
     updateSewingRampUpScheme(orderId, scheme);
     setRampUpState(null);
   };
+  
+  const handleGenerateTna = (order: Order) => {
+    const numLines = sewingLines[order.id] || 1;
+    const newTnaProcesses = generateTnaPlan(order, PROCESSES, numLines);
+    
+    const updatedOrder = { 
+        ...order, 
+        tna: {
+            ...(order.tna as Tna),
+            processes: newTnaProcesses,
+        }
+    };
+    
+    setOrders(prevOrders => 
+        prevOrders.map(o => o.id === order.id ? updatedOrder : o)
+    );
+    setSelectedOrder(updatedOrder);
+  };
 
   const getEhdForOrder = (orderId: string) => {
     const packingProcesses = scheduledProcesses.filter(
@@ -181,7 +198,7 @@ export default function OrdersPage() {
     return latestEndDate;
   };
 
-  const TnaPlan = ({ order }: { order: Order }) => {
+  const TnaPlan = ({ order, onGenerate }: { order: Order; onGenerate: (order: Order) => void; }) => {
     if (!order.tna) return null;
     
     const { ckDate } = order.tna;
@@ -243,27 +260,33 @@ export default function OrdersPage() {
 
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 text-sm">
-            <div className="p-3 bg-muted rounded-md">
-                <div className="font-medium text-muted-foreground">CK Date</div>
-                <div className="font-semibold text-lg">{format(new Date(ckDate), 'MMM dd, yyyy')}</div>
+        <div className="flex justify-between items-start">
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 text-sm">
+                <div className="p-3 bg-muted rounded-md">
+                    <div className="font-medium text-muted-foreground">CK Date</div>
+                    <div className="font-semibold text-lg">{format(new Date(ckDate), 'MMM dd, yyyy')}</div>
+                </div>
+                <div className="p-3 bg-muted rounded-md">
+                    <div className="font-medium text-muted-foreground">Shipment Date</div>
+                    <div className="font-semibold text-lg">{format(new Date(order.dueDate), 'MMM dd, yyyy')}</div>
+                </div>
+                <div className="p-3 bg-muted rounded-md">
+                    <div className="font-medium text-muted-foreground">Order Quantity</div>
+                    <div className="font-semibold text-lg">{order.quantity.toLocaleString()} units</div>
+                </div>
+                <div className="p-3 bg-muted rounded-md">
+                    <div className="font-medium text-muted-foreground">Budgeted Efficiency</div>
+                    <div className="font-semibold text-lg">{order.budgetedEfficiency || 'N/A'}%</div>
+                </div>
+                <div className="p-3 bg-primary/10 rounded-md ring-1 ring-primary/20">
+                    <div className="font-medium text-primary/80">Process Batch Size</div>
+                    <div className="font-semibold text-lg text-primary">{processBatchSize.toLocaleString()} units</div>
+                </div>
             </div>
-            <div className="p-3 bg-muted rounded-md">
-                <div className="font-medium text-muted-foreground">Shipment Date</div>
-                <div className="font-semibold text-lg">{format(new Date(order.dueDate), 'MMM dd, yyyy')}</div>
-            </div>
-            <div className="p-3 bg-muted rounded-md">
-                <div className="font-medium text-muted-foreground">Order Quantity</div>
-                <div className="font-semibold text-lg">{order.quantity.toLocaleString()} units</div>
-            </div>
-            <div className="p-3 bg-muted rounded-md">
-                <div className="font-medium text-muted-foreground">Budgeted Efficiency</div>
-                <div className="font-semibold text-lg">{order.budgetedEfficiency || 'N/A'}%</div>
-            </div>
-            <div className="p-3 bg-primary/10 rounded-md ring-1 ring-primary/20">
-                <div className="font-medium text-primary/80">Process Batch Size</div>
-                <div className="font-semibold text-lg text-primary">{processBatchSize.toLocaleString()} units</div>
-            </div>
+            <Button onClick={() => onGenerate(order)}>
+                <Zap className="h-4 w-4 mr-2"/>
+                Generate T&amp;A Plan
+            </Button>
         </div>
 
         <div className="border rounded-md">
@@ -271,12 +294,9 @@ export default function OrdersPage() {
             <TableHeader>
               <TableRow className="bg-transparent hover:bg-transparent">
                 <TableHead>Process</TableHead>
-                <TableHead>SAM</TableHead>
-                <TableHead>Setup Time</TableHead>
-                <TableHead>Single Run Output</TableHead>
-                <TableHead>Produced Qty</TableHead>
-                <TableHead>T&A Start</TableHead>
-                <TableHead>T&A End</TableHead>
+                <TableHead>Latest Start</TableHead>
+                <TableHead>Planned Start</TableHead>
+                <TableHead>Planned End</TableHead>
                 <TableHead>Scheduled Start</TableHead>
                 <TableHead>Scheduled End</TableHead>
               </TableRow>
@@ -291,14 +311,9 @@ export default function OrdersPage() {
                 return (
                   <TableRow key={process.id} className="bg-transparent even:bg-transparent hover:bg-muted/30">
                     <TableCell className="font-medium">{process.name}</TableCell>
-                    <TableCell>{process.sam}</TableCell>
-                    <TableCell>{tnaProcess ? `${tnaProcess.setupTime} min` : '-'}</TableCell>
-                    <TableCell>{process.singleRunOutput}</TableCell>
-                    <TableCell>
-                        <span className="text-muted-foreground">Not Started</span>
-                    </TableCell>
-                    <TableCell>{tnaProcess ? format(new Date(tnaProcess.startDate), 'MMM dd') : '-'}</TableCell>
-                    <TableCell>{tnaProcess ? format(new Date(tnaProcess.endDate), 'MMM dd') : '-'}</TableCell>
+                    <TableCell>{tnaProcess?.latestStartDate ? format(tnaProcess.latestStartDate, 'MMM dd') : '-'}</TableCell>
+                    <TableCell>{tnaProcess?.plannedStartDate ? format(tnaProcess.plannedStartDate, 'MMM dd') : '-'}</TableCell>
+                    <TableCell>{tnaProcess?.plannedEndDate ? format(tnaProcess.plannedEndDate, 'MMM dd') : '-'}</TableCell>
                     <TableCell>{start ? format(start, 'MMM dd, h:mm a') : <span className="text-muted-foreground">Not set</span>}</TableCell>
                     <TableCell>{end ? format(end, 'MMM dd, h:mm a') : <span className="text-muted-foreground">Not set</span>}</TableCell>
                   </TableRow>
@@ -447,6 +462,7 @@ export default function OrdersPage() {
                 <div className="py-4">
                   <TnaPlan 
                     order={selectedOrder}
+                    onGenerate={handleGenerateTna}
                   />
                 </div>
               </DialogContent>
