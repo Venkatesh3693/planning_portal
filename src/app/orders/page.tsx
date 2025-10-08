@@ -190,7 +190,7 @@ export default function OrdersPage() {
 
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 text-sm">
             <div className="p-3 bg-muted rounded-md">
                 <div className="font-medium text-muted-foreground">CK Date</div>
                 <div className="font-semibold text-lg">{format(new Date(ckDate), 'MMM dd, yyyy')}</div>
@@ -202,6 +202,10 @@ export default function OrdersPage() {
             <div className="p-3 bg-muted rounded-md">
                 <div className="font-medium text-muted-foreground">Order Quantity</div>
                 <div className="font-semibold text-lg">{order.quantity.toLocaleString()} units</div>
+            </div>
+            <div className="p-3 bg-muted rounded-md">
+                <div className="font-medium text-muted-foreground">Budgeted Efficiency</div>
+                <div className="font-semibold text-lg">{order.budgetedEfficiency || 'N/A'}%</div>
             </div>
             <div className="p-3 bg-primary/10 rounded-md ring-1 ring-primary/20">
                 <div className="font-medium text-primary/80">Process Batch Size</div>
