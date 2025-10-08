@@ -26,11 +26,14 @@ type RampUpDialogProps = {
   onSave: (orderId: string, scheme: RampUpEntry[]) => void;
 };
 
-// Use a local state type that can handle string for efficiency
+// Use a local state type that can handle string for efficiency and has a unique id
 type EditableRampUpEntry = {
+  id: number;
   day: number;
   efficiency: number | string;
 };
+
+let nextId = 0;
 
 export default function RampUpDialog({
   order,
@@ -43,63 +46,71 @@ export default function RampUpDialog({
 
   useEffect(() => {
     if (order) {
-      const initialScheme = order.sewingRampUpScheme || [
+      const initialScheme = (order.sewingRampUpScheme || [
         { day: 1, efficiency: order.budgetedEfficiency || 85 },
-      ];
+      ]).map(s => ({ ...s, id: nextId++ }));
       setScheme(initialScheme);
     }
   }, [order]);
 
   const averageEfficiency = useMemo(() => {
-    if (scheme.length === 0 || totalProductionDays === 0) return 0;
+    if (scheme.length === 0 || totalProductionDays === 0 || totalProductionDays === Infinity) return 0;
     
     let weightedSum = 0;
-    const sortedScheme = [...scheme].sort((a,b) => a.day - b.day);
+    const sortedScheme = [...scheme]
+      .map(s => ({ ...s, efficiency: Number(s.efficiency) || 0}))
+      .filter(s => s.efficiency > 0)
+      .sort((a,b) => a.day - b.day);
     
     let lastDay = 0;
     let lastEfficiency = 0;
     
+    // Iterate through the defined ramp-up points
     for (const entry of sortedScheme) {
+      // Days at the previous efficiency level
       const daysInThisStep = entry.day - lastDay;
-      weightedSum += daysInThisStep * lastEfficiency;
+      if (daysInThisStep > 0) {
+        weightedSum += daysInThisStep * lastEfficiency;
+      }
       lastDay = entry.day;
-      lastEfficiency = Number(entry.efficiency) || 0;
+      lastEfficiency = entry.efficiency;
     }
     
     // Add the final peak efficiency for the remaining days
-    const remainingDays = totalProductionDays - lastDay + 1;
-    if (remainingDays > 0) {
-        const peakEfficiencyEntry = sortedScheme.find(s => s.day === lastDay);
-        const peakEfficiency = Number(peakEfficiencyEntry?.efficiency) || 0;
-        weightedSum += remainingDays * peakEfficiency;
+    const daysAtPeak = Math.ceil(totalProductionDays) - lastDay + 1;
+    if (daysAtPeak > 0) {
+        weightedSum += daysAtPeak * lastEfficiency;
     }
 
-    return weightedSum / totalProductionDays;
+    return weightedSum / Math.ceil(totalProductionDays);
 
   }, [scheme, totalProductionDays]);
 
   const handleAddDay = () => {
     const nextDay = scheme.length > 0 ? Math.max(...scheme.map(s => s.day)) + 1 : 1;
     const lastEfficiency = scheme.length > 0 ? scheme[scheme.length - 1].efficiency : 0;
-    setScheme([...scheme, { day: nextDay, efficiency: lastEfficiency }]);
+    setScheme([...scheme, { id: nextId++, day: nextDay, efficiency: lastEfficiency }]);
   };
 
-  const handleRemoveDay = (dayToRemove: number) => {
-    setScheme(scheme.filter(s => s.day !== dayToRemove).map((s, i) => ({ ...s, day: i + 1 })));
+  const handleRemoveDay = (idToRemove: number) => {
+    setScheme(prevScheme => {
+      const newScheme = prevScheme.filter(s => s.id !== idToRemove);
+      return newScheme.sort((a,b) => a.day - b.day);
+    });
   };
 
-  const handleEfficiencyChange = (dayToChange: number, newEfficiency: string) => {
+  const handleEfficiencyChange = (idToChange: number, newEfficiency: string) => {
     setScheme(
       scheme.map(s =>
-        s.day === dayToChange ? { ...s, efficiency: newEfficiency } : s
+        s.id === idToChange ? { ...s, efficiency: newEfficiency } : s
       )
     );
   };
   
-  const handleDayChange = (oldDay: number, newDay: number) => {
+  const handleDayChange = (idToChange: number, newDay: number) => {
      setScheme(
       scheme.map(s =>
-        s.day === oldDay ? { ...s, day: newDay } : s
+        s.id === idToChange ? { ...s, day: newDay } : s
       ).sort((a,b) => a.day - b.day)
     );
   }
@@ -111,9 +122,20 @@ export default function RampUpDialog({
           day: s.day,
           efficiency: Number(s.efficiency) || 0
       }))
-      .filter(s => s.efficiency > 0 && s.efficiency <= 100)
+      .filter(s => s.efficiency > 0 && s.efficiency <= 100 && s.day > 0)
       .sort((a, b) => a.day - b.day);
-    onSave(order.id, validScheme);
+      
+    // Remove duplicate day entries, keeping the one with higher efficiency
+    const uniqueDayScheme = Object.values(
+      validScheme.reduce((acc, curr) => {
+        if (!acc[curr.day] || acc[curr.day].efficiency < curr.efficiency) {
+          acc[curr.day] = curr;
+        }
+        return acc;
+      }, {} as Record<number, RampUpEntry>)
+    );
+
+    onSave(order.id, uniqueDayScheme);
   };
 
   if (!order) return null;
@@ -138,29 +160,29 @@ export default function RampUpDialog({
 
           {scheme.map((entry) => (
             <div
-              key={entry.day}
+              key={entry.id}
               className="grid grid-cols-[1fr_1fr_40px] items-center gap-x-4 px-4"
             >
               <Input
-                id={`day-${entry.day}`}
+                id={`day-${entry.id}`}
                 type="number"
                 min="1"
                 value={entry.day}
-                onChange={(e) => handleDayChange(entry.day, parseInt(e.target.value, 10) || 1)}
+                onChange={(e) => handleDayChange(entry.id, parseInt(e.target.value, 10) || 1)}
               />
               <Input
-                id={`eff-${entry.day}`}
+                id={`eff-${entry.id}`}
                 type="number"
                 min="1"
                 max="100"
                 value={entry.efficiency}
-                onChange={(e) => handleEfficiencyChange(entry.day, e.target.value)}
+                onChange={(e) => handleEfficiencyChange(entry.id, e.target.value)}
               />
               {scheme.length > 1 && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => handleRemoveDay(entry.day)}
+                  onClick={() => handleRemoveDay(entry.id)}
                   className="justify-self-center"
                 >
                   <X className="h-4 w-4" />
