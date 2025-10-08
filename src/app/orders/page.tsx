@@ -226,10 +226,8 @@ export default function OrdersPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Order ID</TableHead>
-                      <TableHead>OCN</TableHead>
                       <TableHead>Buyer</TableHead>
-                      <TableHead>Style</TableHead>
-                      <TableHead>Color</TableHead>
+                      <TableHead>Order Type</TableHead>
                       <TableHead>Display Color</TableHead>
                       <TableHead className="text-right">Quantity</TableHead>
                       <TableHead>Due Date</TableHead>
@@ -252,10 +250,8 @@ export default function OrdersPage() {
                               </span>
                             </DialogTrigger>
                           </TableCell>
-                          <TableCell>{order.ocn}</TableCell>
                           <TableCell>{order.buyer}</TableCell>
-                          <TableCell>{order.style}</TableCell>
-                          <TableCell>{order.color}</TableCell>
+                          <TableCell>Firm PO</TableCell>
                           <TableCell>
                             <ColorPicker 
                               color={order.displayColor}
