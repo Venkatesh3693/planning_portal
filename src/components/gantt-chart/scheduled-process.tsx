@@ -2,7 +2,7 @@
 "use client";
 
 import { PROCESSES } from '@/lib/data';
-import type { ScheduledProcess } from '@/lib/types';
+import type { ScheduledProcess, Order } from '@/lib/types';
 import type { DraggedItemData } from '@/app/page';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover';
@@ -10,23 +10,23 @@ import { Undo2, GripVertical, SlidersHorizontal } from 'lucide-react';
 import { format } from 'date-fns';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { useAppContext } from '@/context/app-provider';
 
 type ScheduledProcessProps = {
   item: ScheduledProcess;
+  orders: Order[];
   onUndo?: (scheduledProcessId: string) => void;
   onDragStart?: (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => void;
   onSplit?: (process: ScheduledProcess) => void;
 };
 
 export default function ScheduledProcessBar({ 
-  item, 
+  item,
+  orders,
   onUndo,
   onDragStart,
   onSplit,
 }: ScheduledProcessProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { orders } = useAppContext();
 
   const processDetails = PROCESSES.find(p => p.id === item.processId);
   const orderDetails = orders.find(o => o.id === item.orderId);

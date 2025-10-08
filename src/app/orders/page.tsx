@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/dialog';
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
-import { PROCESSES } from '@/lib/data';
+import { PROCESSES, ORDERS, ORDER_COLORS } from '@/lib/data';
 import type { Order, Process, ScheduledProcess } from '@/lib/types';
 import { format, isAfter, isBefore, startOfDay } from 'date-fns';
 import {
@@ -32,12 +32,43 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent } from '@/components/ui/card';
-import { useAppContext } from '@/context/app-provider';
 import ColorPicker from '@/components/orders/color-picker';
 import { cn } from '@/lib/utils';
 
+const SCHEDULE_STORE_KEY = 'stitchplan_schedule';
+const ORDER_COLOR_STORE_KEY = 'stitchplan_order_colors';
+
 export default function OrdersPage() {
-  const { orders, setOrders, scheduledProcesses } = useAppContext();
+  const [orders, setOrders] = useState<Order[]>(ORDERS);
+  const [scheduledProcesses, setScheduledProcesses] = useState<ScheduledProcess[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    // Load scheduled processes
+    const scheduleRaw = localStorage.getItem(SCHEDULE_STORE_KEY);
+    if (scheduleRaw) {
+      const procs = JSON.parse(scheduleRaw).map((p: any) => ({
+        ...p,
+        startDateTime: new Date(p.startDateTime),
+        endDateTime: new Date(p.endDateTime),
+      }));
+      setScheduledProcesses(procs);
+    }
+    
+    // Load order colors and merge with static orders
+    const colorMapRaw = localStorage.getItem(ORDER_COLOR_STORE_KEY);
+    const colorMap = colorMapRaw ? JSON.parse(colorMapRaw) : {};
+    
+    setOrders(currentOrders => 
+        currentOrders.map((o, index) => ({ 
+            ...o, 
+            displayColor: colorMap[o.id] || ORDER_COLORS[index % ORDER_COLORS.length]
+        }))
+    );
+
+    setIsLoaded(true);
+  }, []);
+  
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   const handleOrderClick = (order: Order) => {
@@ -45,11 +76,16 @@ export default function OrdersPage() {
   };
   
   const handleColorChange = (orderId: string, newColor: string) => {
-    setOrders(currentOrders => 
-        currentOrders.map(o => 
-            o.id === orderId ? { ...o, displayColor: newColor } : o
-        )
+    const newOrders = orders.map(o => 
+        o.id === orderId ? { ...o, displayColor: newColor } : o
     );
+    setOrders(newOrders);
+    
+    // Save to local storage
+    const colorMapRaw = localStorage.getItem(ORDER_COLOR_STORE_KEY);
+    const colorMap = colorMapRaw ? JSON.parse(colorMapRaw) : {};
+    colorMap[orderId] = newColor;
+    localStorage.setItem(ORDER_COLOR_STORE_KEY, JSON.stringify(colorMap));
   };
 
   const getEhdForOrder = (orderId: string) => {

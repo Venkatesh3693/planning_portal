@@ -5,13 +5,13 @@ import { useState, useMemo, useEffect } from 'react';
 import { addDays, startOfToday, getDay, set, isAfter, addMinutes } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
-import { MACHINES, PROCESSES } from '@/lib/data';
+import { MACHINES, PROCESSES, ORDERS as staticOrders } from '@/lib/data';
 import type { Order, ScheduledProcess, TnaProcess } from '@/lib/types';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
-import { useAppContext } from '@/context/app-provider';
+import { ScheduleProvider, useSchedule } from '@/context/schedule-provider';
 import MachinePanel from '@/components/gantt-chart/machine-panel';
 import SplitProcessDialog from '@/components/gantt-chart/split-process-dialog';
 import PabTable from '@/components/pab/pab-table';
@@ -71,8 +71,9 @@ const calculateEndDateTime = (startDateTime: Date, totalDurationMinutes: number)
 };
 
 
-export default function Home() {
-  const { scheduledProcesses, setScheduledProcesses, orders, isLoaded } = useAppContext();
+function GanttPageContent() {
+  const { scheduledProcesses, setScheduledProcesses, isScheduleLoaded } = useSchedule();
+  const orders = staticOrders; // Use static orders data
 
   const [selectedProcessId, setSelectedProcessId] = useState<string>('sewing');
   const [viewMode, setViewMode] = useState<'day' | 'hour'>('day');
@@ -293,7 +294,7 @@ export default function Home() {
   const selectableProcesses = PROCESSES.filter(p => p.id !== 'outsourcing');
 
   const unplannedOrders = useMemo(() => {
-    if (selectedProcessId === 'pab' || !isLoaded) return [];
+    if (selectedProcessId === 'pab' || !isScheduleLoaded) return [];
 
     const scheduledOrderProcesses = new Map<string, number>();
      scheduledProcesses.forEach(p => {
@@ -308,7 +309,7 @@ export default function Home() {
       const scheduledQuantity = scheduledOrderProcesses.get(`${order.id}_${selectedProcessId}`) || 0;
       return scheduledQuantity < order.quantity;
     });
-  }, [scheduledProcesses, selectedProcessId, orders, isLoaded]);
+  }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded]);
   
 
   const chartRows = MACHINES.filter(m => m.processIds.includes(selectedProcessId));
@@ -375,8 +376,12 @@ export default function Home() {
     setScheduledProcesses(remainingProcesses);
   };
 
-  if (dates.length === 0 || !isLoaded) {
-    return null; // AppProvider will show a loading screen
+  if (dates.length === 0 || !isScheduleLoaded) {
+    return (
+        <div className="flex h-screen w-full items-center justify-center">
+            <p>Loading your schedule...</p>
+        </div>
+    );
   }
   
   const isPabView = selectedProcessId === 'pab';
@@ -452,6 +457,7 @@ export default function Home() {
                       onSplitProcess={handleOpenSplitDialog}
                       viewMode={viewMode}
                       draggedItem={draggedItem}
+                      orders={orders}
                     />
                 </div>
             </div>
@@ -466,5 +472,13 @@ export default function Home() {
         onConfirmSplit={handleConfirmSplit}
       />
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <ScheduleProvider>
+      <GanttPageContent />
+    </ScheduleProvider>
   );
 }

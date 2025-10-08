@@ -3,7 +3,7 @@
 
 import * as React from 'react';
 import { format, getMonth, isWithinInterval, startOfDay, startOfHour, endOfHour, addDays, differenceInMilliseconds, endOfDay } from 'date-fns';
-import type { ScheduledProcess } from '@/lib/types';
+import type { Order, ScheduledProcess } from '@/lib/types';
 import type { DraggedItemData } from '@/app/page';
 import { cn } from '@/lib/utils';
 import ScheduledProcessBar from './scheduled-process';
@@ -19,6 +19,7 @@ type GanttChartProps = {
   rows: Row[];
   dates: Date[];
   scheduledProcesses: ScheduledProcess[];
+  orders: Order[];
   onDrop: (rowId: string, startDateTime: Date, draggedItemJSON: string) => void;
   onUndoSchedule: (scheduledProcessId: string) => void;
   onProcessDragStart: (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => void;
@@ -131,6 +132,7 @@ export default function GanttChart({
   rows,
   dates,
   scheduledProcesses,
+  orders,
   onDrop,
   onUndoSchedule,
   onProcessDragStart,
@@ -307,6 +309,7 @@ export default function GanttChart({
                   >
                     <ScheduledProcessBar 
                         item={item} 
+                        orders={orders}
                         onUndo={onUndoSchedule}
                         onDragStart={onProcessDragStart}
                         onSplit={onSplitProcess}
@@ -319,4 +322,3 @@ export default function GanttChart({
     </div>
   );
 }
-
