@@ -20,8 +20,8 @@ import {
 } from '@/components/ui/dialog';
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
-import { PROCESSES, ORDERS, ORDER_COLORS } from '@/lib/data';
-import type { Order, Process, ScheduledProcess } from '@/lib/types';
+import { PROCESSES, ORDERS as staticOrders, ORDER_COLORS, WORK_DAY_MINUTES } from '@/lib/data';
+import type { Order, Process, ScheduledProcess, RampUpEntry } from '@/lib/types';
 import { format, isAfter, isBefore, startOfDay } from 'date-fns';
 import {
   Table,
@@ -34,42 +34,62 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import ColorPicker from '@/components/orders/color-picker';
 import { cn } from '@/lib/utils';
+import { useSchedule } from '@/context/schedule-provider';
+import { Button } from '@/components/ui/button';
+import RampUpDialog from '@/components/orders/ramp-up-dialog';
+import { Badge } from '@/components/ui/badge';
+import { LineChart } from 'lucide-react';
 
-const SCHEDULE_STORE_KEY = 'stitchplan_schedule';
-const ORDER_COLOR_STORE_KEY = 'stitchplan_order_colors';
+const SEWING_PROCESS_ID = 'sewing';
+
+const calculateMinDays = (order: Order, sewingSam: number, rampUpScheme: RampUpEntry[]) => {
+  if (!order.quantity || !sewingSam) return 0;
+  
+  let remainingQty = order.quantity;
+  let days = 0;
+  let dayIndex = 0;
+
+  while (remainingQty > 0) {
+    days++;
+    const efficiency = rampUpScheme[dayIndex]?.efficiency ?? rampUpScheme[rampUpScheme.length - 1]?.efficiency;
+    if (!efficiency) {
+      return Infinity; // Avoid infinite loops if efficiency is 0 or undefined
+    }
+
+    const effectiveSam = sewingSam / (efficiency / 100);
+    const dailyOutput = WORK_DAY_MINUTES / effectiveSam;
+    remainingQty -= dailyOutput;
+
+    if (dayIndex < rampUpScheme.length -1) {
+      dayIndex++;
+    }
+  }
+  return days;
+};
 
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<Order[]>(ORDERS);
-  const [scheduledProcesses, setScheduledProcesses] = useState<ScheduledProcess[]>([]);
-  const [isLoaded, setIsLoaded] = useState(false);
-
+  const { scheduledProcesses, sewingRampUpSchemes, updateSewingRampUpScheme, isScheduleLoaded } = useSchedule();
+  const [orders, setOrders] = useState<Order[]>(staticOrders);
+  
   useEffect(() => {
-    // Load scheduled processes
-    const scheduleRaw = localStorage.getItem(SCHEDULE_STORE_KEY);
-    if (scheduleRaw) {
-      const procs = JSON.parse(scheduleRaw).map((p: any) => ({
-        ...p,
-        startDateTime: new Date(p.startDateTime),
-        endDateTime: new Date(p.endDateTime),
-      }));
-      setScheduledProcesses(procs);
-    }
-    
-    // Load order colors and merge with static orders
-    const colorMapRaw = localStorage.getItem(ORDER_COLOR_STORE_KEY);
-    const colorMap = colorMapRaw ? JSON.parse(colorMapRaw) : {};
-    
-    setOrders(currentOrders => 
-        currentOrders.map((o, index) => ({ 
-            ...o, 
-            displayColor: colorMap[o.id] || ORDER_COLORS[index % ORDER_COLORS.length]
-        }))
-    );
+    // Merge locally stored ramp-up schemes into the orders state
+    if (isScheduleLoaded) {
+      const colorMapRaw = localStorage.getItem('stitchplan_order_colors');
+      const colorMap = colorMapRaw ? JSON.parse(colorMapRaw) : {};
 
-    setIsLoaded(true);
-  }, []);
+      setOrders(currentOrders => 
+        currentOrders.map((o, index) => ({ 
+          ...o,
+          sewingRampUpScheme: sewingRampUpSchemes[o.id],
+          displayColor: colorMap[o.id] || ORDER_COLORS[index % ORDER_COLORS.length]
+        }))
+      );
+    }
+  }, [sewingRampUpSchemes, isScheduleLoaded]);
+
   
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [rampUpOrder, setRampUpOrder] = useState<Order | null>(null);
 
   const handleOrderClick = (order: Order) => {
     setSelectedOrder(order);
@@ -81,11 +101,15 @@ export default function OrdersPage() {
     );
     setOrders(newOrders);
     
-    // Save to local storage
-    const colorMapRaw = localStorage.getItem(ORDER_COLOR_STORE_KEY);
+    const colorMapRaw = localStorage.getItem('stitchplan_order_colors');
     const colorMap = colorMapRaw ? JSON.parse(colorMapRaw) : {};
     colorMap[orderId] = newColor;
-    localStorage.setItem(ORDER_COLOR_STORE_KEY, JSON.stringify(colorMap));
+    localStorage.setItem('stitchplan_order_colors', JSON.stringify(colorMap));
+  };
+  
+  const handleRampUpSave = (orderId: string, scheme: RampUpEntry[]) => {
+    updateSewingRampUpScheme(orderId, scheme);
+    setRampUpOrder(null);
   };
 
   const getEhdForOrder = (orderId: string) => {
@@ -104,7 +128,7 @@ export default function OrdersPage() {
     return latestEndDate;
   };
 
-  const TnaPlan = ({ order, scheduledProcesses }: { order: Order, scheduledProcesses: ScheduledProcess[] }) => {
+  const TnaPlan = ({ order }: { order: Order }) => {
     if (!order.tna) return null;
     
     const { ckDate } = order.tna;
@@ -125,7 +149,6 @@ export default function OrdersPage() {
             const tnaProcess = order.tna?.processes.find(tp => tp.processId === pid);
     
             if (process && tnaProcess) {
-                // Calculate max S_i / (SAM_sewing - SAM_i)
                 const samDiff = samSewing - process.sam;
                 if (samDiff > 0) {
                     const ratio = tnaProcess.setupTime / samDiff;
@@ -134,7 +157,6 @@ export default function OrdersPage() {
                     }
                 }
     
-                // Find max Single Run Output
                 if (process.singleRunOutput > maxSingleRunOutput) {
                     maxSingleRunOutput = process.singleRunOutput;
                 }
@@ -264,6 +286,7 @@ export default function OrdersPage() {
                       <TableHead>Order ID</TableHead>
                       <TableHead>Buyer</TableHead>
                       <TableHead>Order Type</TableHead>
+                      <TableHead>Ramp-up</TableHead>
                       <TableHead>Display Color</TableHead>
                       <TableHead className="text-right">Quantity</TableHead>
                       <TableHead>Lead Time</TableHead>
@@ -275,6 +298,11 @@ export default function OrdersPage() {
                     {orders.map((order) => {
                       const ehd = getEhdForOrder(order.id);
                       const isLate = ehd && isAfter(startOfDay(ehd), startOfDay(new Date(order.dueDate)));
+                      
+                      const sewingProcess = PROCESSES.find(p => p.id === SEWING_PROCESS_ID);
+                      const rampUpScheme = order.sewingRampUpScheme || [{ day: 1, efficiency: order.budgetedEfficiency || 100 }];
+                      const minDays = sewingProcess ? calculateMinDays(order, sewingProcess.sam, rampUpScheme) : 0;
+                      
                       return (
                         <TableRow key={order.id}>
                           <TableCell>
@@ -289,6 +317,19 @@ export default function OrdersPage() {
                           </TableCell>
                           <TableCell>{order.buyer}</TableCell>
                           <TableCell>Firm PO</TableCell>
+                          <TableCell>
+                              <div className='flex items-center gap-2'>
+                                <Button variant="outline" size="sm" onClick={() => setRampUpOrder(order)}>
+                                  <LineChart className="h-4 w-4 mr-2" />
+                                  Scheme
+                                </Button>
+                                {minDays > 0 && minDays !== Infinity && (
+                                  <Badge variant="secondary" title="Minimum days to complete sewing">
+                                    {Math.ceil(minDays)} days
+                                  </Badge>
+                                )}
+                              </div>
+                          </TableCell>
                           <TableCell>
                             <ColorPicker 
                               color={order.displayColor}
@@ -324,12 +365,21 @@ export default function OrdersPage() {
                 <div className="py-4">
                   <TnaPlan 
                     order={selectedOrder}
-                    scheduledProcesses={scheduledProcesses.filter(p => p.orderId === selectedOrder.id)}
                   />
                 </div>
               </DialogContent>
             )}
           </Dialog>
+
+          {rampUpOrder && (
+            <RampUpDialog
+              order={rampUpOrder}
+              isOpen={!!rampUpOrder}
+              onOpenChange={(isOpen) => !isOpen && setRampUpOrder(null)}
+              onSave={handleRampUpSave}
+            />
+          )}
+
         </div>
       </main>
     </div>

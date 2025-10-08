@@ -59,6 +59,7 @@ export const ORDERS: Order[] = [
         dueDate: addDays(today, 10),
         displayColor: ORDER_COLORS[0],
         leadTime: 60,
+        budgetedEfficiency: 85,
         tna: {
             ckDate: subDays(today, 5),
             processes: [
@@ -80,6 +81,7 @@ export const ORDERS: Order[] = [
         dueDate: addDays(today, 15),
         displayColor: ORDER_COLORS[1],
         leadTime: 90,
+        budgetedEfficiency: 80,
         tna: {
             ckDate: subDays(today, 10),
             processes: [
@@ -101,6 +103,7 @@ export const ORDERS: Order[] = [
         dueDate: addDays(today, 7),
         displayColor: ORDER_COLORS[2],
         leadTime: 45,
+        budgetedEfficiency: 90,
         tna: {
             ckDate: subDays(today, 8),
             processes: [

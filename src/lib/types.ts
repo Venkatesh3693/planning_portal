@@ -34,6 +34,11 @@ export type Tna = {
   processes: TnaProcess[];
 };
 
+export type RampUpEntry = {
+  day: number;
+  efficiency: number; // As a percentage, e.g., 85 for 85%
+};
+
 export type Order = {
   id: string; // e.g. 'ZAR4531-Shirt-Blue'
   ocn: string; // e.g. 'ZAR4531'
@@ -46,6 +51,8 @@ export type Order = {
   tna?: Tna;
   displayColor?: string;
   leadTime?: number;
+  budgetedEfficiency?: number;
+  sewingRampUpScheme?: RampUpEntry[];
 };
 
 export type ScheduledProcess = {

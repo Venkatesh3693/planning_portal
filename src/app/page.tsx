@@ -5,8 +5,8 @@ import { useState, useMemo, useEffect } from 'react';
 import { addDays, startOfToday, getDay, set, isAfter, addMinutes } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
-import { MACHINES, PROCESSES, ORDERS as staticOrders } from '@/lib/data';
-import type { Order, ScheduledProcess, TnaProcess } from '@/lib/types';
+import { MACHINES, PROCESSES, ORDERS as staticOrders, WORK_DAY_MINUTES } from '@/lib/data';
+import type { Order, ScheduledProcess, TnaProcess, RampUpEntry } from '@/lib/types';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
@@ -70,10 +70,51 @@ const calculateEndDateTime = (startDateTime: Date, totalDurationMinutes: number)
   return currentDateTime;
 };
 
+const calculateSewingDuration = (quantity: number, sam: number, rampUpScheme: RampUpEntry[]): number => {
+    let remainingQty = quantity;
+    let totalMinutes = 0;
+    let dayIndex = 0;
+
+    while (remainingQty > 0) {
+        const efficiency = rampUpScheme[dayIndex]?.efficiency ?? rampUpScheme[rampUpScheme.length - 1]?.efficiency;
+        if (!efficiency) {
+            // Avoid infinite loops if efficiency is 0 or undefined. Treat as 100% as a fallback.
+            const effectiveSam = sam;
+            const outputPerMinute = 1 / effectiveSam;
+            totalMinutes += remainingQty / outputPerMinute;
+            remainingQty = 0;
+            continue;
+        }
+
+        const effectiveSam = sam / (efficiency / 100);
+        const outputPerMinute = 1 / effectiveSam;
+        const maxOutputForDay = WORK_DAY_MINUTES * outputPerMinute;
+
+        if (remainingQty <= maxOutputForDay) {
+            totalMinutes += remainingQty / outputPerMinute;
+            remainingQty = 0;
+        } else {
+            totalMinutes += WORK_DAY_MINUTES;
+            remainingQty -= maxOutputForDay;
+            if (dayIndex < rampUpScheme.length - 1) {
+                dayIndex++;
+            }
+        }
+    }
+    return totalMinutes;
+};
+
 
 function GanttPageContent() {
-  const { scheduledProcesses, setScheduledProcesses, isScheduleLoaded } = useSchedule();
-  const orders = staticOrders; // Use static orders data
+  const { scheduledProcesses, setScheduledProcesses, sewingRampUpSchemes, isScheduleLoaded } = useSchedule();
+  
+  const orders = useMemo(() => {
+    if (!isScheduleLoaded) return [];
+    return staticOrders.map(order => ({
+      ...order,
+      sewingRampUpScheme: sewingRampUpSchemes[order.id],
+    }));
+  }, [sewingRampUpSchemes, isScheduleLoaded]);
 
   const [selectedProcessId, setSelectedProcessId] = useState<string>('sewing');
   const [viewMode, setViewMode] = useState<'day' | 'hour'>('day');
@@ -102,14 +143,21 @@ function GanttPageContent() {
   
     const droppedItem: DraggedItemData = JSON.parse(draggedItemJSON);
   
-    // 1. Determine the process being dropped/moved
     let processToPlace: ScheduledProcess;
     let otherProcesses: ScheduledProcess[];
   
     if (droppedItem.type === 'new') {
       const order = orders.find(o => o.id === droppedItem.orderId)!;
       const process = PROCESSES.find(p => p.id === droppedItem.processId)!;
-      const durationMinutes = process.sam * droppedItem.quantity;
+      
+      let durationMinutes;
+      if (process.id === SEWING_PROCESS_ID) {
+        const rampUpScheme = order.sewingRampUpScheme || [{ day: 1, efficiency: order.budgetedEfficiency || 100 }];
+        durationMinutes = calculateSewingDuration(droppedItem.quantity, process.sam, rampUpScheme);
+      } else {
+        durationMinutes = process.sam * droppedItem.quantity;
+      }
+
       const finalStartDateTime = viewMode === 'day' 
         ? set(startDateTime, { hours: WORKING_HOURS_START, minutes: 0, seconds: 0, milliseconds: 0 })
         : startDateTime;
@@ -126,7 +174,6 @@ function GanttPageContent() {
       };
       otherProcesses = [...scheduledProcesses];
     } else { // 'existing'
-      // Convert date strings back to Date objects
       const originalProcess: ScheduledProcess = {
         ...droppedItem.process,
         startDateTime: new Date(droppedItem.process.startDateTime),
@@ -143,12 +190,9 @@ function GanttPageContent() {
         startDateTime: finalStartDateTime,
         endDateTime: calculateEndDateTime(finalStartDateTime, originalProcess.durationMinutes),
       };
-      // For a "lift and drop", the item is removed from the state when drag starts.
-      // So otherProcesses is the current state.
       otherProcesses = scheduledProcesses;
     }
   
-    // 2. Identify conflicts and prepare for cascade
     const machineId = processToPlace.machineId;
     const processesOnSameMachine = otherProcesses
       .filter(p => p.machineId === machineId)
@@ -156,25 +200,21 @@ function GanttPageContent() {
   
     const finalProcesses: ScheduledProcess[] = otherProcesses.filter(p => p.machineId !== machineId);
     
-    // Find processes that start AFTER the new/moved process begins
     const directConflicts = processesOnSameMachine.filter(p =>
       processToPlace.startDateTime < p.endDateTime && processToPlace.endDateTime > p.startDateTime
     );
 
     let processesToCascade = directConflicts.sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
   
-    // Add back unaffected processes on the same machine
     const unaffectedOnMachine = processesOnSameMachine.filter(p => 
       !processesToCascade.find(c => c.id === p.id)
     );
     finalProcesses.push(...unaffectedOnMachine);
-    finalProcesses.push(processToPlace); // Add the item we just dropped
+    finalProcesses.push(processToPlace);
   
-    // 3. Perform the cascade
     let lastProcessEnd = processToPlace.endDateTime;
   
     for (const processToShift of processesToCascade) {
-      // The new start is either its original start or the end of the previous process, whichever is later
       const newStart = isAfter(processToShift.startDateTime, lastProcessEnd) ? processToShift.startDateTime : lastProcessEnd;
       const newEnd = calculateEndDateTime(newStart, processToShift.durationMinutes);
   
@@ -187,9 +227,8 @@ function GanttPageContent() {
       lastProcessEnd = newEnd;
     }
   
-    // 4. Set the final state
     setScheduledProcesses(finalProcesses);
-    setDraggedItem(null); // Clear dragged item after drop
+    setDraggedItem(null);
   };
   
 
@@ -199,8 +238,6 @@ function GanttPageContent() {
     setDraggedItem(item);
     
     if (item.type === 'existing') {
-        // "Lift" the item from the board by removing it from the state
-        // It will be re-added on drop
         setTimeout(() => {
             setScheduledProcesses(prev => prev.filter(p => p.id !== item.process.id));
         }, 0);
@@ -208,12 +245,6 @@ function GanttPageContent() {
   };
   
   const handleDragEnd = () => {
-    // This part is tricky. A simple solution is to just rely on the onDrop to always re-add it.
-    // If a drop doesn't happen on a valid target, the item will be gone.
-    // A better approach would be to restore it if the drop was not successful.
-    // For now, let's assume drops are always successful on the chart.
-    // We check if an item was being dragged and if it's not on the board anymore.
-    // This is not a perfect solution.
     if(draggedItem && draggedItem.type === 'existing' && !scheduledProcesses.find(p => p.id === draggedItem.process.id)) {
         setScheduledProcesses(prev => [...prev, draggedItem.process]);
     }
@@ -223,7 +254,6 @@ function GanttPageContent() {
   const handleUndoSchedule = (scheduledProcessId: string) => {
     setScheduledProcesses(prev => {
       const processToUnschedule = prev.find(p => p.id === scheduledProcessId);
-      // If it's a split process, unschedule all its siblings too
       if (processToUnschedule?.parentId) {
         return prev.filter(p => p.parentId !== processToUnschedule.parentId);
       }
@@ -233,11 +263,9 @@ function GanttPageContent() {
 
   const handleOpenSplitDialog = (process: ScheduledProcess) => {
     if (process.parentId) {
-      // It's a re-split, find all siblings
       const siblings = scheduledProcesses.filter(p => p.parentId === process.parentId);
       setProcessToSplit(siblings);
     } else {
-      // First time splitting this process
       setProcessToSplit([process]);
     }
   };
@@ -245,32 +273,36 @@ function GanttPageContent() {
   const handleConfirmSplit = (originalProcesses: ScheduledProcess[], newQuantities: number[]) => {
     const primaryProcess = originalProcesses[0];
     const processInfo = PROCESSES.find(p => p.id === primaryProcess.processId)!;
+    const orderInfo = orders.find(o => o.id === primaryProcess.orderId)!;
     
-    // Use existing parentId or create a new one for the first split
     const parentId = primaryProcess.parentId || `${primaryProcess.id}-split-${Date.now()}`;
   
-    // Determine the anchor point for placement
     const anchor = originalProcesses.reduce((earliest, p) => {
       return p.startDateTime < earliest.startDateTime ? p : earliest;
     }, originalProcesses[0]);
   
     const newSplitProcesses: ScheduledProcess[] = newQuantities.map((quantity, index) => {
-      const durationMinutes = quantity * processInfo.sam;
+      let durationMinutes;
+      if (processInfo.id === SEWING_PROCESS_ID) {
+        const rampUpScheme = orderInfo.sewingRampUpScheme || [{ day: 1, efficiency: orderInfo.budgetedEfficiency || 100 }];
+        durationMinutes = calculateSewingDuration(quantity, processInfo.sam, rampUpScheme);
+      } else {
+        durationMinutes = quantity * processInfo.sam;
+      }
       return {
         id: `${parentId}-child-${index}-${Date.now()}`,
         orderId: primaryProcess.orderId,
         processId: primaryProcess.processId,
-        machineId: anchor.machineId, // All new splits start on the anchor machine
+        machineId: anchor.machineId,
         quantity: quantity,
         durationMinutes: durationMinutes,
-        startDateTime: new Date(), // Temporary, will be cascaded below
-        endDateTime: new Date(),   // Temporary, will be cascaded below
+        startDateTime: new Date(),
+        endDateTime: new Date(),
         isSplit: true,
         parentId: parentId,
       };
     });
   
-    // Cascade the new processes on the same machine from the anchor point
     let lastProcessEnd = anchor.startDateTime;
     const cascadedSplitProcesses = newSplitProcesses.map(p => {
       const newStart = lastProcessEnd;
@@ -280,7 +312,6 @@ function GanttPageContent() {
     });
   
     setScheduledProcesses(prev => {
-      // Remove all old processes that were part of this split group
       const originalIds = originalProcesses.map(p => p.id);
       const otherProcesses = prev.filter(p => !originalIds.includes(p.id));
       
