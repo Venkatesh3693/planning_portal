@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogClose,
 } from '@/components/ui/dialog';
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
@@ -38,7 +39,7 @@ import { useSchedule } from '@/context/schedule-provider';
 import { Button } from '@/components/ui/button';
 import RampUpDialog from '@/components/orders/ramp-up-dialog';
 import { Badge } from '@/components/ui/badge';
-import { LineChart, Zap, AlertCircle } from 'lucide-react';
+import { LineChart, Zap, AlertCircle, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { generateTnaPlan } from '@/lib/tna-calculator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -308,36 +309,34 @@ const TnaPlan = ({ order, scheduledProcesses }: { order: Order; scheduledProcess
     };
 
     return (
-      <div className="space-y-4">
-        <div className="flex justify-between items-start">
-            <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 text-sm">
-                <div className="p-3 bg-muted rounded-md">
-                    <div className="font-medium text-muted-foreground">CK Date</div>
-                    <div className="font-semibold text-lg">{format(new Date(ckDate), 'MMM dd, yyyy')}</div>
-                </div>
-                <div className="p-3 bg-muted rounded-md">
-                    <div className="font-medium text-muted-foreground">Shipment Date</div>
-                    <div className="font-semibold text-lg">{format(new Date(order.dueDate), 'MMM dd, yyyy')}</div>
-                </div>
-                <div className="p-3 bg-muted rounded-md">
-                    <div className="font-medium text-muted-foreground">Order Quantity</div>
-                    <div className="font-semibold text-lg">{order.quantity.toLocaleString()} units</div>
-                </div>
-                <div className="p-3 bg-muted rounded-md">
-                    <div className="font-medium text-muted-foreground">Budgeted Efficiency</div>
-                    <div className="font-semibold text-lg">{order.budgetedEfficiency || 'N/A'}%</div>
-                </div>
-                <div className="p-3 bg-primary/10 rounded-md ring-1 ring-primary/20">
-                    <div className="font-medium text-primary/80">Process Batch Size</div>
-                    <div className="font-semibold text-lg text-primary">{processBatchSize.toLocaleString()} units</div>
-                </div>
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-sm">
+            <div className="p-3 bg-muted rounded-md">
+                <div className="font-medium text-muted-foreground">CK Date</div>
+                <div className="font-semibold text-lg">{format(new Date(ckDate), 'MMM dd, yyyy')}</div>
+            </div>
+            <div className="p-3 bg-muted rounded-md">
+                <div className="font-medium text-muted-foreground">Shipment Date</div>
+                <div className="font-semibold text-lg">{format(new Date(order.dueDate), 'MMM dd, yyyy')}</div>
+            </div>
+            <div className="p-3 bg-muted rounded-md">
+                <div className="font-medium text-muted-foreground">Order Quantity</div>
+                <div className="font-semibold text-lg">{order.quantity.toLocaleString()} units</div>
+            </div>
+            <div className="p-3 bg-muted rounded-md">
+                <div className="font-medium text-muted-foreground">Budgeted Efficiency</div>
+                <div className="font-semibold text-lg">{order.budgetedEfficiency || 'N/A'}%</div>
+            </div>
+            <div className="p-3 bg-primary/10 rounded-md ring-1 ring-primary/20 col-span-2 sm:col-span-1">
+                <div className="font-medium text-primary/80">Process Batch Size</div>
+                <div className="font-semibold text-lg text-primary">{processBatchSize.toLocaleString()} units</div>
             </div>
         </div>
 
-        <div className="border rounded-md">
+        <div className="border rounded-lg overflow-hidden">
           <Table>
             <TableHeader>
-              <TableRow className="bg-transparent hover:bg-transparent">
+              <TableRow className="bg-muted/50 hover:bg-muted/50">
                 <TableHead>Process</TableHead>
                 <TableHead className="text-right">SAM</TableHead>
                 <TableHead className="text-right">Setup (min)</TableHead>
@@ -357,7 +356,7 @@ const TnaPlan = ({ order, scheduledProcesses }: { order: Order; scheduledProcess
                 const { start, end } = getAggregatedScheduledTimes(process.id);
                 
                 return (
-                  <TableRow key={process.id} className="bg-transparent even:bg-transparent hover:bg-muted/30">
+                  <TableRow key={process.id}>
                     <TableCell className="font-medium">{process.name}</TableCell>
                     <TableCell className="text-right">{process.sam}</TableCell>
                     <TableCell className="text-right">{tnaProcess?.setupTime || '-'}</TableCell>
@@ -394,7 +393,7 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
 
   const singleLineMinDays = useMemo(() => 
     sewingProcess ? calculateMinDays(order, sewingProcess.sam, order.sewingRampUpScheme || []) : 0,
-    [order, order.sewingRampUpScheme]
+    [order]
   );
   
   const totalProductionDays = useMemo(() => 
@@ -432,20 +431,27 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
                 {order.id}
               </span>
             </DialogTrigger>
-            <DialogContent className="max-w-6xl">
-              <DialogHeader className="flex-row justify-between items-center">
-                <div>
-                  <DialogTitle>{order.ocn} - {order.style} ({order.color})</DialogTitle>
-                  <DialogDescription>
-                    Order ID: {order.id} &bull; Buyer: {order.buyer}
-                  </DialogDescription>
-                </div>
-                <Button onClick={() => onTnaGenerate(order)}>
-                  <Zap className="h-4 w-4 mr-2"/>
-                  Generate T&amp;A Plan
-                </Button>
-              </DialogHeader>
-              <div className="py-4">
+            <DialogContent className="max-w-6xl p-0">
+                <DialogHeader className="flex-row justify-between items-center p-6 pb-0">
+                    <div>
+                    <DialogTitle>{order.ocn} - {order.style} ({order.color})</DialogTitle>
+                    <DialogDescription>
+                        Order ID: {order.id} &bull; Buyer: {order.buyer}
+                    </DialogDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button onClick={() => onTnaGenerate(order)}>
+                            <Zap className="h-4 w-4 mr-2"/>
+                            Generate T&amp;A Plan
+                        </Button>
+                        <DialogClose asChild>
+                            <Button variant="ghost" size="icon" className="rounded-full">
+                                <X className="h-4 w-4" />
+                            </Button>
+                        </DialogClose>
+                    </div>
+                </DialogHeader>
+              <div className="p-6">
                 <TnaPlan 
                   order={order}
                   scheduledProcesses={scheduledProcesses}
@@ -624,6 +630,5 @@ export default function OrdersPage() {
     </div>
   );
 }
-
 
     
