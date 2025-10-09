@@ -228,10 +228,11 @@ type RampUpDialogState = {
   singleLineMinDays: number;
 };
 
-export default function OrdersPage() {
+const sewingProcess = PROCESSES.find(p => p.id === SEWING_PROCESS_ID);
+
+function OrderRow({ order }: { order: Order }) {
   const { 
-    orders, 
-    scheduledProcesses, 
+    scheduledProcesses,
     updateSewingRampUpScheme, 
     sewingLines, 
     setSewingLines,
@@ -261,8 +262,6 @@ export default function OrdersPage() {
     
     updateOrderTna(order.id, newTnaProcesses);
 
-    // After updating context, the 'orders' prop will change, triggering a re-render.
-    // We need to update the selectedOrder state to reflect the new TNA.
     const updatedOrder: Order = { 
         ...order, 
         tna: {
@@ -422,8 +421,157 @@ export default function OrdersPage() {
       </div>
     );
   };
+  
+  const numLines = sewingLines[order.id] || 1;
+  
+  const singleLineMinDays = useMemo(() => 
+    sewingProcess ? calculateMinDays(order, sewingProcess.sam, order.sewingRampUpScheme || []) : 0,
+    [order, order.sewingRampUpScheme]
+  );
+  
+  const totalProductionDays = useMemo(() => 
+    singleLineMinDays > 0 && numLines > 0 ? singleLineMinDays / numLines : 0,
+    [singleLineMinDays, numLines]
+  );
+  
+  const avgEfficiency = useMemo(() => 
+    calculateAverageEfficiency(order.sewingRampUpScheme || [], totalProductionDays),
+    [order.sewingRampUpScheme, totalProductionDays]
+  );
+  
+  const daysToBudget = useMemo(() => 
+    calculateDaysToMeetBudget(order.sewingRampUpScheme || [], order.budgetedEfficiency || 0),
+    [order.sewingRampUpScheme, order.budgetedEfficiency]
+  );
+
+  const ehd = getEhdForOrder(order.id);
+  const isLate = ehd && isAfter(startOfDay(ehd), startOfDay(new Date(order.dueDate)));
+  
+  const isBudgetUnreachable = daysToBudget === Infinity;
+  const isSchemeInefficient = typeof daysToBudget === 'number' && totalProductionDays > 0 && daysToBudget > totalProductionDays;
+  const showWarning = isBudgetUnreachable || isSchemeInefficient;
+
+  return (
+    <>
+      <TableRow key={order.id}>
+        <TableCell>
+          <DialogTrigger asChild>
+            <span 
+              className="font-medium text-primary cursor-pointer hover:underline"
+              onClick={() => handleOrderClick(order)}
+            >
+              {order.id}
+            </span>
+          </DialogTrigger>
+        </TableCell>
+        <TableCell>{order.buyer}</TableCell>
+        <TableCell>Firm PO</TableCell>
+        <TableCell>{order.budgetedEfficiency}%</TableCell>
+        <TableCell>
+          <Badge variant={avgEfficiency < (order.budgetedEfficiency || 0) ? 'destructive' : 'secondary'}>
+              {avgEfficiency.toFixed(2)}%
+          </Badge>
+        </TableCell>
+        <TableCell>
+           <Badge variant={isBudgetUnreachable ? 'destructive' : 'secondary'}>
+              {isBudgetUnreachable ? '∞' : (typeof daysToBudget === 'number' ? `${daysToBudget} days` : daysToBudget)}
+           </Badge>
+        </TableCell>
+        <TableCell>
+          <TooltipProvider delayDuration={100}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="sm" onClick={() => setRampUpState({ order, singleLineMinDays })}>
+                  {showWarning && <AlertCircle className="h-4 w-4 mr-2 text-destructive" />}
+                  <LineChart className="h-4 w-4 mr-2" />
+                  Scheme
+                </Button>
+              </TooltipTrigger>
+              {showWarning && (
+                <TooltipContent>
+                  <p>
+                    {isBudgetUnreachable
+                      ? "Budgeted efficiency is unreachable with this scheme."
+                      : "Ramp-up is too slow to meet budgeted efficiency within the allocated production time."}
+                  </p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+        </TableCell>
+        <TableCell>
+          <Input
+            type="number"
+            min="1"
+            value={numLines}
+            onChange={(e) => setSewingLines(order.id, parseInt(e.target.value, 10) || 1)}
+            className="w-16 h-8 text-center"
+          />
+        </TableCell>
+        <TableCell>
+          {singleLineMinDays > 0 && singleLineMinDays !== Infinity ? (
+            <Badge variant="secondary" title="Minimum days to complete sewing on a single line">
+              {Math.ceil(singleLineMinDays)} days
+            </Badge>
+          ) : (
+            <span className="text-muted-foreground">-</span>
+          )}
+        </TableCell>
+        <TableCell>
+          <ColorPicker 
+            color={order.displayColor}
+            onColorChange={(newColor) => handleColorChange(order.id, newColor)}
+          />
+        </TableCell>
+        <TableCell className="text-right">{order.quantity}</TableCell>
+        <TableCell>{order.leadTime ? `${order.leadTime} days` : '-'}</TableCell>
+        <TableCell>{format(new Date(order.dueDate), 'PPP')}</TableCell>
+        <TableCell className={cn(isLate && "text-destructive font-semibold")}>
+          {ehd ? (
+            format(ehd, 'PPP')
+          ) : (
+            <span className="text-muted-foreground">Not Packed</span>
+          )}
+        </TableCell>
+      </TableRow>
+
+      {selectedOrder && (
+        <DialogContent className="max-w-6xl">
+          <DialogHeader>
+            <DialogTitle>{selectedOrder.ocn} - {selectedOrder.style} ({selectedOrder.color})</DialogTitle>
+            <DialogDescription>
+              Order ID: {selectedOrder.id} &bull; Buyer: {selectedOrder.buyer}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <TnaPlan 
+              order={selectedOrder}
+              onGenerate={handleGenerateTna}
+            />
+          </div>
+        </DialogContent>
+      )}
+
+      {rampUpState && (
+        <RampUpDialog
+          key={rampUpState.order.id}
+          order={rampUpState.order}
+          singleLineMinDays={rampUpState.singleLineMinDays}
+          numLines={sewingLines[rampUpState.order.id] || 1}
+          isOpen={!!rampUpState}
+          onOpenChange={(isOpen) => !isOpen && setRampUpState(null)}
+          onSave={handleRampUpSave}
+          calculateAverageEfficiency={calculateAverageEfficiency}
+        />
+      )}
+    </>
+  );
+}
 
 
+export default function OrdersPage() {
+  const { orders } = useSchedule();
+  
   return (
     <div className="flex h-screen flex-col">
       <Header />
@@ -446,7 +594,7 @@ export default function OrdersPage() {
           <p className="text-muted-foreground">
             View all your orders in one place. Click on an Order ID to see details.
           </p>
-          <Dialog onOpenChange={(isOpen) => !isOpen && setSelectedOrder(null)}>
+          <Dialog>
             <Card>
               <CardContent className="p-0">
                 <Table>
@@ -469,151 +617,17 @@ export default function OrdersPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {orders.map((order) => {
-                      const ehd = getEhdForOrder(order.id);
-                      const isLate = ehd && isAfter(startOfDay(ehd), startOfDay(new Date(order.dueDate)));
-                      
-                      const sewingProcess = PROCESSES.find(p => p.id === SEWING_PROCESS_ID);
-                      const singleLineMinDays = sewingProcess ? calculateMinDays(order, sewingProcess.sam, order.sewingRampUpScheme || []) : 0;
-                      
-                      const numLines = sewingLines[order.id] || 1;
-                      const totalProductionDays = singleLineMinDays > 0 && numLines > 0 ? singleLineMinDays / numLines : 0;
-                      
-                      const avgEfficiency = calculateAverageEfficiency(order.sewingRampUpScheme || [], totalProductionDays);
-                      
-                      const daysToBudget = calculateDaysToMeetBudget(order.sewingRampUpScheme || [], order.budgetedEfficiency || 0);
-
-                      const isBudgetUnreachable = daysToBudget === Infinity;
-                      const isSchemeInefficient = typeof daysToBudget === 'number' && totalProductionDays > 0 && daysToBudget > totalProductionDays;
-                      const showWarning = isBudgetUnreachable || isSchemeInefficient;
-
-                      return (
-                        <TableRow key={order.id}>
-                          <TableCell>
-                            <DialogTrigger asChild>
-                              <span 
-                                className="font-medium text-primary cursor-pointer hover:underline"
-                                onClick={() => handleOrderClick(order)}
-                              >
-                                {order.id}
-                              </span>
-                            </DialogTrigger>
-                          </TableCell>
-                          <TableCell>{order.buyer}</TableCell>
-                          <TableCell>Firm PO</TableCell>
-                          <TableCell>{order.budgetedEfficiency}%</TableCell>
-                          <TableCell>
-                            <Badge variant={avgEfficiency < (order.budgetedEfficiency || 0) ? 'destructive' : 'secondary'}>
-                                {avgEfficiency.toFixed(2)}%
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                             <Badge variant={isBudgetUnreachable ? 'destructive' : 'secondary'}>
-                                {isBudgetUnreachable ? '∞' : (typeof daysToBudget === 'number' ? `${daysToBudget} days` : daysToBudget)}
-                             </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <TooltipProvider delayDuration={100}>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button variant="outline" size="sm" onClick={() => setRampUpState({ order, singleLineMinDays })}>
-                                    {showWarning && <AlertCircle className="h-4 w-4 mr-2 text-destructive" />}
-                                    <LineChart className="h-4 w-4 mr-2" />
-                                    Scheme
-                                  </Button>
-                                </TooltipTrigger>
-                                {showWarning && (
-                                  <TooltipContent>
-                                    <p>
-                                      {isBudgetUnreachable
-                                        ? "Budgeted efficiency is unreachable with this scheme."
-                                        : "Ramp-up is too slow to meet budgeted efficiency within the allocated production time."}
-                                    </p>
-                                  </TooltipContent>
-                                )}
-                              </Tooltip>
-                            </TooltipProvider>
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              min="1"
-                              value={numLines}
-                              onChange={(e) => setSewingLines(order.id, parseInt(e.target.value, 10) || 1)}
-                              className="w-16 h-8 text-center"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            {singleLineMinDays > 0 && singleLineMinDays !== Infinity ? (
-                              <Badge variant="secondary" title="Minimum days to complete sewing on a single line">
-                                {Math.ceil(singleLineMinDays)} days
-                              </Badge>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <ColorPicker 
-                              color={order.displayColor}
-                              onColorChange={(newColor) => handleColorChange(order.id, newColor)}
-                            />
-                          </TableCell>
-                          <TableCell className="text-right">{order.quantity}</TableCell>
-                          <TableCell>{order.leadTime ? `${order.leadTime} days` : '-'}</TableCell>
-                          <TableCell>{format(new Date(order.dueDate), 'PPP')}</TableCell>
-                          <TableCell className={cn(isLate && "text-destructive font-semibold")}>
-                            {ehd ? (
-                              format(ehd, 'PPP')
-                            ) : (
-                              <span className="text-muted-foreground">Not Packed</span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                    {orders.map((order) => (
+                      <OrderRow key={order.id} order={order} />
+                    ))}
                   </TableBody>
                 </Table>
               </CardContent>
             </Card>
-
-            {selectedOrder && (
-              <DialogContent className="max-w-6xl">
-                <DialogHeader>
-                  <DialogTitle>{selectedOrder.ocn} - {selectedOrder.style} ({selectedOrder.color})</DialogTitle>
-                  <DialogDescription>
-                    Order ID: {selectedOrder.id} &bull; Buyer: {selectedOrder.buyer}
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="py-4">
-                  <TnaPlan 
-                    order={selectedOrder}
-                    onGenerate={handleGenerateTna}
-                  />
-                </div>
-              </DialogContent>
-            )}
           </Dialog>
-
-          {rampUpState && (
-            <RampUpDialog
-              key={rampUpState.order.id} // Re-mount component when order changes
-              order={rampUpState.order}
-              singleLineMinDays={rampUpState.singleLineMinDays}
-              numLines={sewingLines[rampUpState.order.id] || 1}
-              isOpen={!!rampUpState}
-              onOpenChange={(isOpen) => !isOpen && setRampUpState(null)}
-              onSave={handleRampUpSave}
-              calculateAverageEfficiency={calculateAverageEfficiency}
-            />
-          )}
 
         </div>
       </main>
     </div>
   );
-
-    
-
-    
-
-    
+}
