@@ -44,6 +44,12 @@ import { generateTnaPlan } from '@/lib/tna-calculator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const SEWING_PROCESS_ID = 'sewing';
+const sewingProcess = PROCESSES.find(p => p.id === SEWING_PROCESS_ID);
+
+type RampUpDialogState = {
+  order: Order;
+  singleLineMinDays: number;
+};
 
 const calculateMinDays = (order: Order, sewingSam: number, rampUpScheme: RampUpEntry[]) => {
   const scheme = rampUpScheme || [];
@@ -222,13 +228,6 @@ const calculateDaysToMeetBudget = (
   return Math.ceil(rampUpTotalDays + daysAtPeak);
 };
 
-
-type RampUpDialogState = {
-  order: Order;
-  singleLineMinDays: number;
-};
-
-const sewingProcess = PROCESSES.find(p => p.id === SEWING_PROCESS_ID);
 
 function OrderRow({ order }: { order: Order }) {
   const { 
@@ -426,7 +425,7 @@ function OrderRow({ order }: { order: Order }) {
   
   const singleLineMinDays = useMemo(() => 
     sewingProcess ? calculateMinDays(order, sewingProcess.sam, order.sewingRampUpScheme || []) : 0,
-    [order, order.sewingRampUpScheme]
+    [order]
   );
   
   const totalProductionDays = useMemo(() => 
