@@ -22,7 +22,7 @@ import {
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
 import { PROCESSES, ORDERS as staticOrders, ORDER_COLORS, WORK_DAY_MINUTES } from '@/lib/data';
-import type { Order, Process, ScheduledProcess, RampUpEntry, Tna } from '@/lib/types';
+import type { Order, Process, ScheduledProcess, RampUpEntry, Tna, TnaProcess } from '@/lib/types';
 import { format, isAfter, isBefore, startOfDay } from 'date-fns';
 import {
   Table,
@@ -217,27 +217,40 @@ export default function OrdersPage() {
       const scheduleData = scheduleRaw ? JSON.parse(scheduleRaw) : null;
       
       setOrders(currentOrders => 
-        staticOrders.map((o, index) => {
-          const orderId = o.id;
+        staticOrders.map((baseOrder, index) => {
+          const orderId = baseOrder.id;
           const rampUpScheme = scheduleData?.sewingRampUpSchemes?.[orderId];
           const storedOrder = scheduleData?.orders?.[orderId];
 
-          const tnaProcesses = (storedOrder?.tna?.processes || o.tna?.processes || []).map((p: any) => ({
-             ...p,
-             ...(p.plannedStartDate && { plannedStartDate: new Date(p.plannedStartDate) }),
-             ...(p.plannedEndDate && { plannedEndDate: new Date(p.plannedEndDate) }),
-             ...(p.latestStartDate && { latestStartDate: new Date(p.latestStartDate) }),
-          }));
+          // Start with the base TNA from static data
+          const hydratedTna: Tna = { ...(baseOrder.tna as Tna) };
+          
+          // If there's a stored TNA, intelligently merge its process dates
+          if (storedOrder?.tna?.processes && hydratedTna.processes) {
+              const storedProcessMap = new Map(
+                  (storedOrder.tna.processes as TnaProcess[]).map(p => [p.processId, p])
+              );
+
+              hydratedTna.processes = hydratedTna.processes.map(baseProcess => {
+                  const storedProcess = storedProcessMap.get(baseProcess.processId);
+                  if (storedProcess) {
+                      return {
+                          ...baseProcess, // Keep base data like setupTime
+                          // Override with stored generated dates
+                          plannedStartDate: storedProcess.plannedStartDate ? new Date(storedProcess.plannedStartDate) : undefined,
+                          plannedEndDate: storedProcess.plannedEndDate ? new Date(storedProcess.plannedEndDate) : undefined,
+                          latestStartDate: storedProcess.latestStartDate ? new Date(storedProcess.latestStartDate) : undefined,
+                      };
+                  }
+                  return baseProcess;
+              });
+          }
 
           return { 
-            ...o,
-            sewingRampUpScheme: rampUpScheme || [{ day: 1, efficiency: o.budgetedEfficiency || 85 }],
+            ...baseOrder,
+            sewingRampUpScheme: rampUpScheme || [{ day: 1, efficiency: baseOrder.budgetedEfficiency || 85 }],
             displayColor: colorMap[orderId] || ORDER_COLORS[index % ORDER_COLORS.length],
-            tna: {
-              ...(o.tna as Tna),
-              ...(storedOrder?.tna),
-              processes: tnaProcesses,
-            },
+            tna: hydratedTna,
           };
         })
       );

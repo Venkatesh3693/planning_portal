@@ -7,7 +7,7 @@ import { addDays, startOfToday, getDay, set, isAfter, addMinutes } from 'date-fn
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, PROCESSES, ORDERS as staticOrders, WORK_DAY_MINUTES, ORDER_COLORS } from '@/lib/data';
-import type { Order, ScheduledProcess, TnaProcess, RampUpEntry } from '@/lib/types';
+import type { Order, ScheduledProcess, Tna, TnaProcess } from '@/lib/types';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
@@ -75,9 +75,11 @@ const calculateEndDateTime = (startDateTime: Date, totalDurationMinutes: number)
   return currentDateTime;
 };
 
-const calculateSewingDuration = (quantity: number, sam: number, rampUpScheme: RampUpEntry[]): number => {
-    if (quantity <= 0 || sam <= 0) return 0;
+const calculateSewingDuration = (order: Order, quantity: number): number => {
+    const process = PROCESSES.find(p => p.id === SEWING_PROCESS_ID);
+    if (!process || quantity <= 0 || process.sam <= 0) return 0;
     
+    const rampUpScheme = order.sewingRampUpScheme || [{ day: 1, efficiency: order.budgetedEfficiency || 100 }];
     let remainingQty = quantity;
     let totalMinutes = 0;
     
@@ -95,7 +97,7 @@ const calculateSewingDuration = (quantity: number, sam: number, rampUpScheme: Ra
             return Infinity; // Avoid infinite loops
         }
 
-        const effectiveSam = sam / (efficiency / 100);
+        const effectiveSam = process.sam / (efficiency / 100);
         const outputPerMinute = 1 / effectiveSam;
         
         const minutesLeftInWorkDay = WORK_DAY_MINUTES - (totalMinutes % WORK_DAY_MINUTES);
@@ -112,41 +114,12 @@ const calculateSewingDuration = (quantity: number, sam: number, rampUpScheme: Ra
     return totalMinutes;
 };
 
-const calculateMinDays = (order: Order, sewingSam: number, rampUpScheme: RampUpEntry[]) => {
-  const scheme = rampUpScheme || [];
-  if (!order.quantity || !sewingSam || scheme.length === 0) return 0;
+const calculateMinSewingDaysDuration = (order: Order) => {
+  const sewingProcess = PROCESSES.find(p => p.id === SEWING_PROCESS_ID);
+  if (!sewingProcess || !order.quantity || !order.sewingRampUpScheme || order.sewingRampUpScheme.length === 0) return 0;
 
-  let remainingQty = order.quantity;
-  let minutes = 0;
-
-  while (remainingQty > 0) {
-    const currentDay = Math.floor(minutes / WORK_DAY_MINUTES) + 1;
-    let efficiency = scheme[scheme.length - 1]?.efficiency; // Default to peak
-    for (const entry of scheme) {
-        if(currentDay >= entry.day) {
-            efficiency = entry.efficiency;
-        }
-    }
-
-    if (!efficiency || efficiency <= 0) {
-      return Infinity; // Avoid infinite loops if efficiency is 0 or undefined
-    }
-
-    const effectiveSam = sewingSam / (efficiency / 100);
-    const outputPerMinute = 1 / effectiveSam;
-    
-    const minutesToNextDay = WORK_DAY_MINUTES - (minutes % WORK_DAY_MINUTES);
-    const maxOutputForRestOfDay = minutesToNextDay * outputPerMinute;
-
-    if (remainingQty <= maxOutputForRestOfDay) {
-      minutes += remainingQty / outputPerMinute;
-      remainingQty = 0;
-    } else {
-      minutes += minutesToNextDay;
-      remainingQty -= maxOutputForRestOfDay;
-    }
-  }
-  return minutes / WORK_DAY_MINUTES;
+  const singleLineDuration = calculateSewingDuration(order, order.quantity);
+  return singleLineDuration;
 };
 
 
@@ -162,26 +135,40 @@ function GanttPageContent() {
       const colorMap = colorMapRaw ? JSON.parse(colorMapRaw) : {};
       const scheduleData = scheduleRaw ? JSON.parse(scheduleRaw) : {sewingRampUpSchemes: {}};
       
-      const ordersWithData = staticOrders.map((order, index) => {
-        const orderId = order.id;
+      const ordersWithData = staticOrders.map((baseOrder, index) => {
+        const orderId = baseOrder.id;
         const rampUpScheme = scheduleData.sewingRampUpSchemes?.[orderId];
         const storedOrder = scheduleData?.orders?.[orderId];
-        const tnaProcesses = (storedOrder?.tna?.processes || order.tna?.processes || []).map((p: any) => ({
-             ...p,
-             ...(p.plannedStartDate && { plannedStartDate: new Date(p.plannedStartDate) }),
-             ...(p.plannedEndDate && { plannedEndDate: new Date(p.plannedEndDate) }),
-             ...(p.latestStartDate && { latestStartDate: new Date(p.latestStartDate) }),
-        }));
+        
+        // Start with the base TNA from static data
+        const hydratedTna: Tna = { ...(baseOrder.tna as Tna) };
+        
+        // If there's a stored TNA, intelligently merge its process dates
+        if (storedOrder?.tna?.processes && hydratedTna.processes) {
+            const storedProcessMap = new Map(
+                (storedOrder.tna.processes as TnaProcess[]).map(p => [p.processId, p])
+            );
+
+            hydratedTna.processes = hydratedTna.processes.map(baseProcess => {
+                const storedProcess = storedProcessMap.get(baseProcess.processId);
+                if (storedProcess) {
+                    return {
+                        ...baseProcess, // Keep base data like setupTime
+                        // Override with stored generated dates
+                        plannedStartDate: storedProcess.plannedStartDate ? new Date(storedProcess.plannedStartDate) : undefined,
+                        plannedEndDate: storedProcess.plannedEndDate ? new Date(storedProcess.plannedEndDate) : undefined,
+                        latestStartDate: storedProcess.latestStartDate ? new Date(storedProcess.latestStartDate) : undefined,
+                    };
+                }
+                return baseProcess;
+            });
+        }
         
         return {
-          ...order,
+          ...baseOrder,
           displayColor: colorMap[orderId] || ORDER_COLORS[index % ORDER_COLORS.length],
-          sewingRampUpScheme: rampUpScheme || [{ day: 1, efficiency: order.budgetedEfficiency || 85 }],
-          tna: {
-              ...(order.tna as Tna),
-              ...(storedOrder?.tna),
-              processes: tnaProcesses,
-          },
+          sewingRampUpScheme: rampUpScheme || [{ day: 1, efficiency: baseOrder.budgetedEfficiency || 85 }],
+          tna: hydratedTna,
         };
       });
       setOrders(ordersWithData);
@@ -225,9 +212,7 @@ function GanttPageContent() {
       
       let durationMinutes;
       if (process.id === SEWING_PROCESS_ID) {
-        const rampUpScheme = order.sewingRampUpScheme || [{ day: 1, efficiency: order.budgetedEfficiency || 100 }];
-        const singleLineDurationMinutes = calculateMinDays(order, process.sam, rampUpScheme) * WORK_DAY_MINUTES;
-        durationMinutes = singleLineDurationMinutes;
+        durationMinutes = calculateMinSewingDaysDuration(order);
       } else {
         durationMinutes = process.sam * droppedItem.quantity;
       }
@@ -346,7 +331,6 @@ function GanttPageContent() {
   
   const handleConfirmSplit = (originalProcesses: ScheduledProcess[], newQuantities: number[]) => {
     const primaryProcess = originalProcesses[0];
-    const processInfo = PROCESSES.find(p => p.id === primaryProcess.processId)!;
     const orderInfo = orders.find(o => o.id === primaryProcess.orderId)!;
     
     const parentId = primaryProcess.parentId || `${primaryProcess.id}-split-${Date.now()}`;
@@ -357,10 +341,10 @@ function GanttPageContent() {
   
     const newSplitProcesses: ScheduledProcess[] = newQuantities.map((quantity, index) => {
       let durationMinutes;
-      if (processInfo.id === SEWING_PROCESS_ID) {
-        const rampUpScheme = orderInfo.sewingRampUpScheme || [{ day: 1, efficiency: orderInfo.budgetedEfficiency || 100 }];
-        durationMinutes = calculateSewingDuration(quantity, processInfo.sam, rampUpScheme);
+      if (primaryProcess.processId === SEWING_PROCESS_ID) {
+        durationMinutes = calculateSewingDuration(orderInfo, quantity);
       } else {
+        const processInfo = PROCESSES.find(p => p.id === primaryProcess.processId)!;
         durationMinutes = quantity * processInfo.sam;
       }
       return {
