@@ -180,10 +180,10 @@ export default function MachinePanel({
                 orderId: order.id,
                 processId: selectedProcessId,
                 quantity: order.quantity,
-                tna: tnaProcess?.earliestStartDate && latestEndDate
+                tna: tnaProcess?.earliestStartDate && tnaProcess?.latestStartDate
                   ? {
                       startDate: new Date(tnaProcess.earliestStartDate),
-                      endDate: latestEndDate,
+                      endDate: new Date(tnaProcess.latestStartDate),
                     }
                   : null,
               };
