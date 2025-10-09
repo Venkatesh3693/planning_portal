@@ -513,7 +513,7 @@ export default function OrdersPage() {
                              </Badge>
                           </TableCell>
                           <TableCell>
-                            <TooltipProvider>
+                            <TooltipProvider delayDuration={100}>
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button variant="outline" size="sm" onClick={() => setRampUpState({ order, singleLineMinDays })}>
@@ -611,6 +611,8 @@ export default function OrdersPage() {
       </main>
     </div>
   );
+
+    
 
     
 
