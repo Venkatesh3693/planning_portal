@@ -392,39 +392,49 @@ interface OrderRowProps extends ComponentProps<typeof TableRow> {
   onSetSewingLines: (orderId: string, lines: number) => void;
   numLines: number;
   scheduledProcesses: ScheduledProcess[];
+  updateOrderMinRunDays: (orderId: string, minRunDays: Record<string, number>) => void;
 }
 
 const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
-  ({ order, onColorChange, onTnaGenerate, onRampUpSave, onSetSewingLines, numLines, scheduledProcesses, ...props }, ref) => {
+  ({ order, onColorChange, onTnaGenerate, onRampUpSave, onSetSewingLines, numLines, scheduledProcesses, updateOrderMinRunDays, ...props }, ref) => {
   const [isTnaOpen, setIsTnaOpen] = useState(false);
   const [rampUpState, setRampUpState] = useState<RampUpDialogState | null>(null);
 
   const [minRunDays, setMinRunDays] = useState<Record<string, string>>({});
   
   useEffect(() => {
-      if (isTnaOpen) {
-        const initialDays: Record<string, string> = {};
-        order.processIds.forEach(pid => {
-            initialDays[pid] = "1";
-        });
-        setMinRunDays(initialDays);
-      }
-  }, [isTnaOpen, order.id, order.processIds]);
+    if (isTnaOpen) {
+      const initialDays: Record<string, string> = {};
+      const savedDays = order.tna?.minRunDays || {};
+
+      order.processIds.forEach(pid => {
+        initialDays[pid] = String(savedDays[pid] || "1");
+      });
+      setMinRunDays(initialDays);
+    }
+  }, [isTnaOpen, order.id, order.processIds, order.tna?.minRunDays]);
 
   const handleMinRunDaysChange = (processId: string, value: string) => {
-      setMinRunDays(prev => ({...prev, [processId]: value}));
+      const newMinRunDays = {...minRunDays, [processId]: value};
+      setMinRunDays(newMinRunDays);
+
+      const numericMinRunDays: Record<string, number> = {};
+      for (const [key, val] of Object.entries(newMinRunDays)) {
+          numericMinRunDays[key] = Number(val) || 1;
+      }
+      updateOrderMinRunDays(order.id, numericMinRunDays);
   };
 
   const { sewingLines } = useSchedule();
   const sewingProcessIndex = order.processIds.indexOf('sewing');
 
-  const moqAndBatchData = useMemo(() => {
-      const moqs: Record<string, number> = {};
+  const { moqs, processBatchSize } = useMemo(() => {
+      const calculatedMoqs: Record<string, number> = {};
       let maxMoq = 0;
       
       order.processIds.forEach((processId, index) => {
           if (sewingProcessIndex !== -1 && index > sewingProcessIndex) {
-            moqs[processId] = 0;
+            calculatedMoqs[processId] = 0;
             return;
           }
 
@@ -445,13 +455,13 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
                   currentMoq = Math.floor(outputPerMinute * totalMinutes);
               }
           }
-          moqs[processId] = currentMoq;
+          calculatedMoqs[processId] = currentMoq;
           if (currentMoq > maxMoq) {
               maxMoq = currentMoq;
           }
       });
 
-      return { moqs, processBatchSize: maxMoq > 0 ? maxMoq : order.quantity / 5 }; // Fallback batch size
+      return { moqs: calculatedMoqs, processBatchSize: maxMoq > 0 ? maxMoq : order.quantity / 5 }; // Fallback batch size
   }, [minRunDays, order, sewingLines, sewingProcessIndex]);
 
   const singleLineMinDays = useMemo(() => 
@@ -483,7 +493,7 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
   const showWarning = isBudgetUnreachable || isSchemeInefficient;
 
   const handleRecalculate = () => {
-    onTnaGenerate(order, moqAndBatchData.processBatchSize);
+    onTnaGenerate(order, processBatchSize);
   };
 
 
@@ -522,8 +532,8 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
                   order={order}
                   scheduledProcesses={scheduledProcesses}
                   minRunDays={minRunDays}
-                  moqs={moqAndBatchData.moqs}
-                  processBatchSize={moqAndBatchData.processBatchSize}
+                  moqs={moqs}
+                  processBatchSize={processBatchSize}
                   onMinRunDaysChange={handleMinRunDaysChange}
                   totalProductionDays={totalProductionDays}
                 />
@@ -628,6 +638,7 @@ export default function OrdersPage() {
     setSewingLines,
     updateOrderTna,
     updateOrderColor,
+    updateOrderMinRunDays,
   } = useSchedule();
 
   const handleGenerateTna = (order: Order, processBatchSize: number) => {
@@ -690,6 +701,7 @@ export default function OrdersPage() {
                       onSetSewingLines={setSewingLines}
                       numLines={sewingLines[order.id] || 1}
                       scheduledProcesses={scheduledProcesses}
+                      updateOrderMinRunDays={updateOrderMinRunDays}
                     />
                   ))}
                 </TableBody>
@@ -701,5 +713,3 @@ export default function OrdersPage() {
     </div>
   );
 }
-
-    
