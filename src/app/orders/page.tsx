@@ -301,6 +301,7 @@ const TnaPlan = ({ order, scheduledProcesses }: { order: Order; scheduledProcess
                 <TableHead>Process</TableHead>
                 <TableHead className="text-right">SAM</TableHead>
                 <TableHead className="text-right">Setup Time</TableHead>
+                <TableHead className="text-right">Batch Size</TableHead>
                 <TableHead className="text-right">Duration</TableHead>
                 <TableHead>Earliest Start</TableHead>
                 <TableHead>Latest Start</TableHead>
@@ -320,6 +321,7 @@ const TnaPlan = ({ order, scheduledProcesses }: { order: Order; scheduledProcess
                     <TableCell className="font-medium">{process.name}</TableCell>
                     <TableCell className="text-right">{process.sam}</TableCell>
                     <TableCell className="text-right">{tnaProcess?.setupTime ? `${tnaProcess.setupTime} min` : '-'}</TableCell>
+                    <TableCell className="text-right">{process.singleRunOutput}</TableCell>
                     <TableCell className="text-right">{tnaProcess?.durationDays ? `${tnaProcess.durationDays}d` : '-'}</TableCell>
                     <TableCell>{tnaProcess?.earliestStartDate ? format(new Date(tnaProcess.earliestStartDate), 'MMM dd') : '-'}</TableCell>
                     <TableCell>{tnaProcess?.latestStartDate ? format(new Date(tnaProcess.latestStartDate), 'MMM dd') : '-'}</TableCell>
@@ -589,6 +591,8 @@ export default function OrdersPage() {
     </div>
   );
 }
+
+    
 
     
 
