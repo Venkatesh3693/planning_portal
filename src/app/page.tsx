@@ -35,6 +35,11 @@ export type DraggedItemData = {
     process: ScheduledProcess;
 };
 
+type ProcessToSplitState = {
+  processes: ScheduledProcess[];
+  numLines: number;
+} | null;
+
 
 // Helper function to calculate end time considering only working hours
 const calculateEndDateTime = (startDateTime: Date, totalDurationMinutes: number): Date => {
@@ -124,7 +129,7 @@ function GanttPageContent() {
   const [filterBuyer, setFilterBuyer] = useState<string[]>([]);
   const [filterDueDate, setFilterDueDate] = useState<DateRange | undefined>(undefined);
   const [draggedItem, setDraggedItem] = useState<DraggedItemData | null>(null);
-  const [processToSplit, setProcessToSplit] = useState<ScheduledProcess[] | null>(null);
+  const [processToSplit, setProcessToSplit] = useState<ProcessToSplitState>(null);
   const [dates, setDates] = useState<Date[]>([]);
 
 
@@ -261,11 +266,12 @@ function GanttPageContent() {
   };
 
   const handleOpenSplitDialog = (process: ScheduledProcess) => {
+    const numLines = sewingLines[process.orderId] || 1;
     if (process.parentId) {
       const siblings = scheduledProcesses.filter(p => p.parentId === process.parentId);
-      setProcessToSplit(siblings);
+      setProcessToSplit({ processes: siblings, numLines });
     } else {
-      setProcessToSplit([process]);
+      setProcessToSplit({ processes: [process], numLines });
     }
   };
   
@@ -500,7 +506,8 @@ function GanttPageContent() {
       </main>
       
       <SplitProcessDialog
-        processes={processToSplit}
+        processes={processToSplit?.processes ?? null}
+        numLines={processToSplit?.numLines ?? 0}
         isOpen={!!processToSplit}
         onOpenChange={(isOpen) => !isOpen && setProcessToSplit(null)}
         onConfirmSplit={handleConfirmSplit}

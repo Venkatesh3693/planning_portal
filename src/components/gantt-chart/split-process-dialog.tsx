@@ -21,6 +21,7 @@ import { ORDERS, PROCESSES } from '@/lib/data';
 
 type SplitProcessDialogProps = {
   processes: ScheduledProcess[] | null;
+  numLines: number;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirmSplit: (
@@ -31,6 +32,7 @@ type SplitProcessDialogProps = {
 
 export default function SplitProcessDialog({
   processes,
+  numLines,
   isOpen,
   onOpenChange,
   onConfirmSplit,
@@ -119,6 +121,7 @@ export default function SplitProcessDialog({
 
   if (!processes || !processInfo || !orderInfo) return null;
   const isResplit = processes.length > 1 || processes[0].isSplit;
+  const isSewing = processInfo.id === 'sewing';
 
   return (
     <AlertDialog open={isOpen} onOpenChange={onOpenChange}>
@@ -132,6 +135,13 @@ export default function SplitProcessDialog({
         </AlertDialogHeader>
 
         <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+          {isSewing && numLines > 0 && (
+            <div className="px-4">
+              <p className="text-sm text-muted-foreground">
+                Recommended number of lines: <span className="font-semibold text-foreground">{numLines}</span>
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-[1fr_100px_40px] items-center gap-x-4 gap-y-2 text-sm font-medium text-muted-foreground px-4">
             <span>Batch</span>
             <span className="text-right">Quantity</span>
@@ -210,5 +220,3 @@ export default function SplitProcessDialog({
     </AlertDialog>
   );
 }
-
-    
