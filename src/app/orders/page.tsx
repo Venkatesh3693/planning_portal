@@ -253,41 +253,6 @@ const TnaPlan = ({ order, scheduledProcesses }: { order: Order; scheduledProcess
     
     const { ckDate } = order.tna;
     
-    const calculateProcessBatchSize = (order: Order): number => {
-        if (!order.tna) return 0;
-    
-        const sewingProcess = PROCESSES.find(p => p.id === 'sewing');
-        if (!sewingProcess) return 0;
-    
-        const samSewing = sewingProcess.sam;
-        
-        let maxSetupRatio = 0;
-        let maxSingleRunOutput = 0;
-    
-        order.processIds.forEach(pid => {
-            const process = PROCESSES.find(p => p.id === pid);
-            const tnaProcess = order.tna?.processes.find(tp => tp.processId === pid);
-    
-            if (process && tnaProcess) {
-                const samDiff = samSewing - process.sam;
-                if (samDiff > 0) {
-                    const ratio = tnaProcess.setupTime / samDiff;
-                    if (ratio > maxSetupRatio) {
-                        maxSetupRatio = ratio;
-                    }
-                }
-    
-                if (process.singleRunOutput > maxSingleRunOutput) {
-                    maxSingleRunOutput = process.singleRunOutput;
-                }
-            }
-        });
-    
-        return Math.ceil(Math.max(maxSetupRatio, maxSingleRunOutput));
-    };
-    
-    const processBatchSize = calculateProcessBatchSize(order);
-
     const getAggregatedScheduledTimes = (processId: string) => {
         const relevantProcesses = scheduledProcesses.filter(p => p.orderId === order.id && p.processId === processId);
         if (relevantProcesses.length === 0) {
@@ -310,7 +275,7 @@ const TnaPlan = ({ order, scheduledProcesses }: { order: Order; scheduledProcess
 
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-sm">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
             <div className="p-3 bg-muted rounded-md">
                 <div className="font-medium text-muted-foreground">CK Date</div>
                 <div className="font-semibold text-lg">{format(new Date(ckDate), 'MMM dd, yyyy')}</div>
@@ -327,10 +292,6 @@ const TnaPlan = ({ order, scheduledProcesses }: { order: Order; scheduledProcess
                 <div className="font-medium text-muted-foreground">Budgeted Efficiency</div>
                 <div className="font-semibold text-lg">{order.budgetedEfficiency || 'N/A'}%</div>
             </div>
-            <div className="p-3 bg-primary/10 rounded-md ring-1 ring-primary/20 col-span-2 sm:col-span-1">
-                <div className="font-medium text-primary/80">Process Batch Size</div>
-                <div className="font-semibold text-lg text-primary">{processBatchSize.toLocaleString()} units</div>
-            </div>
         </div>
 
         <div className="border rounded-lg overflow-hidden">
@@ -339,11 +300,9 @@ const TnaPlan = ({ order, scheduledProcesses }: { order: Order; scheduledProcess
               <TableRow className="bg-muted/50 hover:bg-muted/50">
                 <TableHead>Process</TableHead>
                 <TableHead className="text-right">SAM</TableHead>
-                <TableHead className="text-right">Setup (min)</TableHead>
-                <TableHead className="text-right">Single Run</TableHead>
+                <TableHead className="text-right">Duration</TableHead>
+                <TableHead>Earliest Start</TableHead>
                 <TableHead>Latest Start</TableHead>
-                <TableHead>Planned Start</TableHead>
-                <TableHead>Planned End</TableHead>
                 <TableHead>Scheduled Start</TableHead>
                 <TableHead>Scheduled End</TableHead>
               </TableRow>
@@ -359,11 +318,9 @@ const TnaPlan = ({ order, scheduledProcesses }: { order: Order; scheduledProcess
                   <TableRow key={process.id}>
                     <TableCell className="font-medium">{process.name}</TableCell>
                     <TableCell className="text-right">{process.sam}</TableCell>
-                    <TableCell className="text-right">{tnaProcess?.setupTime || '-'}</TableCell>
-                    <TableCell className="text-right">{process.singleRunOutput}</TableCell>
+                    <TableCell className="text-right">{tnaProcess?.durationDays ? `${tnaProcess.durationDays}d` : '-'}</TableCell>
+                    <TableCell>{tnaProcess?.earliestStartDate ? format(new Date(tnaProcess.earliestStartDate), 'MMM dd') : '-'}</TableCell>
                     <TableCell>{tnaProcess?.latestStartDate ? format(new Date(tnaProcess.latestStartDate), 'MMM dd') : '-'}</TableCell>
-                    <TableCell>{tnaProcess?.plannedStartDate ? format(new Date(tnaProcess.plannedStartDate), 'MMM dd') : '-'}</TableCell>
-                    <TableCell>{tnaProcess?.plannedEndDate ? format(new Date(tnaProcess.plannedEndDate), 'MMM dd') : '-'}</TableCell>
                     <TableCell>{start ? format(start, 'MMM dd, h:mm a') : <span className="text-muted-foreground">Not set</span>}</TableCell>
                     <TableCell>{end ? format(end, 'MMM dd, h:mm a') : <span className="text-muted-foreground">Not set</span>}</TableCell>
                   </TableRow>
@@ -442,7 +399,7 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
                     <div className="flex items-center gap-2">
                         <Button onClick={() => onTnaGenerate(order)}>
                             <Zap className="h-4 w-4 mr-2"/>
-                            Generate T&amp;A Plan
+                            Generate T&A Plan
                         </Button>
                         <DialogClose asChild>
                             <Button variant="ghost" size="icon" className="rounded-full">
@@ -561,8 +518,8 @@ export default function OrdersPage() {
 
   const handleGenerateTna = (order: Order) => {
     const numLines = sewingLines[order.id] || 1;
-    const newTnaProcesses = generateTnaPlan(order, PROCESSES, numLines);
-    updateOrderTna(order.id, newTnaProcesses);
+    const { newTna, newCkDate } = generateTnaPlan(order, PROCESSES, numLines);
+    updateOrderTna(order.id, newTna, newCkDate);
   };
   
   return (
@@ -630,5 +587,7 @@ export default function OrdersPage() {
     </div>
   );
 }
+
+    
 
     

@@ -1,3 +1,4 @@
+
 import type { LucideIcon } from 'lucide-react';
 
 export type Unit = {
@@ -24,12 +25,10 @@ export type Process = {
 
 export type TnaProcess = {
   processId: string;
-  startDate: string | Date; // Original T&A date, can be kept for reference
-  endDate: string | Date;   // Original T&A date, can be kept for reference
   setupTime: number; // in minutes
+  durationDays?: number;
+  earliestStartDate?: Date;
   latestStartDate?: Date;
-  plannedStartDate?: Date;
-  plannedEndDate?: Date;
 };
 
 export type Tna = {
@@ -70,3 +69,5 @@ export type ScheduledProcess = {
   isSplit?: boolean;
   parentId?: string;
 };
+
+    

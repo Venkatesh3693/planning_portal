@@ -3,7 +3,7 @@ import type { Order, Process, TnaProcess, RampUpEntry } from './types';
 import { WORK_DAY_MINUTES } from './data';
 import { addDays, subDays, getDay } from 'date-fns';
 
-// Helper to add/subtract days while skipping weekends (assuming Sat/Sun are non-working)
+// Helper to add/subtract days while skipping weekends (assuming Sun is non-working)
 function addBusinessDays(startDate: Date, days: number): Date {
   let currentDate = new Date(startDate);
   let daysAdded = 0;
@@ -12,12 +12,25 @@ function addBusinessDays(startDate: Date, days: number): Date {
   while (daysAdded < Math.abs(days)) {
     currentDate.setDate(currentDate.getDate() + increment);
     const dayOfWeek = getDay(currentDate);
-    // Assuming Sunday (0) and Saturday (6) are non-working days
-    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+    if (dayOfWeek !== 0) { // Assuming only Sunday (0) is a non-working day
       daysAdded++;
     }
   }
   return currentDate;
+}
+
+function subBusinessDays(startDate: Date, days: number): Date {
+    let currentDate = new Date(startDate);
+    let daysSubtracted = 0;
+
+    while(daysSubtracted < days) {
+        currentDate.setDate(currentDate.getDate() - 1);
+        const dayOfWeek = getDay(currentDate);
+        if (dayOfWeek !== 0) {
+            daysSubtracted++;
+        }
+    }
+    return currentDate;
 }
 
 
@@ -93,9 +106,9 @@ export function generateTnaPlan(
     order: Order, 
     processes: Process[], 
     numLinesForSewing: number
-): TnaProcess[] {
+): { newTna: TnaProcess[], newCkDate: Date } {
 
-    // --- Phase 1: Calculate Durations & Batch Info ---
+    // --- Phase 1: Calculate Durations ---
     const metrics = order.processIds.map(pid => {
         const process = processes.find(p => p.id === pid)!;
         let durationDays;
@@ -119,50 +132,67 @@ export function generateTnaPlan(
         return { processId, daysToProduceBatch };
     });
 
-    // --- Phase 2: Backward Pass (Latest Dates) ---
-    const latestDates: { [key: string]: { latestStartDate: Date, latestEndDate: Date } } = {};
-    let nextProcessStartDate = addDays(new Date(order.dueDate), 1); // Start from the day after due date
-
+    // --- Phase 2: ASAP Calculation (Forward Pass) ---
+    // First, find the critical path latest start date (Finish-to-Start) to anchor our ASAP plan
+    let ftsLatestStartDateAnchor = new Date(order.dueDate);
     [...order.processIds].reverse().forEach(pid => {
-        const processMetric = metrics.find(m => m.processId === pid)!;
-        const latestEndDate = subDays(nextProcessStartDate, 1); // Ends the day before the next one starts
-        const latestStartDate = addBusinessDays(latestEndDate, -processMetric.durationDays + 1);
+        const metric = metrics.find(m => m.processId === pid)!;
+        ftsLatestStartDateAnchor = subBusinessDays(ftsLatestStartDateAnchor, metric.durationDays);
+    });
+    
+    const earliestDates: { [key: string]: { earliestStartDate: Date } } = {};
+    let previousProcessStartDate: Date | null = ftsLatestStartDateAnchor;
+    
+    order.processIds.forEach((pid, index) => {
+        let currentEarliestStartDate: Date;
 
-        latestDates[pid] = { latestStartDate, latestEndDate };
-        nextProcessStartDate = latestStartDate;
+        if (index === 0) {
+            currentEarliestStartDate = ftsLatestStartDateAnchor;
+        } else {
+            const predecessorId = order.processIds[index-1];
+            const predecessorBatchMetric = batchMetrics.find(m => m.processId === predecessorId)!;
+            currentEarliestStartDate = addBusinessDays(previousProcessStartDate!, predecessorBatchMetric.daysToProduceBatch);
+        }
+        earliestDates[pid] = { earliestStartDate: currentEarliestStartDate };
+        previousProcessStartDate = currentEarliestStartDate;
     });
 
-    // --- Phase 3: Forward Pass & Finalization (ASAP Plan) ---
-    const finalPlan: TnaProcess[] = [];
-    let previousProcessPlannedStartDate: Date | null = null;
+    // --- Phase 3: ALAP Calculation (Backward Pass) ---
+    const latestDates: { [key: string]: { latestStartDate: Date } } = {};
+    let nextProcessLatestStartDate = new Date(order.dueDate);
+    
+    [...order.processIds].reverse().forEach((pid, index) => {
+        const isLastProcess = index === 0;
+        let currentLatestStartDate: Date;
 
-    order.processIds.forEach((pid, index) => {
-        const originalTnaProcess = order.tna?.processes.find(p => p.processId === pid)!;
-        const processMetric = metrics.find(m => m.processId === pid)!;
-
-        let plannedStartDate: Date;
-
-        if (index === 0) { // First process
-            plannedStartDate = latestDates[pid].latestStartDate;
+        if (isLastProcess) {
+            const metric = metrics.find(m => m.processId === pid)!;
+            currentLatestStartDate = subBusinessDays(nextProcessLatestStartDate, metric.durationDays);
         } else {
-            const predecessorId = order.processIds[index - 1];
-            const predecessorBatchMetric = batchMetrics.find(m => m.processId === predecessorId)!;
-            const earliestStartDate = addBusinessDays(previousProcessPlannedStartDate!, predecessorBatchMetric.daysToProduceBatch);
-            
-            plannedStartDate = earliestStartDate;
+            const successorId = order.processIds[order.processIds.length - index];
+            const successorBatchMetric = batchMetrics.find(b => b.processId === successorId)!;
+            currentLatestStartDate = subBusinessDays(nextProcessLatestStartDate, successorBatchMetric.daysToProduceBatch);
         }
         
-        const plannedEndDate = addBusinessDays(plannedStartDate, processMetric.durationDays - 1);
-        
-        finalPlan.push({
+        latestDates[pid] = { latestStartDate: currentLatestStartDate };
+        nextProcessLatestStartDate = currentLatestStartDate;
+    });
+    
+    // --- Finalization ---
+    const newTna: TnaProcess[] = order.processIds.map(pid => {
+        const originalTnaProcess = order.tna?.processes.find(p => p.processId === pid)!;
+        const processMetric = metrics.find(m => m.processId === pid)!;
+        return {
             ...originalTnaProcess,
+            durationDays: processMetric.durationDays,
+            earliestStartDate: earliestDates[pid].earliestStartDate,
             latestStartDate: latestDates[pid].latestStartDate,
-            plannedStartDate: plannedStartDate,
-            plannedEndDate: plannedEndDate,
-        });
-
-        previousProcessPlannedStartDate = plannedStartDate;
+        };
     });
 
-    return finalPlan;
+    const newCkDate = subBusinessDays(ftsLatestStartDateAnchor, 3);
+
+    return { newTna, newCkDate };
 }
+
+    

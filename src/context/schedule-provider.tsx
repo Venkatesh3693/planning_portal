@@ -18,7 +18,7 @@ type ScheduleContextType = {
   setScheduledProcesses: Dispatch<SetStateAction<ScheduledProcess[]>>;
   sewingRampUpSchemes: SewingRampUpSchemes;
   updateSewingRampUpScheme: (orderId: string, scheme: RampUpEntry[]) => void;
-  updateOrderTna: (orderId: string, newTnaProcesses: TnaProcess[]) => void;
+  updateOrderTna: (orderId: string, newTnaProcesses: TnaProcess[], newCkDate: Date) => void;
   updateOrderColor: (orderId: string, color: string) => void;
   sewingLines: SewingLines;
   setSewingLines: (orderId: string, lines: number) => void;
@@ -58,8 +58,13 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
       // Hydrate orders: Start with static, then apply overrides
       const hydratedOrders = staticOrders.map((baseOrder, index) => {
         const override = loadedOverrides[baseOrder.id];
-        const hydratedTna: Tna = { ...(baseOrder.tna as Tna) };
         
+        // Start with a clone of the base TNA
+        const hydratedTna: Tna = { ...(baseOrder.tna as Tna) };
+        if(override?.tna?.ckDate) {
+          hydratedTna.ckDate = new Date(override.tna.ckDate);
+        }
+
         if (override?.tna?.processes) {
             const storedProcessMap = new Map(override.tna.processes.map(p => [p.processId, p]));
             hydratedTna.processes = hydratedTna.processes.map(baseProcess => {
@@ -67,8 +72,8 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
                 if (storedProcess) {
                     return {
                         ...baseProcess,
-                        plannedStartDate: storedProcess.plannedStartDate ? new Date(storedProcess.plannedStartDate) : undefined,
-                        plannedEndDate: storedProcess.plannedEndDate ? new Date(storedProcess.plannedEndDate) : undefined,
+                        durationDays: storedProcess.durationDays,
+                        earliestStartDate: storedProcess.earliestStartDate ? new Date(storedProcess.earliestStartDate) : undefined,
                         latestStartDate: storedProcess.latestStartDate ? new Date(storedProcess.latestStartDate) : undefined,
                     };
                 }
@@ -110,21 +115,18 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     }
   }, [scheduledProcesses, sewingLines, orderOverrides, isScheduleLoaded]);
 
-  const updateOrderTna = (orderId: string, newTnaProcesses: TnaProcess[]) => {
+  const updateOrderTna = (orderId: string, newTnaProcesses: TnaProcess[], newCkDate: Date) => {
       setOrderOverrides(prev => ({
         ...prev,
         [orderId]: {
           ...prev[orderId],
           tna: {
-            // This assumes the rest of the TNA structure is static and doesn't need to be stored
-            ...(prev[orderId]?.tna || {}),
+            ckDate: newCkDate,
             processes: newTnaProcesses.map(p => ({
               processId: p.processId,
-              startDate: p.startDate,
-              endDate: p.endDate,
               setupTime: p.setupTime,
-              plannedStartDate: p.plannedStartDate,
-              plannedEndDate: p.plannedEndDate,
+              durationDays: p.durationDays,
+              earliestStartDate: p.earliestStartDate,
               latestStartDate: p.latestStartDate,
             }))
           }
@@ -160,22 +162,29 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         const updatedOrder = { ...order };
         if (override.displayColor) updatedOrder.displayColor = override.displayColor;
         if (override.sewingRampUpScheme) updatedOrder.sewingRampUpScheme = override.sewingRampUpScheme;
-        if (override.tna && override.tna.processes) {
-           const storedProcessMap = new Map(override.tna.processes.map(p => [p.processId, p]));
-           const newTnaProcesses = (updatedOrder.tna?.processes || []).map(baseProcess => {
-               const storedProcess = storedProcessMap.get(baseProcess.processId);
-               if (storedProcess) {
-                   return {
-                       ...baseProcess,
-                       plannedStartDate: storedProcess.plannedStartDate ? new Date(storedProcess.plannedStartDate) : undefined,
-                       plannedEndDate: storedProcess.plannedEndDate ? new Date(storedProcess.plannedEndDate) : undefined,
-                       latestStartDate: storedProcess.latestStartDate ? new Date(storedProcess.latestStartDate) : undefined,
-                   };
-               }
-               return baseProcess;
-           });
-           updatedOrder.tna = { ...updatedOrder.tna as Tna, processes: newTnaProcesses };
+        
+        if (override.tna) {
+           const newTna = { ...updatedOrder.tna } as Tna;
+           if(override.tna.ckDate) newTna.ckDate = new Date(override.tna.ckDate);
+           
+           if(override.tna.processes){
+              const storedProcessMap = new Map(override.tna.processes.map(p => [p.processId, p]));
+              newTna.processes = (updatedOrder.tna?.processes || []).map(baseProcess => {
+                  const storedProcess = storedProcessMap.get(baseProcess.processId);
+                  if (storedProcess) {
+                      return {
+                          ...baseProcess,
+                          durationDays: storedProcess.durationDays,
+                          earliestStartDate: storedProcess.earliestStartDate ? new Date(storedProcess.earliestStartDate) : undefined,
+                          latestStartDate: storedProcess.latestStartDate ? new Date(storedProcess.latestStartDate) : undefined,
+                      };
+                  }
+                  return baseProcess;
+              });
+           }
+           updatedOrder.tna = newTna;
         }
+
         return updatedOrder;
     }));
   }, [orderOverrides, isScheduleLoaded]);
@@ -216,3 +225,5 @@ export function useSchedule(): ScheduleContextType {
   }
   return context;
 }
+
+    
