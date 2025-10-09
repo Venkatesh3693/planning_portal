@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { Order, TnaProcess } from '@/lib/types';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import type { DraggedItemData } from '@/app/page';
 import {
   Popover,
@@ -170,14 +170,18 @@ export default function MachinePanel({
                   (p) => p.processId === selectedProcessId
                 ) ?? null;
 
+              const latestEndDate = tnaProcess?.latestStartDate && tnaProcess?.durationDays 
+                ? addDays(tnaProcess.latestStartDate, tnaProcess.durationDays) 
+                : null;
+
               const item: DraggedItemData = {
                 type: 'new',
                 orderId: order.id,
                 processId: selectedProcessId,
                 quantity: order.quantity,
-                tna: tnaProcess?.plannedStartDate && tnaProcess?.latestStartDate
+                tna: tnaProcess?.earliestStartDate && tnaProcess?.latestStartDate
                   ? {
-                      startDate: new Date(tnaProcess.plannedStartDate),
+                      startDate: new Date(tnaProcess.earliestStartDate),
                       endDate: new Date(tnaProcess.latestStartDate),
                     }
                   : null,
@@ -195,7 +199,7 @@ export default function MachinePanel({
                     <span className="font-semibold">{order.id}</span>
                     <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
                       <span>
-                        Ship: {format(new Date(order.dueDate), 'MMM dd')}
+                        Deadline: {latestEndDate ? format(latestEndDate, 'MMM dd') : 'N/A'}
                       </span>
                       {selectedProcessId === SEWING_PROCESS_ID && (
                         <span>{numLines} {numLines > 1 ? 'Lines' : 'Line'}</span>
