@@ -120,7 +120,7 @@ const calculateSewingDuration = (order: Order, quantity: number): number => {
 
 
 function GanttPageContent() {
-  const { orders, scheduledProcesses, setScheduledProcesses, isScheduleLoaded, sewingLines } = useSchedule();
+  const { orders, scheduledProcesses, setScheduledProcesses, isScheduleLoaded, sewingLines, timelineEndDate, setTimelineEndDate } = useSchedule();
 
   const [selectedProcessId, setSelectedProcessId] = useState<string>('sewing');
   const [viewMode, setViewMode] = useState<'day' | 'hour'>('day');
@@ -131,7 +131,6 @@ function GanttPageContent() {
   const [dueDateSort, setDueDateSort] = useState<'asc' | 'desc' | null>(null);
   const [draggedItem, setDraggedItem] = useState<DraggedItemData | null>(null);
   const [processToSplit, setProcessToSplit] = useState<ProcessToSplitState>(null);
-  const [timelineEndDate, setTimelineEndDate] = useState(() => addDays(startOfToday(), 90));
 
   const dates = useMemo(() => {
     const today = startOfToday();

@@ -4,13 +4,13 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, Dispatch, SetStateAction, useMemo } from 'react';
 import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess } from '@/lib/types';
 import { ORDERS as staticOrders, ORDER_COLORS } from '@/lib/data';
+import { addDays, startOfToday, isAfter } from 'date-fns';
 
 const STORE_KEY = 'stitchplan_schedule_v2';
 
 type SewingRampUpSchemes = Record<string, RampUpEntry[]>;
 type SewingLines = Record<string, number>;
 type StoredOrderOverrides = Record<string, Partial<Pick<Order, 'displayColor' | 'sewingRampUpScheme' | 'tna'>>>;
-
 
 type ScheduleContextType = {
   orders: Order[];
@@ -23,6 +23,8 @@ type ScheduleContextType = {
   updateOrderMinRunDays: (orderId: string, minRunDays: Record<string, number>) => void;
   sewingLines: SewingLines;
   setSewingLines: (orderId: string, lines: number) => void;
+  timelineEndDate: Date;
+  setTimelineEndDate: Dispatch<SetStateAction<Date>>;
   isScheduleLoaded: boolean;
 };
 
@@ -33,6 +35,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   const [scheduledProcesses, setScheduledProcesses] = useState<ScheduledProcess[]>([]);
   const [sewingLines, setSewingLinesState] = useState<SewingLines>({});
   const [orderOverrides, setOrderOverrides] = useState<StoredOrderOverrides>({});
+  const [timelineEndDate, setTimelineEndDate] = useState(() => addDays(startOfToday(), 90));
   const [isScheduleLoaded, setIsScheduleLoaded] = useState(false);
 
   // Load from localStorage on initial mount
@@ -40,21 +43,38 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     try {
       const serializedState = localStorage.getItem(STORE_KEY);
       let loadedOverrides: StoredOrderOverrides = {};
+      let maxEndDate = addDays(startOfToday(), 90);
       
       if (serializedState) {
         const storedData = JSON.parse(serializedState);
         
-        const loadedProcesses = (storedData.scheduledProcesses || []).map((p: any) => ({
-          ...p,
-          startDateTime: new Date(p.startDateTime),
-          endDateTime: new Date(p.endDateTime),
-        }));
+        const loadedProcesses = (storedData.scheduledProcesses || []).map((p: any) => {
+          const endDateTime = new Date(p.endDateTime);
+          if (isAfter(endDateTime, maxEndDate)) {
+              maxEndDate = endDateTime;
+          }
+          return {
+            ...p,
+            startDateTime: new Date(p.startDateTime),
+            endDateTime: endDateTime,
+          };
+        });
         
         setScheduledProcesses(loadedProcesses);
         setSewingLinesState(storedData.sewingLines || {});
         loadedOverrides = storedData.orderOverrides || {};
         setOrderOverrides(loadedOverrides);
+
+        if (storedData.timelineEndDate) {
+            const storedEndDate = new Date(storedData.timelineEndDate);
+            if (isAfter(storedEndDate, maxEndDate)) {
+                maxEndDate = storedEndDate;
+            }
+        }
       }
+
+      setTimelineEndDate(addDays(maxEndDate, 3));
+
 
       // Hydrate orders: Start with static, then apply overrides
       const hydratedOrders = staticOrders.map((baseOrder, index) => {
@@ -113,13 +133,14 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         scheduledProcesses,
         sewingLines,
         orderOverrides,
+        timelineEndDate,
       };
       const serializedState = JSON.stringify(stateToSave);
       localStorage.setItem(STORE_KEY, serializedState);
     } catch (err) {
       console.error("Could not save schedule to localStorage", err);
     }
-  }, [scheduledProcesses, sewingLines, orderOverrides, isScheduleLoaded]);
+  }, [scheduledProcesses, sewingLines, orderOverrides, timelineEndDate, isScheduleLoaded]);
 
   const updateOrderTna = (orderId: string, newTnaProcesses: TnaProcess[], newCkDate: Date) => {
       setOrderOverrides(prev => {
@@ -235,6 +256,8 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     updateOrderMinRunDays,
     sewingLines,
     setSewingLines,
+    timelineEndDate,
+    setTimelineEndDate,
     isScheduleLoaded 
   };
 
