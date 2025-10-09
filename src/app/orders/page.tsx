@@ -483,6 +483,8 @@ export default function OrdersPage() {
                       const daysToBudget = calculateDaysToMeetBudget(order.sewingRampUpScheme || [], order.budgetedEfficiency || 0);
 
                       const isBudgetUnreachable = daysToBudget === Infinity;
+                      const isSchemeInefficient = typeof daysToBudget === 'number' && totalProductionDays > 0 && daysToBudget > totalProductionDays;
+                      const showWarning = isBudgetUnreachable || isSchemeInefficient;
 
                       return (
                         <TableRow key={order.id}>
@@ -511,7 +513,7 @@ export default function OrdersPage() {
                           </TableCell>
                           <TableCell>
                               <Button variant="outline" size="sm" onClick={() => setRampUpState({ order, singleLineMinDays })}>
-                                {isBudgetUnreachable && <AlertCircle className="h-4 w-4 mr-2 text-destructive" />}
+                                {showWarning && <AlertCircle className="h-4 w-4 mr-2 text-destructive" />}
                                 <LineChart className="h-4 w-4 mr-2" />
                                 Scheme
                               </Button>
@@ -593,4 +595,5 @@ export default function OrdersPage() {
       </main>
     </div>
   );
-}
+
+    
