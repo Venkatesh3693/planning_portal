@@ -431,7 +431,7 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
                 {order.id}
               </span>
             </DialogTrigger>
-            <DialogContent className="max-w-6xl p-0">
+            <DialogContent className="max-w-6xl p-0" hideClose>
                 <DialogHeader className="flex-row justify-between items-center p-6 pb-0">
                     <div>
                     <DialogTitle>{order.ocn} - {order.style} ({order.color})</DialogTitle>
@@ -451,7 +451,7 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
                         </DialogClose>
                     </div>
                 </DialogHeader>
-              <div className="p-6">
+              <div className="p-6 pt-4">
                 <TnaPlan 
                   order={order}
                   scheduledProcesses={scheduledProcesses}
