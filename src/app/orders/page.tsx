@@ -460,8 +460,10 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
               maxMoq = currentMoq;
           }
       });
+      
+      const finalBatchSize = maxMoq > order.quantity ? order.quantity : maxMoq;
 
-      return { moqs: calculatedMoqs, processBatchSize: maxMoq > 0 ? maxMoq : order.quantity / 5 }; // Fallback batch size
+      return { moqs: calculatedMoqs, processBatchSize: finalBatchSize > 0 ? finalBatchSize : order.quantity / 5 }; // Fallback batch size
   }, [minRunDays, order, sewingLines, sewingProcessIndex]);
 
   const singleLineMinDays = useMemo(() => 
