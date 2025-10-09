@@ -1,13 +1,12 @@
 
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
 import { addDays, startOfToday, getDay, set, isAfter, addMinutes } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
-import { MACHINES, PROCESSES, ORDERS as staticOrders, WORK_DAY_MINUTES, ORDER_COLORS } from '@/lib/data';
-import type { Order, ScheduledProcess, Tna, TnaProcess } from '@/lib/types';
+import { MACHINES, PROCESSES, WORK_DAY_MINUTES } from '@/lib/data';
+import type { Order, ScheduledProcess, TnaProcess } from '@/lib/types';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
@@ -101,13 +100,13 @@ const calculateSewingDuration = (order: Order, quantity: number): number => {
         const outputPerMinute = 1 / effectiveSam;
         
         const minutesLeftInWorkDay = WORK_DAY_MINUTES - (totalMinutes % WORK_DAY_MINUTES);
-        const maxOutputForRestOfDay = minutesLeftInWorkDay * outputPerMinute;
+        const maxOutputForRestOfDay = minutesLeftInDay * outputPerMinute;
 
         if (remainingQty <= maxOutputForRestOfDay) {
             totalMinutes += remainingQty / outputPerMinute;
             remainingQty = 0;
         } else {
-            totalMinutes += minutesLeftInWorkDay;
+            totalMinutes += minutesLeftInDay;
             remainingQty -= maxOutputForRestOfDay;
         }
     }
@@ -115,66 +114,13 @@ const calculateSewingDuration = (order: Order, quantity: number): number => {
 };
 
 const calculateMinSewingDaysDuration = (order: Order) => {
-  const sewingProcess = PROCESSES.find(p => p.id === SEWING_PROCESS_ID);
-  if (!sewingProcess || !order.quantity || !order.sewingRampUpScheme || order.sewingRampUpScheme.length === 0) return 0;
-
   const singleLineDuration = calculateSewingDuration(order, order.quantity);
   return singleLineDuration;
 };
 
 
 function GanttPageContent() {
-  const { scheduledProcesses, setScheduledProcesses, sewingRampUpSchemes, isScheduleLoaded, sewingLines } = useSchedule();
-  
-  const [orders, setOrders] = useState<Order[]>([]);
-
-  useEffect(() => {
-    if (isScheduleLoaded) {
-      const colorMapRaw = localStorage.getItem('stitchplan_order_colors');
-      const scheduleRaw = localStorage.getItem('stitchplan_schedule_v2');
-      const colorMap = colorMapRaw ? JSON.parse(colorMapRaw) : {};
-      const scheduleData = scheduleRaw ? JSON.parse(scheduleRaw) : {sewingRampUpSchemes: {}};
-      
-      const ordersWithData = staticOrders.map((baseOrder, index) => {
-        const orderId = baseOrder.id;
-        const rampUpScheme = scheduleData.sewingRampUpSchemes?.[orderId];
-        const storedOrder = scheduleData?.orders?.[orderId];
-        
-        // Start with the base TNA from static data
-        const hydratedTna: Tna = { ...(baseOrder.tna as Tna) };
-        
-        // If there's a stored TNA, intelligently merge its process dates
-        if (storedOrder?.tna?.processes && hydratedTna.processes) {
-            const storedProcessMap = new Map(
-                (storedOrder.tna.processes as TnaProcess[]).map(p => [p.processId, p])
-            );
-
-            hydratedTna.processes = hydratedTna.processes.map(baseProcess => {
-                const storedProcess = storedProcessMap.get(baseProcess.processId);
-                if (storedProcess) {
-                    return {
-                        ...baseProcess, // Keep base data like setupTime
-                        // Override with stored generated dates
-                        plannedStartDate: storedProcess.plannedStartDate ? new Date(storedProcess.plannedStartDate) : undefined,
-                        plannedEndDate: storedProcess.plannedEndDate ? new Date(storedProcess.plannedEndDate) : undefined,
-                        latestStartDate: storedProcess.latestStartDate ? new Date(storedProcess.latestStartDate) : undefined,
-                    };
-                }
-                return baseProcess;
-            });
-        }
-        
-        return {
-          ...baseOrder,
-          displayColor: colorMap[orderId] || ORDER_COLORS[index % ORDER_COLORS.length],
-          sewingRampUpScheme: rampUpScheme || [{ day: 1, efficiency: baseOrder.budgetedEfficiency || 85 }],
-          tna: hydratedTna,
-        };
-      });
-      setOrders(ordersWithData);
-    }
-  }, [isScheduleLoaded, scheduledProcesses]);
-
+  const { orders, scheduledProcesses, setScheduledProcesses, isScheduleLoaded } = useSchedule();
 
   const [selectedProcessId, setSelectedProcessId] = useState<string>('sewing');
   const [viewMode, setViewMode] = useState<'day' | 'hour'>('day');
@@ -461,8 +407,7 @@ function GanttPageContent() {
 
   const handleClearSchedule = () => {
     if (selectedProcessId === 'pab') return;
-    const remainingProcesses = scheduledProcesses.filter(p => p.processId !== selectedProcessId);
-    setScheduledProcesses(remainingProcesses);
+    setScheduledProcesses(prev => prev.filter(p => p.processId !== selectedProcessId));
   };
 
   if (dates.length === 0 || !isScheduleLoaded) {

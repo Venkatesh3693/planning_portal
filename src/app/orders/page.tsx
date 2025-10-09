@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -21,7 +20,7 @@ import {
 } from '@/components/ui/dialog';
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
-import { PROCESSES, ORDERS as staticOrders, ORDER_COLORS, WORK_DAY_MINUTES } from '@/lib/data';
+import { PROCESSES, WORK_DAY_MINUTES } from '@/lib/data';
 import type { Order, Process, ScheduledProcess, RampUpEntry, Tna, TnaProcess } from '@/lib/types';
 import { format, isAfter, isBefore, startOfDay } from 'date-fns';
 import {
@@ -146,9 +145,9 @@ const calculateDaysToMeetBudget = (
   let lastEfficiency = 0;
   
   for (const entry of sortedScheme) {
-    const daysInStep = entry.day - lastDay;
-    if (daysInStep > 0) {
-      const avgDuringStep = (rampUpTotalEfficiency + (daysInStep * lastEfficiency)) / (rampUpTotalDays + daysInStep);
+    const daysInThisStep = entry.day - lastDay;
+    if (daysInThisStep > 0) {
+      const avgDuringStep = (rampUpTotalEfficiency + (daysInThisStep * lastEfficiency)) / (rampUpTotalDays + daysInThisStep);
       if (avgDuringStep >= budgetedEfficiency) {
           // find the exact day
           let day = rampUpTotalDays + 1;
@@ -158,8 +157,8 @@ const calculateDaysToMeetBudget = (
             day++;
           }
       }
-      rampUpTotalEfficiency += daysInStep * lastEfficiency;
-      rampUpTotalDays += daysInStep;
+      rampUpTotalEfficiency += daysInThisStep * lastEfficiency;
+      rampUpTotalDays += daysInThisStep;
     }
 
     if((rampUpTotalEfficiency + entry.efficiency) / (rampUpTotalDays + 1) >= budgetedEfficiency) {
@@ -205,58 +204,15 @@ type RampUpDialogState = {
 };
 
 export default function OrdersPage() {
-  const { scheduledProcesses, sewingRampUpSchemes, updateSewingRampUpScheme, isScheduleLoaded, sewingLines, setSewingLines } = useSchedule();
-  const [orders, setOrders] = useState<Order[]>(staticOrders);
-  
-  useEffect(() => {
-    if (isScheduleLoaded) {
-      const colorMapRaw = localStorage.getItem('stitchplan_order_colors');
-      const scheduleRaw = localStorage.getItem('stitchplan_schedule_v2');
-
-      const colorMap = colorMapRaw ? JSON.parse(colorMapRaw) : {};
-      const scheduleData = scheduleRaw ? JSON.parse(scheduleRaw) : null;
-      
-      setOrders(currentOrders => 
-        staticOrders.map((baseOrder, index) => {
-          const orderId = baseOrder.id;
-          const rampUpScheme = scheduleData?.sewingRampUpSchemes?.[orderId];
-          const storedOrder = scheduleData?.orders?.[orderId];
-
-          // Start with the base TNA from static data
-          const hydratedTna: Tna = { ...(baseOrder.tna as Tna) };
-          
-          // If there's a stored TNA, intelligently merge its process dates
-          if (storedOrder?.tna?.processes && hydratedTna.processes) {
-              const storedProcessMap = new Map(
-                  (storedOrder.tna.processes as TnaProcess[]).map(p => [p.processId, p])
-              );
-
-              hydratedTna.processes = hydratedTna.processes.map(baseProcess => {
-                  const storedProcess = storedProcessMap.get(baseProcess.processId);
-                  if (storedProcess) {
-                      return {
-                          ...baseProcess, // Keep base data like setupTime
-                          // Override with stored generated dates
-                          plannedStartDate: storedProcess.plannedStartDate ? new Date(storedProcess.plannedStartDate) : undefined,
-                          plannedEndDate: storedProcess.plannedEndDate ? new Date(storedProcess.plannedEndDate) : undefined,
-                          latestStartDate: storedProcess.latestStartDate ? new Date(storedProcess.latestStartDate) : undefined,
-                      };
-                  }
-                  return baseProcess;
-              });
-          }
-
-          return { 
-            ...baseOrder,
-            sewingRampUpScheme: rampUpScheme || [{ day: 1, efficiency: baseOrder.budgetedEfficiency || 85 }],
-            displayColor: colorMap[orderId] || ORDER_COLORS[index % ORDER_COLORS.length],
-            tna: hydratedTna,
-          };
-        })
-      );
-    }
-  }, [sewingRampUpSchemes, isScheduleLoaded]);
-
+  const { 
+    orders, 
+    scheduledProcesses, 
+    updateSewingRampUpScheme, 
+    sewingLines, 
+    setSewingLines,
+    updateOrderTna,
+    updateOrderColor,
+  } = useSchedule();
   
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [rampUpState, setRampUpState] = useState<RampUpDialogState | null>(null);
@@ -266,15 +222,7 @@ export default function OrdersPage() {
   };
   
   const handleColorChange = (orderId: string, newColor: string) => {
-    const newOrders = orders.map(o => 
-        o.id === orderId ? { ...o, displayColor: newColor } : o
-    );
-    setOrders(newOrders);
-    
-    const colorMapRaw = localStorage.getItem('stitchplan_order_colors');
-    const colorMap = colorMapRaw ? JSON.parse(colorMapRaw) : {};
-    colorMap[orderId] = newColor;
-    localStorage.setItem('stitchplan_order_colors', JSON.stringify(colorMap));
+    updateOrderColor(orderId, newColor);
   };
   
   const handleRampUpSave = (orderId: string, scheme: RampUpEntry[]) => {
@@ -286,6 +234,10 @@ export default function OrdersPage() {
     const numLines = sewingLines[order.id] || 1;
     const newTnaProcesses = generateTnaPlan(order, PROCESSES, numLines);
     
+    updateOrderTna(order.id, newTnaProcesses);
+
+    // After updating context, the 'orders' prop will change, triggering a re-render.
+    // We need to update the selectedOrder state to reflect the new TNA.
     const updatedOrder: Order = { 
         ...order, 
         tna: {
@@ -293,18 +245,7 @@ export default function OrdersPage() {
             processes: newTnaProcesses,
         }
     };
-    
-    setOrders(prevOrders => 
-        prevOrders.map(o => o.id === order.id ? updatedOrder : o)
-    );
     setSelectedOrder(updatedOrder);
-
-     // Also save this generated TNA to local storage via the schedule provider
-     const scheduleRaw = localStorage.getItem('stitchplan_schedule_v2');
-     const scheduleData = scheduleRaw ? JSON.parse(scheduleRaw) : {};
-     if (!scheduleData.orders) scheduleData.orders = {};
-     scheduleData.orders[order.id] = { ...scheduleData.orders[order.id], tna: updatedOrder.tna };
-     localStorage.setItem('stitchplan_schedule_v2', JSON.stringify(scheduleData));
   };
 
   const getEhdForOrder = (orderId: string) => {
@@ -410,7 +351,7 @@ export default function OrdersPage() {
             </div>
             <Button onClick={() => onGenerate(order)}>
                 <Zap className="h-4 w-4 mr-2"/>
-                Generate T&A Plan
+                Generate T&amp;A Plan
             </Button>
         </div>
 
