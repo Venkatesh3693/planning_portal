@@ -6,7 +6,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { addDays, startOfToday, getDay, set, isAfter, addMinutes } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
-import { MACHINES, PROCESSES, ORDERS as staticOrders, WORK_DAY_MINUTES } from '@/lib/data';
+import { MACHINES, PROCESSES, ORDERS as staticOrders, WORK_DAY_MINUTES, ORDER_COLORS } from '@/lib/data';
 import type { Order, ScheduledProcess, TnaProcess, RampUpEntry } from '@/lib/types';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -112,6 +112,43 @@ const calculateSewingDuration = (quantity: number, sam: number, rampUpScheme: Ra
     return totalMinutes;
 };
 
+const calculateMinDays = (order: Order, sewingSam: number, rampUpScheme: RampUpEntry[]) => {
+  const scheme = rampUpScheme || [];
+  if (!order.quantity || !sewingSam || scheme.length === 0) return 0;
+
+  let remainingQty = order.quantity;
+  let minutes = 0;
+
+  while (remainingQty > 0) {
+    const currentDay = Math.floor(minutes / WORK_DAY_MINUTES) + 1;
+    let efficiency = scheme[scheme.length - 1]?.efficiency; // Default to peak
+    for (const entry of scheme) {
+        if(currentDay >= entry.day) {
+            efficiency = entry.efficiency;
+        }
+    }
+
+    if (!efficiency || efficiency <= 0) {
+      return Infinity; // Avoid infinite loops if efficiency is 0 or undefined
+    }
+
+    const effectiveSam = sewingSam / (efficiency / 100);
+    const outputPerMinute = 1 / effectiveSam;
+    
+    const minutesToNextDay = WORK_DAY_MINUTES - (minutes % WORK_DAY_MINUTES);
+    const maxOutputForRestOfDay = minutesToNextDay * outputPerMinute;
+
+    if (remainingQty <= maxOutputForRestOfDay) {
+      minutes += remainingQty / outputPerMinute;
+      remainingQty = 0;
+    } else {
+      minutes += minutesToNextDay;
+      remainingQty -= maxOutputForRestOfDay;
+    }
+  }
+  return minutes / WORK_DAY_MINUTES;
+};
+
 
 function GanttPageContent() {
   const { scheduledProcesses, setScheduledProcesses, sewingRampUpSchemes, isScheduleLoaded, sewingLines } = useSchedule();
@@ -183,7 +220,7 @@ function GanttPageContent() {
       let durationMinutes;
       if (process.id === SEWING_PROCESS_ID) {
         const rampUpScheme = order.sewingRampUpScheme || [{ day: 1, efficiency: order.budgetedEfficiency || 100 }];
-        const singleLineDurationMinutes = calculateSewingDuration(droppedItem.quantity, process.sam, rampUpScheme);
+        const singleLineDurationMinutes = calculateMinDays(order, process.sam, rampUpScheme) * WORK_DAY_MINUTES;
         durationMinutes = singleLineDurationMinutes;
       } else {
         durationMinutes = process.sam * droppedItem.quantity;
