@@ -3,7 +3,7 @@
 
 import * as React from 'react';
 import type { PabData } from '@/hooks/use-pab-data';
-import { format, getMonth, isBefore, startOfDay } from 'date-fns';
+import { format, getMonth, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { ChevronRight } from 'lucide-react';
 
@@ -172,14 +172,12 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
                             const dateKey = format(date, 'yyyy-MM-dd');
 
                             if (row.type === 'process') {
+                              const processDateRange = pabData.processDateRanges[row.content.orderId]?.[row.content.processId];
+                              
+                              if (processDateRange && isWithinInterval(date, { start: startOfDay(processDateRange.start), end: endOfDay(processDateRange.end) })) {
                                 const pab = pabData.data[row.content.orderId]?.[row.content.processId]?.[dateKey];
-                                const processStartDate = pabData.processStartDates[row.content.orderId]?.[row.content.processId];
-                                const isDateBeforeProcessStart = processStartDate ? isBefore(startOfDay(date), startOfDay(processStartDate)) : true;
-                                
-                                const hasActivity = (pabData.dailyInputs[row.content.orderId]?.[row.content.processId]?.[dateKey] || 0) > 0 || (pabData.dailyOutputs[row.content.orderId]?.[row.content.processId]?.[dateKey] || 0) > 0;
-                                const shouldDisplay = !isDateBeforeProcessStart && ((pab !== undefined && Math.round(pab) !== 0) || hasActivity);
 
-                                if (pab !== undefined && shouldDisplay) {
+                                if (pab !== undefined) {
                                     const isNegative = pab < 0;
                                     cellContent = (
                                         <div className={cn(
@@ -191,6 +189,7 @@ export default function PabTable({ pabData, dates }: PabTableProps) {
                                         </div>
                                     );
                                 }
+                              }
                             } else if (row.type === 'input') {
                                 const inputValue = pabData.dailyInputs[row.content.orderId]?.[row.content.processId]?.[dateKey] || 0;
                                 if (inputValue > 0) {

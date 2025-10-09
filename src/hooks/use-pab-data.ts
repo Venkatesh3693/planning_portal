@@ -13,9 +13,10 @@ export type PabData = {
   dailyOutputs: Record<string, Record<string, Record<string, number>>>; // { orderId: { processId: { date: output } } }
   dailyInputs: Record<string, Record<string, Record<string, number>>>; // { orderId: { processId: { date: input } } }
   processStartDates: Record<string, Record<string, Date>>; // { orderId: { processId: startDate } }
+  processDateRanges: Record<string, Record<string, { start: Date, end: Date }>>;
 };
 
-const INITIAL_PAB_DATA: PabData = { data: {}, processSequences: {}, processDetails: {}, dailyOutputs: {}, dailyInputs: {}, processStartDates: {} };
+const INITIAL_PAB_DATA: PabData = { data: {}, processSequences: {}, processDetails: {}, dailyOutputs: {}, dailyInputs: {}, processStartDates: {}, processDateRanges: {} };
 
 export function usePabData(
   scheduledProcesses: ScheduledProcess[],
@@ -167,7 +168,7 @@ export function usePabData(
       processDetails[p.id] = { name: p.name };
     }
 
-    return { data: finalPabData, processSequences, processDetails, dailyOutputs: dailyAggregatedOutput, dailyInputs, processStartDates };
+    return { data: finalPabData, processSequences, processDetails, dailyOutputs: dailyAggregatedOutput, dailyInputs, processStartDates, processDateRanges };
 
   }, [scheduledProcesses, orders, processes, dates]);
 
