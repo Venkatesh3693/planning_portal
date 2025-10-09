@@ -46,6 +46,7 @@ export const PROCESSES: Process[] = [
 ];
 
 const today = startOfToday();
+const currentYear = today.getFullYear();
 
 export const ORDERS: Order[] = [
     {
@@ -56,7 +57,7 @@ export const ORDERS: Order[] = [
         color: 'Blue',
         quantity: 500,
         processIds: ['cutting', 'printing', 'sewing', 'packing'],
-        dueDate: addDays(today, 10),
+        dueDate: new Date(currentYear, 10, 20), // November 20
         displayColor: ORDER_COLORS[0],
         leadTime: 60,
         budgetedEfficiency: 85,
@@ -78,7 +79,7 @@ export const ORDERS: Order[] = [
         color: 'Black',
         quantity: 1200,
         processIds: ['cutting', 'embroidery', 'sewing', 'packing'],
-        dueDate: addDays(today, 15),
+        dueDate: new Date(currentYear, 11, 5), // December 5
         displayColor: ORDER_COLORS[1],
         leadTime: 90,
         budgetedEfficiency: 80,
@@ -100,7 +101,7 @@ export const ORDERS: Order[] = [
         color: 'White',
         quantity: 150,
         processIds: ['cutting', 'printing', 'sewing', 'packing'],
-        dueDate: addDays(today, 7),
+        dueDate: new Date(currentYear, 10, 28), // November 28
         displayColor: ORDER_COLORS[2],
         leadTime: 45,
         budgetedEfficiency: 90,
