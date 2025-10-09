@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect, forwardRef, type ComponentProps } from 'react';
+import { useState, useMemo, forwardRef, type ComponentProps } from 'react';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -21,7 +21,7 @@ import {
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
 import { PROCESSES, WORK_DAY_MINUTES } from '@/lib/data';
-import type { Order, Process, ScheduledProcess, RampUpEntry, Tna, TnaProcess } from '@/lib/types';
+import type { Order, ScheduledProcess, RampUpEntry, Tna, TnaProcess } from '@/lib/types';
 import { format, isAfter, isBefore, startOfDay } from 'date-fns';
 import {
   Table,
@@ -392,13 +392,13 @@ interface OrderRowProps extends ComponentProps<typeof TableRow> {
 }
 
 const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
-  ({ order, onColorChange, onTnaGenerate, onRampUpSave, onSetSewingLines, numLines, scheduledProcesses }, ref) => {
+  ({ order, onColorChange, onTnaGenerate, onRampUpSave, onSetSewingLines, numLines, scheduledProcesses, ...props }, ref) => {
   const [isTnaOpen, setIsTnaOpen] = useState(false);
   const [rampUpState, setRampUpState] = useState<RampUpDialogState | null>(null);
 
   const singleLineMinDays = useMemo(() => 
     sewingProcess ? calculateMinDays(order, sewingProcess.sam, order.sewingRampUpScheme || []) : 0,
-    [order]
+    [order, order.sewingRampUpScheme]
   );
   
   const totalProductionDays = useMemo(() => 
@@ -426,7 +426,7 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
 
 
   return (
-    <TableRow ref={ref}>
+    <TableRow ref={ref} {...props}>
         <TableCell>
           <Dialog open={isTnaOpen} onOpenChange={setIsTnaOpen}>
             <DialogTrigger asChild>
@@ -590,10 +590,10 @@ export default function OrdersPage() {
                     <TableHead>Order Type</TableHead>
                     <TableHead>Budgeted Eff.</TableHead>
                     <TableHead>Avg. Eff.</TableHead>
-                    <TableHead>Days to Budget Eff.</TableHead>
+                    <TableHead>Minimum Run Days</TableHead>
                     <TableHead>Ramp-up</TableHead>
                     <TableHead>No. of Lines</TableHead>
-                    <TableHead>Min. Sewing Days</TableHead>
+                    <TableHead>Line Days</TableHead>
                     <TableHead>Display Color</TableHead>
                     <TableHead className="text-right">Quantity</TableHead>
                     <TableHead>Lead Time</TableHead>
@@ -623,5 +623,3 @@ export default function OrdersPage() {
     </div>
   );
 }
-
-    
