@@ -248,20 +248,22 @@ const getEhdForOrder = (orderId: string, scheduledProcesses: ScheduledProcess[])
 };
 
 // Sub-components defined at the module level for stability
-const TnaPlan = ({ 
+const TnaPlan = ({
     order,
     scheduledProcesses,
     minRunDays,
     moqs,
     processBatchSize,
     onMinRunDaysChange,
-}: { 
+    totalProductionDays,
+}: {
     order: Order;
     scheduledProcesses: ScheduledProcess[];
     minRunDays: Record<string, string>;
     moqs: Record<string, number>;
     processBatchSize: number;
     onMinRunDaysChange: (processId: string, value: string) => void;
+    totalProductionDays: number;
 }) => {
     if (!order.tna) return null;
 
@@ -328,7 +330,6 @@ const TnaPlan = ({
               <TableRow className="bg-muted/50 hover:bg-muted/50">
                 <TableHead>Process</TableHead>
                 <TableHead className="text-right">SAM</TableHead>
-                <TableHead>Setup Time</TableHead>
                 <TableHead>Min Run Days</TableHead>
                 <TableHead>Calculated MOQ</TableHead>
                 <TableHead>Duration</TableHead>
@@ -346,11 +347,12 @@ const TnaPlan = ({
                 const { start, end } = getAggregatedScheduledTimes(process.id);
                 const isAfterSewing = sewingProcessIndex !== -1 && index > sewingProcessIndex;
                 
+                const durationDisplay = process.id === SEWING_PROCESS_ID ? Math.ceil(totalProductionDays) : tnaProcess?.durationDays;
+
                 return (
                   <TableRow key={process.id}>
                     <TableCell className="font-medium">{process.name}</TableCell>
                     <TableCell className="text-right">{process.sam}</TableCell>
-                    <TableCell>{tnaProcess?.setupTime ? `${tnaProcess.setupTime} min` : '-'}</TableCell>
                     <TableCell>
                       {isAfterSewing ? (
                         <span className="text-center w-20 inline-block">-</span>
@@ -367,7 +369,7 @@ const TnaPlan = ({
                     <TableCell className="text-right font-medium">
                         {isAfterSewing ? '-' : Math.round(moqs[process.id] || 0).toLocaleString()}
                     </TableCell>
-                    <TableCell className="text-right">{tnaProcess?.durationDays ? `${tnaProcess.durationDays}d` : '-'}</TableCell>
+                    <TableCell className="text-right">{durationDisplay ? `${durationDisplay}d` : '-'}</TableCell>
                     <TableCell>{tnaProcess?.earliestStartDate ? format(new Date(tnaProcess.earliestStartDate), 'MMM dd') : '-'}</TableCell>
                     <TableCell>{tnaProcess?.latestStartDate ? format(new Date(tnaProcess.latestStartDate), 'MMM dd') : '-'}</TableCell>
                     <TableCell>{start ? format(start, 'MMM dd, h:mm a') : <span className="text-muted-foreground">Not set</span>}</TableCell>
@@ -400,12 +402,14 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
   const [minRunDays, setMinRunDays] = useState<Record<string, string>>({});
   
   useEffect(() => {
-      const initialDays: Record<string, string> = {};
-      order.processIds.forEach(pid => {
-          initialDays[pid] = "1";
-      });
-      setMinRunDays(initialDays);
-  }, [order.id, order.processIds]);
+      if (isTnaOpen) {
+        const initialDays: Record<string, string> = {};
+        order.processIds.forEach(pid => {
+            initialDays[pid] = "1";
+        });
+        setMinRunDays(initialDays);
+      }
+  }, [isTnaOpen, order.id, order.processIds]);
 
   const handleMinRunDaysChange = (processId: string, value: string) => {
       setMinRunDays(prev => ({...prev, [processId]: value}));
@@ -521,6 +525,7 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
                   moqs={moqAndBatchData.moqs}
                   processBatchSize={moqAndBatchData.processBatchSize}
                   onMinRunDaysChange={handleMinRunDaysChange}
+                  totalProductionDays={totalProductionDays}
                 />
               </div>
             </DialogContent>
