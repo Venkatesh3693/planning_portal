@@ -14,8 +14,7 @@ import type { DateRange } from 'react-day-picker';
 import { useSchedule } from '@/context/schedule-provider';
 import MachinePanel from '@/components/gantt-chart/machine-panel';
 import SplitProcessDialog from '@/components/gantt-chart/split-process-dialog';
-import PabTable from '@/components/pab/pab-table';
-import { usePabData } from '@/hooks/use-pab-data';
+import PabView from '@/components/pab/pab-view';
 
 const SEWING_PROCESS_ID = 'sewing';
 const WORKING_HOURS_START = 9;
@@ -135,8 +134,6 @@ function GanttPageContent() {
     setDates(generatedDates);
   }, []);
   
-  const pabData = usePabData(scheduledProcesses, orders, PROCESSES, dates);
-
   const buyerOptions = useMemo(() => [...new Set(orders.map(o => o.buyer))], [orders]);
 
   const handleDropOnChart = (rowId: string, startDateTime: Date, draggedItemJSON: string) => {
@@ -456,7 +453,12 @@ function GanttPageContent() {
         <div className="flex-1 overflow-auto p-4">
           {isPabView ? (
              <div className="h-full flex-1 overflow-auto rounded-lg border bg-card">
-              <PabTable pabData={pabData} dates={dates} />
+              <PabView 
+                scheduledProcesses={scheduledProcesses}
+                orders={orders}
+                processes={PROCESSES}
+                dates={dates}
+              />
             </div>
           ) : (
             <div className="grid h-full items-start gap-4 grid-cols-[20rem_1fr]">
