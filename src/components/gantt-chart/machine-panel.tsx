@@ -31,6 +31,7 @@ import {
 import { DatePicker } from '@/components/ui/date-picker';
 import type { DateRange } from 'react-day-picker';
 import { PROCESSES } from '@/lib/data';
+import { useSchedule } from '@/context/schedule-provider';
 
 const SEWING_PROCESS_ID = 'sewing';
 
@@ -39,6 +40,7 @@ type MachinePanelProps = {
   filteredUnplannedOrders: Order[];
   handleDragStart: (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => void;
   sewingScheduledOrderIds: Set<string>;
+  sewingLines: Record<string, number>;
   hasActiveFilters: boolean;
   filterOcn: string;
   setFilterOcn: (value: string) => void;
@@ -55,6 +57,7 @@ export default function MachinePanel({
   filteredUnplannedOrders,
   handleDragStart,
   sewingScheduledOrderIds,
+  sewingLines,
   hasActiveFilters,
   filterOcn,
   setFilterOcn,
@@ -160,6 +163,7 @@ export default function MachinePanel({
               const process = PROCESSES.find(p => p.id === selectedProcessId);
               const durationMinutes = process ? process.sam * order.quantity : 0;
               const durationDays = (durationMinutes / (8 * 60)).toFixed(1);
+              const numLines = sewingLines[order.id] || 1;
 
               const tnaProcess =
                 order.tna?.processes.find(
@@ -193,6 +197,9 @@ export default function MachinePanel({
                       <span>
                         Ship: {format(new Date(order.dueDate), 'MMM dd')}
                       </span>
+                      {selectedProcessId === SEWING_PROCESS_ID && (
+                        <span>{numLines} {numLines > 1 ? 'Lines' : 'Line'}</span>
+                      )}
                       <span>{durationDays} days</span>
                     </div>
                   </div>

@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -114,7 +115,7 @@ const calculateSewingDuration = (order: Order, quantity: number): number => {
 
 
 function GanttPageContent() {
-  const { orders, scheduledProcesses, setScheduledProcesses, isScheduleLoaded } = useSchedule();
+  const { orders, scheduledProcesses, setScheduledProcesses, isScheduleLoaded, sewingLines } = useSchedule();
 
   const [selectedProcessId, setSelectedProcessId] = useState<string>('sewing');
   const [viewMode, setViewMode] = useState<'day' | 'hour'>('day');
@@ -467,6 +468,7 @@ function GanttPageContent() {
                 filteredUnplannedOrders={filteredUnplannedOrders}
                 handleDragStart={handleDragStart}
                 sewingScheduledOrderIds={sewingScheduledOrderIds}
+                sewingLines={sewingLines}
                 hasActiveFilters={hasActiveFilters}
                 filterOcn={filterOcn}
                 setFilterOcn={setFilterOcn}
