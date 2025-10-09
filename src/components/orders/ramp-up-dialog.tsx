@@ -30,7 +30,7 @@ type RampUpDialogProps = {
 // Use a local state type that can handle string for efficiency and has a unique id
 type EditableRampUpEntry = {
   id: number;
-  day: number;
+  day: number | string;
   efficiency: number | string;
 };
 
@@ -64,13 +64,24 @@ export default function RampUpDialog({
   }, [singleLineMinDays, numLines]);
 
   const averageEfficiency = useMemo(() => {
-    const numericScheme = scheme.map(s => ({...s, efficiency: Number(s.efficiency) || 0}));
+    const numericScheme = scheme.map(s => ({...s, day: Number(s.day) || 0, efficiency: Number(s.efficiency) || 0}));
     return calculateAverageEfficiency(numericScheme, totalProductionDays);
   }, [scheme, totalProductionDays, calculateAverageEfficiency]);
+  
+  const hasDuplicateDays = useMemo(() => {
+    const dayCounts = new Map<number, number>();
+    scheme.forEach(entry => {
+      const day = Number(entry.day);
+      if (day > 0) {
+        dayCounts.set(day, (dayCounts.get(day) || 0) + 1);
+      }
+    });
+    return Array.from(dayCounts.values()).some(count => count > 1);
+  }, [scheme]);
 
 
   const handleAddDay = () => {
-    const nextDay = scheme.length > 0 ? Math.max(...scheme.map(s => s.day)) + 1 : 1;
+    const nextDay = scheme.length > 0 ? Math.max(...scheme.map(s => Number(s.day))) + 1 : 1;
     const lastEfficiency = scheme.length > 0 ? scheme[scheme.length - 1].efficiency : 0;
     setScheme([...scheme, { id: nextId++, day: nextDay, efficiency: lastEfficiency }]);
   };
@@ -78,7 +89,7 @@ export default function RampUpDialog({
   const handleRemoveDay = (idToRemove: number) => {
     setScheme(prevScheme => {
       const newScheme = prevScheme.filter(s => s.id !== idToRemove);
-      return newScheme.sort((a,b) => a.day - b.day);
+      return newScheme.sort((a,b) => Number(a.day) - Number(b.day));
     });
   };
 
@@ -90,18 +101,20 @@ export default function RampUpDialog({
     );
   };
   
-  const handleDayChange = (idToChange: number, newDay: number) => {
+  const handleDayChange = (idToChange: number, newDay: string) => {
      setScheme(
       scheme.map(s =>
         s.id === idToChange ? { ...s, day: newDay } : s
-      ).sort((a,b) => a.day - b.day)
+      ).sort((a,b) => Number(a.day) - Number(b.day))
     );
   }
 
   const handleSave = () => {
+    if (hasDuplicateDays) return;
+
     const validScheme: RampUpEntry[] = scheme
       .map(s => ({
-          day: s.day,
+          day: Number(s.day) || 0,
           efficiency: Number(s.efficiency) || 0
       }))
       .filter(s => s.efficiency > 0 && s.efficiency <= 100 && s.day > 0)
@@ -146,10 +159,14 @@ export default function RampUpDialog({
             >
               <Input
                 id={`day-${entry.id}`}
-                type="number"
-                min="1"
+                type="text"
                 value={entry.day}
-                onChange={(e) => handleDayChange(entry.id, parseInt(e.target.value, 10) || 1)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '' || /^[1-9]\d*$/.test(val)) {
+                    handleDayChange(entry.id, val);
+                  }
+                }}
               />
               <Input
                 id={`eff-${entry.id}`}
@@ -187,6 +204,12 @@ export default function RampUpDialog({
             </Button>
           </div>
           
+          {hasDuplicateDays && (
+             <p className="px-4 text-sm text-destructive">
+                Duplicate day numbers are not allowed. Please enter a unique day for each entry.
+            </p>
+          )}
+
           <div className="px-4 pt-4 border-t mt-4">
              <div className="flex justify-between text-sm text-muted-foreground">
                 <span>Number of Lines:</span>
@@ -209,7 +232,7 @@ export default function RampUpDialog({
 
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={handleSave}>
+          <AlertDialogAction onClick={handleSave} disabled={hasDuplicateDays}>
             Save Scheme
           </AlertDialogAction>
         </AlertDialogFooter>
