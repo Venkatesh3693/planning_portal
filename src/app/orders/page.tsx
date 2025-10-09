@@ -1,7 +1,8 @@
 
+
 'use client';
 
-import { useState, useMemo, forwardRef, type ComponentProps } from 'react';
+import { useState, useMemo, forwardRef, type ComponentProps, useEffect } from 'react';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -39,7 +40,7 @@ import { useSchedule } from '@/context/schedule-provider';
 import { Button } from '@/components/ui/button';
 import RampUpDialog from '@/components/orders/ramp-up-dialog';
 import { Badge } from '@/components/ui/badge';
-import { LineChart, Zap, AlertCircle, X } from 'lucide-react';
+import { LineChart, Zap, AlertCircle, X, Info } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { generateTnaPlan } from '@/lib/tna-calculator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -248,10 +249,58 @@ const getEhdForOrder = (orderId: string, scheduledProcesses: ScheduledProcess[])
 };
 
 // Sub-components defined at the module level for stability
-const TnaPlan = ({ order, scheduledProcesses }: { order: Order; scheduledProcesses: ScheduledProcess[] }) => {
+const TnaPlan = ({ order, scheduledProcesses, onTnaGenerate }: { order: Order; scheduledProcesses: ScheduledProcess[]; onTnaGenerate: (processBatchSize: number) => void; }) => {
     if (!order.tna) return null;
+
+    const { sewingLines } = useSchedule();
+    const numLines = sewingLines[order.id] || 1;
     
     const { ckDate } = order.tna;
+
+    const [minRunDays, setMinRunDays] = useState<Record<string, string>>({});
+    
+    const moqAndBatchData = useMemo(() => {
+        const moqs: Record<string, number> = {};
+        let maxMoq = 0;
+        for (const process of PROCESSES) {
+            if (!order.processIds.includes(process.id)) continue;
+            
+            const days = Number(minRunDays[process.id]) || 0;
+            if (days > 0) {
+                 if (process.id === 'sewing') {
+                    const durationMinutes = days * WORK_DAY_MINUTES;
+                    // Simplified output calc for MOQ purpose - uses peak efficiency. More complex calc could be used.
+                    const peakEfficiency = (order.sewingRampUpScheme || []).reduce((max, s) => Math.max(max, s.efficiency), order.budgetedEfficiency || 85);
+                    const effectiveSam = process.sam / (peakEfficiency / 100);
+                    const outputPerMinute = (1 / effectiveSam) * numLines;
+                    moqs[process.id] = Math.floor(outputPerMinute * durationMinutes);
+                } else {
+                    const totalMinutes = days * WORK_DAY_MINUTES;
+                    const outputPerMinute = 1 / process.sam;
+                    moqs[process.id] = Math.floor(outputPerMinute * totalMinutes);
+                }
+            } else {
+                moqs[process.id] = 0;
+            }
+            if (moqs[process.id] > maxMoq) {
+                maxMoq = moqs[process.id];
+            }
+        }
+        return { moqs, processBatchSize: maxMoq > 0 ? maxMoq : order.quantity / 5 }; // Fallback batch size
+    }, [minRunDays, order, numLines]);
+
+    useEffect(() => {
+        // Initialize minRunDays
+        const initialDays: Record<string, string> = {};
+        for(const pid of order.processIds) {
+            initialDays[pid] = "1";
+        }
+        setMinRunDays(initialDays);
+    }, [order.id]);
+
+    const handleMinRunDaysChange = (processId: string, value: string) => {
+        setMinRunDays(prev => ({...prev, [processId]: value}));
+    };
     
     const getAggregatedScheduledTimes = (processId: string) => {
         const relevantProcesses = scheduledProcesses.filter(p => p.orderId === order.id && p.processId === processId);
@@ -275,22 +324,39 @@ const TnaPlan = ({ order, scheduledProcesses }: { order: Order; scheduledProcess
 
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-            <div className="p-3 bg-muted rounded-md">
-                <div className="font-medium text-muted-foreground">CK Date</div>
-                <div className="font-semibold text-lg">{ckDate instanceof Date ? format(ckDate, 'MMM dd, yyyy') : ckDate}</div>
+        <div className="flex justify-between items-start">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                <div className="p-3 bg-muted rounded-md">
+                    <div className="font-medium text-muted-foreground">CK Date</div>
+                    <div className="font-semibold text-lg">{ckDate instanceof Date ? format(ckDate, 'MMM dd, yyyy') : ckDate}</div>
+                </div>
+                <div className="p-3 bg-muted rounded-md">
+                    <div className="font-medium text-muted-foreground">Shipment Date</div>
+                    <div className="font-semibold text-lg">{format(new Date(order.dueDate), 'MMM dd, yyyy')}</div>
+                </div>
+                <div className="p-3 bg-muted rounded-md">
+                    <div className="font-medium text-muted-foreground">Order Quantity</div>
+                    <div className="font-semibold text-lg">{order.quantity.toLocaleString()} units</div>
+                </div>
+                <div className="p-3 bg-muted rounded-md">
+                    <div className="font-medium text-muted-foreground">Budgeted Efficiency</div>
+                    <div className="font-semibold text-lg">{order.budgetedEfficiency || 'N/A'}%</div>
+                </div>
             </div>
-            <div className="p-3 bg-muted rounded-md">
-                <div className="font-medium text-muted-foreground">Shipment Date</div>
-                <div className="font-semibold text-lg">{format(new Date(order.dueDate), 'MMM dd, yyyy')}</div>
-            </div>
-            <div className="p-3 bg-muted rounded-md">
-                <div className="font-medium text-muted-foreground">Order Quantity</div>
-                <div className="font-semibold text-lg">{order.quantity.toLocaleString()} units</div>
-            </div>
-            <div className="p-3 bg-muted rounded-md">
-                <div className="font-medium text-muted-foreground">Budgeted Efficiency</div>
-                <div className="font-semibold text-lg">{order.budgetedEfficiency || 'N/A'}%</div>
+             <div className="p-3 bg-amber-100 dark:bg-amber-900/50 border border-amber-300 dark:border-amber-700 rounded-md text-center">
+                <div className="font-medium text-amber-800 dark:text-amber-200 text-sm flex items-center gap-2">
+                    Process Batch Size 
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger><Info className="h-4 w-4" /></TooltipTrigger>
+                            <TooltipContent><p>The max of all Calculated MOQs. <br/>This drives the overlap in the T&A Plan.</p></TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                </div>
+                <div className="font-bold text-xl text-amber-900 dark:text-amber-100">{Math.round(moqAndBatchData.processBatchSize).toLocaleString()}</div>
+                <Button size="sm" variant="link" className="text-amber-700 dark:text-amber-300 h-auto p-0 mt-1" onClick={() => onTnaGenerate(moqAndBatchData.processBatchSize)}>
+                    <Zap className="h-4 w-4 mr-1"/> Recalculate T&A
+                </Button>
             </div>
         </div>
 
@@ -301,7 +367,8 @@ const TnaPlan = ({ order, scheduledProcesses }: { order: Order; scheduledProcess
                 <TableHead>Process</TableHead>
                 <TableHead className="text-right">SAM</TableHead>
                 <TableHead className="text-right">Setup Time</TableHead>
-                <TableHead className="text-right">Batch Size</TableHead>
+                <TableHead className="text-right">Min Run Days</TableHead>
+                <TableHead className="text-right">Calculated MOQ</TableHead>
                 <TableHead className="text-right">Duration</TableHead>
                 <TableHead>Earliest Start</TableHead>
                 <TableHead>Latest Start</TableHead>
@@ -321,7 +388,16 @@ const TnaPlan = ({ order, scheduledProcesses }: { order: Order; scheduledProcess
                     <TableCell className="font-medium">{process.name}</TableCell>
                     <TableCell className="text-right">{process.sam}</TableCell>
                     <TableCell className="text-right">{tnaProcess?.setupTime ? `${tnaProcess.setupTime} min` : '-'}</TableCell>
-                    <TableCell className="text-right">{process.singleRunOutput}</TableCell>
+                    <TableCell className="text-right">
+                       <Input
+                            type="number"
+                            min="1"
+                            value={minRunDays[process.id] || ''}
+                            onChange={(e) => handleMinRunDaysChange(process.id, e.target.value)}
+                            className="w-20 h-8 text-center"
+                        />
+                    </TableCell>
+                    <TableCell className="text-right font-medium">{Math.round(moqAndBatchData.moqs[process.id] || 0).toLocaleString()}</TableCell>
                     <TableCell className="text-right">{tnaProcess?.durationDays ? `${tnaProcess.durationDays}d` : '-'}</TableCell>
                     <TableCell>{tnaProcess?.earliestStartDate ? format(new Date(tnaProcess.earliestStartDate), 'MMM dd') : '-'}</TableCell>
                     <TableCell>{tnaProcess?.latestStartDate ? format(new Date(tnaProcess.latestStartDate), 'MMM dd') : '-'}</TableCell>
@@ -340,7 +416,7 @@ const TnaPlan = ({ order, scheduledProcesses }: { order: Order; scheduledProcess
 interface OrderRowProps extends ComponentProps<typeof TableRow> {
   order: Order;
   onColorChange: (orderId: string, color: string) => void;
-  onTnaGenerate: (order: Order) => void;
+  onTnaGenerate: (order: Order, processBatchSize: number) => void;
   onRampUpSave: (orderId: string, scheme: RampUpEntry[]) => void;
   onSetSewingLines: (orderId: string, lines: number) => void;
   numLines: number;
@@ -392,7 +468,7 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
                 {order.id}
               </span>
             </DialogTrigger>
-            <DialogContent className="max-w-6xl p-0" hideClose>
+            <DialogContent className="max-w-7xl p-0" hideClose>
                 <DialogHeader className="flex-row justify-between items-center p-6 pb-0">
                     <div>
                     <DialogTitle>{order.ocn} - {order.style} ({order.color})</DialogTitle>
@@ -401,10 +477,6 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
                     </DialogDescription>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Button onClick={() => onTnaGenerate(order)}>
-                            <Zap className="h-4 w-4 mr-2"/>
-                            Generate T&amp;A Plan
-                        </Button>
                         <DialogClose asChild>
                             <Button variant="ghost" size="icon" className="rounded-full">
                                 <X className="h-4 w-4" />
@@ -416,6 +488,7 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
                 <TnaPlan 
                   order={order}
                   scheduledProcesses={scheduledProcesses}
+                  onTnaGenerate={(batchSize) => onTnaGenerate(order, batchSize)}
                 />
               </div>
             </DialogContent>
@@ -520,9 +593,9 @@ export default function OrdersPage() {
     updateOrderColor,
   } = useSchedule();
 
-  const handleGenerateTna = (order: Order) => {
+  const handleGenerateTna = (order: Order, processBatchSize: number) => {
     const numLines = sewingLines[order.id] || 1;
-    const { newTna, newCkDate } = generateTnaPlan(order, PROCESSES, numLines);
+    const { newTna, newCkDate } = generateTnaPlan(order, PROCESSES, numLines, processBatchSize);
     updateOrderTna(order.id, newTna, newCkDate);
   };
   

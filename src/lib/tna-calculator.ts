@@ -1,4 +1,5 @@
 
+
 import type { Order, Process, TnaProcess, RampUpEntry } from './types';
 import { WORK_DAY_MINUTES } from './data';
 import { addDays, subDays, getDay } from 'date-fns';
@@ -34,13 +35,18 @@ function subBusinessDays(startDate: Date, days: number): Date {
 }
 
 
-function calculateDaysToProduceBatch(orderQuantity: number, process: Process, totalDurationDays: number): number {
-    if(orderQuantity <= 0 || totalDurationDays <= 0 || process.singleRunOutput <=0) return 0;
-    
-    const batchSize = process.singleRunOutput;
-    if (orderQuantity <= batchSize) return totalDurationDays;
-
-    return Math.ceil((batchSize / orderQuantity) * totalDurationDays);
+function calculateDaysToProduceBatch(
+    process: Process,
+    processBatchSize: number,
+    order: Order,
+    numLines: number
+): number {
+    if (process.id === 'sewing') {
+        // Use sewing-specific calculation for batch time
+        return calculateSewingDurationDays(processBatchSize, process.sam, order.sewingRampUpScheme || [], numLines);
+    }
+    const totalMinutes = processBatchSize * process.sam;
+    return Math.ceil(totalMinutes / WORK_DAY_MINUTES);
 };
 
 function calculateSewingDurationDays(quantity: number, sam: number, rampUpScheme: RampUpEntry[], numLines: number): number {
@@ -52,7 +58,7 @@ function calculateSewingDurationDays(quantity: number, sam: number, rampUpScheme
     while (remainingQty > 0) {
         const currentProductionDay = Math.floor(totalMinutes / WORK_DAY_MINUTES) + 1;
         
-        let efficiency = rampUpScheme[rampUpScheme.length - 1]?.efficiency;
+        let efficiency = rampUpScheme.length > 0 ? rampUpScheme[rampUpScheme.length - 1]?.efficiency : 100;
         for (const entry of rampUpScheme) {
           if(currentProductionDay >= entry.day) {
             efficiency = entry.efficiency;
@@ -74,6 +80,11 @@ function calculateSewingDurationDays(quantity: number, sam: number, rampUpScheme
             totalMinutes += minutesLeftInWorkDay;
             remainingQty -= maxOutputForRestOfDay;
         }
+
+        // Safety break
+        if (totalMinutes > WORK_DAY_MINUTES * 10000) {
+            return Infinity;
+        }
     }
     return Math.ceil(totalMinutes / WORK_DAY_MINUTES);
 };
@@ -81,7 +92,8 @@ function calculateSewingDurationDays(quantity: number, sam: number, rampUpScheme
 export function generateTnaPlan(
     order: Order, 
     processes: Process[], 
-    numLinesForSewing: number
+    numLinesForSewing: number,
+    processBatchSize: number,
 ): { newTna: TnaProcess[], newCkDate: Date } {
 
     // --- Phase 1: Calculate Durations ---
@@ -94,7 +106,7 @@ export function generateTnaPlan(
             const totalMinutes = order.quantity * process.sam;
             durationDays = Math.ceil(totalMinutes / WORK_DAY_MINUTES);
         }
-        const daysToProduceBatch = calculateDaysToProduceBatch(order.quantity, process, durationDays);
+        const daysToProduceBatch = calculateDaysToProduceBatch(process, processBatchSize, order, numLinesForSewing);
         return { processId: pid, durationDays, daysToProduceBatch };
     });
 
