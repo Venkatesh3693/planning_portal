@@ -38,7 +38,7 @@ import { useSchedule } from '@/context/schedule-provider';
 import { Button } from '@/components/ui/button';
 import RampUpDialog from '@/components/orders/ramp-up-dialog';
 import { Badge } from '@/components/ui/badge';
-import { LineChart, Zap } from 'lucide-react';
+import { LineChart, Zap, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { generateTnaPlan } from '@/lib/tna-calculator';
 
@@ -50,22 +50,24 @@ const calculateMinDays = (order: Order, sewingSam: number, rampUpScheme: RampUpE
 
   // --- Best Practice Fix: Pre-compute efficiency map ---
   const sortedScheme = [...scheme].sort((a, b) => a.day - b.day);
-  const peakEfficiency = sortedScheme[sortedScheme.length - 1].efficiency;
+  const peakEfficiency = sortedScheme.length > 0 ? sortedScheme[sortedScheme.length - 1].efficiency : 0;
 
-  // Create a dense map for quick lookups. Cap at a reasonable number of days (e.g., 365) to prevent huge arrays.
+  // Create a dense map for quick lookups.
   const maxMapDays = sortedScheme.length > 0 ? sortedScheme[sortedScheme.length - 1].day + 90 : 90;
   const efficiencyMap = new Array(maxMapDays + 1).fill(0);
   let lastEff = 0;
   let schemeIndex = 0;
 
   for (let day = 1; day <= maxMapDays; day++) {
-    if (schemeIndex < sortedScheme.length && day >= sortedScheme[schemeIndex].day) {
+    // Find the correct efficiency for the current day from the sorted scheme
+    while (schemeIndex < sortedScheme.length && day >= sortedScheme[schemeIndex].day) {
       lastEff = sortedScheme[schemeIndex].efficiency;
       schemeIndex++;
     }
     efficiencyMap[day] = lastEff;
   }
   // --- End of Fix ---
+
 
   let remainingQty = order.quantity;
   let minutes = 0;
@@ -77,7 +79,7 @@ const calculateMinDays = (order: Order, sewingSam: number, rampUpScheme: RampUpE
     const efficiency = currentDay > maxMapDays ? peakEfficiency : efficiencyMap[currentDay];
 
     if (!efficiency || efficiency <= 0) {
-      // This should no longer happen, but as a safeguard:
+      // This should no longer happen with the pre-computed map, but as a safeguard:
       return Infinity; 
     }
 
@@ -154,7 +156,7 @@ const calculateDaysToMeetBudget = (
   const peakEfficiency = sortedScheme[sortedScheme.length - 1].efficiency;
 
   if (peakEfficiency < budgetedEfficiency) {
-    return 'Change ramp-up';
+    return Infinity;
   }
   
   if (sortedScheme[0].efficiency >= budgetedEfficiency) {
@@ -211,7 +213,7 @@ const calculateDaysToMeetBudget = (
   const denominator = peakEfficiency - budgetedEfficiency;
   
   if (denominator <= 0) {
-     return 'Change ramp-up';
+     return Infinity;
   }
 
   const daysAtPeak = Math.max(0, numerator / denominator);
@@ -480,6 +482,8 @@ export default function OrdersPage() {
                       
                       const daysToBudget = calculateDaysToMeetBudget(order.sewingRampUpScheme || [], order.budgetedEfficiency || 0);
 
+                      const isBudgetUnreachable = daysToBudget === Infinity;
+
                       return (
                         <TableRow key={order.id}>
                           <TableCell>
@@ -501,12 +505,13 @@ export default function OrdersPage() {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                             <Badge variant={typeof daysToBudget === 'string' ? 'destructive' : 'secondary'}>
-                                {typeof daysToBudget === 'number' ? `${daysToBudget} days` : daysToBudget}
+                             <Badge variant={isBudgetUnreachable ? 'destructive' : 'secondary'}>
+                                {isBudgetUnreachable ? '∞' : (typeof daysToBudget === 'number' ? `${daysToBudget} days` : daysToBudget)}
                              </Badge>
                           </TableCell>
                           <TableCell>
                               <Button variant="outline" size="sm" onClick={() => setRampUpState({ order, singleLineMinDays })}>
+                                {isBudgetUnreachable && <AlertCircle className="h-4 w-4 mr-2 text-destructive" />}
                                 <LineChart className="h-4 w-4 mr-2" />
                                 Scheme
                               </Button>
