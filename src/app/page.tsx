@@ -37,6 +37,7 @@ export type DraggedItemData = {
 
 type ProcessToSplitState = {
   processes: ScheduledProcess[];
+  order: Order;
   numLines: number;
 } | null;
 
@@ -294,12 +295,13 @@ function GanttPageContent() {
   };
 
   const handleOpenSplitDialog = (process: ScheduledProcess) => {
+    const order = orders.find(o => o.id === process.orderId)!;
     const numLines = sewingLines[process.orderId] || 1;
     if (process.parentId) {
       const siblings = scheduledProcesses.filter(p => p.parentId === process.parentId);
-      setProcessToSplit({ processes: siblings, numLines });
+      setProcessToSplit({ processes: siblings, order, numLines });
     } else {
-      setProcessToSplit({ processes: [process], numLines });
+      setProcessToSplit({ processes: [process], order, numLines });
     }
   };
   
@@ -548,6 +550,7 @@ function GanttPageContent() {
       
       <SplitProcessDialog
         processes={processToSplit?.processes ?? null}
+        order={processToSplit?.order ?? null}
         numLines={processToSplit?.numLines ?? 0}
         isOpen={!!processToSplit}
         onOpenChange={(isOpen) => !isOpen && setProcessToSplit(null)}
