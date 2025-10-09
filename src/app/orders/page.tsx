@@ -330,28 +330,26 @@ const TnaPlan = ({ order, scheduledProcesses, onTnaGenerate }: { order: Order; s
 
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="grid grid-cols-2 gap-4 text-sm">
-                <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
-                    <div className="font-medium text-muted-foreground">CK Date</div>
-                    <div className="font-semibold text-lg">{ckDate instanceof Date ? format(ckDate, 'MMM dd, yyyy') : ckDate}</div>
-                </div>
-                <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
-                    <div className="font-medium text-muted-foreground">Shipment Date</div>
-                    <div className="font-semibold text-lg">{format(new Date(order.dueDate), 'MMM dd, yyyy')}</div>
-                </div>
-                <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
-                    <div className="font-medium text-muted-foreground">Order Quantity</div>
-                    <div className="font-semibold text-lg">{order.quantity.toLocaleString()} units</div>
-                </div>
-                <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
-                    <div className="font-medium text-muted-foreground">Budgeted Efficiency</div>
-                    <div className="font-semibold text-lg">{order.budgetedEfficiency || 'N/A'}%</div>
-                </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+            <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
+                <div className="font-medium text-muted-foreground">CK Date</div>
+                <div className="font-semibold text-lg">{ckDate instanceof Date ? format(ckDate, 'MMM dd, yyyy') : ckDate}</div>
             </div>
-             <div className="p-3 bg-amber-100 dark:bg-amber-900/50 border border-amber-300 dark:border-amber-700 rounded-md text-center flex flex-col justify-center">
-                <div className="font-medium text-amber-800 dark:text-amber-200 text-sm flex items-center justify-center gap-2">
-                    Process Batch Size 
+            <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
+                <div className="font-medium text-muted-foreground">Shipment Date</div>
+                <div className="font-semibold text-lg">{format(new Date(order.dueDate), 'MMM dd, yyyy')}</div>
+            </div>
+            <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
+                <div className="font-medium text-muted-foreground">Order Quantity</div>
+                <div className="font-semibold text-lg">{order.quantity.toLocaleString()} units</div>
+            </div>
+            <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
+                <div className="font-medium text-muted-foreground">Budgeted Efficiency</div>
+                <div className="font-semibold text-lg">{order.budgetedEfficiency || 'N/A'}%</div>
+            </div>
+            <div className="p-3 bg-amber-100 dark:bg-amber-900/50 border border-amber-300 dark:border-amber-700 rounded-md flex flex-col justify-center text-center">
+                <div className="font-medium text-amber-800 dark:text-amber-200 flex items-center justify-center gap-2">
+                    Process Batch Size
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger><Info className="h-4 w-4" /></TooltipTrigger>
@@ -359,7 +357,7 @@ const TnaPlan = ({ order, scheduledProcesses, onTnaGenerate }: { order: Order; s
                         </Tooltip>
                     </TooltipProvider>
                 </div>
-                <div className="font-bold text-3xl text-amber-900 dark:text-amber-100">{Math.round(moqAndBatchData.processBatchSize).toLocaleString()}</div>
+                <div className="font-bold text-xl">{Math.round(moqAndBatchData.processBatchSize).toLocaleString()}</div>
             </div>
         </div>
 
@@ -418,11 +416,6 @@ const TnaPlan = ({ order, scheduledProcesses, onTnaGenerate }: { order: Order; s
               })}
             </TableBody>
           </Table>
-        </div>
-        <div className="flex justify-end">
-            <Button size="sm" variant="outline" onClick={() => onTnaGenerate(moqAndBatchData.processBatchSize)}>
-                <Zap className="h-4 w-4 mr-2"/> Recalculate T&amp;A Plan
-            </Button>
         </div>
       </div>
     );
@@ -492,6 +485,21 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
                     </DialogDescription>
                     </div>
                     <div className="flex items-center gap-2">
+                        <Button size="sm" variant="outline" onClick={() => {
+                            // This is a bit of a hack, but we need to find the calculated batch size
+                            // from inside the TnaPlan component. We can't lift state up easily because
+                            // TnaPlan manages its own internal state for the inputs.
+                            // We trigger a click on a hidden button inside the TnaPlan to get the value.
+                            const tnaPlanElement = document.getElementById(`tna-plan-${order.id}`);
+                            if (tnaPlanElement) {
+                                const hiddenButton = tnaPlanElement.querySelector('button[data-batch-size-recalculator]') as HTMLButtonElement | null;
+                                if (hiddenButton) {
+                                    hiddenButton.click();
+                                }
+                            }
+                        }}>
+                            <Zap className="h-4 w-4 mr-2"/> Recalculate T&amp;A Plan
+                        </Button>
                         <DialogClose asChild>
                             <Button variant="ghost" size="icon" className="rounded-full">
                                 <X className="h-4 w-4" />
@@ -499,14 +507,11 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
                         </DialogClose>
                     </div>
                 </DialogHeader>
-              <div className="p-6 pt-4">
+              <div className="p-6 pt-4" id={`tna-plan-${order.id}`}>
                 <TnaPlan 
                   order={order}
                   scheduledProcesses={scheduledProcesses}
-                  onTnaGenerate={(batchSize) => {
-                    onTnaGenerate(order, batchSize);
-                    // No need to close, user might want to re-calculate again
-                  }}
+                  onTnaGenerate={onTnaGenerate}
                 />
               </div>
             </DialogContent>
@@ -649,10 +654,10 @@ export default function OrdersPage() {
                     <TableHead>Order Type</TableHead>
                     <TableHead>Budgeted Eff.</TableHead>
                     <TableHead>Avg. Eff.</TableHead>
-                    <TableHead>Minimum Run Days</TableHead>
+                    <TableHead>Days to Budget</TableHead>
                     <TableHead>Ramp-up</TableHead>
                     <TableHead>No. of Lines</TableHead>
-                    <TableHead>Line Days</TableHead>
+                    <TableHead>Single Line Days</TableHead>
                     <TableHead>Display Color</TableHead>
                     <TableHead className="text-right">Quantity</TableHead>
                     <TableHead>Lead Time</TableHead>
