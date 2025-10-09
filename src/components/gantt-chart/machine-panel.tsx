@@ -8,7 +8,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import type { Order, TnaProcess } from '@/lib/types';
+import type { Order } from '@/lib/types';
 import { format } from 'date-fns';
 import type { DraggedItemData } from '@/app/page';
 import {
@@ -31,8 +31,9 @@ import {
 import { DatePicker } from '@/components/ui/date-picker';
 import type { DateRange } from 'react-day-picker';
 import { PROCESSES } from '@/lib/data';
-import { useSchedule } from '@/context/schedule-provider';
 import { addBusinessDays } from '@/lib/utils';
+import { Separator } from '@/components/ui/separator';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 const SEWING_PROCESS_ID = 'sewing';
 
@@ -50,6 +51,8 @@ type MachinePanelProps = {
   handleBuyerFilterChange: (buyer: string) => void;
   filterDueDate?: DateRange;
   setFilterDueDate: (date: DateRange | undefined) => void;
+  dueDateSort: 'asc' | 'desc' | null;
+  setDueDateSort: (value: 'asc' | 'desc' | null) => void;
   clearFilters: () => void;
 };
 
@@ -67,6 +70,8 @@ export default function MachinePanel({
   handleBuyerFilterChange,
   filterDueDate,
   setFilterDueDate,
+  dueDateSort,
+  setDueDateSort,
   clearFilters,
 }: MachinePanelProps) {
   return (
@@ -89,12 +94,12 @@ export default function MachinePanel({
             <PopoverContent className="w-80">
               <div className="grid gap-4">
                 <div className="space-y-2">
-                  <h4 className="font-medium leading-none">Filters</h4>
+                  <h4 className="font-medium leading-none">Filters & Sort</h4>
                   <p className="text-sm text-muted-foreground">
-                    Filter the unplanned orders.
+                    Filter and sort the unplanned orders.
                   </p>
                 </div>
-                <div className="grid gap-2">
+                <div className="grid gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="filter-ocn">OCN</Label>
                     <Input
@@ -140,16 +145,36 @@ export default function MachinePanel({
                     <Label>Due Date</Label>
                     <DatePicker date={filterDueDate} setDate={setFilterDueDate} />
                   </div>
+
+                  <Separator />
+
+                  <div className="space-y-2">
+                    <Label>Sort by Due Date</Label>
+                    <RadioGroup value={dueDateSort || ''} onValueChange={(value) => setDueDateSort(value as 'asc' | 'desc' | null)}>
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="asc" id="sort-asc" />
+                            <Label htmlFor="sort-asc" className="font-normal">Ascending</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="desc" id="sort-desc" />
+                            <Label htmlFor="sort-desc" className="font-normal">Descending</Label>
+                        </div>
+                    </RadioGroup>
+                  </div>
+                  
                   {hasActiveFilters && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={clearFilters}
-                      className="w-full justify-start text-destructive hover:text-destructive px-0"
-                    >
-                      <FilterX className="mr-2 h-4 w-4" />
-                      Clear Filters
-                    </Button>
+                    <>
+                      <Separator />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={clearFilters}
+                        className="w-full justify-start text-destructive hover:text-destructive px-0"
+                      >
+                        <FilterX className="mr-2 h-4 w-4" />
+                        Clear Filters & Sort
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>

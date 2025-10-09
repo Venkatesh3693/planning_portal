@@ -3,7 +3,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { addDays, startOfToday, getDay, set, isAfter, addMinutes } from 'date-fns';
+import { addDays, startOfToday, getDay, set, isAfter, addMinutes, compareAsc, compareDesc } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, PROCESSES, WORK_DAY_MINUTES, ORDER_COLORS } from '@/lib/data';
@@ -128,6 +128,7 @@ function GanttPageContent() {
   const [filterOcn, setFilterOcn] = useState('');
   const [filterBuyer, setFilterBuyer] = useState<string[]>([]);
   const [filterDueDate, setFilterDueDate] = useState<DateRange | undefined>(undefined);
+  const [dueDateSort, setDueDateSort] = useState<'asc' | 'desc' | null>(null);
   const [draggedItem, setDraggedItem] = useState<DraggedItemData | null>(null);
   const [processToSplit, setProcessToSplit] = useState<ProcessToSplitState>(null);
   const [dates, setDates] = useState<Date[]>([]);
@@ -374,6 +375,7 @@ function GanttPageContent() {
     setFilterOcn('');
     setFilterBuyer([]);
     setFilterDueDate(undefined);
+    setDueDateSort(null);
   };
 
   const filteredUnplannedOrders = useMemo(() => {
@@ -384,7 +386,7 @@ function GanttPageContent() {
       baseOrders = unplannedOrders.filter(order => sewingScheduledOrderIds.has(order.id));
     }
     
-    return baseOrders.filter(order => {
+    const filtered = baseOrders.filter(order => {
       const ocnMatch = filterOcn ? order.ocn.toLowerCase().includes(filterOcn.toLowerCase()) : true;
       const buyerMatch = filterBuyer.length > 0 ? filterBuyer.includes(order.buyer) : true;
       const dueDateMatch = (() => {
@@ -399,9 +401,19 @@ function GanttPageContent() {
       })();
       return ocnMatch && buyerMatch && dueDateMatch;
     });
-  }, [unplannedOrders, selectedProcessId, sewingScheduledOrderIds, filterOcn, filterBuyer, filterDueDate]);
 
-  const hasActiveFilters = !!(filterOcn || filterBuyer.length > 0 || filterDueDate);
+    if (dueDateSort) {
+      return filtered.sort((a, b) => {
+        const dateA = new Date(a.dueDate);
+        const dateB = new Date(b.dueDate);
+        return dueDateSort === 'asc' ? compareAsc(dateA, dateB) : compareDesc(dateA, dateB);
+      });
+    }
+
+    return filtered;
+  }, [unplannedOrders, selectedProcessId, sewingScheduledOrderIds, filterOcn, filterBuyer, filterDueDate, dueDateSort]);
+
+  const hasActiveFilters = !!(filterOcn || filterBuyer.length > 0 || filterDueDate || dueDateSort);
   
   const handleBuyerFilterChange = (buyer: string) => {
     setFilterBuyer(prev => 
@@ -489,6 +501,8 @@ function GanttPageContent() {
                 handleBuyerFilterChange={handleBuyerFilterChange}
                 filterDueDate={filterDueDate}
                 setFilterDueDate={setFilterDueDate}
+                dueDateSort={dueDateSort}
+                setDueDateSort={setDueDateSort}
                 clearFilters={clearFilters}
               />
               
@@ -527,5 +541,3 @@ export default function Home() {
     <GanttPageContent />
   );
 }
-
-    
