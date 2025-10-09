@@ -248,65 +248,26 @@ const getEhdForOrder = (orderId: string, scheduledProcesses: ScheduledProcess[])
 };
 
 // Sub-components defined at the module level for stability
-const TnaPlan = ({ order, scheduledProcesses, onTnaGenerate }: { order: Order; scheduledProcesses: ScheduledProcess[]; onTnaGenerate: (processBatchSize: number) => void; }) => {
+const TnaPlan = ({ 
+    order,
+    scheduledProcesses,
+    minRunDays,
+    moqs,
+    processBatchSize,
+    onMinRunDaysChange,
+}: { 
+    order: Order;
+    scheduledProcesses: ScheduledProcess[];
+    minRunDays: Record<string, string>;
+    moqs: Record<string, number>;
+    processBatchSize: number;
+    onMinRunDaysChange: (processId: string, value: string) => void;
+}) => {
     if (!order.tna) return null;
 
-    const { sewingLines } = useSchedule();
-    const numLines = sewingLines[order.id] || 1;
-    
     const { ckDate } = order.tna;
-
-    const [minRunDays, setMinRunDays] = useState<Record<string, string>>({});
     
     const sewingProcessIndex = order.processIds.indexOf('sewing');
-
-    const moqAndBatchData = useMemo(() => {
-        const moqs: Record<string, number> = {};
-        let maxMoq = 0;
-        
-        order.processIds.forEach((processId, index) => {
-            if (sewingProcessIndex !== -1 && index > sewingProcessIndex) {
-              moqs[processId] = 0;
-              return;
-            }
-
-            const process = PROCESSES.find(p => p.id === processId)!;
-            const days = Number(minRunDays[process.id]) || 0;
-            let currentMoq = 0;
-
-            if (days > 0) {
-                 if (process.id === 'sewing') {
-                    const durationMinutes = days * WORK_DAY_MINUTES;
-                    const peakEfficiency = (order.sewingRampUpScheme || []).reduce((max, s) => Math.max(max, s.efficiency), order.budgetedEfficiency || 85);
-                    const effectiveSam = process.sam / (peakEfficiency / 100);
-                    const outputPerMinute = (1 / effectiveSam) * numLines;
-                    currentMoq = Math.floor(outputPerMinute * durationMinutes);
-                } else {
-                    const totalMinutes = days * WORK_DAY_MINUTES;
-                    const outputPerMinute = 1 / process.sam;
-                    currentMoq = Math.floor(outputPerMinute * totalMinutes);
-                }
-            }
-            moqs[processId] = currentMoq;
-            if (currentMoq > maxMoq) {
-                maxMoq = currentMoq;
-            }
-        });
-
-        return { moqs, processBatchSize: maxMoq > 0 ? maxMoq : order.quantity / 5 }; // Fallback batch size
-    }, [minRunDays, order, numLines, sewingProcessIndex]);
-
-    useEffect(() => {
-        const initialDays: Record<string, string> = {};
-        order.processIds.forEach(pid => {
-            initialDays[pid] = "1";
-        });
-        setMinRunDays(initialDays);
-    }, [order.id, order.processIds]);
-
-    const handleMinRunDaysChange = (processId: string, value: string) => {
-        setMinRunDays(prev => ({...prev, [processId]: value}));
-    };
     
     const getAggregatedScheduledTimes = (processId: string) => {
         const relevantProcesses = scheduledProcesses.filter(p => p.orderId === order.id && p.processId === processId);
@@ -357,7 +318,7 @@ const TnaPlan = ({ order, scheduledProcesses, onTnaGenerate }: { order: Order; s
                         </Tooltip>
                     </TooltipProvider>
                 </div>
-                <div className="font-bold text-xl">{Math.round(moqAndBatchData.processBatchSize).toLocaleString()}</div>
+                <div className="font-bold text-xl">{Math.round(processBatchSize).toLocaleString()}</div>
             </div>
         </div>
 
@@ -398,13 +359,13 @@ const TnaPlan = ({ order, scheduledProcesses, onTnaGenerate }: { order: Order; s
                             type="number"
                             min="1"
                             value={minRunDays[process.id] || ''}
-                            onChange={(e) => handleMinRunDaysChange(process.id, e.target.value)}
+                            onChange={(e) => onMinRunDaysChange(process.id, e.target.value)}
                             className="w-20 h-8 text-center"
                         />
                       )}
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                        {isAfterSewing ? '-' : Math.round(moqAndBatchData.moqs[process.id] || 0).toLocaleString()}
+                        {isAfterSewing ? '-' : Math.round(moqs[process.id] || 0).toLocaleString()}
                     </TableCell>
                     <TableCell className="text-right">{tnaProcess?.durationDays ? `${tnaProcess.durationDays}d` : '-'}</TableCell>
                     <TableCell>{tnaProcess?.earliestStartDate ? format(new Date(tnaProcess.earliestStartDate), 'MMM dd') : '-'}</TableCell>
@@ -436,6 +397,59 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
   const [isTnaOpen, setIsTnaOpen] = useState(false);
   const [rampUpState, setRampUpState] = useState<RampUpDialogState | null>(null);
 
+  const [minRunDays, setMinRunDays] = useState<Record<string, string>>({});
+  
+  useEffect(() => {
+      const initialDays: Record<string, string> = {};
+      order.processIds.forEach(pid => {
+          initialDays[pid] = "1";
+      });
+      setMinRunDays(initialDays);
+  }, [order.id, order.processIds]);
+
+  const handleMinRunDaysChange = (processId: string, value: string) => {
+      setMinRunDays(prev => ({...prev, [processId]: value}));
+  };
+
+  const { sewingLines } = useSchedule();
+  const sewingProcessIndex = order.processIds.indexOf('sewing');
+
+  const moqAndBatchData = useMemo(() => {
+      const moqs: Record<string, number> = {};
+      let maxMoq = 0;
+      
+      order.processIds.forEach((processId, index) => {
+          if (sewingProcessIndex !== -1 && index > sewingProcessIndex) {
+            moqs[processId] = 0;
+            return;
+          }
+
+          const process = PROCESSES.find(p => p.id === processId)!;
+          const days = Number(minRunDays[process.id]) || 0;
+          let currentMoq = 0;
+
+          if (days > 0) {
+               if (process.id === 'sewing') {
+                  const durationMinutes = days * WORK_DAY_MINUTES;
+                  const peakEfficiency = (order.sewingRampUpScheme || []).reduce((max, s) => Math.max(max, s.efficiency), order.budgetedEfficiency || 85);
+                  const effectiveSam = process.sam / (peakEfficiency / 100);
+                  const outputPerMinute = (1 / effectiveSam) * (sewingLines[order.id] || 1);
+                  currentMoq = Math.floor(outputPerMinute * durationMinutes);
+              } else {
+                  const totalMinutes = days * WORK_DAY_MINUTES;
+                  const outputPerMinute = 1 / process.sam;
+                  currentMoq = Math.floor(outputPerMinute * totalMinutes);
+              }
+          }
+          moqs[processId] = currentMoq;
+          if (currentMoq > maxMoq) {
+              maxMoq = currentMoq;
+          }
+      });
+
+      return { moqs, processBatchSize: maxMoq > 0 ? maxMoq : order.quantity / 5 }; // Fallback batch size
+  }, [minRunDays, order, sewingLines, sewingProcessIndex]);
+
   const singleLineMinDays = useMemo(() => 
     sewingProcess ? calculateMinDays(order, sewingProcess.sam, order.sewingRampUpScheme || []) : 0,
     [order]
@@ -464,6 +478,10 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
   const isSchemeInefficient = typeof daysToBudget === 'number' && totalProductionDays > 0 && daysToBudget > totalProductionDays;
   const showWarning = isBudgetUnreachable || isSchemeInefficient;
 
+  const handleRecalculate = () => {
+    onTnaGenerate(order, moqAndBatchData.processBatchSize);
+  };
+
 
   return (
     <TableRow ref={ref} {...props}>
@@ -485,19 +503,7 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
                     </DialogDescription>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Button size="sm" variant="outline" onClick={() => {
-                            // This is a bit of a hack, but we need to find the calculated batch size
-                            // from inside the TnaPlan component. We can't lift state up easily because
-                            // TnaPlan manages its own internal state for the inputs.
-                            // We trigger a click on a hidden button inside the TnaPlan to get the value.
-                            const tnaPlanElement = document.getElementById(`tna-plan-${order.id}`);
-                            if (tnaPlanElement) {
-                                const hiddenButton = tnaPlanElement.querySelector('button[data-batch-size-recalculator]') as HTMLButtonElement | null;
-                                if (hiddenButton) {
-                                    hiddenButton.click();
-                                }
-                            }
-                        }}>
+                        <Button size="sm" variant="outline" onClick={handleRecalculate}>
                             <Zap className="h-4 w-4 mr-2"/> Recalculate T&amp;A Plan
                         </Button>
                         <DialogClose asChild>
@@ -511,7 +517,10 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
                 <TnaPlan 
                   order={order}
                   scheduledProcesses={scheduledProcesses}
-                  onTnaGenerate={onTnaGenerate}
+                  minRunDays={minRunDays}
+                  moqs={moqAndBatchData.moqs}
+                  processBatchSize={moqAndBatchData.processBatchSize}
+                  onMinRunDaysChange={handleMinRunDaysChange}
                 />
               </div>
             </DialogContent>
@@ -687,3 +696,5 @@ export default function OrdersPage() {
     </div>
   );
 }
+
+    
