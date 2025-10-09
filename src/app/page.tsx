@@ -131,15 +131,25 @@ function GanttPageContent() {
   const [dueDateSort, setDueDateSort] = useState<'asc' | 'desc' | null>(null);
   const [draggedItem, setDraggedItem] = useState<DraggedItemData | null>(null);
   const [processToSplit, setProcessToSplit] = useState<ProcessToSplitState>(null);
-  const [dates, setDates] = useState<Date[]>([]);
+  const [timelineEndDate, setTimelineEndDate] = useState(() => addDays(startOfToday(), 90));
 
-
-  useEffect(() => {
+  const dates = useMemo(() => {
     const today = startOfToday();
-    const generatedDates = Array.from({ length: 90 }, (_, i) => addDays(today, i))
-      .filter(date => getDay(date) !== 0); // Exclude Sundays
-    setDates(generatedDates);
-  }, []);
+    const dateArray: Date[] = [];
+    let currentDate = today;
+    
+    // Ensure the timeline always extends at least to the timelineEndDate
+    const finalEndDate = timelineEndDate;
+
+    while (currentDate <= finalEndDate) {
+        if (getDay(currentDate) !== 0) { // Exclude Sundays
+            dateArray.push(new Date(currentDate));
+        }
+        currentDate = addDays(currentDate, 1);
+    }
+    return dateArray;
+  }, [timelineEndDate]);
+
   
   const buyerOptions = useMemo(() => [...new Set(orders.map(o => o.buyer))], [orders]);
 
@@ -237,7 +247,19 @@ function GanttPageContent() {
   
       lastProcessEnd = newEnd;
     }
-  
+    
+    // Extend timeline if needed
+    let latestEndDate = lastProcessEnd;
+    finalProcesses.forEach(p => {
+        if (isAfter(p.endDateTime, latestEndDate)) {
+            latestEndDate = p.endDateTime;
+        }
+    });
+
+    if (isAfter(latestEndDate, timelineEndDate)) {
+        setTimelineEndDate(addDays(latestEndDate, 3)); // Add 3-day buffer
+    }
+
     setScheduledProcesses(finalProcesses);
     setDraggedItem(null);
   };
