@@ -34,37 +34,13 @@ function subBusinessDays(startDate: Date, days: number): Date {
 }
 
 
-function calculateProcessBatchSize(order: Order, processes: Process[]): number {
-    if (!order.tna) return 0;
-
-    const sewingProcess = processes.find(p => p.id === 'sewing');
-    if (!sewingProcess) return 0;
-
-    const samSewing = sewingProcess.sam;
+function calculateDaysToProduceBatch(orderQuantity: number, process: Process, totalDurationDays: number): number {
+    if(orderQuantity <= 0 || totalDurationDays <= 0 || process.singleRunOutput <=0) return 0;
     
-    let maxSetupRatio = 0;
-    let maxSingleRunOutput = 0;
+    const batchSize = process.singleRunOutput;
+    if (orderQuantity <= batchSize) return totalDurationDays;
 
-    order.processIds.forEach(pid => {
-        const process = processes.find(p => p.id === pid);
-        const tnaProcess = order.tna?.processes.find(tp => tp.processId === pid);
-
-        if (process && tnaProcess) {
-            const samDiff = samSewing - process.sam;
-            if (samDiff > 0) {
-                const ratio = tnaProcess.setupTime / samDiff;
-                if (ratio > maxSetupRatio) {
-                    maxSetupRatio = ratio;
-                }
-            }
-
-            if (process.singleRunOutput > maxSingleRunOutput) {
-                maxSingleRunOutput = process.singleRunOutput;
-            }
-        }
-    });
-
-    return Math.ceil(Math.max(maxSetupRatio, maxSingleRunOutput));
+    return Math.ceil((batchSize / orderQuantity) * totalDurationDays);
 };
 
 function calculateSewingDurationDays(quantity: number, sam: number, rampUpScheme: RampUpEntry[], numLines: number): number {
@@ -118,18 +94,8 @@ export function generateTnaPlan(
             const totalMinutes = order.quantity * process.sam;
             durationDays = Math.ceil(totalMinutes / WORK_DAY_MINUTES);
         }
-        return { processId: pid, durationDays };
-    });
-
-    const processBatchSize = calculateProcessBatchSize(order, processes);
-    const batchMetrics = metrics.map(({ processId, durationDays }) => {
-        let daysToProduceBatch;
-        if (order.quantity < processBatchSize) {
-            daysToProduceBatch = durationDays;
-        } else {
-            daysToProduceBatch = Math.ceil((processBatchSize / order.quantity) * durationDays);
-        }
-        return { processId, daysToProduceBatch };
+        const daysToProduceBatch = calculateDaysToProduceBatch(order.quantity, process, durationDays);
+        return { processId: pid, durationDays, daysToProduceBatch };
     });
 
     // --- Phase 2: ASAP Calculation (Forward Pass) ---
@@ -150,7 +116,7 @@ export function generateTnaPlan(
             currentEarliestStartDate = ftsLatestStartDateAnchor;
         } else {
             const predecessorId = order.processIds[index-1];
-            const predecessorBatchMetric = batchMetrics.find(m => m.processId === predecessorId)!;
+            const predecessorBatchMetric = metrics.find(m => m.processId === predecessorId)!;
             currentEarliestStartDate = addBusinessDays(previousProcessStartDate!, predecessorBatchMetric.daysToProduceBatch);
         }
         earliestDates[pid] = { earliestStartDate: currentEarliestStartDate };
@@ -159,19 +125,19 @@ export function generateTnaPlan(
 
     // --- Phase 3: ALAP Calculation (Backward Pass) ---
     const latestDates: { [key: string]: { latestStartDate: Date } } = {};
-    let nextProcessLatestStartDate = new Date(order.dueDate);
+    let nextProcessLatestStartDate: Date | null = null;
     
-    [...order.processIds].reverse().forEach((pid, index) => {
-        const isLastProcess = index === 0;
+    [...order.processIds].reverse().forEach((pid) => {
+        const metric = metrics.find(m => m.processId === pid)!;
         let currentLatestStartDate: Date;
 
-        if (isLastProcess) {
-            const metric = metrics.find(m => m.processId === pid)!;
-            currentLatestStartDate = subBusinessDays(nextProcessLatestStartDate, metric.durationDays);
+        if (nextProcessLatestStartDate === null) {
+            // This is the last process in the sequence
+            currentLatestStartDate = subBusinessDays(new Date(order.dueDate), metric.durationDays);
         } else {
-            const successorId = order.processIds[order.processIds.length - index];
-            const successorBatchMetric = batchMetrics.find(b => b.processId === successorId)!;
-            currentLatestStartDate = subBusinessDays(nextProcessLatestStartDate, successorBatchMetric.daysToProduceBatch);
+            // This process is a predecessor to `nextProcessLatestStartDate`
+            const currentProcessMetric = metrics.find(m => m.processId === pid)!;
+            currentLatestStartDate = subBusinessDays(nextProcessLatestStartDate, currentProcessMetric.daysToProduceBatch);
         }
         
         latestDates[pid] = { latestStartDate: currentLatestStartDate };

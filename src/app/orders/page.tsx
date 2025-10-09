@@ -278,7 +278,7 @@ const TnaPlan = ({ order, scheduledProcesses }: { order: Order; scheduledProcess
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
             <div className="p-3 bg-muted rounded-md">
                 <div className="font-medium text-muted-foreground">CK Date</div>
-                <div className="font-semibold text-lg">{format(new Date(ckDate), 'MMM dd, yyyy')}</div>
+                <div className="font-semibold text-lg">{ckDate instanceof Date ? format(ckDate, 'MMM dd, yyyy') : ckDate}</div>
             </div>
             <div className="p-3 bg-muted rounded-md">
                 <div className="font-medium text-muted-foreground">Shipment Date</div>
@@ -300,6 +300,7 @@ const TnaPlan = ({ order, scheduledProcesses }: { order: Order; scheduledProcess
               <TableRow className="bg-muted/50 hover:bg-muted/50">
                 <TableHead>Process</TableHead>
                 <TableHead className="text-right">SAM</TableHead>
+                <TableHead className="text-right">Setup Time</TableHead>
                 <TableHead className="text-right">Duration</TableHead>
                 <TableHead>Earliest Start</TableHead>
                 <TableHead>Latest Start</TableHead>
@@ -318,6 +319,7 @@ const TnaPlan = ({ order, scheduledProcesses }: { order: Order; scheduledProcess
                   <TableRow key={process.id}>
                     <TableCell className="font-medium">{process.name}</TableCell>
                     <TableCell className="text-right">{process.sam}</TableCell>
+                    <TableCell className="text-right">{tnaProcess?.setupTime ? `${tnaProcess.setupTime} min` : '-'}</TableCell>
                     <TableCell className="text-right">{tnaProcess?.durationDays ? `${tnaProcess.durationDays}d` : '-'}</TableCell>
                     <TableCell>{tnaProcess?.earliestStartDate ? format(new Date(tnaProcess.earliestStartDate), 'MMM dd') : '-'}</TableCell>
                     <TableCell>{tnaProcess?.latestStartDate ? format(new Date(tnaProcess.latestStartDate), 'MMM dd') : '-'}</TableCell>
@@ -399,7 +401,7 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
                     <div className="flex items-center gap-2">
                         <Button onClick={() => onTnaGenerate(order)}>
                             <Zap className="h-4 w-4 mr-2"/>
-                            Generate T&A Plan
+                            Generate T&amp;A Plan
                         </Button>
                         <DialogClose asChild>
                             <Button variant="ghost" size="icon" className="rounded-full">
