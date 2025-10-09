@@ -247,7 +247,7 @@ const getEhdForOrder = (orderId: string, scheduledProcesses: ScheduledProcess[])
 };
 
 // Sub-components defined at the module level for stability
-const TnaPlan = ({ order, onGenerate, scheduledProcesses }: { order: Order; onGenerate: (order: Order) => void; scheduledProcesses: ScheduledProcess[] }) => {
+const TnaPlan = ({ order, scheduledProcesses }: { order: Order; scheduledProcesses: ScheduledProcess[] }) => {
     if (!order.tna) return null;
     
     const { ckDate } = order.tna;
@@ -332,10 +332,6 @@ const TnaPlan = ({ order, onGenerate, scheduledProcesses }: { order: Order; onGe
                     <div className="font-semibold text-lg text-primary">{processBatchSize.toLocaleString()} units</div>
                 </div>
             </div>
-            <Button onClick={() => onGenerate(order)}>
-                <Zap className="h-4 w-4 mr-2"/>
-                Generate T&amp;A Plan
-            </Button>
         </div>
 
         <div className="border rounded-md">
@@ -437,16 +433,21 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
               </span>
             </DialogTrigger>
             <DialogContent className="max-w-6xl">
-              <DialogHeader>
-                <DialogTitle>{order.ocn} - {order.style} ({order.color})</DialogTitle>
-                <DialogDescription>
-                  Order ID: {order.id} &bull; Buyer: {order.buyer}
-                </DialogDescription>
+              <DialogHeader className="flex-row justify-between items-center">
+                <div>
+                  <DialogTitle>{order.ocn} - {order.style} ({order.color})</DialogTitle>
+                  <DialogDescription>
+                    Order ID: {order.id} &bull; Buyer: {order.buyer}
+                  </DialogDescription>
+                </div>
+                <Button onClick={() => onTnaGenerate(order)}>
+                  <Zap className="h-4 w-4 mr-2"/>
+                  Generate T&amp;A Plan
+                </Button>
               </DialogHeader>
               <div className="py-4">
                 <TnaPlan 
                   order={order}
-                  onGenerate={onTnaGenerate}
                   scheduledProcesses={scheduledProcesses}
                 />
               </div>
@@ -623,3 +624,6 @@ export default function OrdersPage() {
     </div>
   );
 }
+
+
+    
