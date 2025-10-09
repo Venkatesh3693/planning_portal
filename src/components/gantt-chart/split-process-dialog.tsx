@@ -178,10 +178,13 @@ export default function SplitProcessDialog({
 
   if (!processes || !processInfo || !order) return null;
   const isResplit = processes.length > 1 || processes[0].isSplit;
-  const isSewing = processInfo.id === 'sewing';
-  const sewingProcessIndex = order.processIds.indexOf(SEWING_PROCESS_ID);
+
+  const sewingProcessIndex = order.processIds.indexOf('sewing');
+  const packingProcessIndex = order.processIds.indexOf('packing');
   const currentProcessIndex = order.processIds.indexOf(processInfo.id);
-  const canSplitByBatch = sewingProcessIndex !== -1 && currentProcessIndex < sewingProcessIndex;
+
+  const canSplitByBatch = (sewingProcessIndex > -1 && currentProcessIndex < sewingProcessIndex) || 
+                          (packingProcessIndex > -1 && currentProcessIndex < packingProcessIndex);
 
 
   return (
@@ -208,7 +211,7 @@ export default function SplitProcessDialog({
                 </Button>
             </div>
           )}
-          {isSewing && numLines > 0 && !canSplitByBatch && (
+          {processInfo.id === 'sewing' && numLines > 0 && !canSplitByBatch && (
             <div className="px-4">
               <p className="text-sm text-muted-foreground">
                 Recommended number of lines: <span className="font-semibold text-foreground">{numLines}</span>
