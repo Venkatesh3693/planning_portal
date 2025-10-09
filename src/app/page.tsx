@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { addDays, startOfToday, getDay, set, isAfter, addMinutes } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
-import { MACHINES, PROCESSES, WORK_DAY_MINUTES } from '@/lib/data';
+import { MACHINES, PROCESSES, WORK_DAY_MINUTES, ORDER_COLORS } from '@/lib/data';
 import type { Order, ScheduledProcess, TnaProcess } from '@/lib/types';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -100,22 +100,17 @@ const calculateSewingDuration = (order: Order, quantity: number): number => {
         const outputPerMinute = 1 / effectiveSam;
         
         const minutesLeftInWorkDay = WORK_DAY_MINUTES - (totalMinutes % WORK_DAY_MINUTES);
-        const maxOutputForRestOfDay = minutesLeftInDay * outputPerMinute;
+        const maxOutputForRestOfDay = minutesLeftInWorkDay * outputPerMinute;
 
         if (remainingQty <= maxOutputForRestOfDay) {
             totalMinutes += remainingQty / outputPerMinute;
             remainingQty = 0;
         } else {
-            totalMinutes += minutesLeftInDay;
+            totalMinutes += minutesLeftInWorkDay;
             remainingQty -= maxOutputForRestOfDay;
         }
     }
     return totalMinutes;
-};
-
-const calculateMinSewingDaysDuration = (order: Order) => {
-  const singleLineDuration = calculateSewingDuration(order, order.quantity);
-  return singleLineDuration;
 };
 
 
@@ -158,7 +153,8 @@ function GanttPageContent() {
       
       let durationMinutes;
       if (process.id === SEWING_PROCESS_ID) {
-        durationMinutes = calculateMinSewingDaysDuration(order);
+        const singleLineDuration = calculateSewingDuration(order, droppedItem.quantity);
+        durationMinutes = singleLineDuration;
       } else {
         durationMinutes = process.sam * droppedItem.quantity;
       }
@@ -514,3 +510,5 @@ export default function Home() {
     <GanttPageContent />
   );
 }
+
+    
