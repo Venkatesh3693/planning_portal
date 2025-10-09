@@ -115,6 +115,92 @@ const calculateAverageEfficiency = (
   return weightedSum / Math.ceil(totalProductionDays);
 };
 
+const calculateDaysToMeetBudget = (
+  rampUpScheme: RampUpEntry[],
+  budgetedEfficiency: number
+): string | number => {
+  if (!rampUpScheme || rampUpScheme.length === 0 || !budgetedEfficiency) {
+    return '-';
+  }
+
+  const sortedScheme = [...rampUpScheme].sort((a, b) => a.day - b.day);
+  const peakEfficiency = sortedScheme[sortedScheme.length - 1].efficiency;
+
+  if (peakEfficiency < budgetedEfficiency) {
+    return 'Change ramp-up';
+  }
+  
+  if (sortedScheme[0].efficiency >= budgetedEfficiency) {
+    return 1;
+  }
+
+  let rampUpTotalEfficiency = 0;
+  let rampUpTotalDays = 0;
+  let lastDay = 0;
+  let lastEfficiency = 0;
+  
+  // Calculate the total efficiency contribution from the ramp-up phase before peak
+  for (const entry of sortedScheme) {
+    const daysInStep = entry.day - lastDay;
+    if (daysInStep > 0) {
+      rampUpTotalEfficiency += daysInStep * lastEfficiency;
+      rampUpTotalDays += daysInStep;
+    }
+    
+    // Check if average is met during this step
+    const currentAvg = (rampUpTotalEfficiency + entry.efficiency) / (rampUpTotalDays + 1);
+    if(currentAvg >= budgetedEfficiency) {
+       // Simple case: goal met on a ramp-up day
+       // This part of the logic could be more complex, for now we just check at the step change
+       const simpleAvgCheck = rampUpTotalEfficiency + (entry.efficiency * (entry.day - rampUpTotalDays))
+       if( (simpleAvgCheck / entry.day) >= budgetedEfficiency) {
+         let day = rampUpTotalDays;
+         let avg = rampUpTotalEfficiency / day;
+         while(avg < budgetedEfficiency && day < entry.day) {
+            day++;
+            avg = (rampUpTotalEfficiency + (lastEfficiency * (day - rampUpTotalDays))) / day
+         }
+         return day;
+       }
+    }
+
+    lastDay = entry.day;
+    lastEfficiency = entry.efficiency;
+  }
+  
+  rampUpTotalDays = lastDay - 1;
+  rampUpTotalEfficiency = 0;
+  let prevDay = 0;
+  for (const entry of sortedScheme) {
+      const numDays = entry.day - prevDay;
+      rampUpTotalEfficiency += numDays * (sortedScheme.find(s => s.day === prevDay)?.efficiency || entry.efficiency)
+      if(entry.day >= lastDay) break;
+      prevDay = entry.day;
+  }
+  rampUpTotalEfficiency = sortedScheme.reduce((acc, curr, i, arr) => {
+    if (i === arr.length - 1) return acc;
+    const nextStep = arr[i+1];
+    const daysInStep = nextStep.day - curr.day;
+    return acc + (daysInStep * curr.efficiency);
+  }, 0)
+  
+  rampUpTotalDays = sortedScheme[sortedScheme.length - 1].day -1;
+
+
+  // x >= (budgetedEfficiency * rampUpTotalDays - rampUpTotalEfficiency) / (peakEfficiency - budgetedEfficiency)
+  const numerator = (budgetedEfficiency * rampUpTotalDays) - rampUpTotalEfficiency;
+  const denominator = peakEfficiency - budgetedEfficiency;
+  
+  if (denominator <= 0) { // Should be caught by the peak check, but for safety
+     return 'Change ramp-up';
+  }
+
+  const daysAtPeak = Math.max(0, numerator / denominator);
+
+  return Math.ceil(rampUpTotalDays + daysAtPeak);
+};
+
+
 type RampUpDialogState = {
   order: Order;
   singleLineMinDays: number;
@@ -317,9 +403,9 @@ export default function OrdersPage() {
                     <TableCell className="text-right">{process.sam}</TableCell>
                     <TableCell className="text-right">{tnaProcess?.setupTime || '-'}</TableCell>
                     <TableCell className="text-right">{process.singleRunOutput}</TableCell>
-                    <TableCell>{tnaProcess?.latestStartDate ? format(tnaProcess.latestStartDate, 'MMM dd') : '-'}</TableCell>
-                    <TableCell>{tnaProcess?.plannedStartDate ? format(tnaProcess.plannedStartDate, 'MMM dd') : '-'}</TableCell>
-                    <TableCell>{tnaProcess?.plannedEndDate ? format(tnaProcess?.plannedEndDate, 'MMM dd') : '-'}</TableCell>
+                    <TableCell>{tnaProcess?.latestStartDate ? format(new Date(tnaProcess.latestStartDate), 'MMM dd') : '-'}</TableCell>
+                    <TableCell>{tnaProcess?.plannedStartDate ? format(new Date(tnaProcess.plannedStartDate), 'MMM dd') : '-'}</TableCell>
+                    <TableCell>{tnaProcess?.plannedEndDate ? format(new Date(tnaProcess.plannedEndDate), 'MMM dd') : '-'}</TableCell>
                     <TableCell>{start ? format(start, 'MMM dd, h:mm a') : <span className="text-muted-foreground">Not set</span>}</TableCell>
                     <TableCell>{end ? format(end, 'MMM dd, h:mm a') : <span className="text-muted-foreground">Not set</span>}</TableCell>
                   </TableRow>
@@ -366,6 +452,7 @@ export default function OrdersPage() {
                       <TableHead>Order Type</TableHead>
                       <TableHead>Budgeted Eff.</TableHead>
                       <TableHead>Avg. Eff.</TableHead>
+                      <TableHead>Days to Budget Eff.</TableHead>
                       <TableHead>Ramp-up</TableHead>
                       <TableHead>No. of Lines</TableHead>
                       <TableHead>Min. Sewing Days</TableHead>
@@ -388,6 +475,8 @@ export default function OrdersPage() {
                       const totalProductionDays = singleLineMinDays > 0 && numLines > 0 ? singleLineMinDays / numLines : 0;
                       
                       const avgEfficiency = calculateAverageEfficiency(order.sewingRampUpScheme || [], totalProductionDays);
+                      
+                      const daysToBudget = calculateDaysToMeetBudget(order.sewingRampUpScheme || [], order.budgetedEfficiency || 0);
 
                       return (
                         <TableRow key={order.id}>
@@ -408,6 +497,11 @@ export default function OrdersPage() {
                             <Badge variant={avgEfficiency < (order.budgetedEfficiency || 0) ? 'destructive' : 'secondary'}>
                                 {avgEfficiency.toFixed(2)}%
                             </Badge>
+                          </TableCell>
+                          <TableCell>
+                             <Badge variant={typeof daysToBudget === 'string' ? 'destructive' : 'secondary'}>
+                                {typeof daysToBudget === 'number' ? `${daysToBudget} days` : daysToBudget}
+                             </Badge>
                           </TableCell>
                           <TableCell>
                               <Button variant="outline" size="sm" onClick={() => setRampUpState({ order, singleLineMinDays })}>
@@ -493,7 +587,3 @@ export default function OrdersPage() {
     </div>
   );
 }
-
-    
-
-    
