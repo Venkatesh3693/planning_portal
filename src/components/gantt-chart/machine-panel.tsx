@@ -17,7 +17,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { Filter, FilterX, ChevronDown } from 'lucide-react';
+import { Filter, FilterX, ChevronDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import {
@@ -33,7 +33,7 @@ import type { DateRange } from 'react-day-picker';
 import { PROCESSES } from '@/lib/data';
 import { addBusinessDays } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Tooltip, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 
 const SEWING_PROCESS_ID = 'sewing';
 
@@ -74,6 +74,23 @@ export default function MachinePanel({
   setDueDateSort,
   clearFilters,
 }: MachinePanelProps) {
+
+  const handleSortToggle = () => {
+    if (dueDateSort === null) {
+      setDueDateSort('asc');
+    } else if (dueDateSort === 'asc') {
+      setDueDateSort('desc');
+    } else {
+      setDueDateSort(null);
+    }
+  };
+  
+  const sortTooltip = dueDateSort === null 
+    ? "Sort Ascending" 
+    : dueDateSort === 'asc' 
+    ? "Sort Descending" 
+    : "Clear Sort";
+
   return (
     <Card className="h-full flex flex-col">
       <CardHeader className="flex flex-row items-center justify-between">
@@ -143,28 +160,28 @@ export default function MachinePanel({
                   </div>
                   <div className="space-y-2">
                     <Label>Due Date</Label>
-                    <DatePicker date={filterDueDate} setDate={setFilterDueDate} />
+                    <div className="flex gap-2 items-center">
+                        <DatePicker date={filterDueDate} setDate={setFilterDueDate} className="flex-1"/>
+                         <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button variant="outline" size="icon" onClick={handleSortToggle} className="w-10 h-10">
+                                        {dueDateSort === 'asc' && <ArrowUp className="h-4 w-4" />}
+                                        {dueDateSort === 'desc' && <ArrowDown className="h-4 w-4" />}
+                                        {dueDateSort === null && <ArrowDown className="h-4 w-4 opacity-40" />}
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>{sortTooltip}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    </div>
                   </div>
 
-                  <Separator />
-
-                  <div className="space-y-2">
-                    <Label>Sort by Due Date</Label>
-                    <RadioGroup value={dueDateSort || ''} onValueChange={(value) => setDueDateSort(value as 'asc' | 'desc' | null)}>
-                        <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="asc" id="sort-asc" />
-                            <Label htmlFor="sort-asc" className="font-normal">Ascending</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="desc" id="sort-desc" />
-                            <Label htmlFor="sort-desc" className="font-normal">Descending</Label>
-                        </div>
-                    </RadioGroup>
-                  </div>
-                  
                   {hasActiveFilters && (
                     <>
-                      <Separator />
+                      <Separator className="mt-2"/>
                       <Button
                         variant="ghost"
                         size="sm"
