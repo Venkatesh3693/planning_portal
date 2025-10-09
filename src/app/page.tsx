@@ -165,17 +165,23 @@ function GanttPageContent() {
       const ordersWithData = staticOrders.map((order, index) => {
         const orderId = order.id;
         const rampUpScheme = scheduleData.sewingRampUpSchemes?.[orderId];
-        const tnaProcesses = order.tna?.processes.map(p => ({
-            ...p,
-            startDate: p.plannedStartDate || p.startDate,
-            endDate: p.plannedEndDate || p.endDate,
+        const storedOrder = scheduleData?.orders?.[orderId];
+        const tnaProcesses = (storedOrder?.tna?.processes || order.tna?.processes || []).map((p: any) => ({
+             ...p,
+             ...(p.plannedStartDate && { plannedStartDate: new Date(p.plannedStartDate) }),
+             ...(p.plannedEndDate && { plannedEndDate: new Date(p.plannedEndDate) }),
+             ...(p.latestStartDate && { latestStartDate: new Date(p.latestStartDate) }),
         }));
         
         return {
           ...order,
           displayColor: colorMap[orderId] || ORDER_COLORS[index % ORDER_COLORS.length],
           sewingRampUpScheme: rampUpScheme || [{ day: 1, efficiency: order.budgetedEfficiency || 85 }],
-          tna: tnaProcesses ? { ...order.tna!, processes: tnaProcesses} : undefined,
+          tna: {
+              ...(order.tna as Tna),
+              ...(storedOrder?.tna),
+              processes: tnaProcesses,
+          },
         };
       });
       setOrders(ordersWithData);
