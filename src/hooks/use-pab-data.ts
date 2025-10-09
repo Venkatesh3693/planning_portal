@@ -2,7 +2,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import type { ScheduledProcess, Order, Process } from '@/lib/types';
+import type { ScheduledProcess, Order, Process, RampUpEntry } from '@/lib/types';
 import { format, startOfDay, addDays, isAfter, isBefore, getDay, addMinutes } from 'date-fns';
 import { WORK_DAY_MINUTES } from '@/lib/data';
 
@@ -18,6 +18,37 @@ export type PabData = {
 
 const INITIAL_PAB_DATA: PabData = { data: {}, processSequences: {}, processDetails: {}, dailyOutputs: {}, dailyInputs: {}, processStartDates: {}, processDateRanges: {} };
 
+// This helper function calculates the output for a given day, considering ramp-up for sewing
+const getOutputForDay = (
+  process: Process,
+  order: Order,
+  minutesToProcess: number,
+  productionDay: number,
+): number => {
+    if (process.id === 'sewing') {
+        const rampUpScheme = order.sewingRampUpScheme || [];
+        let efficiency = rampUpScheme.length > 0 
+            ? rampUpScheme[rampUpScheme.length - 1].efficiency 
+            : order.budgetedEfficiency || 100;
+        
+        for (const entry of rampUpScheme) {
+            if (productionDay >= entry.day) {
+                efficiency = entry.efficiency;
+            }
+        }
+        if (!efficiency || efficiency <= 0) return 0;
+        
+        const effectiveSam = process.sam / (efficiency / 100);
+        return minutesToProcess * (1 / effectiveSam);
+
+    } else {
+        // Static SAM calculation for non-sewing processes
+        const outputPerMinute = 1 / process.sam;
+        return minutesToProcess * outputPerMinute;
+    }
+};
+
+
 export function usePabData(
   scheduledProcesses: ScheduledProcess[],
   orders: Order[],
@@ -31,14 +62,19 @@ export function usePabData(
     }
 
     const processMap = new Map(processes.map(p => [p.id, p]));
+    const orderMap = new Map(orders.map(o => [o.id, o]));
 
     // --- Step A: Aggregate Daily Output & Find Date Ranges ---
     const dailyAggregatedOutput: PabData['dailyOutputs'] = {}; // { orderId: { processId: { date: output } } }
     const processDateRanges: Record<string, Record<string, { start: Date, end: Date }>> = {}; // { orderId: { processId: { start, end } } }
+    
+    // Tracks the current production day for each process instance (important for ramp-up)
+    const processProductionDayCounter: Record<string, number> = {}; 
 
     for (const p of scheduledProcesses) {
       const processInfo = processMap.get(p.processId);
-      if (!processInfo) continue;
+      const orderInfo = orderMap.get(p.orderId);
+      if (!processInfo || !orderInfo) continue;
 
       // Initialize data structures for the order
       if (!dailyAggregatedOutput[p.orderId]) dailyAggregatedOutput[p.orderId] = {};
@@ -54,10 +90,9 @@ export function usePabData(
         if (isAfter(p.endDateTime, currentRange.end)) currentRange.end = p.endDateTime;
       }
       
-      const outputPerMinute = 1 / processInfo.sam;
-
       let current = new Date(p.startDateTime);
       let remainingDuration = p.durationMinutes;
+      processProductionDayCounter[p.id] = 0;
 
       while (remainingDuration > 0) {
         if (getDay(current) === 0) { // Skip Sundays
@@ -75,10 +110,15 @@ export function usePabData(
             current.setHours(9, 0, 0, 0);
             continue;
         }
+        
+        // This is a new production day for this specific scheduled process part
+        processProductionDayCounter[p.id]++; 
 
         const dateKey = format(startOfDay(current), 'yyyy-MM-dd');
-        const outputForDay = minutesToProcessToday * outputPerMinute;
         
+        // Use the helper to get output, which handles ramp-up for sewing
+        const outputForDay = getOutputForDay(processInfo, orderInfo, minutesToProcessToday, processProductionDayCounter[p.id]);
+
         dailyAggregatedOutput[p.orderId][p.processId][dateKey] = (dailyAggregatedOutput[p.orderId][p.processId][dateKey] || 0) + outputForDay;
         
         remainingDuration -= minutesToProcessToday;
