@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, forwardRef, type ComponentProps } from 'react';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -51,227 +51,186 @@ type RampUpDialogState = {
   singleLineMinDays: number;
 };
 
+
+// Helper functions moved to module scope to prevent re-definition on each render.
 const calculateMinDays = (order: Order, sewingSam: number, rampUpScheme: RampUpEntry[]) => {
-  const scheme = rampUpScheme || [];
-  if (!order.quantity || !sewingSam || scheme.length === 0) return 0;
-
-  // --- Best Practice Fix: Pre-compute efficiency map ---
-  const sortedScheme = [...scheme].sort((a, b) => a.day - b.day);
-  const peakEfficiency = sortedScheme.length > 0 ? sortedScheme[sortedScheme.length - 1].efficiency : 0;
-
-  // Create a dense map for quick lookups.
-  const maxMapDays = sortedScheme.length > 0 ? sortedScheme[sortedScheme.length - 1].day + 90 : 90;
-  const efficiencyMap = new Array(maxMapDays + 1).fill(0);
-  let lastEff = 0;
-  let schemeIndex = 0;
-
-  for (let day = 1; day <= maxMapDays; day++) {
-    // Find the correct efficiency for the current day from the sorted scheme
-    while (schemeIndex < sortedScheme.length && day >= sortedScheme[schemeIndex].day) {
-      lastEff = sortedScheme[schemeIndex].efficiency;
-      schemeIndex++;
-    }
-    efficiencyMap[day] = lastEff;
-  }
-  // --- End of Fix ---
-
-
-  let remainingQty = order.quantity;
-  let minutes = 0;
-
-  while (remainingQty > 0) {
-    const currentDay = Math.floor(minutes / WORK_DAY_MINUTES) + 1;
-    
-    // Direct, safe lookup from the map
-    const efficiency = currentDay > maxMapDays ? peakEfficiency : efficiencyMap[currentDay];
-
-    if (!efficiency || efficiency <= 0) {
-      // This should no longer happen with the pre-computed map, but as a safeguard:
-      return Infinity; 
-    }
-
-    const effectiveSam = sewingSam / (efficiency / 100);
-    const outputPerMinute = 1 / effectiveSam;
-    
-    const minutesToNextDay = WORK_DAY_MINUTES - (minutes % WORK_DAY_MINUTES);
-    const maxOutputForRestOfDay = minutesToNextDay * outputPerMinute;
-
-    if (remainingQty <= maxOutputForRestOfDay) {
-      minutes += remainingQty / outputPerMinute;
-      remainingQty = 0;
-    } else {
-      minutes += minutesToNextDay;
-      remainingQty -= maxOutputForRestOfDay;
-    }
-    
-    // Safety break for extreme cases
-    if (minutes > WORK_DAY_MINUTES * 10000) {
-        return Infinity;
-    }
-  }
-  return minutes / WORK_DAY_MINUTES;
-};
-
-const calculateAverageEfficiency = (
-  scheme: RampUpEntry[],
-  totalProductionDays: number
-): number => {
-  if (scheme.length === 0 || totalProductionDays === 0 || totalProductionDays === Infinity) return 0;
-
-  let weightedSum = 0;
-  const sortedScheme = [...scheme]
-    .map(s => ({ ...s, efficiency: Number(s.efficiency) || 0 }))
-    .filter(s => s.efficiency > 0)
-    .sort((a, b) => a.day - b.day);
-
-  if (sortedScheme.length === 0) return 0;
-
-  let lastDay = 0;
-  let lastEfficiency = 0;
-
-  for (const entry of sortedScheme) {
-    const daysInThisStep = entry.day - lastDay;
-    if (daysInThisStep > 0) {
-      weightedSum += daysInThisStep * lastEfficiency;
-    }
-    lastDay = entry.day;
-    lastEfficiency = entry.efficiency;
-  }
-
-  const daysAtPeak = Math.ceil(totalProductionDays) - lastDay + 1;
-  if (daysAtPeak > 0) {
-    weightedSum += daysAtPeak * lastEfficiency;
-  }
-
-  return weightedSum / Math.ceil(totalProductionDays);
-};
-
-const calculateDaysToMeetBudget = (
-  rampUpScheme: RampUpEntry[],
-  budgetedEfficiency: number
-): string | number => {
-  if (!rampUpScheme || rampUpScheme.length === 0 || !budgetedEfficiency) {
-    return '-';
-  }
-
-  const sortedScheme = [...rampUpScheme]
-    .filter(s => s.efficiency > 0)
-    .sort((a, b) => a.day - b.day);
-
-  if (sortedScheme.length === 0) return '-';
-
-  const peakEfficiency = sortedScheme[sortedScheme.length - 1].efficiency;
-
-  if (peakEfficiency < budgetedEfficiency) {
-    return Infinity;
-  }
+    const scheme = rampUpScheme || [];
+    if (!order.quantity || !sewingSam || scheme.length === 0) return 0;
   
-  if (sortedScheme[0].efficiency >= budgetedEfficiency) {
-    return 1;
-  }
+    // --- Best Practice Fix: Pre-compute efficiency map ---
+    const sortedScheme = [...scheme].sort((a, b) => a.day - b.day);
+    const peakEfficiency = sortedScheme.length > 0 ? sortedScheme[sortedScheme.length - 1].efficiency : 0;
   
-  let rampUpTotalEfficiency = 0;
-  let rampUpTotalDays = 0;
-  let lastDay = 0;
-  let lastEfficiency = 0;
+    // Create a dense map for quick lookups.
+    const maxMapDays = sortedScheme.length > 0 ? sortedScheme[sortedScheme.length - 1].day + 90 : 90;
+    const efficiencyMap = new Array(maxMapDays + 1).fill(0);
+    let lastEff = 0;
+    let schemeIndex = 0;
   
-  for (const entry of sortedScheme) {
-    const daysInThisStep = entry.day - lastDay;
-    if (daysInThisStep > 0) {
-      const avgDuringStep = (rampUpTotalEfficiency + (daysInThisStep * lastEfficiency)) / (rampUpTotalDays + daysInThisStep);
-      if (avgDuringStep >= budgetedEfficiency) {
-          // find the exact day
-          let day = rampUpTotalDays + 1;
-          while(day < entry.day) {
-            const currentTotalEff = rampUpTotalEfficiency + ((day - rampUpTotalDays) * lastEfficiency);
-            if(currentTotalEff / day >= budgetedEfficiency) return day;
-            day++;
-          }
+    for (let day = 1; day <= maxMapDays; day++) {
+      // Find the correct efficiency for the current day from the sorted scheme
+      while (schemeIndex < sortedScheme.length && day >= sortedScheme[schemeIndex].day) {
+        lastEff = sortedScheme[schemeIndex].efficiency;
+        schemeIndex++;
       }
-      rampUpTotalEfficiency += daysInThisStep * lastEfficiency;
-      rampUpTotalDays += daysInThisStep;
+      efficiencyMap[day] = lastEff;
     }
-
-    if((rampUpTotalEfficiency + entry.efficiency) / (rampUpTotalDays + 1) >= budgetedEfficiency) {
-        return rampUpTotalDays + 1;
+    // --- End of Fix ---
+  
+  
+    let remainingQty = order.quantity;
+    let minutes = 0;
+  
+    while (remainingQty > 0) {
+      const currentDay = Math.floor(minutes / WORK_DAY_MINUTES) + 1;
+      
+      // Direct, safe lookup from the map
+      const efficiency = currentDay > maxMapDays ? peakEfficiency : efficiencyMap[currentDay];
+  
+      if (!efficiency || efficiency <= 0) {
+        // This should no longer happen with the pre-computed map, but as a safeguard:
+        return Infinity; 
+      }
+  
+      const effectiveSam = sewingSam / (efficiency / 100);
+      const outputPerMinute = 1 / effectiveSam;
+      
+      const minutesToNextDay = WORK_DAY_MINUTES - (minutes % WORK_DAY_MINUTES);
+      const maxOutputForRestOfDay = minutesToNextDay * outputPerMinute;
+  
+      if (remainingQty <= maxOutputForRestOfDay) {
+        minutes += remainingQty / outputPerMinute;
+        remainingQty = 0;
+      } else {
+        minutes += minutesToNextDay;
+        remainingQty -= maxOutputForRestOfDay;
+      }
+      
+      // Safety break for extreme cases
+      if (minutes > WORK_DAY_MINUTES * 10000) {
+          return Infinity;
+      }
     }
-
-    lastDay = entry.day;
-    lastEfficiency = entry.efficiency;
-  }
+    return minutes / WORK_DAY_MINUTES;
+};
   
-  rampUpTotalDays = lastDay - 1;
-  rampUpTotalEfficiency = 0;
-
-  let prevDay = 0;
-  let prevEff = 0;
-
-  for (const entry of sortedScheme) {
-    const numDays = entry.day - prevDay;
-    if (numDays > 0) {
-      rampUpTotalEfficiency += numDays * prevEff;
+const calculateAverageEfficiency = (
+    scheme: RampUpEntry[],
+    totalProductionDays: number
+): number => {
+    if (scheme.length === 0 || totalProductionDays === 0 || totalProductionDays === Infinity) return 0;
+  
+    let weightedSum = 0;
+    const sortedScheme = [...scheme]
+      .map(s => ({ ...s, efficiency: Number(s.efficiency) || 0 }))
+      .filter(s => s.efficiency > 0)
+      .sort((a, b) => a.day - b.day);
+  
+    if (sortedScheme.length === 0) return 0;
+  
+    let lastDay = 0;
+    let lastEfficiency = 0;
+  
+    for (const entry of sortedScheme) {
+      const daysInThisStep = entry.day - lastDay;
+      if (daysInThisStep > 0) {
+        weightedSum += daysInThisStep * lastEfficiency;
+      }
+      lastDay = entry.day;
+      lastEfficiency = entry.efficiency;
     }
-    if (entry.day > rampUpTotalDays) break;
-    prevDay = entry.day;
-    prevEff = entry.efficiency;
-  }
   
-  const numerator = (budgetedEfficiency * rampUpTotalDays) - rampUpTotalEfficiency;
-  const denominator = peakEfficiency - budgetedEfficiency;
+    const daysAtPeak = Math.ceil(totalProductionDays) - lastDay + 1;
+    if (daysAtPeak > 0) {
+      weightedSum += daysAtPeak * lastEfficiency;
+    }
   
-  if (denominator <= 0) {
-     return Infinity;
-  }
-
-  const daysAtPeak = Math.max(0, numerator / denominator);
-
-  return Math.ceil(rampUpTotalDays + daysAtPeak);
+    return weightedSum / Math.ceil(totalProductionDays);
+};
+  
+const calculateDaysToMeetBudget = (
+    rampUpScheme: RampUpEntry[],
+    budgetedEfficiency: number
+): string | number => {
+    if (!rampUpScheme || rampUpScheme.length === 0 || !budgetedEfficiency) {
+      return '-';
+    }
+  
+    const sortedScheme = [...rampUpScheme]
+      .filter(s => s.efficiency > 0)
+      .sort((a, b) => a.day - b.day);
+  
+    if (sortedScheme.length === 0) return '-';
+  
+    const peakEfficiency = sortedScheme[sortedScheme.length - 1].efficiency;
+  
+    if (peakEfficiency < budgetedEfficiency) {
+      return Infinity;
+    }
+    
+    if (sortedScheme[0].efficiency >= budgetedEfficiency) {
+      return 1;
+    }
+    
+    let rampUpTotalEfficiency = 0;
+    let rampUpTotalDays = 0;
+    let lastDay = 0;
+    let lastEfficiency = 0;
+    
+    for (const entry of sortedScheme) {
+      const daysInThisStep = entry.day - lastDay;
+      if (daysInThisStep > 0) {
+        const avgDuringStep = (rampUpTotalEfficiency + (daysInThisStep * lastEfficiency)) / (rampUpTotalDays + daysInThisStep);
+        if (avgDuringStep >= budgetedEfficiency) {
+            // find the exact day
+            let day = rampUpTotalDays + 1;
+            while(day < entry.day) {
+              const currentTotalEff = rampUpTotalEfficiency + ((day - rampUpTotalDays) * lastEfficiency);
+              if(currentTotalEff / day >= budgetedEfficiency) return day;
+              day++;
+            }
+        }
+        rampUpTotalEfficiency += daysInThisStep * lastEfficiency;
+        rampUpTotalDays += daysInThisStep;
+      }
+  
+      if((rampUpTotalEfficiency + entry.efficiency) / (rampUpTotalDays + 1) >= budgetedEfficiency) {
+          return rampUpTotalDays + 1;
+      }
+  
+      lastDay = entry.day;
+      lastEfficiency = entry.efficiency;
+    }
+    
+    rampUpTotalDays = lastDay - 1;
+    rampUpTotalEfficiency = 0;
+  
+    let prevDay = 0;
+    let prevEff = 0;
+  
+    for (const entry of sortedScheme) {
+      const numDays = entry.day - prevDay;
+      if (numDays > 0) {
+        rampUpTotalEfficiency += numDays * prevEff;
+      }
+      if (entry.day > rampUpTotalDays) break;
+      prevDay = entry.day;
+      prevEff = entry.efficiency;
+    }
+    
+    const numerator = (budgetedEfficiency * rampUpTotalDays) - rampUpTotalEfficiency;
+    const denominator = peakEfficiency - budgetedEfficiency;
+    
+    if (denominator <= 0) {
+       return Infinity;
+    }
+  
+    const daysAtPeak = Math.max(0, numerator / denominator);
+  
+    return Math.ceil(rampUpTotalDays + daysAtPeak);
 };
 
-
-function OrderRow({ order }: { order: Order }) {
-  const { 
-    scheduledProcesses,
-    updateSewingRampUpScheme, 
-    sewingLines, 
-    setSewingLines,
-    updateOrderTna,
-    updateOrderColor,
-  } = useSchedule();
-  
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [rampUpState, setRampUpState] = useState<RampUpDialogState | null>(null);
-
-  const handleOrderClick = (order: Order) => {
-    setSelectedOrder(order);
-  };
-  
-  const handleColorChange = (orderId: string, newColor: string) => {
-    updateOrderColor(orderId, newColor);
-  };
-  
-  const handleRampUpSave = (orderId: string, scheme: RampUpEntry[]) => {
-    updateSewingRampUpScheme(orderId, scheme);
-    setRampUpState(null);
-  };
-  
-  const handleGenerateTna = (order: Order) => {
-    const numLines = sewingLines[order.id] || 1;
-    const newTnaProcesses = generateTnaPlan(order, PROCESSES, numLines);
-    
-    updateOrderTna(order.id, newTnaProcesses);
-
-    const updatedOrder: Order = { 
-        ...order, 
-        tna: {
-            ...(order.tna as Tna),
-            processes: newTnaProcesses,
-        }
-    };
-    setSelectedOrder(updatedOrder);
-  };
-
-  const getEhdForOrder = (orderId: string) => {
+const getEhdForOrder = (orderId: string, scheduledProcesses: ScheduledProcess[]) => {
     const packingProcesses = scheduledProcesses.filter(
       (p) => p.orderId === orderId && p.processId === 'packing'
     );
@@ -285,9 +244,10 @@ function OrderRow({ order }: { order: Order }) {
     }, packingProcesses[0].endDateTime);
 
     return latestEndDate;
-  };
+};
 
-  const TnaPlan = ({ order, onGenerate }: { order: Order; onGenerate: (order: Order) => void; }) => {
+// Sub-components defined at the module level for stability
+const TnaPlan = ({ order, onGenerate, scheduledProcesses }: { order: Order; onGenerate: (order: Order) => void; scheduledProcesses: ScheduledProcess[] }) => {
     if (!order.tna) return null;
     
     const { ckDate } = order.tna;
@@ -419,10 +379,23 @@ function OrderRow({ order }: { order: Order }) {
         </div>
       </div>
     );
-  };
+};
   
-  const numLines = sewingLines[order.id] || 1;
-  
+interface OrderRowProps extends ComponentProps<typeof TableRow> {
+  order: Order;
+  onColorChange: (orderId: string, color: string) => void;
+  onTnaGenerate: (order: Order) => void;
+  onRampUpSave: (orderId: string, scheme: RampUpEntry[]) => void;
+  onSetSewingLines: (orderId: string, lines: number) => void;
+  numLines: number;
+  scheduledProcesses: ScheduledProcess[];
+}
+
+const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
+  ({ order, onColorChange, onTnaGenerate, onRampUpSave, onSetSewingLines, numLines, scheduledProcesses }, ref) => {
+  const [isTnaOpen, setIsTnaOpen] = useState(false);
+  const [rampUpState, setRampUpState] = useState<RampUpDialogState | null>(null);
+
   const singleLineMinDays = useMemo(() => 
     sewingProcess ? calculateMinDays(order, sewingProcess.sam, order.sewingRampUpScheme || []) : 0,
     [order]
@@ -443,25 +416,42 @@ function OrderRow({ order }: { order: Order }) {
     [order.sewingRampUpScheme, order.budgetedEfficiency]
   );
 
-  const ehd = getEhdForOrder(order.id);
+  const ehd = useMemo(() => getEhdForOrder(order.id, scheduledProcesses), [order.id, scheduledProcesses]);
+  
   const isLate = ehd && isAfter(startOfDay(ehd), startOfDay(new Date(order.dueDate)));
   
   const isBudgetUnreachable = daysToBudget === Infinity;
   const isSchemeInefficient = typeof daysToBudget === 'number' && totalProductionDays > 0 && daysToBudget > totalProductionDays;
   const showWarning = isBudgetUnreachable || isSchemeInefficient;
 
+
   return (
-    <>
-      <TableRow key={order.id}>
+    <TableRow ref={ref}>
         <TableCell>
-          <DialogTrigger asChild>
-            <span 
-              className="font-medium text-primary cursor-pointer hover:underline"
-              onClick={() => handleOrderClick(order)}
-            >
-              {order.id}
-            </span>
-          </DialogTrigger>
+          <Dialog open={isTnaOpen} onOpenChange={setIsTnaOpen}>
+            <DialogTrigger asChild>
+              <span 
+                className="font-medium text-primary cursor-pointer hover:underline"
+              >
+                {order.id}
+              </span>
+            </DialogTrigger>
+            <DialogContent className="max-w-6xl">
+              <DialogHeader>
+                <DialogTitle>{order.ocn} - {order.style} ({order.color})</DialogTitle>
+                <DialogDescription>
+                  Order ID: {order.id} &bull; Buyer: {order.buyer}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <TnaPlan 
+                  order={order}
+                  onGenerate={onTnaGenerate}
+                  scheduledProcesses={scheduledProcesses}
+                />
+              </div>
+            </DialogContent>
+          </Dialog>
         </TableCell>
         <TableCell>{order.buyer}</TableCell>
         <TableCell>Firm PO</TableCell>
@@ -497,13 +487,26 @@ function OrderRow({ order }: { order: Order }) {
               )}
             </Tooltip>
           </TooltipProvider>
+
+          {rampUpState && (
+            <RampUpDialog
+              key={rampUpState.order.id}
+              order={rampUpState.order}
+              singleLineMinDays={rampUpState.singleLineMinDays}
+              numLines={numLines}
+              isOpen={!!rampUpState}
+              onOpenChange={(isOpen) => !isOpen && setRampUpState(null)}
+              onSave={onRampUpSave}
+              calculateAverageEfficiency={calculateAverageEfficiency}
+            />
+         )}
         </TableCell>
         <TableCell>
           <Input
             type="number"
             min="1"
             value={numLines}
-            onChange={(e) => setSewingLines(order.id, parseInt(e.target.value, 10) || 1)}
+            onChange={(e) => onSetSewingLines(order.id, parseInt(e.target.value, 10) || 1)}
             className="w-16 h-8 text-center"
           />
         </TableCell>
@@ -519,7 +522,7 @@ function OrderRow({ order }: { order: Order }) {
         <TableCell>
           <ColorPicker 
             color={order.displayColor}
-            onColorChange={(newColor) => handleColorChange(order.id, newColor)}
+            onColorChange={(newColor) => onColorChange(order.id, newColor)}
           />
         </TableCell>
         <TableCell className="text-right">{order.quantity}</TableCell>
@@ -532,44 +535,28 @@ function OrderRow({ order }: { order: Order }) {
             <span className="text-muted-foreground">Not Packed</span>
           )}
         </TableCell>
-      </TableRow>
-
-      {selectedOrder && (
-        <DialogContent className="max-w-6xl">
-          <DialogHeader>
-            <DialogTitle>{selectedOrder.ocn} - {selectedOrder.style} ({selectedOrder.color})</DialogTitle>
-            <DialogDescription>
-              Order ID: {selectedOrder.id} &bull; Buyer: {selectedOrder.buyer}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <TnaPlan 
-              order={selectedOrder}
-              onGenerate={handleGenerateTna}
-            />
-          </div>
-        </DialogContent>
-      )}
-
-      {rampUpState && (
-        <RampUpDialog
-          key={rampUpState.order.id}
-          order={rampUpState.order}
-          singleLineMinDays={rampUpState.singleLineMinDays}
-          numLines={sewingLines[rampUpState.order.id] || 1}
-          isOpen={!!rampUpState}
-          onOpenChange={(isOpen) => !isOpen && setRampUpState(null)}
-          onSave={handleRampUpSave}
-          calculateAverageEfficiency={calculateAverageEfficiency}
-        />
-      )}
-    </>
+    </TableRow>
   );
-}
+});
+OrderRow.displayName = 'OrderRow';
 
 
 export default function OrdersPage() {
-  const { orders } = useSchedule();
+  const { 
+    orders,
+    scheduledProcesses,
+    updateSewingRampUpScheme, 
+    sewingLines, 
+    setSewingLines,
+    updateOrderTna,
+    updateOrderColor,
+  } = useSchedule();
+
+  const handleGenerateTna = (order: Order) => {
+    const numLines = sewingLines[order.id] || 1;
+    const newTnaProcesses = generateTnaPlan(order, PROCESSES, numLines);
+    updateOrderTna(order.id, newTnaProcesses);
+  };
   
   return (
     <div className="flex h-screen flex-col">
@@ -593,40 +580,48 @@ export default function OrdersPage() {
           <p className="text-muted-foreground">
             View all your orders in one place. Click on an Order ID to see details.
           </p>
-          <Dialog>
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Order ID</TableHead>
-                      <TableHead>Buyer</TableHead>
-                      <TableHead>Order Type</TableHead>
-                      <TableHead>Budgeted Eff.</TableHead>
-                      <TableHead>Avg. Eff.</TableHead>
-                      <TableHead>Days to Budget Eff.</TableHead>
-                      <TableHead>Ramp-up</TableHead>
-                      <TableHead>No. of Lines</TableHead>
-                      <TableHead>Min. Sewing Days</TableHead>
-                      <TableHead>Display Color</TableHead>
-                      <TableHead className="text-right">Quantity</TableHead>
-                      <TableHead>Lead Time</TableHead>
-                      <TableHead>Due Date</TableHead>
-                      <TableHead>EHD</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {orders.map((order) => (
-                      <OrderRow key={order.id} order={order} />
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </Dialog>
-
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Order ID</TableHead>
+                    <TableHead>Buyer</TableHead>
+                    <TableHead>Order Type</TableHead>
+                    <TableHead>Budgeted Eff.</TableHead>
+                    <TableHead>Avg. Eff.</TableHead>
+                    <TableHead>Days to Budget Eff.</TableHead>
+                    <TableHead>Ramp-up</TableHead>
+                    <TableHead>No. of Lines</TableHead>
+                    <TableHead>Min. Sewing Days</TableHead>
+                    <TableHead>Display Color</TableHead>
+                    <TableHead className="text-right">Quantity</TableHead>
+                    <TableHead>Lead Time</TableHead>
+                    <TableHead>Due Date</TableHead>
+                    <TableHead>EHD</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {orders.map((order) => (
+                    <OrderRow 
+                      key={order.id} 
+                      order={order} 
+                      onColorChange={updateOrderColor}
+                      onTnaGenerate={handleGenerateTna}
+                      onRampUpSave={updateSewingRampUpScheme}
+                      onSetSewingLines={setSewingLines}
+                      numLines={sewingLines[order.id] || 1}
+                      scheduledProcesses={scheduledProcesses}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
         </div>
       </main>
     </div>
   );
 }
+
+    
