@@ -48,20 +48,37 @@ const calculateMinDays = (order: Order, sewingSam: number, rampUpScheme: RampUpE
   const scheme = rampUpScheme || [];
   if (!order.quantity || !sewingSam || scheme.length === 0) return 0;
 
+  // --- Best Practice Fix: Pre-compute efficiency map ---
+  const sortedScheme = [...scheme].sort((a, b) => a.day - b.day);
+  const peakEfficiency = sortedScheme[sortedScheme.length - 1].efficiency;
+
+  // Create a dense map for quick lookups. Cap at a reasonable number of days (e.g., 365) to prevent huge arrays.
+  const maxMapDays = sortedScheme.length > 0 ? sortedScheme[sortedScheme.length - 1].day + 90 : 90;
+  const efficiencyMap = new Array(maxMapDays + 1).fill(0);
+  let lastEff = 0;
+  let schemeIndex = 0;
+
+  for (let day = 1; day <= maxMapDays; day++) {
+    if (schemeIndex < sortedScheme.length && day >= sortedScheme[schemeIndex].day) {
+      lastEff = sortedScheme[schemeIndex].efficiency;
+      schemeIndex++;
+    }
+    efficiencyMap[day] = lastEff;
+  }
+  // --- End of Fix ---
+
   let remainingQty = order.quantity;
   let minutes = 0;
 
   while (remainingQty > 0) {
     const currentDay = Math.floor(minutes / WORK_DAY_MINUTES) + 1;
-    let efficiency = scheme[scheme.length - 1]?.efficiency; // Default to peak
-    for (const entry of scheme) {
-        if(currentDay >= entry.day) {
-            efficiency = entry.efficiency;
-        }
-    }
+    
+    // Direct, safe lookup from the map
+    const efficiency = currentDay > maxMapDays ? peakEfficiency : efficiencyMap[currentDay];
 
     if (!efficiency || efficiency <= 0) {
-      return Infinity; // Avoid infinite loops if efficiency is 0 or undefined
+      // This should no longer happen, but as a safeguard:
+      return Infinity; 
     }
 
     const effectiveSam = sewingSam / (efficiency / 100);
@@ -76,6 +93,11 @@ const calculateMinDays = (order: Order, sewingSam: number, rampUpScheme: RampUpE
     } else {
       minutes += minutesToNextDay;
       remainingQty -= maxOutputForRestOfDay;
+    }
+    
+    // Safety break for extreme cases
+    if (minutes > WORK_DAY_MINUTES * 10000) {
+        return Infinity;
     }
   }
   return minutes / WORK_DAY_MINUTES;
