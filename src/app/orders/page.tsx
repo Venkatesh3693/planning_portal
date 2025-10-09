@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -123,7 +124,12 @@ const calculateDaysToMeetBudget = (
     return '-';
   }
 
-  const sortedScheme = [...rampUpScheme].sort((a, b) => a.day - b.day);
+  const sortedScheme = [...rampUpScheme]
+    .filter(s => s.efficiency > 0)
+    .sort((a, b) => a.day - b.day);
+
+  if (sortedScheme.length === 0) return '-';
+
   const peakEfficiency = sortedScheme[sortedScheme.length - 1].efficiency;
 
   if (peakEfficiency < budgetedEfficiency) {
@@ -133,35 +139,31 @@ const calculateDaysToMeetBudget = (
   if (sortedScheme[0].efficiency >= budgetedEfficiency) {
     return 1;
   }
-
+  
   let rampUpTotalEfficiency = 0;
   let rampUpTotalDays = 0;
   let lastDay = 0;
   let lastEfficiency = 0;
   
-  // Calculate the total efficiency contribution from the ramp-up phase before peak
   for (const entry of sortedScheme) {
     const daysInStep = entry.day - lastDay;
     if (daysInStep > 0) {
+      const avgDuringStep = (rampUpTotalEfficiency + (daysInStep * lastEfficiency)) / (rampUpTotalDays + daysInStep);
+      if (avgDuringStep >= budgetedEfficiency) {
+          // find the exact day
+          let day = rampUpTotalDays + 1;
+          while(day < entry.day) {
+            const currentTotalEff = rampUpTotalEfficiency + ((day - rampUpTotalDays) * lastEfficiency);
+            if(currentTotalEff / day >= budgetedEfficiency) return day;
+            day++;
+          }
+      }
       rampUpTotalEfficiency += daysInStep * lastEfficiency;
       rampUpTotalDays += daysInStep;
     }
-    
-    // Check if average is met during this step
-    const currentAvg = (rampUpTotalEfficiency + entry.efficiency) / (rampUpTotalDays + 1);
-    if(currentAvg >= budgetedEfficiency) {
-       // Simple case: goal met on a ramp-up day
-       // This part of the logic could be more complex, for now we just check at the step change
-       const simpleAvgCheck = rampUpTotalEfficiency + (entry.efficiency * (entry.day - rampUpTotalDays))
-       if( (simpleAvgCheck / entry.day) >= budgetedEfficiency) {
-         let day = rampUpTotalDays;
-         let avg = rampUpTotalEfficiency / day;
-         while(avg < budgetedEfficiency && day < entry.day) {
-            day++;
-            avg = (rampUpTotalEfficiency + (lastEfficiency * (day - rampUpTotalDays))) / day
-         }
-         return day;
-       }
+
+    if((rampUpTotalEfficiency + entry.efficiency) / (rampUpTotalDays + 1) >= budgetedEfficiency) {
+        return rampUpTotalDays + 1;
     }
 
     lastDay = entry.day;
@@ -170,28 +172,24 @@ const calculateDaysToMeetBudget = (
   
   rampUpTotalDays = lastDay - 1;
   rampUpTotalEfficiency = 0;
+
   let prevDay = 0;
+  let prevEff = 0;
+
   for (const entry of sortedScheme) {
-      const numDays = entry.day - prevDay;
-      rampUpTotalEfficiency += numDays * (sortedScheme.find(s => s.day === prevDay)?.efficiency || entry.efficiency)
-      if(entry.day >= lastDay) break;
-      prevDay = entry.day;
+    const numDays = entry.day - prevDay;
+    if (numDays > 0) {
+      rampUpTotalEfficiency += numDays * prevEff;
+    }
+    if (entry.day > rampUpTotalDays) break;
+    prevDay = entry.day;
+    prevEff = entry.efficiency;
   }
-  rampUpTotalEfficiency = sortedScheme.reduce((acc, curr, i, arr) => {
-    if (i === arr.length - 1) return acc;
-    const nextStep = arr[i+1];
-    const daysInStep = nextStep.day - curr.day;
-    return acc + (daysInStep * curr.efficiency);
-  }, 0)
   
-  rampUpTotalDays = sortedScheme[sortedScheme.length - 1].day -1;
-
-
-  // x >= (budgetedEfficiency * rampUpTotalDays - rampUpTotalEfficiency) / (peakEfficiency - budgetedEfficiency)
   const numerator = (budgetedEfficiency * rampUpTotalDays) - rampUpTotalEfficiency;
   const denominator = peakEfficiency - budgetedEfficiency;
   
-  if (denominator <= 0) { // Should be caught by the peak check, but for safety
+  if (denominator <= 0) {
      return 'Change ramp-up';
   }
 
@@ -213,14 +211,35 @@ export default function OrdersPage() {
   useEffect(() => {
     if (isScheduleLoaded) {
       const colorMapRaw = localStorage.getItem('stitchplan_order_colors');
-      const colorMap = colorMapRaw ? JSON.parse(colorMapRaw) : {};
+      const scheduleRaw = localStorage.getItem('stitchplan_schedule_v2');
 
+      const colorMap = colorMapRaw ? JSON.parse(colorMapRaw) : {};
+      const scheduleData = scheduleRaw ? JSON.parse(scheduleRaw) : null;
+      
       setOrders(currentOrders => 
-        currentOrders.map((o, index) => ({ 
-          ...o,
-          sewingRampUpScheme: sewingRampUpSchemes[o.id] || [{ day: 1, efficiency: o.budgetedEfficiency || 85 }],
-          displayColor: colorMap[o.id] || ORDER_COLORS[index % ORDER_COLORS.length]
-        }))
+        staticOrders.map((o, index) => {
+          const orderId = o.id;
+          const rampUpScheme = scheduleData?.sewingRampUpSchemes?.[orderId];
+          const storedOrder = scheduleData?.orders?.[orderId];
+
+          const tnaProcesses = (storedOrder?.tna?.processes || o.tna?.processes || []).map((p: any) => ({
+             ...p,
+             ...(p.plannedStartDate && { plannedStartDate: new Date(p.plannedStartDate) }),
+             ...(p.plannedEndDate && { plannedEndDate: new Date(p.plannedEndDate) }),
+             ...(p.latestStartDate && { latestStartDate: new Date(p.latestStartDate) }),
+          }));
+
+          return { 
+            ...o,
+            sewingRampUpScheme: rampUpScheme || [{ day: 1, efficiency: o.budgetedEfficiency || 85 }],
+            displayColor: colorMap[orderId] || ORDER_COLORS[index % ORDER_COLORS.length],
+            tna: {
+              ...(o.tna as Tna),
+              ...(storedOrder?.tna),
+              processes: tnaProcesses,
+            },
+          };
+        })
       );
     }
   }, [sewingRampUpSchemes, isScheduleLoaded]);
@@ -254,7 +273,7 @@ export default function OrdersPage() {
     const numLines = sewingLines[order.id] || 1;
     const newTnaProcesses = generateTnaPlan(order, PROCESSES, numLines);
     
-    const updatedOrder = { 
+    const updatedOrder: Order = { 
         ...order, 
         tna: {
             ...(order.tna as Tna),
@@ -266,6 +285,13 @@ export default function OrdersPage() {
         prevOrders.map(o => o.id === order.id ? updatedOrder : o)
     );
     setSelectedOrder(updatedOrder);
+
+     // Also save this generated TNA to local storage via the schedule provider
+     const scheduleRaw = localStorage.getItem('stitchplan_schedule_v2');
+     const scheduleData = scheduleRaw ? JSON.parse(scheduleRaw) : {};
+     if (!scheduleData.orders) scheduleData.orders = {};
+     scheduleData.orders[order.id] = { ...scheduleData.orders[order.id], tna: updatedOrder.tna };
+     localStorage.setItem('stitchplan_schedule_v2', JSON.stringify(scheduleData));
   };
 
   const getEhdForOrder = (orderId: string) => {
@@ -371,7 +397,7 @@ export default function OrdersPage() {
             </div>
             <Button onClick={() => onGenerate(order)}>
                 <Zap className="h-4 w-4 mr-2"/>
-                Generate T&amp;A Plan
+                Generate T&A Plan
             </Button>
         </div>
 

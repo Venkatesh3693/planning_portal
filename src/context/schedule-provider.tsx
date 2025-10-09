@@ -1,13 +1,15 @@
 
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, Dispatch, SetStateAction } from 'react';
-import type { ScheduledProcess, RampUpEntry } from '@/lib/types';
+import type { ScheduledProcess, RampUpEntry, Order } from '@/lib/types';
 
-const STORE_KEY = 'stitchplan_schedule_v2'; // Renamed to avoid conflicts with old structure
+const STORE_KEY = 'stitchplan_schedule_v2';
 
 type SewingRampUpSchemes = Record<string, RampUpEntry[]>;
 type SewingLines = Record<string, number>;
+type StoredOrders = Record<string, Partial<Order>>;
 
 type ScheduleContextType = {
   scheduledProcesses: ScheduledProcess[];
@@ -25,10 +27,10 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   const [scheduledProcesses, setScheduledProcesses] = useState<ScheduledProcess[]>([]);
   const [sewingRampUpSchemes, setSewingRampUpSchemes] = useState<SewingRampUpSchemes>({});
   const [sewingLines, setSewingLinesState] = useState<SewingLines>({});
+  const [storedOrders, setStoredOrders] = useState<StoredOrders>({});
   const [isScheduleLoaded, setIsScheduleLoaded] = useState(false);
 
   useEffect(() => {
-    // This effect runs only on the client, after the initial render.
     try {
       const serializedState = localStorage.getItem(STORE_KEY);
       if (serializedState) {
@@ -43,6 +45,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         setScheduledProcesses(loadedProcesses);
         setSewingRampUpSchemes(storedData.sewingRampUpSchemes || {});
         setSewingLinesState(storedData.sewingLines || {});
+        setStoredOrders(storedData.orders || {});
       }
     } catch (err) {
       console.error("Could not load schedule from localStorage", err);
@@ -58,13 +61,14 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         scheduledProcesses,
         sewingRampUpSchemes,
         sewingLines,
+        orders: storedOrders,
       };
       const serializedState = JSON.stringify(stateToSave);
       localStorage.setItem(STORE_KEY, serializedState);
     } catch (err) {
       console.error("Could not save schedule to localStorage", err);
     }
-  }, [scheduledProcesses, sewingRampUpSchemes, sewingLines, isScheduleLoaded]);
+  }, [scheduledProcesses, sewingRampUpSchemes, sewingLines, storedOrders, isScheduleLoaded]);
 
   const updateSewingRampUpScheme = (orderId: string, scheme: RampUpEntry[]) => {
     setSewingRampUpSchemes(prev => ({ ...prev, [orderId]: scheme }));

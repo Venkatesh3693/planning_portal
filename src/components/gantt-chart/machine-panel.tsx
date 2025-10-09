@@ -162,19 +162,19 @@ export default function MachinePanel({
               const durationDays = (durationMinutes / (8 * 60)).toFixed(1);
 
               const tnaProcess =
-                order?.tna?.processes.find(
+                order.tna?.processes.find(
                   (p) => p.processId === selectedProcessId
                 ) ?? null;
+
               const item: DraggedItemData = {
                 type: 'new',
                 orderId: order.id,
                 processId: selectedProcessId,
                 quantity: order.quantity,
-                tna: tnaProcess
+                tna: tnaProcess?.plannedStartDate && tnaProcess?.latestStartDate
                   ? {
-                      ...tnaProcess,
-                      startDate: new Date(tnaProcess.startDate),
-                      endDate: new Date(tnaProcess.endDate),
+                      startDate: new Date(tnaProcess.plannedStartDate),
+                      endDate: new Date(tnaProcess.latestStartDate),
                     }
                   : null,
               };

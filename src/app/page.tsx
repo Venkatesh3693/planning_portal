@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -26,11 +27,15 @@ export type DraggedItemData = {
     orderId: string;
     processId: string;
     quantity: number;
-    tna: TnaProcess | null;
+    tna: {
+        startDate: Date;
+        endDate: Date;
+    } | null;
 } | {
     type: 'existing';
     process: ScheduledProcess;
 };
+
 
 // Helper function to calculate end time considering only working hours
 const calculateEndDateTime = (startDateTime: Date, totalDurationMinutes: number): Date => {
@@ -109,15 +114,37 @@ const calculateSewingDuration = (quantity: number, sam: number, rampUpScheme: Ra
 
 
 function GanttPageContent() {
-  const { scheduledProcesses, setScheduledProcesses, sewingRampUpSchemes, isScheduleLoaded } = useSchedule();
+  const { scheduledProcesses, setScheduledProcesses, sewingRampUpSchemes, isScheduleLoaded, sewingLines } = useSchedule();
   
-  const orders = useMemo(() => {
-    if (!isScheduleLoaded) return [];
-    return staticOrders.map(order => ({
-      ...order,
-      sewingRampUpScheme: sewingRampUpSchemes[order.id],
-    }));
-  }, [sewingRampUpSchemes, isScheduleLoaded]);
+  const [orders, setOrders] = useState<Order[]>([]);
+
+  useEffect(() => {
+    if (isScheduleLoaded) {
+      const colorMapRaw = localStorage.getItem('stitchplan_order_colors');
+      const scheduleRaw = localStorage.getItem('stitchplan_schedule_v2');
+      const colorMap = colorMapRaw ? JSON.parse(colorMapRaw) : {};
+      const scheduleData = scheduleRaw ? JSON.parse(scheduleRaw) : {sewingRampUpSchemes: {}};
+      
+      const ordersWithData = staticOrders.map((order, index) => {
+        const orderId = order.id;
+        const rampUpScheme = scheduleData.sewingRampUpSchemes?.[orderId];
+        const tnaProcesses = order.tna?.processes.map(p => ({
+            ...p,
+            startDate: p.plannedStartDate || p.startDate,
+            endDate: p.plannedEndDate || p.endDate,
+        }));
+        
+        return {
+          ...order,
+          displayColor: colorMap[orderId] || ORDER_COLORS[index % ORDER_COLORS.length],
+          sewingRampUpScheme: rampUpScheme || [{ day: 1, efficiency: order.budgetedEfficiency || 85 }],
+          tna: tnaProcesses ? { ...order.tna!, processes: tnaProcesses} : undefined,
+        };
+      });
+      setOrders(ordersWithData);
+    }
+  }, [isScheduleLoaded, scheduledProcesses]);
+
 
   const [selectedProcessId, setSelectedProcessId] = useState<string>('sewing');
   const [viewMode, setViewMode] = useState<'day' | 'hour'>('day');
@@ -156,7 +183,8 @@ function GanttPageContent() {
       let durationMinutes;
       if (process.id === SEWING_PROCESS_ID) {
         const rampUpScheme = order.sewingRampUpScheme || [{ day: 1, efficiency: order.budgetedEfficiency || 100 }];
-        durationMinutes = calculateSewingDuration(droppedItem.quantity, process.sam, rampUpScheme);
+        const singleLineDurationMinutes = calculateSewingDuration(droppedItem.quantity, process.sam, rampUpScheme);
+        durationMinutes = singleLineDurationMinutes;
       } else {
         durationMinutes = process.sam * droppedItem.quantity;
       }

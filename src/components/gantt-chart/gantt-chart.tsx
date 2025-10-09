@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from 'react';
@@ -247,7 +248,7 @@ export default function GanttChart({
                   let isInTnaRange = false;
                   if (draggedItem?.type === 'new' && draggedItem.tna) {
                       const interval = viewMode === 'day' 
-                        ? { start: startOfDay(draggedItem.tna.startDate), end: startOfDay(draggedItem.tna.endDate) }
+                        ? { start: startOfDay(draggedItem.tna.startDate), end: endOfDay(draggedItem.tna.endDate) }
                         : { start: startOfHour(draggedItem.tna.startDate), end: endOfHour(draggedItem.tna.endDate) };
                       isInTnaRange = isWithinInterval(col.date, interval);
                   }
