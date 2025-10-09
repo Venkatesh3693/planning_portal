@@ -33,7 +33,7 @@ import type { DateRange } from 'react-day-picker';
 import { PROCESSES } from '@/lib/data';
 import { addBusinessDays } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
-import { Tooltip, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const SEWING_PROCESS_ID = 'sewing';
 
