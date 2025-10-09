@@ -145,7 +145,13 @@ function GanttPageContent() {
   const handleDropOnChart = (rowId: string, startDateTime: Date, draggedItemJSON: string) => {
     if (!draggedItemJSON) return;
   
-    const droppedItem: DraggedItemData = JSON.parse(draggedItemJSON);
+    const droppedItem: DraggedItemData = {
+      ...JSON.parse(draggedItemJSON),
+      tna: JSON.parse(draggedItemJSON).tna ? {
+        startDate: new Date(JSON.parse(draggedItemJSON).tna.startDate),
+        endDate: new Date(JSON.parse(draggedItemJSON).tna.endDate),
+      } : null,
+    };
   
     let processToPlace: ScheduledProcess;
     let otherProcesses: ScheduledProcess[];

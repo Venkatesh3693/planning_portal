@@ -247,9 +247,12 @@ export default function GanttChart({
                   const isDragOver = dragOverCell?.rowId === row.id && dragOverCell.date.getTime() === col.date.getTime();
                   let isInTnaRange = false;
                   if (draggedItem?.type === 'new' && draggedItem.tna) {
+                      const tnaStartDate = new Date(draggedItem.tna.startDate);
+                      const tnaEndDate = new Date(draggedItem.tna.endDate);
+
                       const interval = viewMode === 'day' 
-                        ? { start: startOfDay(draggedItem.tna.startDate), end: endOfDay(draggedItem.tna.endDate) }
-                        : { start: startOfHour(draggedItem.tna.startDate), end: endOfHour(draggedItem.tna.endDate) };
+                        ? { start: startOfDay(tnaStartDate), end: endOfDay(tnaEndDate) }
+                        : { start: startOfHour(tnaStartDate), end: endOfHour(tnaEndDate) };
                       isInTnaRange = isWithinInterval(col.date, interval);
                   }
                   return (

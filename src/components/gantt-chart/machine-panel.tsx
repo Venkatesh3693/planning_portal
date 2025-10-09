@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { Order, TnaProcess } from '@/lib/types';
-import { format, addDays } from 'date-fns';
+import { format } from 'date-fns';
 import type { DraggedItemData } from '@/app/page';
 import {
   Popover,
@@ -32,6 +32,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import type { DateRange } from 'react-day-picker';
 import { PROCESSES } from '@/lib/data';
 import { useSchedule } from '@/context/schedule-provider';
+import { addBusinessDays } from '@/lib/utils';
 
 const SEWING_PROCESS_ID = 'sewing';
 
@@ -171,7 +172,7 @@ export default function MachinePanel({
                 ) ?? null;
 
               const latestEndDate = tnaProcess?.latestStartDate && tnaProcess?.durationDays 
-                ? addDays(tnaProcess.latestStartDate, tnaProcess.durationDays) 
+                ? addBusinessDays(new Date(tnaProcess.latestStartDate), tnaProcess.durationDays) 
                 : null;
 
               const item: DraggedItemData = {
@@ -179,10 +180,10 @@ export default function MachinePanel({
                 orderId: order.id,
                 processId: selectedProcessId,
                 quantity: order.quantity,
-                tna: tnaProcess?.earliestStartDate && tnaProcess?.latestStartDate
+                tna: tnaProcess?.earliestStartDate && latestEndDate
                   ? {
                       startDate: new Date(tnaProcess.earliestStartDate),
-                      endDate: new Date(tnaProcess.latestStartDate),
+                      endDate: latestEndDate,
                     }
                   : null,
               };
