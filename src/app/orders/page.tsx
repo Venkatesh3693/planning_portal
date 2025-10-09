@@ -293,34 +293,34 @@ const TnaPlan = ({
 
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 text-sm">
             <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
-                <div className="font-medium text-muted-foreground">CK Date</div>
-                <div className="font-semibold text-lg">{ckDate instanceof Date ? format(ckDate, 'MMM dd, yyyy') : ckDate}</div>
+                <div className="font-medium text-muted-foreground text-xs">CK Date</div>
+                <div className="font-semibold text-base">{ckDate instanceof Date ? format(ckDate, 'MMM dd, yyyy') : ckDate}</div>
             </div>
             <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
-                <div className="font-medium text-muted-foreground">Shipment Date</div>
-                <div className="font-semibold text-lg">{format(new Date(order.dueDate), 'MMM dd, yyyy')}</div>
+                <div className="font-medium text-muted-foreground text-xs">Shipment Date</div>
+                <div className="font-semibold text-base">{format(new Date(order.dueDate), 'MMM dd, yyyy')}</div>
             </div>
             <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
-                <div className="font-medium text-muted-foreground">Order Quantity</div>
-                <div className="font-semibold text-lg">{order.quantity.toLocaleString()} units</div>
+                <div className="font-medium text-muted-foreground text-xs">Order Quantity</div>
+                <div className="font-semibold text-base">{order.quantity.toLocaleString()} units</div>
             </div>
             <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
-                <div className="font-medium text-muted-foreground">Budgeted Efficiency</div>
-                <div className="font-semibold text-lg">{order.budgetedEfficiency || 'N/A'}%</div>
+                <div className="font-medium text-muted-foreground text-xs">Budgeted Efficiency</div>
+                <div className="font-semibold text-base">{order.budgetedEfficiency || 'N/A'}%</div>
             </div>
             <div className="p-3 bg-amber-100 dark:bg-amber-900/50 border border-amber-300 dark:border-amber-700 rounded-md flex flex-col justify-center text-center">
-                <div className="font-medium text-amber-800 dark:text-amber-200 flex items-center justify-center gap-2">
+                <div className="font-medium text-amber-800 dark:text-amber-200 text-xs flex items-center justify-center gap-1">
                     Process Batch Size
                     <TooltipProvider>
                         <Tooltip>
-                            <TooltipTrigger><Info className="h-4 w-4" /></TooltipTrigger>
+                            <TooltipTrigger><Info className="h-3 w-3" /></TooltipTrigger>
                             <TooltipContent><p>The max of all Calculated MOQs. <br/>This drives the overlap in the T&amp;A Plan.</p></TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
                 </div>
-                <div className="font-bold text-xl">{Math.round(processBatchSize).toLocaleString()}</div>
+                <div className="font-bold text-lg">{Math.round(processBatchSize).toLocaleString()}</div>
             </div>
         </div>
 
