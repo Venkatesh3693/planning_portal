@@ -41,6 +41,7 @@ import { Badge } from '@/components/ui/badge';
 import { LineChart, Zap, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { generateTnaPlan } from '@/lib/tna-calculator';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const SEWING_PROCESS_ID = 'sewing';
 
@@ -512,11 +513,26 @@ export default function OrdersPage() {
                              </Badge>
                           </TableCell>
                           <TableCell>
-                              <Button variant="outline" size="sm" onClick={() => setRampUpState({ order, singleLineMinDays })}>
-                                {showWarning && <AlertCircle className="h-4 w-4 mr-2 text-destructive" />}
-                                <LineChart className="h-4 w-4 mr-2" />
-                                Scheme
-                              </Button>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="outline" size="sm" onClick={() => setRampUpState({ order, singleLineMinDays })}>
+                                    {showWarning && <AlertCircle className="h-4 w-4 mr-2 text-destructive" />}
+                                    <LineChart className="h-4 w-4 mr-2" />
+                                    Scheme
+                                  </Button>
+                                </TooltipTrigger>
+                                {showWarning && (
+                                  <TooltipContent>
+                                    <p>
+                                      {isBudgetUnreachable
+                                        ? "Budgeted efficiency is unreachable with this scheme."
+                                        : "Ramp-up is too slow to meet budgeted efficiency within the allocated production time."}
+                                    </p>
+                                  </TooltipContent>
+                                )}
+                              </Tooltip>
+                            </TooltipProvider>
                           </TableCell>
                           <TableCell>
                             <Input
@@ -595,5 +611,7 @@ export default function OrdersPage() {
       </main>
     </div>
   );
+
+    
 
     
