@@ -183,8 +183,10 @@ export default function SplitProcessDialog({
   const packingProcessIndex = order.processIds.indexOf('packing');
   const currentProcessIndex = order.processIds.indexOf(processInfo.id);
 
-  const canSplitByBatch = (sewingProcessIndex > -1 && currentProcessIndex < sewingProcessIndex) || 
-                          (packingProcessIndex > -1 && currentProcessIndex < packingProcessIndex);
+  const isBeforeSewing = sewingProcessIndex !== -1 && currentProcessIndex < sewingProcessIndex;
+  const isBeforePacking = packingProcessIndex !== -1 && currentProcessIndex < packingProcessIndex;
+  
+  const canSplitByBatch = processInfo.id !== 'sewing' && (isBeforeSewing || isBeforePacking);
 
 
   return (
