@@ -430,91 +430,100 @@ function GanttPageContent() {
 
   const { unplannedOrderItems, unplannedBatches } = useMemo(() => {
     if (selectedProcessId === 'pab' || !isScheduleLoaded) {
-      return { unplannedOrderItems: [], unplannedBatches: [] };
+        return { unplannedOrderItems: [], unplannedBatches: [] };
     }
-  
+
     const scheduledQuantities = new Map<string, number>();
     scheduledProcesses.forEach(p => {
-      const key = `${p.orderId}_${p.processId}`;
-      const currentQty = scheduledQuantities.get(key) || 0;
-      scheduledQuantities.set(key, currentQty + p.quantity);
+        const key = `${p.orderId}_${p.processId}`;
+        const currentQty = scheduledQuantities.get(key) || 0;
+        scheduledQuantities.set(key, currentQty + p.quantity);
     });
-  
+
     const orderItems: Order[] = [];
     const batches: UnplannedBatch[] = [];
     
     for (const order of orders) {
-      const isProcessInOrder = order.processIds.includes(selectedProcessId);
-      if (!isProcessInOrder) continue;
-  
-      const scheduledQty = scheduledQuantities.get(`${order.id}_${selectedProcessId}`) || 0;
-      if (scheduledQty >= order.quantity) continue;
-  
-      const splitKey = `${order.id}_${selectedProcessId}`;
-      const isSplit = splitOrderProcesses[splitKey];
-  
-      if (isSplit) {
-        const numLines = sewingLines[order.id] || 1;
-        const processBatchSize = calculateProcessBatchSize(order, numLines);
-        
-        const sewingProcessesForOrder = scheduledProcesses.filter(
-            (sp) => sp.orderId === order.id && sp.processId === SEWING_PROCESS_ID
-        );
-        if (sewingProcessesForOrder.length === 0) {
-            orderItems.push(order);
-            continue;
-        }
+        const isProcessInOrder = order.processIds.includes(selectedProcessId);
+        if (!isProcessInOrder) continue;
 
-        const sewingAnchorDate = sewingProcessesForOrder.reduce(
-            (earliest, p) => (p.startDateTime < earliest ? p.startDateTime : earliest),
-            sewingProcessesForOrder[0].startDateTime
-        );
+        const scheduledQty = scheduledQuantities.get(`${order.id}_${selectedProcessId}`) || 0;
+        if (scheduledQty >= order.quantity) continue;
 
-        const sewingProcess = PROCESSES.find(p => p.id === SEWING_PROCESS_ID)!;
-        const sewingPitchTimeDays = calculateSewingDurationDays(processBatchSize, sewingProcess.sam, order.sewingRampUpScheme || [], numLines);
+        const splitKey = `${order.id}_${selectedProcessId}`;
+        const isSplit = splitOrderProcesses[splitKey];
 
-        const remainingQuantityForProcess = order.quantity - scheduledQty;
-        const numBatches = Math.ceil(remainingQuantityForProcess / processBatchSize);
-        let remQty = remainingQuantityForProcess;
-        
-        for (let i = 0; i < numBatches; i++) {
-            const isLastBatch = i === numBatches;
-            const batchQty = isLastBatch ? remQty : processBatchSize;
-
-            const currentBatchSewingAnchor = addBusinessDays(sewingAnchorDate, i * sewingPitchTimeDays);
+        if (isSplit) {
+            const numLines = sewingLines[order.id] || 1;
+            const processBatchSize = calculateProcessBatchSize(order, numLines);
             
-            let latestStartDateForBatch = currentBatchSewingAnchor;
-
-            const predecessorChain = order.processIds.slice(
-                order.processIds.indexOf(selectedProcessId),
-                order.processIds.indexOf(SEWING_PROCESS_ID)
-            ).reverse();
-
-            for (const predId of predecessorChain) {
-                 const processInfo = PROCESSES.find(p => p.id === predId)!;
-                 // THIS IS THE FIX: Use batchQty instead of order.quantity
-                 const durationMinutes = batchQty * processInfo.sam; 
-                 const durationDays = Math.ceil(durationMinutes / WORK_DAY_MINUTES);
-                 latestStartDateForBatch = subBusinessDays(latestStartDateForBatch, durationDays);
+            const sewingProcessesForOrder = scheduledProcesses.filter(
+                (sp) => sp.orderId === order.id && sp.processId === SEWING_PROCESS_ID
+            );
+            if (sewingProcessesForOrder.length === 0) {
+                orderItems.push(order);
+                continue;
             }
 
-            batches.push({
-                orderId: order.id,
-                processId: selectedProcessId,
-                quantity: batchQty,
-                batchNumber: i + 1,
-                totalBatches: numBatches,
-                latestStartDate: latestStartDateForBatch,
-            });
+            const sewingAnchorDate = sewingProcessesForOrder.reduce(
+                (earliest, p) => (p.startDateTime < earliest ? p.startDateTime : earliest),
+                sewingProcessesForOrder[0].startDateTime
+            );
 
-            remQty -= batchQty;
+            const sewingProcess = PROCESSES.find(p => p.id === SEWING_PROCESS_ID)!;
+            const sewingPitchTimeDays = calculateSewingDurationDays(processBatchSize, sewingProcess.sam, order.sewingRampUpScheme || [], numLines);
+
+            const scheduledBatches = new Set(scheduledProcesses
+                .filter(p => p.orderId === order.id && p.processId === selectedProcessId && p.batchNumber)
+                .map(p => p.batchNumber!)
+            );
+
+            const totalBatches = Math.ceil(order.quantity / processBatchSize);
+            let remQty = order.quantity;
+
+            for (let i = 0; i < totalBatches; i++) {
+                const batchNumber = i + 1;
+                if (scheduledBatches.has(batchNumber)) {
+                    remQty -= processBatchSize; // Assume full batch size was scheduled
+                    continue;
+                };
+
+                const isLastBatch = i === totalBatches - 1;
+                const batchQty = isLastBatch ? remQty : Math.min(remQty, processBatchSize);
+                if (batchQty <= 0) continue;
+
+                const currentBatchSewingAnchor = addBusinessDays(sewingAnchorDate, i * sewingPitchTimeDays);
+                
+                let nextProcessStartDate = currentBatchSewingAnchor;
+
+                const predecessorChain = order.processIds.slice(
+                    order.processIds.indexOf(selectedProcessId),
+                    order.processIds.indexOf(SEWING_PROCESS_ID)
+                ).reverse();
+
+                for (const predId of predecessorChain) {
+                     const processInfo = PROCESSES.find(p => p.id === predId)!;
+                     const durationMinutes = batchQty * processInfo.sam; 
+                     const durationDays = Math.ceil(durationMinutes / WORK_DAY_MINUTES);
+                     nextProcessStartDate = subBusinessDays(nextProcessStartDate, durationDays);
+                }
+
+                batches.push({
+                    orderId: order.id,
+                    processId: selectedProcessId,
+                    quantity: batchQty,
+                    batchNumber: batchNumber,
+                    totalBatches: totalBatches,
+                    latestStartDate: nextProcessStartDate,
+                });
+
+                remQty -= batchQty;
+            }
+        } else {
+            orderItems.push(order);
         }
-
-      } else {
-        orderItems.push(order);
-      }
     }
-  
+
     return { unplannedOrderItems: orderItems.sort((a,b) => compareAsc(a.dueDate, b.dueDate)), unplannedBatches: batches };
   }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, splitOrderProcesses, sewingLines]);
   
@@ -708,5 +717,3 @@ export default function Home() {
     <GanttPageContent />
   );
 }
-
-    
