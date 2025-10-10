@@ -69,6 +69,6 @@ export type ScheduledProcess = {
   quantity: number;
   isSplit?: boolean;
   parentId?: string;
+  batchNumber?: number;
+  isAutoScheduled?: boolean;
 };
-
-    

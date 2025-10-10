@@ -20,6 +20,7 @@ type GanttChartProps = {
   rows: Row[];
   dates: Date[];
   scheduledProcesses: ScheduledProcess[];
+  allProcesses: ScheduledProcess[]; // All processes for calculating valid ranges
   orders: Order[];
   onDrop: (rowId: string, startDateTime: Date, draggedItemJSON: string) => void;
   onUndoSchedule: (scheduledProcessId: string) => void;
@@ -133,6 +134,7 @@ export default function GanttChart({
   rows,
   dates,
   scheduledProcesses,
+  allProcesses,
   orders,
   onDrop,
   onUndoSchedule,
@@ -203,6 +205,49 @@ export default function GanttChart({
   const gridTemplateColumns = `repeat(${timeColumns.length}, ${cellWidth})`;
   const totalGridWidth = `calc(${timeColumns.length} * ${cellWidth})`;
 
+  const validDateRanges = React.useMemo(() => {
+    if (!draggedItem || draggedItem.type !== 'existing' || !draggedItem.process.isSplit) {
+      return null;
+    }
+
+    const { process: draggedProcess } = draggedItem;
+    const order = orders.find(o => o.id === draggedProcess.orderId);
+    if (!order) return null;
+
+    const processSequence = order.processIds;
+    const currentIndex = processSequence.indexOf(draggedProcess.processId);
+
+    // Find predecessor
+    let predecessorEnd: Date | null = null;
+    if (currentIndex > 0) {
+      const predecessorId = processSequence[currentIndex - 1];
+      const predecessorProcess = allProcesses.find(
+        p => p.orderId === draggedProcess.orderId && p.processId === predecessorId && p.batchNumber === draggedProcess.batchNumber
+      );
+      if (predecessorProcess) {
+        predecessorEnd = predecessorProcess.endDateTime;
+      }
+    }
+
+    // Find successor
+    let successorStart: Date | null = null;
+    if (currentIndex < processSequence.length - 1) {
+      const successorId = processSequence[currentIndex + 1];
+      const successorProcess = allProcesses.find(
+        p => p.orderId === draggedProcess.orderId && p.processId === successorId && p.batchNumber === draggedProcess.batchNumber
+      );
+      if (successorProcess) {
+        successorStart = successorProcess.startDateTime;
+      }
+    }
+
+    return {
+      start: predecessorEnd,
+      end: successorStart
+    };
+  }, [draggedItem, orders, allProcesses]);
+
+
   return (
     <div 
       className={cn("h-full w-full overflow-hidden relative grid", isDragging && 'is-dragging')}
@@ -255,6 +300,16 @@ export default function GanttChart({
                         : { start: startOfHour(tnaStartDate), end: endOfHour(tnaEndDate) };
                       isInTnaRange = isWithinInterval(col.date, interval);
                   }
+
+                  let isInValidRange = false;
+                  if (validDateRanges) {
+                      const range = {
+                          start: validDateRanges.start ? startOfDay(validDateRanges.start) : new Date(0),
+                          end: validDateRanges.end ? endOfDay(validDateRanges.end) : addDays(new Date(), 1000)
+                      };
+                      isInValidRange = isWithinInterval(col.date, range);
+                  }
+
                   return (
                       <div
                           key={`${row.id}-${dateIndex}`}
@@ -264,6 +319,7 @@ export default function GanttChart({
                           className={cn('border-b border-r border-border/60',
                               isDragOver ? 'bg-primary/20' : (rowIndex % 2 !== 0 ? 'bg-card' : 'bg-muted/20'),
                               isInTnaRange && !isDragOver && 'bg-green-500/10',
+                              isInValidRange && !isDragOver && 'bg-blue-500/10',
                               'transition-colors duration-200'
                           )}
                       />

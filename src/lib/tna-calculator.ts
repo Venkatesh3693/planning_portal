@@ -89,6 +89,46 @@ function calculateSewingDurationDays(quantity: number, sam: number, rampUpScheme
     return Math.ceil(totalMinutes / WORK_DAY_MINUTES);
 };
 
+export const calculateProcessBatchSize = (order: Order, numLines: number): number => {
+    if (!order.tna?.minRunDays) return order.quantity / 5;
+
+    let maxMoq = 0;
+    const sewingProcessIndex = order.processIds.indexOf('sewing');
+    
+    order.processIds.forEach((processId, index) => {
+        if (sewingProcessIndex !== -1 && index > sewingProcessIndex) {
+            return;
+        }
+
+        const process = PROCESSES.find(p => p.id === processId)!;
+        const days = order.tna?.minRunDays?.[processId] || 1;
+        let currentMoq = 0;
+
+        if (days > 0) {
+            if (process.id === 'sewing') {
+                const durationMinutes = days * WORK_DAY_MINUTES;
+                const peakEfficiency = (order.sewingRampUpScheme || []).reduce((max, s) => Math.max(max, s.efficiency), order.budgetedEfficiency || 85);
+                const effectiveSam = process.sam / (peakEfficiency / 100);
+                const outputPerMinute = (1 / effectiveSam) * numLines;
+                currentMoq = Math.floor(outputPerMinute * durationMinutes);
+            } else {
+                const totalMinutes = days * WORK_DAY_MINUTES;
+                const outputPerMinute = 1 / process.sam;
+                currentMoq = Math.floor(outputPerMinute * totalMinutes);
+            }
+        }
+        if (currentMoq > maxMoq) {
+            maxMoq = currentMoq;
+        }
+    });
+    
+    const finalBatchSize = maxMoq > order.quantity ? order.quantity : maxMoq;
+
+    return finalBatchSize > 0 ? finalBatchSize : order.quantity / 5; // Fallback
+};
+
+import { PROCESSES } from './data';
+
 export function generateTnaPlan(
     order: Order, 
     processes: Process[], 
@@ -172,5 +212,3 @@ export function generateTnaPlan(
 
     return { newTna, newCkDate };
 }
-
-    

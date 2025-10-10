@@ -3,7 +3,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { addDays, startOfToday, getDay, set, isAfter, addMinutes, compareAsc, compareDesc } from 'date-fns';
+import { addDays, startOfToday, getDay, set, isAfter, addMinutes, compareAsc, compareDesc, subMinutes } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, PROCESSES, WORK_DAY_MINUTES, ORDER_COLORS } from '@/lib/data';
@@ -16,6 +16,9 @@ import { useSchedule } from '@/context/schedule-provider';
 import MachinePanel from '@/components/gantt-chart/machine-panel';
 import SplitProcessDialog from '@/components/gantt-chart/split-process-dialog';
 import PabView from '@/components/pab/pab-view';
+import { useToast } from '@/hooks/use-toast';
+import { calculateProcessBatchSize } from '@/lib/tna-calculator';
+
 
 const SEWING_PROCESS_ID = 'sewing';
 const WORKING_HOURS_START = 9;
@@ -80,6 +83,34 @@ const calculateEndDateTime = (startDateTime: Date, totalDurationMinutes: number)
   return currentDateTime;
 };
 
+// Helper function to calculate start time by retro-planning
+const calculateStartDateTime = (endDateTime: Date, totalDurationMinutes: number): Date => {
+  let remainingMinutes = totalDurationMinutes;
+  let currentDateTime = new Date(endDateTime);
+
+  while (remainingMinutes > 0) {
+    // Skip Sundays
+    const dayOfWeek = getDay(currentDateTime);
+    if (dayOfWeek === 0) {
+      currentDateTime = set(addDays(currentDateTime, -1), { hours: WORKING_HOURS_END, minutes: 0 });
+      continue;
+    }
+
+    const startOfWorkDay = set(currentDateTime, { hours: WORKING_HOURS_START, minutes: 0 });
+    const minutesIntoDay = (currentDateTime.getTime() - startOfWorkDay.getTime()) / (1000 * 60);
+    
+    if (remainingMinutes <= minutesIntoDay) {
+      currentDateTime = subMinutes(currentDateTime, remainingMinutes);
+      remainingMinutes = 0;
+    } else {
+      remainingMinutes -= minutesIntoDay;
+      currentDateTime = set(addDays(currentDateTime, -1), { hours: WORKING_HOURS_END, minutes: 0 });
+    }
+  }
+
+  return currentDateTime;
+};
+
 const calculateSewingDuration = (order: Order, quantity: number): number => {
     const process = PROCESSES.find(p => p.id === SEWING_PROCESS_ID);
     if (!process || quantity <= 0 || process.sam <= 0) return 0;
@@ -122,6 +153,7 @@ const calculateSewingDuration = (order: Order, quantity: number): number => {
 
 function GanttPageContent() {
   const { orders, scheduledProcesses, setScheduledProcesses, isScheduleLoaded, sewingLines, timelineEndDate, setTimelineEndDate } = useSchedule();
+  const { toast } = useToast();
 
   const [selectedProcessId, setSelectedProcessId] = useState<string>('sewing');
   const [viewMode, setViewMode] = useState<'day' | 'hour'>('day');
@@ -153,6 +185,81 @@ function GanttPageContent() {
   
   const buyerOptions = useMemo(() => [...new Set(orders.map(o => o.buyer))], [orders]);
 
+  const handleAutoSchedule = (orderId: string, processId: string, machineId: string) => {
+    const order = orders.find(o => o.id === orderId);
+    const processToSchedule = PROCESSES.find(p => p.id === processId);
+    if (!order || !processToSchedule) return;
+
+    const sewingProcessesForOrder = scheduledProcesses
+        .filter(p => p.orderId === orderId && p.processId === SEWING_PROCESS_ID)
+        .sort((a,b) => a.startDateTime.getTime() - b.startDateTime.getTime());
+    
+    if (sewingProcessesForOrder.length === 0) {
+        toast({
+            variant: "destructive",
+            title: "Scheduling Error",
+            description: `Please schedule the Sewing process for order ${order.id} first.`
+        });
+        return;
+    }
+
+    const processBatchSize = calculateProcessBatchSize(order, sewingLines[order.id] || 1);
+    const numBatches = Math.ceil(order.quantity / processBatchSize);
+    
+    const batches: {quantity: number; batchNumber: number}[] = [];
+    let remainingQty = order.quantity;
+    for(let i=0; i<numBatches; i++){
+        const batchQty = Math.min(processBatchSize, remainingQty);
+        batches.push({ quantity: batchQty, batchNumber: i+1 });
+        remainingQty -= batchQty;
+    }
+
+    const parentId = `${orderId}-${processId}-${Date.now()}`;
+    
+    let newProcesses: ScheduledProcess[] = [];
+    let allSucceeded = true;
+
+    for (const batch of batches) {
+        const sewingBatch = sewingProcessesForOrder[batch.batchNumber - 1] || sewingProcessesForOrder[sewingProcessesForOrder.length -1];
+        let anchorDate = sewingBatch.startDateTime;
+
+        const processSequence = [...order.processIds];
+        const sewingIndex = processSequence.indexOf(SEWING_PROCESS_ID);
+        const currentIndex = processSequence.indexOf(processId);
+
+        // We only auto-schedule pre-sewing processes
+        if (currentIndex >= sewingIndex) continue;
+
+        const processesToPlan = processSequence.slice(currentIndex, sewingIndex).reverse();
+
+        for (const pId of processesToPlan) {
+            const processInfo = PROCESSES.find(p => p.id === pId)!;
+            const durationMinutes = batch.quantity * processInfo.sam;
+            const startDate = calculateStartDateTime(anchorDate, durationMinutes);
+            const endDate = anchorDate;
+            
+            newProcesses.push({
+                id: `${parentId}-child-${crypto.randomUUID()}`,
+                orderId: order.id,
+                processId: pId,
+                machineId: machineId,
+                quantity: batch.quantity,
+                durationMinutes: durationMinutes,
+                startDateTime: startDate,
+                endDateTime: endDate,
+                isSplit: true,
+                isAutoScheduled: true,
+                parentId: parentId,
+                batchNumber: batch.batchNumber,
+            });
+            anchorDate = startDate;
+        }
+    }
+    
+    setScheduledProcesses(prev => [...prev, ...newProcesses]);
+  };
+
+
   const handleDropOnChart = (rowId: string, startDateTime: Date, draggedItemJSON: string) => {
     if (!draggedItemJSON) return;
   
@@ -163,6 +270,16 @@ function GanttPageContent() {
         endDate: new Date(JSON.parse(draggedItemJSON).tna.endDate),
       } : null,
     };
+
+    const order = orders.find(o => o.id === (droppedItem.type === 'new' ? droppedItem.orderId : droppedItem.process.orderId))!;
+    const sewingIndex = order.processIds.indexOf(SEWING_PROCESS_ID);
+    const processId = droppedItem.type === 'new' ? droppedItem.processId : droppedItem.process.processId;
+    const processIndex = order.processIds.indexOf(processId);
+
+    if (processIndex < sewingIndex) {
+        handleAutoSchedule(order.id, processId, rowId);
+        return;
+    }
   
     let processToPlace: ScheduledProcess;
     let otherProcesses: ScheduledProcess[];
@@ -210,6 +327,7 @@ function GanttPageContent() {
         machineId: rowId,
         startDateTime: finalStartDateTime,
         endDateTime: calculateEndDateTime(finalStartDateTime, originalProcess.durationMinutes),
+        isAutoScheduled: false, // Manually replanned
       };
       otherProcesses = scheduledProcesses;
     }
@@ -288,7 +406,10 @@ function GanttPageContent() {
     setScheduledProcesses(prev => {
       const processToUnschedule = prev.find(p => p.id === scheduledProcessId);
       if (processToUnschedule?.parentId) {
-        return prev.filter(p => p.parentId !== processToUnschedule.parentId);
+         // If it's an auto-scheduled batch, remove all sibling batches for that process
+         if (processToUnschedule.isAutoScheduled) {
+            return prev.filter(p => p.parentId !== processToUnschedule.parentId);
+         }
       }
       return prev.filter(p => p.id !== scheduledProcessId);
     });
@@ -308,9 +429,12 @@ function GanttPageContent() {
   const handleConfirmSplit = (originalProcesses: ScheduledProcess[], newQuantities: number[]) => {
     const primaryProcess = originalProcesses[0];
     const orderInfo = orders.find(o => o.id === primaryProcess.orderId)!;
-    
-    const parentId = primaryProcess.parentId || `${primaryProcess.id}-split-${Date.now()}`;
   
+    // Use existing parentId if re-splitting, otherwise create a new one.
+    const parentId = primaryProcess.parentId || `${primaryProcess.id}-split-${crypto.randomUUID()}`;
+    const originalIds = new Set(originalProcesses.map(p => p.id));
+  
+    // Determine the anchor point for cascading. Use the earliest start time from the original set.
     const anchor = originalProcesses.reduce((earliest, p) => {
       return p.startDateTime < earliest.startDateTime ? p : earliest;
     }, originalProcesses[0]);
@@ -324,16 +448,17 @@ function GanttPageContent() {
         durationMinutes = quantity * processInfo.sam;
       }
       return {
-        id: `${parentId}-child-${index}-${Date.now()}`,
+        id: `${parentId}-child-${crypto.randomUUID()}`,
         orderId: primaryProcess.orderId,
         processId: primaryProcess.processId,
-        machineId: anchor.machineId,
+        machineId: anchor.machineId, // Start all on the same machine
         quantity: quantity,
         durationMinutes: durationMinutes,
-        startDateTime: new Date(),
-        endDateTime: new Date(),
+        startDateTime: new Date(), // Placeholder, will be replaced
+        endDateTime: new Date(),   // Placeholder, will be replaced
         isSplit: true,
         parentId: parentId,
+        batchNumber: index + 1,
       };
     });
   
@@ -344,11 +469,10 @@ function GanttPageContent() {
       lastProcessEnd = newEnd;
       return { ...p, startDateTime: newStart, endDateTime: newEnd };
     });
-  
-    setScheduledProcesses(prev => {
-      const originalIds = originalProcesses.map(p => p.id);
-      const otherProcesses = prev.filter(p => !originalIds.includes(p.id));
-      
+    
+    setScheduledProcesses(currentProcesses => {
+      // Filter out the old processes being replaced
+      const otherProcesses = currentProcesses.filter(p => !originalIds.has(p.id));
       return [...otherProcesses, ...cascadedSplitProcesses];
     });
   
@@ -405,10 +529,6 @@ function GanttPageContent() {
     if (selectedProcessId === 'pab') return [];
     let baseOrders = unplannedOrders;
 
-    if (selectedProcessId !== SEWING_PROCESS_ID) {
-      baseOrders = unplannedOrders.filter(order => sewingScheduledOrderIds.has(order.id));
-    }
-    
     const filtered = baseOrders.filter(order => {
       const ocnMatch = filterOcn ? order.ocn.toLowerCase().includes(filterOcn.toLowerCase()) : true;
       const buyerMatch = filterBuyer.length > 0 ? filterBuyer.includes(order.buyer) : true;
@@ -434,7 +554,7 @@ function GanttPageContent() {
     }
 
     return filtered;
-  }, [unplannedOrders, selectedProcessId, sewingScheduledOrderIds, filterOcn, filterBuyer, filterDueDate, dueDateSort]);
+  }, [unplannedOrders, selectedProcessId, filterOcn, filterBuyer, filterDueDate, dueDateSort]);
 
   const hasActiveFilters = !!(filterOcn || filterBuyer.length > 0 || filterDueDate || dueDateSort);
   
@@ -534,6 +654,7 @@ function GanttPageContent() {
                       rows={chartRows} 
                       dates={dates}
                       scheduledProcesses={chartProcesses}
+                      allProcesses={scheduledProcesses}
                       onDrop={handleDropOnChart}
                       onUndoSchedule={handleUndoSchedule}
                       onProcessDragStart={handleDragStart}
