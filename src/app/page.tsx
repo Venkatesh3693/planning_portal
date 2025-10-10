@@ -458,7 +458,6 @@ function GanttPageContent() {
         const numLines = sewingLines[order.id] || 1;
         const processBatchSize = calculateProcessBatchSize(order, numLines);
         
-        const sewingProcessIndex = order.processIds.indexOf(SEWING_PROCESS_ID);
         const currentProcessIndex = order.processIds.indexOf(selectedProcessId);
         
         // Find the anchor date, which is the start of the next process in the sequence
@@ -475,9 +474,8 @@ function GanttPageContent() {
           }
         }
         
-        // If no successor is scheduled, we cannot calculate latest start date.
         if (!anchorDate || anchorDate.getFullYear() === 2999) {
-          orderItems.push(order); // Show as a single draggable item
+          orderItems.push(order);
           continue;
         }
 
@@ -485,24 +483,28 @@ function GanttPageContent() {
         const numBatches = Math.ceil(remainingQuantityForProcess / processBatchSize);
         let remQty = remainingQuantityForProcess;
         
-        // The DBR buffer is the duration of the next process's first batch.
-        const nextProcess = PROCESSES.find(p => p.id === nextProcessId)!;
-        const pitchTimeMinutes = (processBatchSize * nextProcess.sam); 
-        const pitchTimeDays = Math.ceil(pitchTimeMinutes / WORK_DAY_MINUTES);
-  
-        let nextBatchStartDate = anchorDate;
-  
-        // Create batches in reverse order for correct date calculation
-        for (let i = numBatches; i > 0; i--) {
-            const batchQty = (i === numBatches) 
-                ? remQty // Last batch takes the remainder
-                : processBatchSize;
+        const predecessorProcesses = order.processIds
+          .slice(currentProcessIndex + 1, order.processIds.indexOf(nextProcessId))
+          .map(pid => PROCESSES.find(p => p.id === pid)!)
+          .reverse();
 
-            // Chain the start dates backwards
+        for (let i = 1; i <= numBatches; i++) {
+            const isLastBatch = i === numBatches;
+            const batchQty = isLastBatch ? remQty : processBatchSize;
+
+            let latestStartDate = new Date(anchorDate);
+            
+            // Subtract duration of the current process's batch
             const currentProcessDurationDays = Math.ceil((batchQty * process.sam) / WORK_DAY_MINUTES);
-            const latestStartDate = subBusinessDays(nextBatchStartDate, currentProcessDurationDays);
+            latestStartDate = subBusinessDays(latestStartDate, currentProcessDurationDays);
 
-            batches.unshift({
+            // Subtract duration of all intermediate processes for this batch
+            for (const predProcess of predecessorProcesses) {
+              const predDurationDays = Math.ceil((batchQty * predProcess.sam) / WORK_DAY_MINUTES);
+              latestStartDate = subBusinessDays(latestStartDate, predDurationDays);
+            }
+
+            batches.push({
                 orderId: order.id,
                 processId: selectedProcessId,
                 quantity: batchQty,
@@ -512,7 +514,8 @@ function GanttPageContent() {
             });
 
             remQty -= batchQty;
-            nextBatchStartDate = latestStartDate;
+            // The next batch must start before the current one, so we update the anchor
+            anchorDate = latestStartDate;
         }
 
       } else {
@@ -520,7 +523,7 @@ function GanttPageContent() {
       }
     }
   
-    return { unplannedOrderItems: orderItems, unplannedBatches: batches };
+    return { unplannedOrderItems: orderItems.sort((a,b) => compareAsc(a.dueDate, b.dueDate)), unplannedBatches: batches };
   }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, splitOrderProcesses, sewingLines]);
   
 
