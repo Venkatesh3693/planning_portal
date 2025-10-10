@@ -21,3 +21,17 @@ export function addBusinessDays(startDate: Date, days: number): Date {
   }
   return currentDate;
 }
+
+export function subBusinessDays(startDate: Date, days: number): Date {
+  let currentDate = new Date(startDate);
+  let daysSubtracted = 0;
+
+  while (daysSubtracted < days) {
+      currentDate.setDate(currentDate.getDate() - 1);
+      const dayOfWeek = getDay(currentDate);
+      if (dayOfWeek !== 0) { // Not a Sunday
+          daysSubtracted++;
+      }
+  }
+  return currentDate;
+}
