@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import {
@@ -8,7 +9,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import type { Order } from '@/lib/types';
+import type { Order, UnplannedBatch } from '@/lib/types';
 import { format } from 'date-fns';
 import type { DraggedItemData } from '@/app/page';
 import {
@@ -17,7 +18,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { Filter, FilterX, ChevronDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Filter, FilterX, ChevronDown, ArrowUp, ArrowDown, UnfoldVertical, FoldVertical } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import {
@@ -31,15 +32,16 @@ import {
 import { DatePicker } from '@/components/ui/date-picker';
 import type { DateRange } from 'react-day-picker';
 import { PROCESSES } from '@/lib/data';
-import { addBusinessDays } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 const SEWING_PROCESS_ID = 'sewing';
 
 type MachinePanelProps = {
   selectedProcessId: string;
-  filteredUnplannedOrders: Order[];
+  unplannedOrders: Order[];
+  unplannedBatches: UnplannedBatch[];
   handleDragStart: (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => void;
   sewingScheduledOrderIds: Set<string>;
   sewingLines: Record<string, number>;
@@ -54,11 +56,14 @@ type MachinePanelProps = {
   dueDateSort: 'asc' | 'desc' | null;
   setDueDateSort: (value: 'asc' | 'desc' | null) => void;
   clearFilters: () => void;
+  splitOrderProcesses: Record<string, boolean>;
+  toggleSplitProcess: (orderId: string, processId: string) => void;
 };
 
 export default function MachinePanel({
   selectedProcessId,
-  filteredUnplannedOrders,
+  unplannedOrders,
+  unplannedBatches,
   handleDragStart,
   sewingScheduledOrderIds,
   sewingLines,
@@ -73,6 +78,8 @@ export default function MachinePanel({
   dueDateSort,
   setDueDateSort,
   clearFilters,
+  splitOrderProcesses,
+  toggleSplitProcess,
 }: MachinePanelProps) {
 
   const handleSortToggle = () => {
@@ -90,6 +97,8 @@ export default function MachinePanel({
     : dueDateSort === 'asc' 
     ? "Sort Descending" 
     : "Clear Sort";
+
+  const isPreSewingProcess = PROCESSES.find(p => p.id === selectedProcessId)?.id !== SEWING_PROCESS_ID;
 
   return (
     <Card className="h-full flex flex-col">
@@ -202,47 +211,95 @@ export default function MachinePanel({
       <CardContent className="flex-1 overflow-hidden">
         <ScrollArea className="h-full pr-4">
           <div className="space-y-2 p-2 pt-0">
-            {filteredUnplannedOrders.map((order) => {
-              const process = PROCESSES.find(p => p.id === selectedProcessId);
-              const durationMinutes = process ? process.sam * order.quantity : 0;
+            {unplannedBatches.map((batch) => {
+               const item: DraggedItemData = { type: 'new-batch', batch };
+               return (
+                  <div
+                    key={`${batch.orderId}-${batch.processId}-${batch.batchNumber}`}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, item)}
+                    className="cursor-grab active:cursor-grabbing p-2 text-sm font-medium text-card-foreground rounded-md hover:bg-primary/10 border-l-4 border-primary/50"
+                    title={`${batch.orderId} - Batch ${batch.batchNumber}`}
+                  >
+                    <div className="flex flex-col">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold">{batch.orderId}</span>
+                         <Button 
+                           variant="ghost" 
+                           size="icon" 
+                           className="h-6 w-6"
+                           onClick={() => toggleSplitProcess(batch.orderId, batch.processId)}
+                          >
+                           <FoldVertical className="h-4 w-4 text-muted-foreground" />
+                         </Button>
+                      </div>
+                      <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
+                        <span>Batch {batch.batchNumber}/{batch.totalBatches} ({batch.quantity} units)</span>
+                        <span>
+                          Latest Start: {format(batch.latestStartDate, 'MMM dd')}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+               )
+            })}
+            {unplannedOrders.map((order) => {
+              const process = PROCESSES.find(p => p.id === selectedProcessId)!;
+              const durationMinutes = process.sam * order.quantity;
               const durationDays = (durationMinutes / (8 * 60)).toFixed(1);
               const numLines = sewingLines[order.id] || 1;
 
-              const tnaProcess =
-                order.tna?.processes.find(
-                  (p) => p.processId === selectedProcessId
-                ) ?? null;
-
-              const latestEndDate = tnaProcess?.latestStartDate && tnaProcess?.durationDays 
-                ? addBusinessDays(new Date(tnaProcess.latestStartDate), tnaProcess.durationDays) 
-                : null;
-
+              const isSplit = splitOrderProcesses[`${order.id}_${selectedProcessId}`];
+               
               const item: DraggedItemData = {
-                type: 'new',
+                type: 'new-order',
                 orderId: order.id,
                 processId: selectedProcessId,
                 quantity: order.quantity,
-                tna: tnaProcess?.earliestStartDate && tnaProcess?.latestStartDate
-                  ? {
-                      startDate: new Date(tnaProcess.earliestStartDate),
-                      endDate: new Date(tnaProcess.latestStartDate),
-                    }
-                  : null,
+                tna: null,
               };
 
               return (
                 <div
                   key={order.id}
-                  draggable
+                  draggable={!isSplit}
                   onDragStart={(e) => handleDragStart(e, item)}
-                  className="cursor-grab active:cursor-grabbing p-2 text-sm font-medium text-card-foreground rounded-md hover:bg-primary/10"
+                  className={cn(
+                    "p-2 text-sm font-medium text-card-foreground rounded-md",
+                    !isSplit && "cursor-grab active:cursor-grabbing hover:bg-primary/10",
+                    isSplit && "bg-muted"
+                  )}
                   title={order.id}
                 >
                   <div className="flex flex-col">
-                    <span className="font-semibold">{order.id}</span>
+                     <div className="flex justify-between items-center">
+                        <span className="font-semibold">{order.id}</span>
+                        {isPreSewingProcess && sewingScheduledOrderIds.has(order.id) && (
+                           <TooltipProvider>
+                              <Tooltip>
+                                 <TooltipTrigger asChild>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      className="h-6 w-6"
+                                      onClick={() => toggleSplitProcess(order.id, selectedProcessId)}
+                                    >
+                                       {isSplit 
+                                          ? <FoldVertical className="h-4 w-4" /> 
+                                          : <UnfoldVertical className="h-4 w-4" />
+                                       }
+                                    </Button>
+                                 </TooltipTrigger>
+                                 <TooltipContent>
+                                    <p>{isSplit ? 'Merge Batches' : 'Split into Batches'}</p>
+                                 </TooltipContent>
+                              </Tooltip>
+                           </TooltipProvider>
+                        )}
+                     </div>
                     <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
                       <span>
-                        Deadline: {latestEndDate ? format(latestEndDate, 'MMM dd') : 'N/A'}
+                        Due: {format(order.dueDate, 'MMM dd')}
                       </span>
                       {selectedProcessId === SEWING_PROCESS_ID && (
                         <span>{numLines} {numLines > 1 ? 'Lines' : 'Line'}</span>
@@ -253,14 +310,12 @@ export default function MachinePanel({
                 </div>
               );
             })}
-            {filteredUnplannedOrders.length === 0 && (
+            {unplannedOrders.length === 0 && unplannedBatches.length === 0 && (
               <div className="flex h-full items-center justify-center text-center">
                 <p className="text-sm text-muted-foreground">
                   {hasActiveFilters
                     ? 'No orders match your filters.'
-                    : selectedProcessId === SEWING_PROCESS_ID
-                    ? `All ${PROCESSES.find(p=>p.id === selectedProcessId)?.name} processes are scheduled.`
-                    : `Schedule sewing for orders to see them here.`}
+                    : `All ${PROCESSES.find(p=>p.id === selectedProcessId)?.name} processes are scheduled.`}
                 </p>
               </div>
             )}

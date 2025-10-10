@@ -1,4 +1,5 @@
 
+
 import type { LucideIcon } from 'lucide-react';
 
 export type Unit = {
@@ -71,4 +72,13 @@ export type ScheduledProcess = {
   parentId?: string;
   batchNumber?: number;
   isAutoScheduled?: boolean;
+};
+
+export type UnplannedBatch = {
+  orderId: string;
+  processId: string;
+  quantity: number;
+  batchNumber: number;
+  totalBatches: number;
+  latestStartDate: Date;
 };

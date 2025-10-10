@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, Dispatch, SetStateAction, useMemo } from 'react';
@@ -6,7 +7,7 @@ import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess } from '@/li
 import { ORDERS as staticOrders, ORDER_COLORS } from '@/lib/data';
 import { addDays, startOfToday, isAfter } from 'date-fns';
 
-const STORE_KEY = 'stitchplan_schedule_v2';
+const STORE_KEY = 'stitchplan_schedule_v3';
 
 type SewingRampUpSchemes = Record<string, RampUpEntry[]>;
 type SewingLines = Record<string, number>;
@@ -26,6 +27,8 @@ type ScheduleContextType = {
   timelineEndDate: Date;
   setTimelineEndDate: Dispatch<SetStateAction<Date>>;
   isScheduleLoaded: boolean;
+  splitOrderProcesses: Record<string, boolean>;
+  toggleSplitProcess: (orderId: string, processId: string) => void;
 };
 
 const ScheduleContext = createContext<ScheduleContextType | undefined>(undefined);
@@ -35,10 +38,10 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   const [scheduledProcesses, setScheduledProcesses] = useState<ScheduledProcess[]>([]);
   const [sewingLines, setSewingLinesState] = useState<SewingLines>({});
   const [orderOverrides, setOrderOverrides] = useState<StoredOrderOverrides>({});
+  const [splitOrderProcesses, setSplitOrderProcesses] = useState<Record<string, boolean>>({});
   const [timelineEndDate, setTimelineEndDate] = useState(() => addDays(startOfToday(), 90));
   const [isScheduleLoaded, setIsScheduleLoaded] = useState(false);
 
-  // Load from localStorage on initial mount
   useEffect(() => {
     try {
       const serializedState = localStorage.getItem(STORE_KEY);
@@ -64,6 +67,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         setSewingLinesState(storedData.sewingLines || {});
         loadedOverrides = storedData.orderOverrides || {};
         setOrderOverrides(loadedOverrides);
+        setSplitOrderProcesses(storedData.splitOrderProcesses || {});
 
         if (storedData.timelineEndDate) {
             const storedEndDate = new Date(storedData.timelineEndDate);
@@ -75,12 +79,8 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
 
       setTimelineEndDate(addDays(maxEndDate, 3));
 
-
-      // Hydrate orders: Start with static, then apply overrides
       const hydratedOrders = staticOrders.map((baseOrder, index) => {
         const override = loadedOverrides[baseOrder.id];
-        
-        // Start with a clone of the base TNA
         const hydratedTna: Tna = { ...(baseOrder.tna as Tna) };
 
         if(override?.tna) {
@@ -118,14 +118,12 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
 
     } catch (err) {
       console.error("Could not load schedule from localStorage", err);
-      // Fallback to static orders if loading fails
       setOrders(staticOrders);
     } finally {
       setIsScheduleLoaded(true);
     }
   }, []);
 
-  // Save to localStorage whenever a tracked state changes
   useEffect(() => {
     if (!isScheduleLoaded) return;
     try {
@@ -134,13 +132,14 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         sewingLines,
         orderOverrides,
         timelineEndDate,
+        splitOrderProcesses,
       };
       const serializedState = JSON.stringify(stateToSave);
       localStorage.setItem(STORE_KEY, serializedState);
     } catch (err) {
       console.error("Could not save schedule to localStorage", err);
     }
-  }, [scheduledProcesses, sewingLines, orderOverrides, timelineEndDate, isScheduleLoaded]);
+  }, [scheduledProcesses, sewingLines, orderOverrides, timelineEndDate, splitOrderProcesses, isScheduleLoaded]);
 
   const updateOrderTna = (orderId: string, newTnaProcesses: TnaProcess[], newCkDate: Date) => {
       setOrderOverrides(prev => {
@@ -197,13 +196,20 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   const setSewingLines = (orderId: string, lines: number) => {
     setSewingLinesState(prev => ({ ...prev, [orderId]: lines }));
   };
+
+  const toggleSplitProcess = (orderId: string, processId: string) => {
+    const key = `${orderId}_${processId}`;
+    setSplitOrderProcesses(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
   
-  // Re-hydrate orders when overrides change
   useEffect(() => {
     if (!isScheduleLoaded) return;
     setOrders(currentOrders => currentOrders.map(order => {
         const override = orderOverrides[order.id];
-        if (!override) return order; // No changes for this order
+        if (!override) return order;
         
         const updatedOrder = { ...order };
         if (override.displayColor) updatedOrder.displayColor = override.displayColor;
@@ -258,7 +264,9 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     setSewingLines,
     timelineEndDate,
     setTimelineEndDate,
-    isScheduleLoaded 
+    isScheduleLoaded,
+    splitOrderProcesses,
+    toggleSplitProcess,
   };
 
   return (
