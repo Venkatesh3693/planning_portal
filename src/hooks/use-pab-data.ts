@@ -2,7 +2,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import type { ScheduledProcess, Order, Process, RampUpEntry } from '@/lib/types';
+import type { ScheduledProcess, Order, Process } from '@/lib/types';
 import { format, startOfDay, addDays, isAfter, isBefore, getDay, addMinutes } from 'date-fns';
 import { WORK_DAY_MINUTES } from '@/lib/data';
 
@@ -17,36 +17,6 @@ export type PabData = {
 };
 
 const INITIAL_PAB_DATA: PabData = { data: {}, processSequences: {}, processDetails: {}, dailyOutputs: {}, dailyInputs: {}, processStartDates: {}, processDateRanges: {} };
-
-// This helper function calculates the output for a given day, considering ramp-up for sewing
-const getOutputForDay = (
-  process: Process,
-  order: Order,
-  minutesToProcess: number,
-  productionDay: number,
-): number => {
-    if (process.id === 'sewing') {
-        const rampUpScheme = order.sewingRampUpScheme || [];
-        let efficiency = rampUpScheme.length > 0 
-            ? rampUpScheme[rampUpScheme.length - 1].efficiency 
-            : order.budgetedEfficiency || 100;
-        
-        for (const entry of rampUpScheme) {
-            if (productionDay >= entry.day) {
-                efficiency = entry.efficiency;
-            }
-        }
-        if (!efficiency || efficiency <= 0) return 0;
-        
-        const effectiveSam = process.sam / (efficiency / 100);
-        return minutesToProcess * (1 / effectiveSam);
-
-    } else {
-        // Static SAM calculation for non-sewing processes
-        const outputPerMinute = 1 / process.sam;
-        return minutesToProcess * outputPerMinute;
-    }
-};
 
 
 export function usePabData(
@@ -116,8 +86,28 @@ export function usePabData(
 
         const dateKey = format(startOfDay(current), 'yyyy-MM-dd');
         
-        // Use the helper to get output, which handles ramp-up for sewing
-        const outputForDay = getOutputForDay(processInfo, orderInfo, minutesToProcessToday, processProductionDayCounter[p.id]);
+        let outputForDay = 0;
+        if (processInfo.id === 'sewing') {
+            const rampUpScheme = orderInfo.sewingRampUpScheme || [];
+            let efficiency = rampUpScheme.length > 0 
+                ? rampUpScheme[rampUpScheme.length - 1].efficiency 
+                : orderInfo.budgetedEfficiency || 100;
+            
+            for (const entry of rampUpScheme) {
+                if (processProductionDayCounter[p.id] >= entry.day) {
+                    efficiency = entry.efficiency;
+                }
+            }
+            if (efficiency > 0) {
+              const effectiveSam = processInfo.sam / (efficiency / 100);
+              outputForDay = minutesToProcessToday / effectiveSam;
+            }
+        } else {
+            // For non-sewing processes, use the direct SAM calculation
+            if (processInfo.sam > 0) {
+                outputForDay = minutesToProcessToday / processInfo.sam;
+            }
+        }
 
         dailyAggregatedOutput[p.orderId][p.processId][dateKey] = (dailyAggregatedOutput[p.orderId][p.processId][dateKey] || 0) + outputForDay;
         
