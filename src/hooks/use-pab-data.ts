@@ -62,7 +62,8 @@ export function usePabData(
       
       let current = new Date(p.startDateTime);
       let remainingDuration = p.durationMinutes;
-      processProductionDayCounter[p.id] = 0;
+      if (!processProductionDayCounter[p.id]) processProductionDayCounter[p.id] = 0;
+
 
       while (remainingDuration > 0) {
         if (getDay(current) === 0) { // Skip Sundays

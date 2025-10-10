@@ -49,7 +49,7 @@ function calculateDaysToProduceBatch(
     return Math.ceil(totalMinutes / WORK_DAY_MINUTES);
 };
 
-function calculateSewingDurationDays(quantity: number, sam: number, rampUpScheme: RampUpEntry[], numLines: number): number {
+export function calculateSewingDurationDays(quantity: number, sam: number, rampUpScheme: RampUpEntry[], numLines: number): number {
     if (quantity <= 0 || sam <= 0 || numLines <= 0) return 0;
     
     let remainingQty = quantity;

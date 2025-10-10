@@ -17,7 +17,7 @@ import MachinePanel from '@/components/gantt-chart/machine-panel';
 import SplitProcessDialog from '@/components/gantt-chart/split-process-dialog';
 import PabView from '@/components/pab/pab-view';
 import { useToast } from '@/hooks/use-toast';
-import { calculateProcessBatchSize } from '@/lib/tna-calculator';
+import { calculateProcessBatchSize, calculateSewingDurationDays } from '@/lib/tna-calculator';
 
 
 const SEWING_PROCESS_ID = 'sewing';
@@ -150,6 +150,80 @@ const calculateSewingDuration = (order: Order, quantity: number): number => {
     return totalMinutes;
 };
 
+const handleAutoSchedule = (
+    order: Order,
+    processId: string,
+    machineId: string,
+    allProcesses: ScheduledProcess[],
+    numLines: number
+): { processesToAdd: ScheduledProcess[], processIdsToRemove: string[] } | null => {
+    
+    const sewingProcessesForOrder = allProcesses
+        .filter(p => p.orderId === order.id && p.processId === SEWING_PROCESS_ID)
+        .sort((a, b) => compareAsc(a.startDateTime, b.startDateTime));
+    
+    if (sewingProcessesForOrder.length === 0) {
+        return null;
+    }
+
+    const processBatchSize = calculateProcessBatchSize(order, numLines);
+    if(processBatchSize <= 0) return null;
+
+    const numBatches = Math.ceil(order.quantity / processBatchSize);
+    
+    const batches: {quantity: number; batchNumber: number}[] = [];
+    let remainingQty = order.quantity;
+    for(let i=0; i<numBatches; i++){
+        const batchQty = Math.min(processBatchSize, remainingQty);
+        batches.push({ quantity: batchQty, batchNumber: i+1 });
+        remainingQty -= batchQty;
+    }
+
+    const parentId = `${order.id}-${processId}-${crypto.randomUUID()}`;
+    const processesToAdd: ScheduledProcess[] = [];
+    
+    const baseSewingStartTime = sewingProcessesForOrder[0].startDateTime;
+    const sewingPitchDurationMinutes = calculateSewingDuration(order, processBatchSize) / numLines;
+
+    for (const batch of batches) {
+        const pitchOffsetMinutes = (batch.batchNumber - 1) * sewingPitchDurationMinutes;
+        let anchorDate = calculateEndDateTime(baseSewingStartTime, pitchOffsetMinutes);
+
+        const processSequence = [...order.processIds];
+        const sewingIndex = processSequence.indexOf(SEWING_PROCESS_ID);
+        const currentIndex = processSequence.indexOf(processId);
+
+        if (currentIndex >= sewingIndex) continue;
+
+        const processesToPlan = processSequence.slice(currentIndex, sewingIndex).reverse();
+
+        for (const pId of processesToPlan) {
+            const processInfo = PROCESSES.find(p => p.id === pId)!;
+            const durationMinutes = batch.quantity * processInfo.sam;
+            const startDate = calculateStartDateTime(anchorDate, durationMinutes);
+            const endDate = anchorDate;
+            
+            processesToAdd.push({
+                id: `${parentId}-child-${crypto.randomUUID()}`,
+                orderId: order.id,
+                processId: pId,
+                machineId: machineId, // Initially place on the dropped machine
+                quantity: batch.quantity,
+                durationMinutes: durationMinutes,
+                startDateTime: startDate,
+                endDateTime: endDate,
+                isSplit: true,
+                isAutoScheduled: true,
+                parentId: parentId,
+                batchNumber: batch.batchNumber,
+            });
+            anchorDate = startDate;
+        }
+    }
+    
+    return { processesToAdd, processIdsToRemove: [] };
+};
+
 
 function GanttPageContent() {
   const { orders, scheduledProcesses, setScheduledProcesses, isScheduleLoaded, sewingLines, timelineEndDate, setTimelineEndDate } = useSchedule();
@@ -185,86 +259,6 @@ function GanttPageContent() {
   
   const buyerOptions = useMemo(() => [...new Set(orders.map(o => o.buyer))], [orders]);
 
-  const handleAutoSchedule = (orderId: string, processId: string, machineId: string) => {
-    const order = orders.find(o => o.id === orderId);
-    const processToSchedule = PROCESSES.find(p => p.id === processId);
-    if (!order || !processToSchedule) return;
-
-    const sewingProcessesForOrder = scheduledProcesses
-        .filter(p => p.orderId === orderId && p.processId === SEWING_PROCESS_ID)
-        .sort((a, b) => compareAsc(a.startDateTime, b.startDateTime));
-    
-    if (sewingProcessesForOrder.length === 0) {
-        toast({
-            variant: "destructive",
-            title: "Scheduling Error",
-            description: `Please schedule the Sewing process for order ${order.id} first.`
-        });
-        return;
-    }
-
-    const processBatchSize = calculateProcessBatchSize(order, sewingLines[order.id] || 1);
-    const numBatches = Math.ceil(order.quantity / processBatchSize);
-    
-    const batches: {quantity: number; batchNumber: number}[] = [];
-    let remainingQty = order.quantity;
-    for(let i=0; i<numBatches; i++){
-        const batchQty = Math.min(processBatchSize, remainingQty);
-        batches.push({ quantity: batchQty, batchNumber: i+1 });
-        remainingQty -= batchQty;
-    }
-
-    const parentId = `${orderId}-${processId}-${crypto.randomUUID()}`;
-    
-    const newProcesses: ScheduledProcess[] = [];
-    
-    const baseSewingStartTime = sewingProcessesForOrder[0].startDateTime;
-    const sewingPitchDurationMinutes = calculateSewingDuration(order, processBatchSize);
-
-    for (const batch of batches) {
-        const pitchOffsetMinutes = (batch.batchNumber - 1) * sewingPitchDurationMinutes;
-        let anchorDate = calculateEndDateTime(baseSewingStartTime, pitchOffsetMinutes);
-
-        const processSequence = [...order.processIds];
-        const sewingIndex = processSequence.indexOf(SEWING_PROCESS_ID);
-        const currentIndex = processSequence.indexOf(processId);
-
-        if (currentIndex >= sewingIndex) continue;
-
-        const processesToPlan = processSequence.slice(currentIndex, sewingIndex).reverse();
-
-        for (const pId of processesToPlan) {
-            const processInfo = PROCESSES.find(p => p.id === pId)!;
-            const durationMinutes = batch.quantity * processInfo.sam;
-            const startDate = calculateStartDateTime(anchorDate, durationMinutes);
-            const endDate = anchorDate;
-            
-            newProcesses.push({
-                id: `${parentId}-child-${crypto.randomUUID()}`,
-                orderId: order.id,
-                processId: pId,
-                machineId: machineId, // Initially place on the dropped machine
-                quantity: batch.quantity,
-                durationMinutes: durationMinutes,
-                startDateTime: startDate,
-                endDateTime: endDate,
-                isSplit: true,
-                isAutoScheduled: true,
-                parentId: parentId,
-                batchNumber: batch.batchNumber,
-            });
-            anchorDate = startDate;
-        }
-    }
-    
-    // Atomically add new processes and remove the original placeholder from unplanned
-    setScheduledProcesses(prev => [
-        ...prev.filter(p => !(p.orderId === orderId && p.processId === processId)), // clean slate
-        ...newProcesses
-    ]);
-  };
-
-
   const handleDropOnChart = (rowId: string, startDateTime: Date, draggedItemJSON: string) => {
     if (!draggedItemJSON) return;
   
@@ -286,8 +280,36 @@ function GanttPageContent() {
     const processIndex = order.processIds.indexOf(processId);
     const sewingIndex = order.processIds.indexOf(SEWING_PROCESS_ID);
 
-    if (processIndex < sewingIndex && droppedItem.type === 'new') {
-        handleAutoSchedule(order.id, processId, rowId);
+    if (droppedItem.type === 'new' && processIndex < sewingIndex) {
+        const autoScheduleResult = handleAutoSchedule(order, processId, rowId, scheduledProcesses, sewingLines[order.id] || 1);
+        
+        if (!autoScheduleResult) {
+            toast({
+                variant: "destructive",
+                title: "Scheduling Error",
+                description: `Please schedule the Sewing process for order ${order.id} first to enable automatic planning.`
+            });
+            return;
+        }
+
+        const { processesToAdd } = autoScheduleResult;
+        
+        setScheduledProcesses(prev => [
+            ...prev.filter(p => !(p.orderId === order.id && p.processId === processId)), // Remove any existing placeholders for this order-process
+            ...processesToAdd
+        ]);
+        
+        // Extend timeline if needed for the new processes
+        let latestEndDate = timelineEndDate;
+        processesToAdd.forEach(p => {
+            if (isAfter(p.endDateTime, latestEndDate)) {
+                latestEndDate = p.endDateTime;
+            }
+        });
+        if (isAfter(latestEndDate, timelineEndDate)) {
+            setTimelineEndDate(addDays(latestEndDate, 3));
+        }
+
         return;
     }
   
@@ -496,16 +518,9 @@ function GanttPageContent() {
 
     const scheduledOrderProcesses = new Map<string, number>();
      scheduledProcesses.forEach(p => {
-        // For auto-scheduled items, consider them planned only for their specific process.
-        if (p.isAutoScheduled) {
-            const key = `${p.orderId}_${p.processId}`;
-            scheduledOrderProcesses.set(key, (scheduledOrderProcesses.get(key) || 0) + p.quantity);
-        } else {
-            // For manually scheduled items, they represent the whole order for that process.
-            const key = `${p.orderId}_${p.processId}`;
-            const order = orders.find(o => o.id === p.orderId);
-            if(order) scheduledOrderProcesses.set(key, order.quantity);
-        }
+        const key = `${p.orderId}_${p.processId}`;
+        const currentQty = scheduledOrderProcesses.get(key) || 0;
+        scheduledOrderProcesses.set(key, currentQty + p.quantity);
      });
     
     return orders.filter(order => {
@@ -703,3 +718,4 @@ export default function Home() {
     <GanttPageContent />
   );
 }
+
