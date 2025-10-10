@@ -3,7 +3,7 @@
 
 import { useMemo } from 'react';
 import type { ScheduledProcess, Order, Process } from '@/lib/types';
-import { format, startOfDay, addDays, isAfter, isBefore, getDay, addMinutes } from 'date-fns';
+import { format, startOfDay, addDays, isAfter, isBefore, getDay, addMinutes, differenceInMinutes } from 'date-fns';
 import { WORK_DAY_MINUTES } from '@/lib/data';
 
 export type PabData = {
@@ -72,7 +72,7 @@ export function usePabData(
         }
 
         const endOfWorkDay = new Date(current).setHours(17, 0, 0, 0);
-        const minutesLeftInCurrentTime = (endOfWorkDay - current.getTime()) / (1000 * 60);
+        const minutesLeftInCurrentTime = differenceInMinutes(endOfWorkDay, current);
         const minutesToProcessToday = Math.min(remainingDuration, minutesLeftInCurrentTime, WORK_DAY_MINUTES);
 
         if (minutesToProcessToday <= 0) {
