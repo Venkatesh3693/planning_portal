@@ -192,7 +192,7 @@ function GanttPageContent() {
 
     const sewingProcessesForOrder = scheduledProcesses
         .filter(p => p.orderId === orderId && p.processId === SEWING_PROCESS_ID)
-        .sort((a,b) => a.startDateTime.getTime() - b.startDateTime.getTime());
+        .sort((a, b) => compareAsc(a.startDateTime, b.startDateTime));
     
     if (sewingProcessesForOrder.length === 0) {
         toast({
@@ -214,20 +214,21 @@ function GanttPageContent() {
         remainingQty -= batchQty;
     }
 
-    const parentId = `${orderId}-${processId}-${Date.now()}`;
+    const parentId = `${orderId}-${processId}-${crypto.randomUUID()}`;
     
-    let newProcesses: ScheduledProcess[] = [];
-    let allSucceeded = true;
+    const newProcesses: ScheduledProcess[] = [];
+    
+    const baseSewingStartTime = sewingProcessesForOrder[0].startDateTime;
+    const sewingPitchDurationMinutes = calculateSewingDuration(order, processBatchSize);
 
     for (const batch of batches) {
-        const sewingBatch = sewingProcessesForOrder[batch.batchNumber - 1] || sewingProcessesForOrder[sewingProcessesForOrder.length -1];
-        let anchorDate = sewingBatch.startDateTime;
+        const pitchOffsetMinutes = (batch.batchNumber - 1) * sewingPitchDurationMinutes;
+        let anchorDate = calculateEndDateTime(baseSewingStartTime, pitchOffsetMinutes);
 
         const processSequence = [...order.processIds];
         const sewingIndex = processSequence.indexOf(SEWING_PROCESS_ID);
         const currentIndex = processSequence.indexOf(processId);
 
-        // We only auto-schedule pre-sewing processes
         if (currentIndex >= sewingIndex) continue;
 
         const processesToPlan = processSequence.slice(currentIndex, sewingIndex).reverse();
@@ -242,7 +243,7 @@ function GanttPageContent() {
                 id: `${parentId}-child-${crypto.randomUUID()}`,
                 orderId: order.id,
                 processId: pId,
-                machineId: machineId,
+                machineId: machineId, // Initially place on the dropped machine
                 quantity: batch.quantity,
                 durationMinutes: durationMinutes,
                 startDateTime: startDate,
@@ -256,7 +257,11 @@ function GanttPageContent() {
         }
     }
     
-    setScheduledProcesses(prev => [...prev, ...newProcesses]);
+    // Atomically add new processes and remove the original placeholder from unplanned
+    setScheduledProcesses(prev => [
+        ...prev.filter(p => !(p.orderId === orderId && p.processId === processId)), // clean slate
+        ...newProcesses
+    ]);
   };
 
 
@@ -269,14 +274,19 @@ function GanttPageContent() {
         startDate: new Date(JSON.parse(draggedItemJSON).tna.startDate),
         endDate: new Date(JSON.parse(draggedItemJSON).tna.endDate),
       } : null,
+      process: JSON.parse(draggedItemJSON).process ? {
+        ...JSON.parse(draggedItemJSON).process,
+        startDateTime: new Date(JSON.parse(draggedItemJSON).process.startDateTime),
+        endDateTime: new Date(JSON.parse(draggedItemJSON).process.endDateTime),
+      } : undefined
     };
 
     const order = orders.find(o => o.id === (droppedItem.type === 'new' ? droppedItem.orderId : droppedItem.process.orderId))!;
-    const sewingIndex = order.processIds.indexOf(SEWING_PROCESS_ID);
     const processId = droppedItem.type === 'new' ? droppedItem.processId : droppedItem.process.processId;
     const processIndex = order.processIds.indexOf(processId);
+    const sewingIndex = order.processIds.indexOf(SEWING_PROCESS_ID);
 
-    if (processIndex < sewingIndex) {
+    if (processIndex < sewingIndex && droppedItem.type === 'new') {
         handleAutoSchedule(order.id, processId, rowId);
         return;
     }
@@ -312,11 +322,7 @@ function GanttPageContent() {
       };
       otherProcesses = [...scheduledProcesses];
     } else { // 'existing'
-      const originalProcess: ScheduledProcess = {
-        ...droppedItem.process,
-        startDateTime: new Date(droppedItem.process.startDateTime),
-        endDateTime: new Date(droppedItem.process.endDateTime),
-      };
+      const originalProcess: ScheduledProcess = droppedItem.process;
   
       const finalStartDateTime = viewMode === 'day'
         ? set(startDateTime, { hours: WORKING_HOURS_START, minutes: 0, seconds: 0, milliseconds: 0 })
@@ -329,13 +335,14 @@ function GanttPageContent() {
         endDateTime: calculateEndDateTime(finalStartDateTime, originalProcess.durationMinutes),
         isAutoScheduled: false, // Manually replanned
       };
-      otherProcesses = scheduledProcesses;
+      // Important: Filter out the process being moved from the list of other processes.
+      otherProcesses = scheduledProcesses.filter(p => p.id !== originalProcess.id);
     }
   
     const machineId = processToPlace.machineId;
     const processesOnSameMachine = otherProcesses
       .filter(p => p.machineId === machineId)
-      .sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
+      .sort((a, b) => compareAsc(a.startDateTime, b.startDateTime));
   
     const finalProcesses: ScheduledProcess[] = otherProcesses.filter(p => p.machineId !== machineId);
     
@@ -343,7 +350,7 @@ function GanttPageContent() {
       processToPlace.startDateTime < p.endDateTime && processToPlace.endDateTime > p.startDateTime
     );
 
-    let processesToCascade = directConflicts.sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime());
+    let processesToCascade = directConflicts.sort((a, b) => compareAsc(a.startDateTime, b.startDateTime));
   
     const unaffectedOnMachine = processesOnSameMachine.filter(p => 
       !processesToCascade.find(c => c.id === p.id)
@@ -384,32 +391,34 @@ function GanttPageContent() {
   
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => {
-    const itemJSON = JSON.stringify(item);
+    // Serialize the item with dates converted to ISO strings
+    const serializedItem = {
+      ...item,
+      tna: item.tna ? {
+          startDate: item.tna.startDate.toISOString(),
+          endDate: item.tna.endDate.toISOString(),
+      } : null,
+      process: item.type === 'existing' ? {
+        ...item.process,
+        startDateTime: item.process.startDateTime.toISOString(),
+        endDateTime: item.process.endDateTime.toISOString(),
+      } : undefined
+    };
+    const itemJSON = JSON.stringify(serializedItem);
     e.dataTransfer.setData('application/json', itemJSON);
     setDraggedItem(item);
-    
-    if (item.type === 'existing') {
-        setTimeout(() => {
-            setScheduledProcesses(prev => prev.filter(p => p.id !== item.process.id));
-        }, 0);
-    }
   };
   
   const handleDragEnd = () => {
-    if(draggedItem && draggedItem.type === 'existing' && !scheduledProcesses.find(p => p.id === draggedItem.process.id)) {
-        setScheduledProcesses(prev => [...prev, draggedItem.process]);
-    }
     setDraggedItem(null);
   };
 
   const handleUndoSchedule = (scheduledProcessId: string) => {
     setScheduledProcesses(prev => {
       const processToUnschedule = prev.find(p => p.id === scheduledProcessId);
-      if (processToUnschedule?.parentId) {
-         // If it's an auto-scheduled batch, remove all sibling batches for that process
-         if (processToUnschedule.isAutoScheduled) {
-            return prev.filter(p => p.parentId !== processToUnschedule.parentId);
-         }
+      // If it's an auto-scheduled batch, remove all sibling batches for that process
+      if (processToUnschedule?.parentId && processToUnschedule?.isAutoScheduled) {
+         return prev.filter(p => p.parentId !== processToUnschedule.parentId);
       }
       return prev.filter(p => p.id !== scheduledProcessId);
     });
@@ -436,7 +445,7 @@ function GanttPageContent() {
   
     // Determine the anchor point for cascading. Use the earliest start time from the original set.
     const anchor = originalProcesses.reduce((earliest, p) => {
-      return p.startDateTime < earliest.startDateTime ? p : earliest;
+      return compareAsc(p.startDateTime, earliest.startDateTime) < 0 ? p : earliest;
     }, originalProcesses[0]);
   
     const newSplitProcesses: ScheduledProcess[] = newQuantities.map((quantity, index) => {
@@ -487,8 +496,16 @@ function GanttPageContent() {
 
     const scheduledOrderProcesses = new Map<string, number>();
      scheduledProcesses.forEach(p => {
-        const key = `${p.orderId}_${p.processId}`;
-        scheduledOrderProcesses.set(key, (scheduledOrderProcesses.get(key) || 0) + p.quantity);
+        // For auto-scheduled items, consider them planned only for their specific process.
+        if (p.isAutoScheduled) {
+            const key = `${p.orderId}_${p.processId}`;
+            scheduledOrderProcesses.set(key, (scheduledOrderProcesses.get(key) || 0) + p.quantity);
+        } else {
+            // For manually scheduled items, they represent the whole order for that process.
+            const key = `${p.orderId}_${p.processId}`;
+            const order = orders.find(o => o.id === p.orderId);
+            if(order) scheduledOrderProcesses.set(key, order.quantity);
+        }
      });
     
     return orders.filter(order => {

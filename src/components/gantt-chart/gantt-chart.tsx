@@ -3,7 +3,7 @@
 "use client";
 
 import * as React from 'react';
-import { format, getMonth, isWithinInterval, startOfDay, startOfHour, endOfHour, addDays, differenceInMilliseconds, endOfDay } from 'date-fns';
+import { format, getMonth, isWithinInterval, startOfDay, startOfHour, endOfHour, addDays, differenceInMilliseconds, endOfDay, compareAsc } from 'date-fns';
 import type { Order, ScheduledProcess } from '@/lib/types';
 import type { DraggedItemData } from '@/app/page';
 import { cn } from '@/lib/utils';
@@ -206,7 +206,7 @@ export default function GanttChart({
   const totalGridWidth = `calc(${timeColumns.length} * ${cellWidth})`;
 
   const validDateRanges = React.useMemo(() => {
-    if (!draggedItem || draggedItem.type !== 'existing' || !draggedItem.process.isSplit) {
+    if (!draggedItem || draggedItem.type !== 'existing' || !draggedItem.process.isAutoScheduled) {
       return null;
     }
 
@@ -221,11 +221,11 @@ export default function GanttChart({
     let predecessorEnd: Date | null = null;
     if (currentIndex > 0) {
       const predecessorId = processSequence[currentIndex - 1];
-      const predecessorProcess = allProcesses.find(
+      const predecessorProcesses = allProcesses.filter(
         p => p.orderId === draggedProcess.orderId && p.processId === predecessorId && p.batchNumber === draggedProcess.batchNumber
       );
-      if (predecessorProcess) {
-        predecessorEnd = predecessorProcess.endDateTime;
+      if (predecessorProcesses.length > 0) {
+        predecessorEnd = predecessorProcesses.reduce((latest, p) => compareAsc(p.endDateTime, latest) > 0 ? p.endDateTime : latest, predecessorProcesses[0].endDateTime);
       }
     }
 
@@ -233,11 +233,11 @@ export default function GanttChart({
     let successorStart: Date | null = null;
     if (currentIndex < processSequence.length - 1) {
       const successorId = processSequence[currentIndex + 1];
-      const successorProcess = allProcesses.find(
+      const successorProcesses = allProcesses.filter(
         p => p.orderId === draggedProcess.orderId && p.processId === successorId && p.batchNumber === draggedProcess.batchNumber
       );
-      if (successorProcess) {
-        successorStart = successorProcess.startDateTime;
+      if (successorProcesses.length > 0) {
+         successorStart = successorProcesses.reduce((earliest, p) => compareAsc(p.startDateTime, earliest) < 0 ? p.startDateTime : earliest, successorProcesses[0].startDateTime);
       }
     }
 
@@ -319,6 +319,7 @@ export default function GanttChart({
                           className={cn('border-b border-r border-border/60',
                               isDragOver ? 'bg-primary/20' : (rowIndex % 2 !== 0 ? 'bg-card' : 'bg-muted/20'),
                               isInTnaRange && !isDragOver && 'bg-green-500/10',
+                              validDateRanges && 'bg-blue-500/5',
                               isInValidRange && !isDragOver && 'bg-blue-500/10',
                               'transition-colors duration-200'
                           )}
@@ -344,8 +345,6 @@ export default function GanttChart({
               };
 
               const startIndex = getColumnIndex(item.startDateTime);
-              // For end date, we want the cell it finishes in.
-              // If it finishes at midnight, it belongs to the previous day's cell.
               const endOfProcess = item.endDateTime;
               const effectiveEndDate = endOfProcess.getHours() === 0 && endOfProcess.getMinutes() === 0
                 ? addDays(endOfProcess, -1)
