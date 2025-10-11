@@ -459,17 +459,13 @@ function GanttPageContent() {
         const scheduledQty = scheduledQuantities.get(`${order.id}_${selectedProcessId}`) || 0;
         if (scheduledQty >= order.quantity) continue;
         
-        const sewingProcessIndex = order.processIds.indexOf(SEWING_PROCESS_ID);
-        const currentProcessIndex = order.processIds.indexOf(selectedProcessId);
-        const isPostSewingProcess = sewingProcessIndex !== -1 && currentProcessIndex > sewingProcessIndex;
-
-        const splitKey = `${order.id}_${selectedProcessId}`;
-        const isSplit = splitOrderProcesses[splitKey];
-        
         const sewingProcessesForOrder = scheduledProcesses.filter(sp => sp.orderId === order.id && sp.processId === SEWING_PROCESS_ID);
         const isSewingScheduled = sewingProcessesForOrder.length > 0;
         
-        if (isPostSewingProcess) {
+        const splitKey = `${order.id}_${selectedProcessId}`;
+        const isSplit = splitOrderProcesses[splitKey];
+        
+        if (selectedProcessId === PACKING_PROCESS_ID) {
             if (!isSewingScheduled) {
                 orderItems.push(order);
                 continue;
@@ -496,19 +492,19 @@ function GanttPageContent() {
                 );
 
                 const totalBatches = Math.ceil(order.quantity / packingBatchSize);
-                let remQty = order.quantity;
                 let cumulativeSewingDays = 0;
+                let quantityAccountedFor = 0;
 
                 for (let i = 0; i < totalBatches; i++) {
                     const batchNumber = i + 1;
+                    const isLastBatch = i === totalBatches - 1;
+                    const batchQty = isLastBatch ? order.quantity - quantityAccountedFor : packingBatchSize;
+
                     if (scheduledBatches.has(batchNumber)) {
-                        const batchQty = (i === totalBatches - 1 && remQty > 0) ? remQty : Math.min(remQty, packingBatchSize);
-                        remQty -= batchQty;
+                        quantityAccountedFor += batchQty;
                         continue;
                     };
-
-                    const isLastBatch = i === totalBatches - 1;
-                    const batchQty = isLastBatch && remQty > 0 ? remQty : Math.min(remQty, packingBatchSize);
+                    
                     if (batchQty <= 0) continue;
                     
                     const timeToSewThisBatch = getSewingDaysForQuantity(batchQty, dailySewingOutput, addBusinessDays(sewingAnchorDate, cumulativeSewingDays));
@@ -525,21 +521,20 @@ function GanttPageContent() {
                         totalBatches: totalBatches,
                         latestStartDate: batchStartDate,
                     });
-                    remQty -= batchQty;
+                    quantityAccountedFor += batchQty;
                 }
             } else {
                  orderItems.push(order);
             }
         } else { // Pre-sewing logic
-            if (isSplit) {
-                const numLines = sewingLines[order.id] || 1;
-                const processBatchSize = calculateProcessBatchSize(order, numLines);
-                
+            const numLines = sewingLines[order.id] || 1;
+            const processBatchSize = calculateProcessBatchSize(order, numLines);
+
+            if (isSplit && processBatchSize > 0) {
                 if (sewingProcessesForOrder.length === 0) {
                     orderItems.push(order);
                     continue;
                 }
-
                 const sewingAnchorDate = sewingProcessesForOrder.reduce(
                     (earliest, p) => (p.startDateTime < earliest ? p.startDateTime : earliest),
                     sewingProcessesForOrder[0].startDateTime
@@ -555,17 +550,17 @@ function GanttPageContent() {
                 );
 
                 const totalBatches = Math.ceil(order.quantity / processBatchSize);
-                let remQty = order.quantity;
+                let quantityAccountedFor = 0;
 
                 for (let i = 0; i < totalBatches; i++) {
                     const batchNumber = i + 1;
+                    const isLastBatch = i === totalBatches - 1;
+                    const batchQty = isLastBatch ? order.quantity - quantityAccountedFor : processBatchSize;
+
                     if (scheduledBatches.has(batchNumber)) {
-                        remQty -= (i === totalBatches - 1 && remQty > 0) ? remQty : processBatchSize;
+                        quantityAccountedFor += batchQty;
                         continue;
                     };
-
-                    const isLastBatch = i === totalBatches - 1;
-                    const batchQty = isLastBatch && remQty > 0 ? remQty : Math.min(remQty, processBatchSize);
                     if (batchQty <= 0) continue;
 
                     const currentBatchSewingAnchor = addBusinessDays(sewingAnchorDate, i * sewingPitchTimeDays);
@@ -591,8 +586,7 @@ function GanttPageContent() {
                         totalBatches: totalBatches,
                         latestStartDate: nextProcessStartDate,
                     });
-
-                    remQty -= batchQty;
+                    quantityAccountedFor += batchQty;
                 }
             } else {
                 orderItems.push(order);
