@@ -331,7 +331,9 @@ function GanttPageContent() {
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => {
     if (item.type === 'existing') {
-        setDraggingProcessId(item.process.id);
+        requestAnimationFrame(() => {
+            setDraggingProcessId(item.process.id);
+        });
     }
     const serializedItem = {
       ...item,
