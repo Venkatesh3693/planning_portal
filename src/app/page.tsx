@@ -164,6 +164,7 @@ function GanttPageContent() {
   const [dueDateSort, setDueDateSort] = useState<'asc' | 'desc' | null>(null);
   const [draggedItem, setDraggedItem] = useState<DraggedItemData | null>(null);
   const [processToSplit, setProcessToSplit] = useState<ProcessToSplitState>(null);
+  const [draggingProcessId, setDraggingProcessId] = useState<string | null>(null);
 
   const dates = useMemo(() => {
     const today = startOfToday();
@@ -329,6 +330,9 @@ function GanttPageContent() {
   
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => {
+    if (item.type === 'existing') {
+        setDraggingProcessId(item.process.id);
+    }
     const serializedItem = {
       ...item,
       tna: item.type === 'new-order' && item.tna ? {
@@ -352,6 +356,7 @@ function GanttPageContent() {
   
   const handleDragEnd = () => {
     setDraggedItem(null);
+    setDraggingProcessId(null);
   };
 
   const handleUndoSchedule = (scheduledProcessId: string) => {
@@ -537,6 +542,8 @@ function GanttPageContent() {
     return scheduledProcesses.filter(sp => sp.processId === selectedProcessId);
   }, [scheduledProcesses, selectedProcessId]);
   
+  const processesForGantt = chartProcesses.filter(p => p.id !== draggingProcessId);
+  
   const sewingScheduledOrderIds = useMemo(() => {
     const orderIds = new Set<string>();
     scheduledProcesses.forEach(p => {
@@ -686,7 +693,7 @@ function GanttPageContent() {
                   <GanttChart 
                       rows={chartRows} 
                       dates={dates}
-                      scheduledProcesses={chartProcesses}
+                      scheduledProcesses={processesForGantt}
                       allProcesses={scheduledProcesses}
                       onDrop={handleDropOnChart}
                       onUndoSchedule={handleUndoSchedule}
