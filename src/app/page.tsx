@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -483,9 +482,7 @@ function GanttPageContent() {
                 const sewingProcess = PROCESSES.find(p => p.id === SEWING_PROCESS_ID)!;
                 const dailySewingOutput = calculateDailySewingOutput(order, sewingProcessesForOrder, sewingProcess);
                 
-                const packingProcess = PROCESSES.find(p => p.id === PACKING_PROCESS_ID)!;
-                const packingMinRunDays = order.tna?.minRunDays?.[PACKING_PROCESS_ID] || 1;
-                const packingBatchSize = Math.floor((1 / packingProcess.sam) * WORK_DAY_MINUTES * packingMinRunDays);
+                const packingBatchSize = calculateProcessBatchSize(order, 1, PACKING_PROCESS_ID);
 
                 if (packingBatchSize <= 0) {
                     orderItems.push(order);
@@ -509,11 +506,11 @@ function GanttPageContent() {
                     };
 
                     const isLastBatch = i === totalBatches - 1;
-                    const batchQty = isLastBatch ? remQty : Math.min(remQty, packingBatchSize);
+                    const batchQty = isLastBatch && remQty > 0 ? remQty : Math.min(remQty, packingBatchSize);
                     if (batchQty <= 0) continue;
                     
                     const timeToSewThisBatch = getSewingDaysForQuantity(batchQty, dailySewingOutput, addBusinessDays(sewingAnchorDate, cumulativeSewingDays));
-                    if (timeToSewThisBatch === Infinity) continue; // Not possible to produce this batch
+                    if (timeToSewThisBatch === Infinity) continue;
                     
                     cumulativeSewingDays += timeToSewThisBatch;
                     const batchStartDate = addBusinessDays(sewingAnchorDate, cumulativeSewingDays);
@@ -534,10 +531,10 @@ function GanttPageContent() {
         } else { // Pre-sewing logic
             if (isSplit) {
                 const numLines = sewingLines[order.id] || 1;
-                const processBatchSize = calculateProcessBatchSize(order, numLines, selectedProcessId);
+                const processBatchSize = calculateProcessBatchSize(order, numLines);
                 
                 if (sewingProcessesForOrder.length === 0) {
-                    orderItems.push(order); // Don't split if sewing isn't scheduled
+                    orderItems.push(order);
                     continue;
                 }
 
@@ -566,7 +563,7 @@ function GanttPageContent() {
                     };
 
                     const isLastBatch = i === totalBatches - 1;
-                    const batchQty = isLastBatch ? remQty : Math.min(remQty, processBatchSize);
+                    const batchQty = isLastBatch && remQty > 0 ? remQty : Math.min(remQty, processBatchSize);
                     if (batchQty <= 0) continue;
 
                     const currentBatchSewingAnchor = addBusinessDays(sewingAnchorDate, i * sewingPitchTimeDays);
@@ -796,3 +793,5 @@ export default function Home() {
     <GanttPageContent />
   );
 }
+
+    

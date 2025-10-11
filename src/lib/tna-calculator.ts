@@ -1,5 +1,4 @@
 
-
 import type { Order, Process, TnaProcess, RampUpEntry, ScheduledProcess } from './types';
 import { WORK_DAY_MINUTES } from './data';
 import { addDays, subDays, getDay, format, startOfDay, differenceInMinutes, isBefore, isAfter } from 'date-fns';
@@ -206,7 +205,9 @@ export const calculateProcessBatchSize = (order: Order, numLines: number, forPro
 
     let maxMoq = 0;
     
-    const processesToConsider = forProcessId ? [forProcessId] : order.processIds.slice(0, order.processIds.indexOf('sewing') + 1);
+    const processesToConsider = forProcessId 
+      ? [forProcessId] 
+      : order.processIds.slice(0, order.processIds.indexOf('sewing') + 1);
 
     processesToConsider.forEach((processId) => {
         const process = PROCESSES.find(p => p.id === processId)!;
@@ -324,3 +325,5 @@ export function generateTnaPlan(
 
     return { newTna, newCkDate };
 }
+
+    
