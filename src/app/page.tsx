@@ -502,7 +502,8 @@ function GanttPageContent() {
                 for (let i = 0; i < totalBatches; i++) {
                     const batchNumber = i + 1;
                     if (scheduledBatches.has(batchNumber)) {
-                        remQty -= (i === totalBatches - 1 && remQty > 0) ? remQty : packingBatchSize;
+                        const batchQty = (i === totalBatches - 1 && remQty > 0) ? remQty : Math.min(remQty, packingBatchSize);
+                        remQty -= batchQty;
                         continue;
                     };
 
@@ -513,8 +514,8 @@ function GanttPageContent() {
                     const timeToSewThisBatch = getSewingDaysForQuantity(batchQty, dailySewingOutput, addBusinessDays(sewingAnchorDate, cumulativeSewingDays));
                     if (timeToSewThisBatch === Infinity) continue;
                     
-                    cumulativeSewingDays += timeToSewThisBatch;
                     const batchStartDate = addBusinessDays(sewingAnchorDate, cumulativeSewingDays);
+                    cumulativeSewingDays += timeToSewThisBatch;
 
                     batches.push({
                         orderId: order.id,
@@ -794,5 +795,3 @@ export default function Home() {
     <GanttPageContent />
   );
 }
-
-    
