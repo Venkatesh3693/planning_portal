@@ -326,6 +326,7 @@ function GanttPageContent() {
 
     setScheduledProcesses(finalProcesses);
     setDraggedItem(null);
+    setDraggingProcessId(null);
   };
   
 
