@@ -86,7 +86,7 @@ export function calculateSewingDurationDays(quantity: number, sam: number, rampU
             return Infinity;
         }
     }
-    return Math.ceil(totalMinutes / WORK_DAY_MINUTES);
+    return Math.floor(totalMinutes / WORK_DAY_MINUTES);
 };
 
 export const calculateProcessBatchSize = (order: Order, numLines: number): number => {
