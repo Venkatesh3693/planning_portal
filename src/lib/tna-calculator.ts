@@ -163,6 +163,10 @@ export function getSewingDaysForQuantity(
     startDate: Date
 ): number {
     if (targetQuantity <= 0) return 0;
+    
+    const totalAvailableOutput = Object.values(dailyOutputMap).reduce((sum, output) => sum + output, 0);
+    if(totalAvailableOutput === 0) return Infinity;
+
 
     const sortedDates = Object.keys(dailyOutputMap).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
     let quantityProduced = 0;
@@ -197,19 +201,18 @@ export function getSewingDaysForQuantity(
 
 
 
-export const calculateProcessBatchSize = (order: Order, numLines: number): number => {
+export const calculateProcessBatchSize = (order: Order, numLines: number, forProcessId?: string): number => {
     if (!order.tna?.minRunDays) return order.quantity / 5;
 
     let maxMoq = 0;
-    const sewingProcessIndex = order.processIds.indexOf('sewing');
     
-    order.processIds.forEach((processId, index) => {
-        if (sewingProcessIndex !== -1 && index > sewingProcessIndex) {
-            return;
-        }
+    const processesToConsider = forProcessId ? [forProcessId] : order.processIds.slice(0, order.processIds.indexOf('sewing') + 1);
 
+    processesToConsider.forEach((processId) => {
         const process = PROCESSES.find(p => p.id === processId)!;
-        const days = order.tna?.minRunDays?.[processId] || 1;
+        if (!process) return;
+
+        const days = order.tna?.minRunDays?.[process.id] || 1;
         let currentMoq = 0;
 
         if (days > 0) {
@@ -225,6 +228,7 @@ export const calculateProcessBatchSize = (order: Order, numLines: number): numbe
                 currentMoq = Math.floor(outputPerMinute * totalMinutes);
             }
         }
+
         if (currentMoq > maxMoq) {
             maxMoq = currentMoq;
         }

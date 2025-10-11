@@ -37,6 +37,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { cn } from '@/lib/utils';
 
 const SEWING_PROCESS_ID = 'sewing';
+const PACKING_PROCESS_ID = 'packing';
 
 type MachinePanelProps = {
   selectedProcessId: string;
@@ -250,6 +251,9 @@ export default function MachinePanel({
               const numLines = sewingLines[order.id] || 1;
 
               const isSplit = splitOrderProcesses[`${order.id}_${selectedProcessId}`];
+              
+              const showSplitButton = (isPreSewingProcess && sewingScheduledOrderIds.has(order.id)) ||
+                                    (selectedProcessId === PACKING_PROCESS_ID && sewingScheduledOrderIds.has(order.id));
                
               const item: DraggedItemData = {
                 type: 'new-order',
@@ -274,7 +278,7 @@ export default function MachinePanel({
                   <div className="flex flex-col">
                      <div className="flex justify-between items-center">
                         <span className="font-semibold">{order.id}</span>
-                        {isPreSewingProcess && sewingScheduledOrderIds.has(order.id) && (
+                        {showSplitButton && (
                            <TooltipProvider>
                               <Tooltip>
                                  <TooltipTrigger asChild>
