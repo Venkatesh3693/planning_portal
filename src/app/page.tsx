@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -501,7 +502,7 @@ function GanttPageContent() {
                 for (let i = 0; i < totalBatches; i++) {
                     const batchNumber = i + 1;
                     if (scheduledBatches.has(batchNumber)) {
-                        remQty -= packingBatchSize;
+                        remQty -= (i === totalBatches - 1 && remQty > 0) ? remQty : packingBatchSize;
                         continue;
                     };
 
@@ -558,7 +559,7 @@ function GanttPageContent() {
                 for (let i = 0; i < totalBatches; i++) {
                     const batchNumber = i + 1;
                     if (scheduledBatches.has(batchNumber)) {
-                        remQty -= processBatchSize;
+                        remQty -= (i === totalBatches - 1 && remQty > 0) ? remQty : processBatchSize;
                         continue;
                     };
 
