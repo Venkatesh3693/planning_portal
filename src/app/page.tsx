@@ -16,7 +16,7 @@ import { useSchedule } from '@/context/schedule-provider';
 import MachinePanel from '@/components/gantt-chart/machine-panel';
 import SplitProcessDialog from '@/components/gantt-chart/split-process-dialog';
 import PabView from '@/components/pab/pab-view';
-import { calculateProcessBatchSize, calculateSewingDurationDays } from '@/lib/tna-calculator';
+import { calculateProcessBatchSize, calculateDailySewingOutput, getSewingDaysForQuantity } from '@/lib/tna-calculator';
 import { subBusinessDays, addBusinessDays } from '@/lib/utils';
 
 
@@ -469,9 +469,11 @@ function GanttPageContent() {
                 (earliest, p) => (p.startDateTime < earliest ? p.startDateTime : earliest),
                 sewingProcessesForOrder[0].startDateTime
             );
-
+            
             const sewingProcess = PROCESSES.find(p => p.id === SEWING_PROCESS_ID)!;
-            const sewingPitchTimeDays = calculateSewingDurationDays(processBatchSize, sewingProcess.sam, order.sewingRampUpScheme || [], numLines);
+            const dailySewingOutput = calculateDailySewingOutput(order, sewingProcessesForOrder, sewingProcess);
+            const sewingPitchTimeDays = getSewingDaysForQuantity(processBatchSize, dailySewingOutput, sewingAnchorDate);
+
 
             const scheduledBatches = new Set(scheduledProcesses
                 .filter(p => p.orderId === order.id && p.processId === selectedProcessId && p.batchNumber)
@@ -484,7 +486,7 @@ function GanttPageContent() {
             for (let i = 0; i < totalBatches; i++) {
                 const batchNumber = i + 1;
                 if (scheduledBatches.has(batchNumber)) {
-                    remQty -= processBatchSize; // Assume full batch size was scheduled
+                    remQty -= processBatchSize;
                     continue;
                 };
 
