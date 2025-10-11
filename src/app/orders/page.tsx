@@ -316,7 +316,7 @@ const TnaPlan = ({
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger><Info className="h-3 w-3" /></TooltipTrigger>
-                            <TooltipContent><p>The max of all Calculated MOQs. <br/>This drives the overlap in the T&amp;A Plan.</p></TooltipContent>
+                            <TooltipContent><p>The max of all Calculated MOQs (excluding Packing). <br/>This drives the overlap in the T&amp;A Plan.</p></TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
                 </div>
@@ -346,6 +346,8 @@ const TnaPlan = ({
                 const tnaProcess = order.tna?.processes.find(p => p.processId === process.id);
                 const { start, end } = getAggregatedScheduledTimes(process.id);
                 const isAfterSewing = sewingProcessIndex !== -1 && index > sewingProcessIndex;
+                const canEditMinRunDays = !isAfterSewing || process.id === 'packing';
+                const canShowMoq = !isAfterSewing || process.id === 'packing';
                 
                 const durationDisplay = process.id === SEWING_PROCESS_ID ? Math.ceil(totalProductionDays) : tnaProcess?.durationDays;
 
@@ -354,9 +356,7 @@ const TnaPlan = ({
                     <TableCell className="font-medium">{process.name}</TableCell>
                     <TableCell className="text-right">{process.sam}</TableCell>
                     <TableCell>
-                      {isAfterSewing ? (
-                        <span className="text-center w-20 inline-block">-</span>
-                      ) : (
+                      {canEditMinRunDays ? (
                        <Input
                             type="number"
                             min="1"
@@ -364,10 +364,12 @@ const TnaPlan = ({
                             onChange={(e) => onMinRunDaysChange(process.id, e.target.value)}
                             className="w-20 h-8 text-center"
                         />
+                      ) : (
+                        <span className="text-center w-20 inline-block">-</span>
                       )}
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                        {isAfterSewing ? '-' : Math.round(moqs[process.id] || 0).toLocaleString()}
+                        {canShowMoq ? Math.round(moqs[process.id] || 0).toLocaleString() : '-'}
                     </TableCell>
                     <TableCell className="text-right">{durationDisplay ? `${durationDisplay}d` : '-'}</TableCell>
                     <TableCell>{tnaProcess?.earliestStartDate ? format(new Date(tnaProcess.earliestStartDate), 'MMM dd') : '-'}</TableCell>
@@ -433,11 +435,6 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
       let maxMoq = 0;
       
       order.processIds.forEach((processId, index) => {
-          if (sewingProcessIndex !== -1 && index > sewingProcessIndex) {
-            calculatedMoqs[processId] = 0;
-            return;
-          }
-
           const process = PROCESSES.find(p => p.id === processId)!;
           const days = Number(minRunDays[process.id]) || 0;
           let currentMoq = 0;
@@ -456,7 +453,9 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
               }
           }
           calculatedMoqs[processId] = currentMoq;
-          if (currentMoq > maxMoq) {
+
+          // Exclude packing from the process batch size calculation
+          if (currentMoq > maxMoq && process.id !== 'packing') {
               maxMoq = currentMoq;
           }
       });
@@ -464,7 +463,7 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
       const finalBatchSize = maxMoq > order.quantity ? order.quantity : maxMoq;
 
       return { moqs: calculatedMoqs, processBatchSize: finalBatchSize > 0 ? finalBatchSize : order.quantity / 5 }; // Fallback batch size
-  }, [minRunDays, order, sewingLines, sewingProcessIndex]);
+  }, [minRunDays, order, sewingLines]);
 
   const singleLineMinDays = useMemo(() => 
     sewingProcess ? calculateMinDays(order, sewingProcess.sam, order.sewingRampUpScheme || []) : 0,
