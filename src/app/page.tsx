@@ -494,10 +494,18 @@ function GanttPageContent() {
                     .map(p => p.batchNumber!)
                 );
                 if (scheduledBatches.has(batchNumber)) continue;
-
+                
                 const batchQty = Math.min(packingBatchSize, order.quantity - (i * packingBatchSize));
                 if (batchQty <= 0) continue;
-                
+
+                const timeToSewThisBatch = getSewingDaysForQuantity(batchQty, dailySewingOutput, addBusinessDays(sewingAnchorDate, cumulativeSewingDays));
+
+                if(timeToSewThisBatch !== Infinity) {
+                    cumulativeSewingDays += timeToSewThisBatch;
+                } else {
+                    cumulativeSewingDays += 1; // Fallback to prevent infinite loops
+                }
+
                 const batchStartDate = addBusinessDays(sewingAnchorDate, cumulativeSewingDays);
 
                 batches.push({
@@ -508,13 +516,6 @@ function GanttPageContent() {
                     totalBatches: totalBatches,
                     latestStartDate: batchStartDate,
                 });
-                
-                const timeToSewThisBatch = getSewingDaysForQuantity(batchQty, dailySewingOutput, batchStartDate);
-                if(timeToSewThisBatch !== Infinity) {
-                    cumulativeSewingDays += timeToSewThisBatch;
-                } else {
-                    cumulativeSewingDays += 1; // Fallback to prevent infinite loops
-                }
             }
 
         } else { // Pre-sewing logic
@@ -527,7 +528,7 @@ function GanttPageContent() {
                     continue;
                 }
                 const sewingAnchorDate = sewingProcessesForOrder.reduce(
-                    (earliest, p) => (p.startDateTime < earliest ? p.startDateTime : earliest),
+                    (earliest, p) => (isBefore(p.startDateTime, earliest) ? p.startDateTime : earliest),
                     sewingProcessesForOrder[0].startDateTime
                 );
                 
