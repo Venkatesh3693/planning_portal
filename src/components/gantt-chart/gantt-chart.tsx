@@ -28,6 +28,7 @@ type GanttChartProps = {
   onSplitProcess: (process: ScheduledProcess) => void;
   viewMode: ViewMode;
   draggedItem: DraggedItemData | null;
+  latestStartDatesMap: Map<string, Date>;
 };
 
 const ROW_HEIGHT_PX = 32;
@@ -142,6 +143,7 @@ export default function GanttChart({
   onSplitProcess,
   viewMode,
   draggedItem,
+  latestStartDatesMap,
 }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const isDragging = !!draggedItem;
@@ -372,6 +374,7 @@ export default function GanttChart({
                         onUndo={onUndoSchedule}
                         onDragStart={onProcessDragStart}
                         onSplit={onSplitProcess}
+                        latestStartDatesMap={latestStartDatesMap}
                     />
                   </div>
               );

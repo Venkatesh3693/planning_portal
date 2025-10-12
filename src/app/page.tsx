@@ -439,6 +439,74 @@ function GanttPageContent() {
 
   const selectableProcesses = PROCESSES.filter(p => p.id !== 'outsourcing');
 
+  const latestStartDatesMap = useMemo(() => {
+    const map = new Map<string, Date>();
+    if (selectedProcessId === 'pab' || !isScheduleLoaded) return map;
+
+    for (const order of orders) {
+        const isProcessRelevant = (selectedProcessId === PACKING_PROCESS_ID || (selectedProcessId !== SEWING_PROCESS_ID && order.processIds.indexOf(selectedProcessId) < order.processIds.indexOf(SEWING_PROCESS_ID)));
+        if (!isProcessRelevant) continue;
+
+        const sewingProcessesForOrder = scheduledProcesses.filter(sp => sp.orderId === order.id && sp.processId === SEWING_PROCESS_ID);
+        if (sewingProcessesForOrder.length === 0) continue;
+
+        const sewingAnchorDate = sewingProcessesForOrder.reduce(
+            (earliest, p) => (isBefore(p.startDateTime, earliest) ? p.startDateTime : earliest),
+            sewingProcessesForOrder[0].startDateTime
+        );
+        const dailySewingOutput = calculateDailySewingOutput(order, sewingProcessesForOrder, PROCESSES.find(p => p.id === SEWING_PROCESS_ID)!);
+        
+        let batchSize: number;
+        if (selectedProcessId === PACKING_PROCESS_ID) {
+          batchSize = calculateProcessBatchSize(order, 1, PACKING_PROCESS_ID);
+        } else {
+          const numLines = sewingLines[order.id] || 1;
+          batchSize = calculateProcessBatchSize(order, numLines);
+        }
+        
+        if (batchSize <= 0) continue;
+        
+        const totalBatches = Math.ceil(order.quantity / batchSize);
+        const batchQuantities = Array.from({ length: totalBatches }, (_, i) => Math.min(batchSize, order.quantity - i * batchSize));
+        const cumulativeQuantities = batchQuantities.reduce((acc, qty, i) => {
+            acc.push((acc[i-1] || 0) + qty);
+            return acc;
+        }, [] as number[]);
+
+        for (let i = 0; i < totalBatches; i++) {
+            const batchNumber = i + 1;
+            const key = `${order.id}-${selectedProcessId}-${batchNumber}`;
+            
+            const requiredSewingQty = cumulativeQuantities[i];
+            
+            let batchStartDate: Date;
+
+            if (selectedProcessId === PACKING_PROCESS_ID) {
+                const timeToSew = getSewingDaysForQuantity(requiredSewingQty, dailySewingOutput, sewingAnchorDate);
+                batchStartDate = addBusinessDays(sewingAnchorDate, timeToSew);
+            } else {
+                let predecessorChainStartDate = sewingAnchorDate;
+                const predecessorChain = order.processIds.slice(
+                  order.processIds.indexOf(selectedProcessId),
+                  order.processIds.indexOf(SEWING_PROCESS_ID)
+                ).reverse();
+                
+                for (const predId of predecessorChain) {
+                    const processInfo = PROCESSES.find(p => p.id === predId)!;
+                    const durationMinutes = batchQuantities[i] * processInfo.sam; 
+                    const durationDays = Math.ceil(durationMinutes / WORK_DAY_MINUTES);
+                    predecessorChainStartDate = subBusinessDays(predecessorChainStartDate, durationDays);
+                }
+                batchStartDate = predecessorChainStartDate;
+            }
+            
+            map.set(key, batchStartDate);
+        }
+    }
+    return map;
+  }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, sewingLines]);
+  
+
   const { unplannedOrderItems, unplannedBatches } = useMemo(() => {
     if (selectedProcessId === 'pab' || !isScheduleLoaded) {
         return { unplannedOrderItems: [], unplannedBatches: [] };
@@ -466,128 +534,53 @@ function GanttPageContent() {
         
         const splitKey = `${order.id}_${selectedProcessId}`;
         const isSplit = splitOrderProcesses[splitKey];
-        
+
+        const numLines = sewingLines[order.id] || 1;
+        let processBatchSize: number;
         if (selectedProcessId === PACKING_PROCESS_ID) {
-            if (!isSewingScheduled) {
-                orderItems.push(order);
-                continue;
-            }
+          processBatchSize = calculateProcessBatchSize(order, 1, PACKING_PROCESS_ID);
+        } else {
+          processBatchSize = calculateProcessBatchSize(order, numLines);
+        }
 
-            const packingBatchSize = calculateProcessBatchSize(order, 1, PACKING_PROCESS_ID);
-            if (!isSplit || packingBatchSize <= 0) {
-                orderItems.push(order);
-                continue;
-            }
-            
-            const sewingAnchorDate = sewingProcessesForOrder.reduce(
-                (earliest, p) => (isBefore(p.startDateTime, earliest) ? p.startDateTime : earliest),
-                sewingProcessesForOrder[0].startDateTime
-            );
-            
-            const dailySewingOutput = calculateDailySewingOutput(order, sewingProcessesForOrder, PROCESSES.find(p => p.id === SEWING_PROCESS_ID)!);
-
-            // Pre-calculate cumulative quantities for stable lookups
-            const totalBatches = Math.ceil(order.quantity / packingBatchSize);
-            const batchQuantities = Array.from({ length: totalBatches }, (_, i) => 
-                Math.min(packingBatchSize, order.quantity - (i * packingBatchSize))
-            );
-
-            const cumulativeQuantities = batchQuantities.reduce((acc, qty, i) => {
-                acc.push((acc[i-1] || 0) + qty);
-                return acc;
-            }, [] as number[]);
-
-
-            for (let batchNumber = 1; batchNumber <= totalBatches; batchNumber++) {
+        if (isSplit && processBatchSize > 0 && isSewingScheduled) {
+            const totalBatches = Math.ceil(order.quantity / processBatchSize);
+            for (let i = 0; i < totalBatches; i++) {
+                const batchNumber = i + 1;
                 const scheduledBatches = new Set(scheduledProcesses
                     .filter(p => p.orderId === order.id && p.processId === selectedProcessId && p.batchNumber)
                     .map(p => p.batchNumber!)
                 );
                 if (scheduledBatches.has(batchNumber)) continue;
                 
-                const batchQty = batchQuantities[batchNumber-1];
-                if (batchQty <= 0) continue;
+                const currentBatchQty = Math.min(processBatchSize, order.quantity - (i * processBatchSize));
+                if (currentBatchQty <= 0) continue;
 
-                const sewingQtyToComplete = cumulativeQuantities[batchNumber-1];
-                const timeToSewThisBatch = getSewingDaysForQuantity(sewingQtyToComplete, dailySewingOutput, sewingAnchorDate);
-                const batchStartDate = addBusinessDays(sewingAnchorDate, timeToSewThisBatch);
+                const dateMapKey = `${order.id}-${selectedProcessId}-${batchNumber}`;
+                const latestStartDate = latestStartDatesMap.get(dateMapKey);
 
-                batches.push({
-                    orderId: order.id,
-                    processId: selectedProcessId,
-                    quantity: batchQty,
-                    batchNumber: batchNumber,
-                    totalBatches: totalBatches,
-                    latestStartDate: batchStartDate,
-                });
-            }
-
-        } else { // Pre-sewing logic
-            const numLines = sewingLines[order.id] || 1;
-            const processBatchSize = calculateProcessBatchSize(order, numLines);
-
-            if (isSplit && processBatchSize > 0) {
-                if (sewingProcessesForOrder.length === 0) {
-                    orderItems.push(order);
-                    continue;
-                }
-                const sewingAnchorDate = sewingProcessesForOrder.reduce(
-                    (earliest, p) => (isBefore(p.startDateTime, earliest) ? p.startDateTime : earliest),
-                    sewingProcessesForOrder[0].startDateTime
-                );
-                
-                const sewingProcess = PROCESSES.find(p => p.id === SEWING_PROCESS_ID)!;
-                const dailySewingOutput = calculateDailySewingOutput(order, sewingProcessesForOrder, sewingProcess);
-                const sewingPitchTimeDays = getSewingDaysForQuantity(processBatchSize, dailySewingOutput, sewingAnchorDate);
-
-                const scheduledBatches = new Set(scheduledProcesses
-                    .filter(p => p.orderId === order.id && p.processId === selectedProcessId && p.batchNumber)
-                    .map(p => p.batchNumber!)
-                );
-
-                const totalBatches = Math.ceil(order.quantity / processBatchSize);
-
-                for (let i = 0; i < totalBatches; i++) {
-                    const batchNumber = i + 1;
-                    if (scheduledBatches.has(batchNumber)) {
-                        continue;
-                    }
-                    
-                    const currentBatchQty = Math.min(processBatchSize, order.quantity - (i * processBatchSize));
-                    if (currentBatchQty <= 0) continue;
-
-                    const currentBatchSewingAnchor = addBusinessDays(sewingAnchorDate, i * sewingPitchTimeDays);
-                    
-                    let nextProcessStartDate = currentBatchSewingAnchor;
-                    const predecessorChain = order.processIds.slice(
-                        order.processIds.indexOf(selectedProcessId),
-                        order.processIds.indexOf(SEWING_PROCESS_ID)
-                    ).reverse();
-
-                    for (const predId of predecessorChain) {
-                        const processInfo = PROCESSES.find(p => p.id === predId)!;
-                        const durationMinutes = currentBatchQty * processInfo.sam; 
-                        const durationDays = Math.ceil(durationMinutes / WORK_DAY_MINUTES);
-                        nextProcessStartDate = subBusinessDays(nextProcessStartDate, durationDays);
-                    }
-
+                if(latestStartDate) {
                     batches.push({
                         orderId: order.id,
                         processId: selectedProcessId,
                         quantity: currentBatchQty,
                         batchNumber: batchNumber,
                         totalBatches: totalBatches,
-                        latestStartDate: nextProcessStartDate,
+                        latestStartDate: latestStartDate,
                     });
                 }
-            } else {
-                orderItems.push(order);
             }
+        } else {
+           if (selectedProcessId !== PACKING_PROCESS_ID && order.processIds.indexOf(selectedProcessId) > order.processIds.indexOf(SEWING_PROCESS_ID)) {
+                // For post-sewing, non-packing processes, if not split, don't show.
+           } else {
+               orderItems.push(order);
+           }
         }
     }
 
     return { unplannedOrderItems: orderItems.sort((a,b) => compareAsc(a.dueDate, b.dueDate)), unplannedBatches: batches };
-  }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, splitOrderProcesses, sewingLines]);
+  }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, splitOrderProcesses, sewingLines, latestStartDatesMap]);
   
 
   const chartRows = MACHINES.filter(m => m.processIds.includes(selectedProcessId));
@@ -757,6 +750,7 @@ function GanttPageContent() {
                       viewMode={viewMode}
                       draggedItem={draggedItem}
                       orders={orders}
+                      latestStartDatesMap={latestStartDatesMap}
                     />
                 </div>
             </div>

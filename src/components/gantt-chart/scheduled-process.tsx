@@ -17,6 +17,7 @@ type ScheduledProcessProps = {
   onUndo?: (scheduledProcessId: string) => void;
   onDragStart?: (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => void;
   onSplit?: (process: ScheduledProcess) => void;
+  latestStartDatesMap: Map<string, Date>;
 };
 
 export default function ScheduledProcessBar({ 
@@ -25,6 +26,7 @@ export default function ScheduledProcessBar({
   onUndo,
   onDragStart,
   onSplit,
+  latestStartDatesMap,
 }: ScheduledProcessProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -74,6 +76,9 @@ export default function ScheduledProcessBar({
   
   const baseColor = orderDetails.displayColor || processDetails.color || 'hsl(var(--accent))';
 
+  const dateMapKey = `${item.orderId}-${item.processId}-${item.batchNumber}`;
+  const liveLatestStartDate = latestStartDatesMap.get(dateMapKey);
+
   return (
     <Popover open={isMenuOpen} onOpenChange={setIsMenuOpen}>
       <PopoverAnchor asChild>
@@ -119,9 +124,9 @@ export default function ScheduledProcessBar({
               <p className="text-sm">
                 <strong>Batch Quantity:</strong> {item.quantity.toLocaleString()}
               </p>
-              {item.latestStartDate && (
+              {liveLatestStartDate && (
                 <p className="text-sm">
-                  <strong>Latest Start:</strong> {format(new Date(item.latestStartDate), 'MMM d, yyyy')}
+                  <strong>Latest Start:</strong> {format(liveLatestStartDate, 'MMM d, yyyy')}
                 </p>
               )}
             </div>
