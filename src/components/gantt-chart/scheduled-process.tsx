@@ -110,11 +110,30 @@ export default function ScheduledProcessBar({
             <h4 className="font-medium leading-none">{orderDetails.ocn} - {orderDetails.style}</h4>
             <p className="text-sm text-muted-foreground">{processDetails.name}</p>
           </div>
-          <p className="text-sm"><strong>Start:</strong> {format(item.startDateTime, 'MMM d, yyyy @ h:mm a')}</p>
-          <p className="text-sm"><strong>End:</strong> {format(item.endDateTime, 'MMM d, yyyy @ h:mm a')}</p>
-          <p className="text-sm"><strong>Duration:</strong> {durationText}</p>
-          <p className="text-sm"><strong>Quantity:</strong> {item.quantity}</p>
-          <p className="text-sm"><strong>Order ID:</strong> {orderDetails.id}</p>
+          
+          {item.isSplit && item.processId !== 'sewing' && (
+            <div className="border-t pt-2 mt-2 space-y-1">
+              <p className="text-sm font-semibold">
+                Batch {item.batchNumber} / {item.totalBatches}
+              </p>
+              <p className="text-sm">
+                <strong>Batch Quantity:</strong> {item.quantity.toLocaleString()}
+              </p>
+              {item.latestStartDate && (
+                <p className="text-sm">
+                  <strong>Latest Start:</strong> {format(new Date(item.latestStartDate), 'MMM d, yyyy')}
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className={cn(item.isSplit && item.processId !== 'sewing' && "border-t mt-2 pt-2")}>
+            <p className="text-sm"><strong>Start:</strong> {format(item.startDateTime, 'MMM d, yyyy @ h:mm a')}</p>
+            <p className="text-sm"><strong>End:</strong> {format(item.endDateTime, 'MMM d, yyyy @ h:mm a')}</p>
+            <p className="text-sm"><strong>Duration:</strong> {durationText}</p>
+            <p className="text-sm"><strong>Total Order Quantity:</strong> {orderDetails.quantity.toLocaleString()}</p>
+            <p className="text-sm"><strong>Order ID:</strong> {orderDetails.id}</p>
+          </div>
         </div>
         <div className="p-1 border-t">
           {onSplit && (

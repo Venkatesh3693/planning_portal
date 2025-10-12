@@ -72,6 +72,8 @@ export type ScheduledProcess = {
   parentId?: string;
   batchNumber?: number;
   isAutoScheduled?: boolean;
+  totalBatches?: number;
+  latestStartDate?: Date;
 };
 
 export type UnplannedBatch = {
