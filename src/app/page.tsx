@@ -3,7 +3,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { addDays, startOfToday, getDay, set, isAfter, addMinutes, compareAsc, compareDesc, subMinutes } from 'date-fns';
+import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subMinutes } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, PROCESSES, WORK_DAY_MINUTES } from '@/lib/data';
@@ -470,55 +470,53 @@ function GanttPageContent() {
                 orderItems.push(order);
                 continue;
             }
-            if (isSplit) {
-                const packingBatchSize = calculateProcessBatchSize(order, 1, PACKING_PROCESS_ID);
-                if (packingBatchSize <= 0) {
-                    orderItems.push(order);
-                    continue;
-                }
 
-                const totalBatches = Math.ceil(order.quantity / packingBatchSize);
-                const dailySewingOutput = calculateDailySewingOutput(order, sewingProcessesForOrder, PROCESSES.find(p => p.id === SEWING_PROCESS_ID)!);
-                
-                const sewingAnchorDate = sewingProcessesForOrder.reduce(
-                    (earliest, p) => (isBefore(p.startDateTime, earliest) ? p.startDateTime : earliest),
-                    sewingProcessesForOrder[0].startDateTime
-                );
-
-                let cumulativeSewingDays = 0;
-
-                for (let i = 0; i < totalBatches; i++) {
-                    const batchNumber = i + 1;
-                    const scheduledBatches = new Set(scheduledProcesses
-                        .filter(p => p.orderId === order.id && p.processId === selectedProcessId && p.batchNumber)
-                        .map(p => p.batchNumber!)
-                    );
-                    if (scheduledBatches.has(batchNumber)) continue;
-
-                    const batchQty = Math.min(packingBatchSize, order.quantity - (i * packingBatchSize));
-                    if (batchQty <= 0) continue;
-
-                    const batchStartDate = addBusinessDays(sewingAnchorDate, cumulativeSewingDays);
-
-                    batches.push({
-                        orderId: order.id,
-                        processId: selectedProcessId,
-                        quantity: batchQty,
-                        batchNumber: batchNumber,
-                        totalBatches: totalBatches,
-                        latestStartDate: batchStartDate,
-                    });
-                    
-                    const timeToSewThisBatch = getSewingDaysForQuantity(batchQty, dailySewingOutput, batchStartDate);
-                    if(timeToSewThisBatch !== Infinity) {
-                        cumulativeSewingDays += timeToSewThisBatch;
-                    } else {
-                        cumulativeSewingDays += 1; // Fallback to prevent infinite loops
-                    }
-                }
-            } else {
-                 orderItems.push(order);
+            const packingBatchSize = calculateProcessBatchSize(order, 1, PACKING_PROCESS_ID);
+            if (!isSplit || packingBatchSize <= 0) {
+                orderItems.push(order);
+                continue;
             }
+
+            const totalBatches = Math.ceil(order.quantity / packingBatchSize);
+            const dailySewingOutput = calculateDailySewingOutput(order, sewingProcessesForOrder, PROCESSES.find(p => p.id === SEWING_PROCESS_ID)!);
+            
+            const sewingAnchorDate = sewingProcessesForOrder.reduce(
+                (earliest, p) => (isBefore(p.startDateTime, earliest) ? p.startDateTime : earliest),
+                sewingProcessesForOrder[0].startDateTime
+            );
+            
+            let cumulativeSewingDays = 0;
+
+            for (let i = 0; i < totalBatches; i++) {
+                const batchNumber = i + 1;
+                const scheduledBatches = new Set(scheduledProcesses
+                    .filter(p => p.orderId === order.id && p.processId === selectedProcessId && p.batchNumber)
+                    .map(p => p.batchNumber!)
+                );
+                if (scheduledBatches.has(batchNumber)) continue;
+
+                const batchQty = Math.min(packingBatchSize, order.quantity - (i * packingBatchSize));
+                if (batchQty <= 0) continue;
+                
+                const batchStartDate = addBusinessDays(sewingAnchorDate, cumulativeSewingDays);
+
+                batches.push({
+                    orderId: order.id,
+                    processId: selectedProcessId,
+                    quantity: batchQty,
+                    batchNumber: batchNumber,
+                    totalBatches: totalBatches,
+                    latestStartDate: batchStartDate,
+                });
+                
+                const timeToSewThisBatch = getSewingDaysForQuantity(batchQty, dailySewingOutput, batchStartDate);
+                if(timeToSewThisBatch !== Infinity) {
+                    cumulativeSewingDays += timeToSewThisBatch;
+                } else {
+                    cumulativeSewingDays += 1; // Fallback to prevent infinite loops
+                }
+            }
+
         } else { // Pre-sewing logic
             const numLines = sewingLines[order.id] || 1;
             const processBatchSize = calculateProcessBatchSize(order, numLines);
@@ -549,9 +547,9 @@ function GanttPageContent() {
                     if (scheduledBatches.has(batchNumber)) {
                         continue;
                     }
-
-                    const batchQty = Math.min(processBatchSize, order.quantity - (processBatchSize * i));
-                    if (batchQty <= 0) continue;
+                    
+                    const currentBatchQty = Math.min(processBatchSize, order.quantity - (i * processBatchSize));
+                    if (currentBatchQty <= 0) continue;
 
                     const currentBatchSewingAnchor = addBusinessDays(sewingAnchorDate, i * sewingPitchTimeDays);
                     
@@ -563,7 +561,7 @@ function GanttPageContent() {
 
                     for (const predId of predecessorChain) {
                         const processInfo = PROCESSES.find(p => p.id === predId)!;
-                        const durationMinutes = batchQty * processInfo.sam; 
+                        const durationMinutes = currentBatchQty * processInfo.sam; 
                         const durationDays = Math.ceil(durationMinutes / WORK_DAY_MINUTES);
                         nextProcessStartDate = subBusinessDays(nextProcessStartDate, durationDays);
                     }
@@ -571,7 +569,7 @@ function GanttPageContent() {
                     batches.push({
                         orderId: order.id,
                         processId: selectedProcessId,
-                        quantity: batchQty,
+                        quantity: currentBatchQty,
                         batchNumber: batchNumber,
                         totalBatches: totalBatches,
                         latestStartDate: nextProcessStartDate,
