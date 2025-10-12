@@ -107,7 +107,7 @@ export default function ScheduledProcessBar({
       <PopoverContent className="w-80" side="right" align="start">
         <div className="grid gap-2 p-2">
           <div className="space-y-1">
-            <h4 className="font-medium leading-none">{orderDetails.ocn} - {orderDetails.style}</h4>
+            <h4 className="font-medium leading-none">{orderDetails.id}</h4>
             <p className="text-sm text-muted-foreground">{processDetails.name}</p>
           </div>
           
@@ -128,11 +128,7 @@ export default function ScheduledProcessBar({
           )}
 
           <div className={cn(item.isSplit && item.processId !== 'sewing' && "border-t mt-2 pt-2")}>
-            <p className="text-sm"><strong>Start:</strong> {format(item.startDateTime, 'MMM d, yyyy @ h:mm a')}</p>
-            <p className="text-sm"><strong>End:</strong> {format(item.endDateTime, 'MMM d, yyyy @ h:mm a')}</p>
-            <p className="text-sm"><strong>Duration:</strong> {durationText}</p>
             <p className="text-sm"><strong>Total Order Quantity:</strong> {orderDetails.quantity.toLocaleString()}</p>
-            <p className="text-sm"><strong>Order ID:</strong> {orderDetails.id}</p>
           </div>
         </div>
         <div className="p-1 border-t">
