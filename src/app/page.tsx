@@ -471,40 +471,33 @@ function GanttPageContent() {
                 continue;
             }
             if (isSplit) {
-                const sewingAnchorDate = sewingProcessesForOrder.reduce(
-                    (earliest, p) => (p.startDateTime < earliest ? p.startDateTime : earliest),
-                    sewingProcessesForOrder[0].startDateTime
-                );
-                
                 const packingBatchSize = calculateProcessBatchSize(order, 1, PACKING_PROCESS_ID);
-
                 if (packingBatchSize <= 0) {
                     orderItems.push(order);
                     continue;
                 }
 
-                const scheduledBatches = new Set(scheduledProcesses
-                    .filter(p => p.orderId === order.id && p.processId === selectedProcessId && p.batchNumber)
-                    .map(p => p.batchNumber!)
+                const totalBatches = Math.ceil(order.quantity / packingBatchSize);
+                const dailySewingOutput = calculateDailySewingOutput(order, sewingProcessesForOrder, PROCESSES.find(p => p.id === SEWING_PROCESS_ID)!);
+                
+                const sewingAnchorDate = sewingProcessesForOrder.reduce(
+                    (earliest, p) => (isBefore(p.startDateTime, earliest) ? p.startDateTime : earliest),
+                    sewingProcessesForOrder[0].startDateTime
                 );
 
-                const totalBatches = Math.ceil(order.quantity / packingBatchSize);
-                const dailySewingOutput = calculateDailySewingOutput(order, sewingProcessesForOrder, PROCESSES.find(p=>p.id===SEWING_PROCESS_ID)!);
                 let cumulativeSewingDays = 0;
-                
+
                 for (let i = 0; i < totalBatches; i++) {
                     const batchNumber = i + 1;
-                    if (scheduledBatches.has(batchNumber)) {
-                        const batchQty = Math.min(packingBatchSize, order.quantity - (packingBatchSize * (i)));
-                        const timeToSewThisBatch = getSewingDaysForQuantity(batchQty, dailySewingOutput, addBusinessDays(sewingAnchorDate, cumulativeSewingDays));
-                        if(timeToSewThisBatch !== Infinity) cumulativeSewingDays += timeToSewThisBatch;
-                        continue;
-                    }
-                    
-                    const batchQty = Math.min(packingBatchSize, order.quantity - (packingBatchSize * i));
+                    const scheduledBatches = new Set(scheduledProcesses
+                        .filter(p => p.orderId === order.id && p.processId === selectedProcessId && p.batchNumber)
+                        .map(p => p.batchNumber!)
+                    );
+                    if (scheduledBatches.has(batchNumber)) continue;
+
+                    const batchQty = Math.min(packingBatchSize, order.quantity - (i * packingBatchSize));
                     if (batchQty <= 0) continue;
 
-                    const timeToSewThisBatch = getSewingDaysForQuantity(batchQty, dailySewingOutput, addBusinessDays(sewingAnchorDate, cumulativeSewingDays));
                     const batchStartDate = addBusinessDays(sewingAnchorDate, cumulativeSewingDays);
 
                     batches.push({
@@ -515,8 +508,13 @@ function GanttPageContent() {
                         totalBatches: totalBatches,
                         latestStartDate: batchStartDate,
                     });
-
-                    if(timeToSewThisBatch !== Infinity) cumulativeSewingDays += timeToSewThisBatch;
+                    
+                    const timeToSewThisBatch = getSewingDaysForQuantity(batchQty, dailySewingOutput, batchStartDate);
+                    if(timeToSewThisBatch !== Infinity) {
+                        cumulativeSewingDays += timeToSewThisBatch;
+                    } else {
+                        cumulativeSewingDays += 1; // Fallback to prevent infinite loops
+                    }
                 }
             } else {
                  orderItems.push(order);
