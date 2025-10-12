@@ -16,7 +16,7 @@ import { useSchedule } from '@/context/schedule-provider';
 import MachinePanel from '@/components/gantt-chart/machine-panel';
 import SplitProcessDialog from '@/components/gantt-chart/split-process-dialog';
 import PabView from '@/components/pab/pab-view';
-import { calculateProcessBatchSize, calculateDailySewingOutput, getSewingDaysForQuantity } from '@/lib/tna-calculator';
+import { getSewingDaysForQuantity, calculateDailySewingOutput } from '@/lib/tna-calculator';
 import { subBusinessDays, addBusinessDays } from '@/lib/utils';
 
 
@@ -154,7 +154,19 @@ const calculateSewingDuration = (order: Order, quantity: number): number => {
 };
 
 function GanttPageContent() {
-  const { orders, scheduledProcesses, setScheduledProcesses, isScheduleLoaded, sewingLines, timelineEndDate, setTimelineEndDate, splitOrderProcesses, toggleSplitProcess } = useSchedule();
+  const { 
+    orders, 
+    scheduledProcesses, 
+    setScheduledProcesses, 
+    isScheduleLoaded, 
+    sewingLines, 
+    timelineEndDate, 
+    setTimelineEndDate, 
+    splitOrderProcesses, 
+    toggleSplitProcess,
+    processBatchSizes,
+    packingBatchSizes,
+  } = useSchedule();
 
   const [selectedProcessId, setSelectedProcessId] = useState<string>('sewing');
   const [viewMode, setViewMode] = useState<'day' | 'hour'>('day');
@@ -445,68 +457,66 @@ function GanttPageContent() {
     if (selectedProcessId === 'pab' || !isScheduleLoaded) return map;
 
     for (const order of orders) {
-      const sewingProcessesForOrder = scheduledProcesses.filter(sp => sp.orderId === order.id && sp.processId === SEWING_PROCESS_ID);
-      const isSewingScheduled = sewingProcessesForOrder.length > 0;
-      if (!isSewingScheduled) continue;
-      
-      const isProcessInOrder = order.processIds.includes(selectedProcessId);
-      if (!isProcessInOrder) continue;
-
-      const sewingAnchorDate = sewingProcessesForOrder.reduce(
-        (earliest, p) => (isBefore(p.startDateTime, earliest) ? p.startDateTime : earliest),
-        sewingProcessesForOrder[0].startDateTime
-      );
-      const sewingProcessInfo = PROCESSES.find(p => p.id === SEWING_PROCESS_ID)!;
-      const dailySewingOutput = calculateDailySewingOutput(order, sewingProcessesForOrder, sewingProcessInfo);
-      
-      const numLines = sewingLines[order.id] || 1;
-      const batchSize = calculateProcessBatchSize(order, numLines, selectedProcessId);
-      
-      if (batchSize <= 0) continue;
+        const sewingProcessesForOrder = scheduledProcesses.filter(sp => sp.orderId === order.id && sp.processId === SEWING_PROCESS_ID);
+        const isSewingScheduled = sewingProcessesForOrder.length > 0;
+        if (!isSewingScheduled) continue;
         
-      const totalBatches = Math.ceil(order.quantity / batchSize);
-      const batchQuantities: number[] = [];
-      const cumulativeQuantities: number[] = [];
+        const isProcessInOrder = order.processIds.includes(selectedProcessId);
+        if (!isProcessInOrder) continue;
 
-      for(let i=0; i<totalBatches; i++) {
-        const qty = Math.min(batchSize, order.quantity - (i * batchSize));
-        batchQuantities.push(qty);
-        cumulativeQuantities.push((cumulativeQuantities[i-1] || 0) + qty);
-      }
+        const sewingAnchorDate = sewingProcessesForOrder.reduce(
+            (earliest, p) => (isBefore(p.startDateTime, earliest) ? p.startDateTime : earliest),
+            sewingProcessesForOrder[0].startDateTime
+        );
+        const sewingProcessInfo = PROCESSES.find(p => p.id === SEWING_PROCESS_ID)!;
+        const dailySewingOutput = calculateDailySewingOutput(order, sewingProcessesForOrder, sewingProcessInfo);
 
-      for (let i = 0; i < totalBatches; i++) {
-        const batchNumber = i + 1;
-        const key = `${order.id}-${selectedProcessId}-${batchNumber}`;
-        let batchStartDate: Date;
+        const numLines = sewingLines[order.id] || 1;
+        const preSewingBatchSize = processBatchSizes[order.id] || 0;
+        const packingBatchSize = packingBatchSizes[order.id] || 0;
 
-        if (selectedProcessId === PACKING_PROCESS_ID) {
-            const requiredSewingQty = cumulativeQuantities[i];
-            const timeToSew = getSewingDaysForQuantity(requiredSewingQty, dailySewingOutput, sewingAnchorDate);
-            batchStartDate = addBusinessDays(sewingAnchorDate, timeToSew);
-        } else { // Pre-sewing activities
-            const prerequisiteSewingQty = i > 0 ? cumulativeQuantities[i-1] : 0;
-            const timeToSewPrerequisites = getSewingDaysForQuantity(prerequisiteSewingQty, dailySewingOutput, sewingAnchorDate);
-            const sewingStartDateForThisBatch = addBusinessDays(sewingAnchorDate, timeToSewPrerequisites);
-            
-            let predecessorChainStartDate = sewingStartDateForThisBatch;
-            const predecessorChain = order.processIds.slice(
-              order.processIds.indexOf(selectedProcessId),
-              order.processIds.indexOf(SEWING_PROCESS_ID)
-            ).reverse();
-            
-            for (const predId of predecessorChain) {
-                const processInfo = PROCESSES.find(p => p.id === predId)!;
-                const durationMinutes = batchQuantities[i] * processInfo.sam; 
-                const durationDays = Math.ceil(durationMinutes / WORK_DAY_MINUTES);
-                predecessorChainStartDate = subBusinessDays(predecessorChainStartDate, durationDays);
+        const batchSize = selectedProcessId === PACKING_PROCESS_ID ? packingBatchSize : preSewingBatchSize;
+        if (batchSize <= 0) continue;
+        
+        const totalBatches = Math.ceil(order.quantity / batchSize);
+        const batchQuantities: number[] = Array.from({ length: totalBatches }, (_, i) => 
+            Math.min(batchSize, order.quantity - (i * batchSize))
+        );
+        const cumulativeQuantities = batchQuantities.reduce((acc, qty) => [...acc, (acc.length > 0 ? acc[acc.length - 1] : 0) + qty], [] as number[]);
+
+        for (let i = 0; i < totalBatches; i++) {
+            const batchNumber = i + 1;
+            const key = `${order.id}-${selectedProcessId}-${batchNumber}`;
+            let batchStartDate: Date;
+
+            if (selectedProcessId === PACKING_PROCESS_ID) {
+                const requiredSewingQty = cumulativeQuantities[i];
+                const timeToSew = getSewingDaysForQuantity(requiredSewingQty, dailySewingOutput, sewingAnchorDate);
+                batchStartDate = addBusinessDays(sewingAnchorDate, timeToSew);
+            } else { // Pre-sewing activities
+                const prerequisiteSewingQty = i > 0 ? cumulativeQuantities[i-1] : 0;
+                const timeToSewPrerequisites = getSewingDaysForQuantity(prerequisiteSewingQty, dailySewingOutput, sewingAnchorDate);
+                const sewingStartDateForThisBatch = addBusinessDays(sewingAnchorDate, timeToSewPrerequisites);
+                
+                let predecessorChainStartDate = sewingStartDateForThisBatch;
+                const predecessorChain = order.processIds.slice(
+                order.processIds.indexOf(selectedProcessId),
+                order.processIds.indexOf(SEWING_PROCESS_ID)
+                ).reverse();
+                
+                for (const predId of predecessorChain) {
+                    const processInfo = PROCESSES.find(p => p.id === predId)!;
+                    const durationMinutes = batchQuantities[i] * processInfo.sam; 
+                    const durationDays = Math.ceil(durationMinutes / WORK_DAY_MINUTES);
+                    predecessorChainStartDate = subBusinessDays(predecessorChainStartDate, durationDays);
+                }
+                batchStartDate = predecessorChainStartDate;
             }
-            batchStartDate = predecessorChainStartDate;
+            map.set(key, batchStartDate);
         }
-        map.set(key, batchStartDate);
-      }
     }
     return map;
-  }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, sewingLines]);
+  }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, sewingLines, processBatchSizes, packingBatchSizes]);
   
 
   const { unplannedOrderItems, unplannedBatches } = useMemo(() => {
@@ -537,16 +547,12 @@ function GanttPageContent() {
         const splitKey = `${order.id}_${selectedProcessId}`;
         const isSplit = splitOrderProcesses[splitKey];
 
-        const numLines = sewingLines[order.id] || 1;
-        let processBatchSize: number;
-        if (selectedProcessId === PACKING_PROCESS_ID) {
-          processBatchSize = calculateProcessBatchSize(order, 1, PACKING_PROCESS_ID);
-        } else {
-          processBatchSize = calculateProcessBatchSize(order, numLines, selectedProcessId);
-        }
+        const batchSize = selectedProcessId === PACKING_PROCESS_ID 
+          ? (packingBatchSizes[order.id] || 0) 
+          : (processBatchSizes[order.id] || 0);
 
-        if (isSplit && processBatchSize > 0 && isSewingScheduled) {
-            const totalBatches = Math.ceil(order.quantity / processBatchSize);
+        if (isSplit && batchSize > 0 && isSewingScheduled) {
+            const totalBatches = Math.ceil(order.quantity / batchSize);
             for (let i = 0; i < totalBatches; i++) {
                 const batchNumber = i + 1;
                 const scheduledBatches = new Set(scheduledProcesses
@@ -555,7 +561,7 @@ function GanttPageContent() {
                 );
                 if (scheduledBatches.has(batchNumber)) continue;
                 
-                const currentBatchQty = Math.min(processBatchSize, order.quantity - (i * processBatchSize));
+                const currentBatchQty = Math.min(batchSize, order.quantity - (i * batchSize));
                 if (currentBatchQty <= 0) continue;
 
                 const dateMapKey = `${order.id}-${selectedProcessId}-${batchNumber}`;
@@ -582,7 +588,7 @@ function GanttPageContent() {
     }
 
     return { unplannedOrderItems: orderItems.sort((a,b) => compareAsc(a.dueDate, b.dueDate)), unplannedBatches: batches };
-  }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, splitOrderProcesses, sewingLines, latestStartDatesMap]);
+  }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, splitOrderProcesses, sewingLines, latestStartDatesMap, processBatchSizes, packingBatchSizes]);
   
 
   const chartRows = MACHINES.filter(m => m.processIds.includes(selectedProcessId));

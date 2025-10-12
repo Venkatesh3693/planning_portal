@@ -1,4 +1,5 @@
 
+
 import type { Order, Process, TnaProcess, RampUpEntry, ScheduledProcess } from './types';
 import { WORK_DAY_MINUTES } from './data';
 import { addDays, subDays, getDay, format, startOfDay, differenceInMinutes, isBefore, isAfter } from 'date-fns';
@@ -9,10 +10,11 @@ function addBusinessDays(startDate: Date, days: number): Date {
   let daysAdded = 0;
   const increment = days > 0 ? 1 : -1;
 
+  // We start counting from the day after, so we iterate up to days.
   while (daysAdded < Math.abs(days)) {
     currentDate.setDate(currentDate.getDate() + increment);
     const dayOfWeek = getDay(currentDate);
-    if (dayOfWeek !== 0) { // Assuming only Sunday (0) is a non-working day
+    if (dayOfWeek !== 0) { // Not a Sunday
       daysAdded++;
     }
   }
@@ -26,7 +28,7 @@ function subBusinessDays(startDate: Date, days: number): Date {
     while(daysSubtracted < days) {
         currentDate.setDate(currentDate.getDate() - 1);
         const dayOfWeek = getDay(currentDate);
-        if (dayOfWeek !== 0) {
+        if (dayOfWeek !== 0) { // Not a Sunday
             daysSubtracted++;
         }
     }
@@ -198,47 +200,56 @@ export function getSewingDaysForQuantity(
     return daysCounted;
 }
 
+const calculateMoq = (process: Process, days: number, order: Order, numLines: number) => {
+    if (days <= 0) return 0;
+    if (process.id === 'sewing') {
+        const durationMinutes = days * WORK_DAY_MINUTES;
+        const peakEfficiency = (order.sewingRampUpScheme || []).reduce((max, s) => Math.max(max, s.efficiency), order.budgetedEfficiency || 85);
+        if (peakEfficiency <= 0) return 0;
+        const effectiveSam = process.sam / (peakEfficiency / 100);
+        const outputPerMinute = (1 / effectiveSam) * numLines;
+        return Math.floor(outputPerMinute * durationMinutes);
+    } else {
+        const totalMinutes = days * WORK_DAY_MINUTES;
+        if(process.sam <= 0) return 0;
+        const outputPerMinute = 1 / process.sam;
+        return Math.floor(outputPerMinute * totalMinutes);
+    }
+};
 
-
-export const calculateProcessBatchSize = (order: Order, numLines: number, forProcessId?: string): number => {
+export const getProcessBatchSize = (order: Order, processes: Process[], numLines: number): number => {
     if (!order.tna?.minRunDays) return order.quantity / 5;
 
     let maxMoq = 0;
-    
-    const processesToConsider = forProcessId 
-      ? [forProcessId] 
-      : order.processIds.slice(0, order.processIds.indexOf('sewing') + 1);
+    const preSewingAndSewingProcessIds = order.processIds.slice(0, order.processIds.indexOf('sewing') + 1);
 
-    processesToConsider.forEach((processId) => {
-        const process = PROCESSES.find(p => p.id === processId)!;
+    preSewingAndSewingProcessIds.forEach(pid => {
+        const process = processes.find(p => p.id === pid)!;
         if (!process) return;
-
-        const days = order.tna?.minRunDays?.[process.id] || 1;
-        let currentMoq = 0;
-
-        if (days > 0) {
-            if (process.id === 'sewing') {
-                const durationMinutes = days * WORK_DAY_MINUTES;
-                const peakEfficiency = (order.sewingRampUpScheme || []).reduce((max, s) => Math.max(max, s.efficiency), order.budgetedEfficiency || 85);
-                const effectiveSam = process.sam / (peakEfficiency / 100);
-                const outputPerMinute = (1 / effectiveSam) * numLines;
-                currentMoq = Math.floor(outputPerMinute * durationMinutes);
-            } else {
-                const totalMinutes = days * WORK_DAY_MINUTES;
-                const outputPerMinute = 1 / process.sam;
-                currentMoq = Math.floor(outputPerMinute * totalMinutes);
-            }
-        }
-
+        const days = order.tna?.minRunDays?.[pid] || 1;
+        const currentMoq = calculateMoq(process, days, order, numLines);
         if (currentMoq > maxMoq) {
             maxMoq = currentMoq;
         }
     });
     
     const finalBatchSize = maxMoq > order.quantity ? order.quantity : maxMoq;
-
-    return finalBatchSize > 0 ? finalBatchSize : order.quantity / 5; // Fallback
+    return finalBatchSize > 0 ? finalBatchSize : order.quantity / 5;
 };
+
+export const getPackingBatchSize = (order: Order, processes: Process[]): number => {
+    if (!order.tna?.minRunDays) return order.quantity / 5;
+
+    const packingProcess = processes.find(p => p.id === 'packing');
+    if (!packingProcess) return order.quantity / 5;
+    
+    const days = order.tna.minRunDays['packing'] || 1;
+    const moq = calculateMoq(packingProcess, days, order, 1); // numLines is 1 for packing
+
+    const finalBatchSize = moq > order.quantity ? order.quantity : moq;
+    return finalBatchSize > 0 ? finalBatchSize : order.quantity / 5;
+};
+
 
 import { PROCESSES } from './data';
 

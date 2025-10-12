@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, forwardRef, type ComponentProps, useEffect } from 'react';
@@ -404,6 +405,9 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
 
   const [minRunDays, setMinRunDays] = useState<Record<string, string>>({});
   
+  const { processBatchSizes } = useSchedule();
+  const processBatchSize = processBatchSizes[order.id] || 0;
+
   useEffect(() => {
     if (isTnaOpen) {
       const initialDays: Record<string, string> = {};
@@ -428,41 +432,29 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
   };
 
   const { sewingLines } = useSchedule();
-  const sewingProcessIndex = order.processIds.indexOf('sewing');
 
-  const { moqs, processBatchSize } = useMemo(() => {
-      const calculatedMoqs: Record<string, number> = {};
-      let maxMoq = 0;
-      
-      order.processIds.forEach((processId, index) => {
-          const process = PROCESSES.find(p => p.id === processId)!;
-          const days = Number(minRunDays[process.id]) || 0;
-          let currentMoq = 0;
-
-          if (days > 0) {
-               if (process.id === 'sewing') {
-                  const durationMinutes = days * WORK_DAY_MINUTES;
-                  const peakEfficiency = (order.sewingRampUpScheme || []).reduce((max, s) => Math.max(max, s.efficiency), order.budgetedEfficiency || 85);
-                  const effectiveSam = process.sam / (peakEfficiency / 100);
-                  const outputPerMinute = (1 / effectiveSam) * (sewingLines[order.id] || 1);
-                  currentMoq = Math.floor(outputPerMinute * durationMinutes);
-              } else {
-                  const totalMinutes = days * WORK_DAY_MINUTES;
-                  const outputPerMinute = 1 / process.sam;
-                  currentMoq = Math.floor(outputPerMinute * totalMinutes);
-              }
-          }
-          calculatedMoqs[processId] = currentMoq;
-
-          // Exclude packing from the process batch size calculation
-          if (currentMoq > maxMoq && process.id !== 'packing') {
-              maxMoq = currentMoq;
-          }
-      });
-      
-      const finalBatchSize = maxMoq > order.quantity ? order.quantity : maxMoq;
-
-      return { moqs: calculatedMoqs, processBatchSize: finalBatchSize > 0 ? finalBatchSize : order.quantity / 5 }; // Fallback batch size
+  const moqs = useMemo(() => {
+    const calculatedMoqs: Record<string, number> = {};
+    order.processIds.forEach((processId) => {
+      const process = PROCESSES.find(p => p.id === processId)!;
+      const days = Number(minRunDays[process.id]) || 1;
+      let currentMoq = 0;
+      if (days > 0) {
+        if (process.id === 'sewing') {
+          const durationMinutes = days * WORK_DAY_MINUTES;
+          const peakEfficiency = (order.sewingRampUpScheme || []).reduce((max, s) => Math.max(max, s.efficiency), order.budgetedEfficiency || 85);
+          const effectiveSam = process.sam / (peakEfficiency / 100);
+          const outputPerMinute = (1 / effectiveSam) * (sewingLines[order.id] || 1);
+          currentMoq = Math.floor(outputPerMinute * durationMinutes);
+        } else {
+          const totalMinutes = days * WORK_DAY_MINUTES;
+          const outputPerMinute = 1 / process.sam;
+          currentMoq = Math.floor(outputPerMinute * totalMinutes);
+        }
+      }
+      calculatedMoqs[processId] = currentMoq;
+    });
+    return calculatedMoqs;
   }, [minRunDays, order, sewingLines]);
 
   const singleLineMinDays = useMemo(() => 
@@ -640,10 +632,12 @@ export default function OrdersPage() {
     updateOrderTna,
     updateOrderColor,
     updateOrderMinRunDays,
+    processBatchSizes,
   } = useSchedule();
 
-  const handleGenerateTna = (order: Order, processBatchSize: number) => {
+  const handleGenerateTna = (order: Order) => {
     const numLines = sewingLines[order.id] || 1;
+    const processBatchSize = processBatchSizes[order.id] || 0;
     const { newTna, newCkDate } = generateTnaPlan(order, PROCESSES, numLines, processBatchSize);
     updateOrderTna(order.id, newTna, newCkDate);
   };
@@ -697,7 +691,7 @@ export default function OrdersPage() {
                       key={order.id} 
                       order={order} 
                       onColorChange={updateOrderColor}
-                      onTnaGenerate={handleGenerateTna}
+                      onTnaGenerate={() => handleGenerateTna(order)}
                       onRampUpSave={updateSewingRampUpScheme}
                       onSetSewingLines={setSewingLines}
                       numLines={sewingLines[order.id] || 1}

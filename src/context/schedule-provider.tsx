@@ -4,8 +4,9 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, Dispatch, SetStateAction, useMemo } from 'react';
 import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess } from '@/lib/types';
-import { ORDERS as staticOrders, ORDER_COLORS } from '@/lib/data';
+import { ORDERS as staticOrders, PROCESSES, ORDER_COLORS } from '@/lib/data';
 import { addDays, startOfToday, isAfter } from 'date-fns';
+import { getProcessBatchSize, getPackingBatchSize } from '@/lib/tna-calculator';
 
 const STORE_KEY = 'stitchplan_schedule_v3';
 
@@ -29,6 +30,8 @@ type ScheduleContextType = {
   isScheduleLoaded: boolean;
   splitOrderProcesses: Record<string, boolean>;
   toggleSplitProcess: (orderId: string, processId: string) => void;
+  processBatchSizes: Record<string, number>;
+  packingBatchSizes: Record<string, number>;
 };
 
 const ScheduleContext = createContext<ScheduleContextType | undefined>(undefined);
@@ -60,6 +63,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
             ...p,
             startDateTime: new Date(p.startDateTime),
             endDateTime: endDateTime,
+            latestStartDate: p.latestStartDate ? new Date(p.latestStartDate) : undefined,
           };
         });
         
@@ -251,6 +255,17 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     }, {} as SewingRampUpSchemes),
   [orderOverrides]);
 
+  const { processBatchSizes, packingBatchSizes } = useMemo(() => {
+    const pbs: Record<string, number> = {};
+    const qbs: Record<string, number> = {};
+    orders.forEach(order => {
+        const numLines = sewingLines[order.id] || 1;
+        pbs[order.id] = getProcessBatchSize(order, PROCESSES, numLines);
+        qbs[order.id] = getPackingBatchSize(order, PROCESSES);
+    });
+    return { processBatchSizes: pbs, packingBatchSizes: qbs };
+  }, [orders, sewingLines]);
+
   const value = { 
     orders,
     scheduledProcesses, 
@@ -267,6 +282,8 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     isScheduleLoaded,
     splitOrderProcesses,
     toggleSplitProcess,
+    processBatchSizes,
+    packingBatchSizes,
   };
 
   return (

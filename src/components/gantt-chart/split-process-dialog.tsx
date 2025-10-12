@@ -18,6 +18,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PlusCircle, X, Zap } from 'lucide-react';
 import { ORDERS, PROCESSES, WORK_DAY_MINUTES } from '@/lib/data';
+import { getProcessBatchSize, getPackingBatchSize } from '@/lib/tna-calculator';
+
 
 type SplitProcessDialogProps = {
   processes: ScheduledProcess[] | null;
@@ -29,45 +31,6 @@ type SplitProcessDialogProps = {
     originalProcesses: ScheduledProcess[],
     newQuantities: number[]
   ) => void;
-};
-
-// This function needs to be self-contained or imported if it's in a shared utility file.
-const calculateProcessBatchSize = (order: Order, sewingLines: number) => {
-    if (!order.tna?.minRunDays) return order.quantity / 5;
-
-    let maxMoq = 0;
-    const sewingProcessIndex = order.processIds.indexOf('sewing');
-    
-    order.processIds.forEach((processId, index) => {
-        if (sewingProcessIndex !== -1 && index > sewingProcessIndex) {
-            return;
-        }
-
-        const process = PROCESSES.find(p => p.id === processId)!;
-        const days = order.tna?.minRunDays?.[process.id] || 1;
-        let currentMoq = 0;
-
-        if (days > 0) {
-            if (process.id === 'sewing') {
-                const durationMinutes = days * WORK_DAY_MINUTES;
-                const peakEfficiency = (order.sewingRampUpScheme || []).reduce((max, s) => Math.max(max, s.efficiency), order.budgetedEfficiency || 85);
-                const effectiveSam = process.sam / (peakEfficiency / 100);
-                const outputPerMinute = (1 / effectiveSam) * sewingLines;
-                currentMoq = Math.floor(outputPerMinute * durationMinutes);
-            } else {
-                const totalMinutes = days * WORK_DAY_MINUTES;
-                const outputPerMinute = 1 / process.sam;
-                currentMoq = Math.floor(outputPerMinute * totalMinutes);
-            }
-        }
-        if (currentMoq > maxMoq) {
-            maxMoq = currentMoq;
-        }
-    });
-    
-    const finalBatchSize = maxMoq > order.quantity ? order.quantity : maxMoq;
-
-    return finalBatchSize > 0 ? finalBatchSize : order.quantity / 5; // Fallback
 };
 
 
@@ -104,9 +67,12 @@ export default function SplitProcessDialog({
   const processInfo = useMemo(() => processes ? PROCESSES.find(p => p.id === processes[0].processId) : null, [processes]);
   
   const processBatchSize = useMemo(() => {
-    if (!order) return 0;
-    return calculateProcessBatchSize(order, numLines);
-  }, [order, numLines]);
+    if (!order || !processInfo) return 0;
+    if (processInfo.id === 'packing') {
+      return getPackingBatchSize(order, PROCESSES);
+    }
+    return getProcessBatchSize(order, PROCESSES, numLines);
+  }, [order, processInfo, numLines]);
 
 
   const totalSplitQuantity = useMemo(() => {
@@ -180,13 +146,11 @@ export default function SplitProcessDialog({
   const isResplit = processes.length > 1 || processes[0].isSplit;
 
   const sewingProcessIndex = order.processIds.indexOf('sewing');
-  const packingProcessIndex = order.processIds.indexOf('packing');
   const currentProcessIndex = order.processIds.indexOf(processInfo.id);
 
-  const isBeforeSewing = sewingProcessIndex !== -1 && currentProcessIndex < sewingProcessIndex;
-  const isBeforePacking = packingProcessIndex !== -1 && currentProcessIndex < packingProcessIndex;
+  const isPreSewing = sewingProcessIndex !== -1 && currentProcessIndex < sewingProcessIndex;
   
-  const canSplitByBatch = processInfo.id !== 'sewing' && (isBeforeSewing || isBeforePacking);
+  const canSplitByBatch = processInfo.id !== 'sewing';
 
 
   return (
@@ -204,12 +168,12 @@ export default function SplitProcessDialog({
           {canSplitByBatch && (
             <div className="px-4 pb-4 border-b">
                 <div className="flex items-center justify-between text-sm">
-                    <p className="text-muted-foreground">Process Batch Size:</p>
+                    <p className="text-muted-foreground">{isPreSewing ? 'Process Batch Size:' : 'Packing Batch Size:'}</p>
                     <p className="font-semibold">{Math.round(processBatchSize).toLocaleString()}</p>
                 </div>
                 <Button variant="outline" size="sm" className="w-full mt-2" onClick={handlePrefillByBatch}>
                     <Zap className="mr-2 h-4 w-4" />
-                    Split by Process Batch
+                    Split by Suggested Batch Size
                 </Button>
             </div>
           )}
