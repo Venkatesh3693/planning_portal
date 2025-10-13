@@ -167,15 +167,9 @@ function GanttPageContent() {
   
   const latestSewingStartDateMap = useMemo(() => {
     const map = new Map<string, Date>();
-    if (selectedProcessId !== SEWING_PROCESS_ID && !draggedItem) return map;
+    if (!isScheduleLoaded) return map;
 
-    const ordersToConsider = selectedProcessId === SEWING_PROCESS_ID 
-      ? orders
-      : (draggedItem?.type === 'new-order' && draggedItem.processId === SEWING_PROCESS_ID 
-          ? orders.filter(o => o.id === draggedItem.orderId) 
-          : []);
-
-    ordersToConsider.forEach(order => {
+    orders.forEach(order => {
         const numLines = sewingLines[order.id] || 1;
         const latestDate = calculateLatestSewingStartDate(order, PROCESSES, numLines);
         if (latestDate) {
@@ -184,7 +178,7 @@ function GanttPageContent() {
     });
 
     return map;
-  }, [orders, sewingLines, selectedProcessId, draggedItem]);
+  }, [orders, sewingLines, isScheduleLoaded]);
   
 
   const { unplannedOrderItems, unplannedBatches } = useMemo(() => {
@@ -284,47 +278,49 @@ function GanttPageContent() {
     }
   
     for (const process of scheduledProcesses) {
-        const order = orders.find(o => o.id === process.orderId);
-        if (!order) continue;
-    
-        const processSequence = order.processIds;
-        const currentIndex = processSequence.indexOf(process.processId);
-        const key = `${process.orderId}-${process.processId}-${process.batchNumber || 0}`;
-
-        if (currentIndex > 0) {
-            const predecessorId = processSequence[currentIndex - 1];
-            
-            if (process.processId === SEWING_PROCESS_ID) {
-                const predecessorProcesses = scheduledProcessMap.get(`${order.id}-${predecessorId}`) || [];
-                const firstBatchOfPredecessor = predecessorProcesses.find(p => p.batchNumber === 1);
-                if (firstBatchOfPredecessor) {
-                    map.set(key, firstBatchOfPredecessor.endDateTime);
-                }
-            } else if (currentIndex > processSequence.indexOf(SEWING_PROCESS_ID) && processSequence.includes(SEWING_PROCESS_ID)) { // Post-sewing
-                const sewingAnchorDate = sewingAnchorDates[order.id];
-                const dailyOutput = dailySewingOutputs[order.id];
-                
-                if (sewingAnchorDate && dailyOutput) {
-                    const packingBatchSizeForOrder = packingBatchSizes[order.id] || 0;
-                    if(packingBatchSizeForOrder > 0) {
-                        const cumulativeQtyNeeded = (process.batchNumber || 1) * packingBatchSizeForOrder;
-                        const qtyToProduce = Math.min(cumulativeQtyNeeded, order.quantity);
-
-                        const daysToProduce = getSewingDaysForQuantity(qtyToProduce, dailyOutput, sewingAnchorDate);
-                        if (daysToProduce !== Infinity) {
-                            const predecessorEndDate = addBusinessDays(sewingAnchorDate, daysToProduce - 1);
-                            map.set(key, predecessorEndDate);
-                        }
-                    }
-                }
-            } else { // Pre-sewing
-                const predecessorProcesses = scheduledProcessMap.get(`${order.id}-${predecessorId}`) || [];
-                const correspondingPredecessor = predecessorProcesses.find(p => p.batchNumber === process.batchNumber);
-                if (correspondingPredecessor) {
-                    map.set(key, correspondingPredecessor.endDateTime);
-                }
+      const order = orders.find(o => o.id === process.orderId);
+      if (!order) continue;
+  
+      const processSequence = order.processIds;
+      const currentIndex = processSequence.indexOf(process.processId);
+  
+      if (currentIndex > 0) {
+        const predecessorId = processSequence[currentIndex - 1];
+  
+        if (process.processId === SEWING_PROCESS_ID) {
+          const predecessorProcesses = scheduledProcessMap.get(`${order.id}-${predecessorId}`) || [];
+          const firstBatchOfPredecessor = predecessorProcesses.find(p => p.batchNumber === 1);
+          if (firstBatchOfPredecessor) {
+            const key = `${process.orderId}-${process.processId}-${process.batchNumber || 0}`;
+            map.set(key, firstBatchOfPredecessor.endDateTime);
+          }
+        } else if (currentIndex > processSequence.indexOf(SEWING_PROCESS_ID) && processSequence.includes(SEWING_PROCESS_ID)) { // Post-sewing
+          const sewingAnchorDate = sewingAnchorDates[order.id];
+          const dailyOutput = dailySewingOutputs[order.id];
+  
+          if (sewingAnchorDate && dailyOutput) {
+            const packingBatchSizeForOrder = packingBatchSizes[order.id] || 0;
+            if (packingBatchSizeForOrder > 0) {
+              const cumulativeQtyNeeded = (process.batchNumber || 1) * packingBatchSizeForOrder;
+              const qtyToProduce = Math.min(cumulativeQtyNeeded, order.quantity);
+  
+              const daysToProduce = getSewingDaysForQuantity(qtyToProduce, dailyOutput, sewingAnchorDate);
+              if (daysToProduce !== Infinity) {
+                const predecessorEndDate = addBusinessDays(sewingAnchorDate, daysToProduce - 1);
+                const key = `${process.orderId}-${process.processId}-${process.batchNumber || 0}`;
+                map.set(key, predecessorEndDate);
+              }
             }
+          }
+        } else { // Pre-sewing
+          const predecessorProcesses = scheduledProcessMap.get(`${order.id}-${predecessorId}`) || [];
+          const correspondingPredecessor = predecessorProcesses.find(p => p.batchNumber === process.batchNumber);
+          if (correspondingPredecessor) {
+            const key = `${process.orderId}-${process.processId}-${process.batchNumber || 0}`;
+            map.set(key, correspondingPredecessor.endDateTime);
+          }
         }
+      }
     }
     return map;
   }, [scheduledProcesses, orders, isScheduleLoaded, packingBatchSizes]);
@@ -360,11 +356,17 @@ function GanttPageContent() {
   
     if (draggedItem.type === 'existing') {
       const { process } = draggedItem;
+       if (process.processId === SEWING_PROCESS_ID) {
+        return latestSewingStartDateMap.get(process.orderId);
+      }
       return process.latestStartDate || null;
     }
   
     if (draggedItem.type === 'new-batch') {
       const { batch } = draggedItem;
+      if (batch.processId === SEWING_PROCESS_ID) {
+        return latestSewingStartDateMap.get(batch.orderId);
+      }
       return batch.latestStartDate || null;
     }
     
@@ -838,5 +840,6 @@ export default function Home() {
     <GanttPageContent />
   );
 }
+
 
 
