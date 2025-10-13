@@ -60,6 +60,7 @@ type MachinePanelProps = {
   splitOrderProcesses: Record<string, boolean>;
   toggleSplitProcess: (orderId: string, processId: string) => void;
   latestSewingStartDateMap: Map<string, Date>;
+  latestStartDatesMap: Map<string, Date>;
 };
 
 export default function MachinePanel({
@@ -83,6 +84,7 @@ export default function MachinePanel({
   splitOrderProcesses,
   toggleSplitProcess,
   latestSewingStartDateMap,
+  latestStartDatesMap,
 }: MachinePanelProps) {
 
   const handleSortToggle = () => {
@@ -102,6 +104,21 @@ export default function MachinePanel({
     : "Clear Sort";
 
   const isPreSewingProcess = PROCESSES.find(p => p.id === selectedProcessId)?.id !== SEWING_PROCESS_ID;
+
+  const handleUnplannedDragStart = (e: React.DragEvent<HTMLDivElement>, batch: UnplannedBatch) => {
+    const dateMapKey = `${batch.orderId}-${batch.processId}-${batch.batchNumber}`;
+    const liveLatestStartDate = latestStartDatesMap.get(dateMapKey);
+
+    const item: DraggedItemData = { 
+      type: 'new-batch', 
+      batch: {
+        ...batch,
+        latestStartDate: liveLatestStartDate || batch.latestStartDate, // Fallback to stale date if lookup fails
+      }
+    };
+    handleDragStart(e, item);
+  };
+
 
   return (
     <Card className="h-full flex flex-col">
@@ -215,21 +232,14 @@ export default function MachinePanel({
         <ScrollArea className="h-full pr-4">
           <div className="space-y-2 p-2 pt-0">
             {unplannedBatches.map((batch) => {
-               const liveLatestStartDate = latestSewingStartDateMap.get(`${batch.orderId}-${batch.processId}-${batch.batchNumber}`) || batch.latestStartDate;
-
-               const item: DraggedItemData = { 
-                 type: 'new-batch', 
-                 batch: {
-                   ...batch,
-                   latestStartDate: liveLatestStartDate,
-                 }
-               };
+               const dateMapKey = `${batch.orderId}-${batch.processId}-${batch.batchNumber}`;
+               const liveLatestStartDate = latestStartDatesMap.get(dateMapKey) || batch.latestStartDate;
 
                return (
                   <div
                     key={`${batch.orderId}-${batch.processId}-${batch.batchNumber}`}
                     draggable
-                    onDragStart={(e) => handleDragStart(e, item)}
+                    onDragStart={(e) => handleUnplannedDragStart(e, batch)}
                     className="cursor-grab active:cursor-grabbing p-2 text-sm font-medium text-card-foreground rounded-md hover:bg-primary/10 border-l-4 border-primary/50"
                     title={`${batch.orderId} - Batch ${batch.batchNumber}`}
                   >

@@ -62,22 +62,26 @@ export default function ScheduledProcessBar({
     e.preventDefault();
     setIsMenuOpen(true);
   };
+
+  const dateMapKey = item.batchNumber ? `${item.orderId}-${item.processId}-${item.batchNumber}` : `${item.orderId}-${item.processId}`;
+  const liveLatestStartDate = latestStartDatesMap.get(dateMapKey);
   
   const handleInternalDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     // Prevent the parent from trying to handle the drag as well
     e.stopPropagation();
     if (onDragStart) {
-      const draggedItem: DraggedItemData = { type: 'existing', process: item };
+      const freshProcessData = {
+        ...item,
+        latestStartDate: liveLatestStartDate,
+      };
+      const draggedItem: DraggedItemData = { type: 'existing', process: freshProcessData };
       e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData('application/json', JSON.stringify(draggedItem));
       onDragStart(e, draggedItem);
     }
   };
   
   const baseColor = orderDetails.displayColor || processDetails.color || 'hsl(var(--accent))';
 
-  const dateMapKey = `${item.orderId}-${item.processId}-${item.batchNumber}`;
-  const liveLatestStartDate = latestStartDatesMap.get(dateMapKey);
 
   return (
     <Popover open={isMenuOpen} onOpenChange={setIsMenuOpen}>
@@ -116,7 +120,7 @@ export default function ScheduledProcessBar({
             <p className="text-sm text-muted-foreground">{processDetails.name}</p>
           </div>
           
-          {item.isSplit && item.processId !== 'sewing' && (
+          {item.isSplit && (
             <div className="border-t pt-2 mt-2 space-y-1">
               <p className="text-sm font-semibold">
                 Batch {item.batchNumber} / {item.totalBatches}
@@ -124,16 +128,16 @@ export default function ScheduledProcessBar({
               <p className="text-sm">
                 <strong>Batch Quantity:</strong> {item.quantity.toLocaleString()}
               </p>
-              {liveLatestStartDate && (
+            </div>
+          )}
+
+          <div className={cn(item.isSplit && "border-t mt-2 pt-2")}>
+            <p className="text-sm"><strong>Total Order Quantity:</strong> {orderDetails.quantity.toLocaleString()}</p>
+             {liveLatestStartDate && (
                 <p className="text-sm">
                   <strong>Latest Start:</strong> {format(liveLatestStartDate, 'MMM d, yyyy')}
                 </p>
               )}
-            </div>
-          )}
-
-          <div className={cn(item.isSplit && item.processId !== 'sewing' && "border-t mt-2 pt-2")}>
-            <p className="text-sm"><strong>Total Order Quantity:</strong> {orderDetails.quantity.toLocaleString()}</p>
           </div>
         </div>
         <div className="p-1 border-t">

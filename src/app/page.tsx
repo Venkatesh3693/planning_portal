@@ -273,7 +273,7 @@ function GanttPageContent() {
     }
   
     return null;
-  }, [draggedItem, latestSewingStartDateMap, latestStartDatesMap]);
+  }, [draggedItem, latestSewingStartDateMap]);
 
   const handleDropOnChart = (rowId: string, startDateTime: Date, draggedItemJSON: string) => {
     if (!draggedItemJSON) return;
@@ -436,10 +436,6 @@ function GanttPageContent() {
     }
     const serializedItem = {
       ...item,
-      tna: item.type === 'new-order' && item.tna ? {
-          startDate: item.tna.startDate.toISOString(),
-          endDate: item.tna.endDate.toISOString(),
-      } : null,
       process: item.type === 'existing' ? {
         ...item.process,
         startDateTime: item.process.startDateTime.toISOString(),
@@ -702,7 +698,6 @@ function GanttPageContent() {
               
               <div className="h-full flex-1 overflow-auto rounded-lg border bg-card">
                   <GanttChart
-                      key={JSON.stringify(Array.from(latestStartDatesMap.entries()))} 
                       rows={chartRows} 
                       dates={dates}
                       scheduledProcesses={processesForGantt}
