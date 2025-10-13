@@ -16,8 +16,8 @@ import { useSchedule } from '@/context/schedule-provider';
 import MachinePanel from '@/components/gantt-chart/machine-panel';
 import SplitProcessDialog from '@/components/gantt-chart/split-process-dialog';
 import PabView from '@/components/pab/pab-view';
-import { getSewingDaysForQuantity, calculateDailySewingOutput, calculateLatestSewingStartDate, calculateSewingDurationMinutes } from '@/lib/tna-calculator';
-import { subBusinessDays, addBusinessDays, calculateEndDateTime } from '@/lib/utils';
+import { getSewingDaysForQuantity, calculateDailySewingOutput, calculateLatestSewingStartDate, calculateSewingDurationMinutes, getPackingBatchSize } from '@/lib/tna-calculator';
+import { subBusinessDays, addBusinessDays, calculateEndDateTime, calculateStartDateTime } from '@/lib/utils';
 
 
 const SEWING_PROCESS_ID = 'sewing';
@@ -251,74 +251,76 @@ function GanttPageContent() {
   const predecessorEndDateMap = useMemo(() => {
     const map = new Map<string, Date>();
     if (!isScheduleLoaded) return map;
-  
-    // Pre-calculate sewing start date and daily outputs for efficiency
-    const sewingAnchorDates: Record<string, Date> = {};
-    const dailySewingOutputs: Record<string, Record<string, number>> = {};
-    
-    orders.forEach(order => {
-      const sewingProcessesForOrder = scheduledProcesses.filter(sp => sp.orderId === order.id && sp.processId === SEWING_PROCESS_ID);
-      if (sewingProcessesForOrder.length > 0) {
-        sewingAnchorDates[order.id] = sewingProcessesForOrder.reduce(
-          (earliest, p) => (isBefore(p.startDateTime, earliest) ? p.startDateTime : earliest),
-          sewingProcessesForOrder[0].startDateTime
-        );
-        const sewingProcessInfo = PROCESSES.find(p => p.id === SEWING_PROCESS_ID)!;
-        dailySewingOutputs[order.id] = calculateDailySewingOutput(order, sewingProcessesForOrder, sewingProcessInfo);
-      }
-    });
 
+    // --- Pre-computation for efficiency ---
     const scheduledProcessMap = new Map<string, ScheduledProcess[]>();
     for (const p of scheduledProcesses) {
-        const key = `${p.orderId}-${p.processId}`;
-        if (!scheduledProcessMap.has(key)) {
-            scheduledProcessMap.set(key, []);
-        }
-        scheduledProcessMap.get(key)!.push(p);
+      const key = `${p.orderId}-${p.processId}`;
+      if (!scheduledProcessMap.has(key)) {
+        scheduledProcessMap.set(key, []);
+      }
+      scheduledProcessMap.get(key)!.push(p);
     }
-  
+    const sewingAnchorDates: Record<string, Date> = {};
+    const dailySewingOutputs: Record<string, Record<string, number>> = {};
+    orders.forEach(order => {
+        const sewingProcessesForOrder = scheduledProcesses.filter(sp => sp.orderId === order.id && sp.processId === SEWING_PROCESS_ID);
+        if (sewingProcessesForOrder.length > 0) {
+            sewingAnchorDates[order.id] = sewingProcessesForOrder.reduce(
+                (earliest, p) => (isBefore(p.startDateTime, earliest) ? p.startDateTime : earliest),
+                sewingProcessesForOrder[0].startDateTime
+            );
+            const sewingProcessInfo = PROCESSES.find(p => p.id === SEWING_PROCESS_ID)!;
+            dailySewingOutputs[order.id] = calculateDailySewingOutput(order, sewingProcessesForOrder, sewingProcessInfo);
+        }
+    });
+
+    // --- Main Calculation Loop ---
     for (const process of scheduledProcesses) {
       const order = orders.find(o => o.id === process.orderId);
       if (!order) continue;
-  
+
       const processSequence = order.processIds;
       const currentIndex = processSequence.indexOf(process.processId);
-  
-      if (currentIndex > 0) {
-        const predecessorId = processSequence[currentIndex - 1];
-  
-        if (process.processId === SEWING_PROCESS_ID) {
-          const predecessorProcesses = scheduledProcessMap.get(`${order.id}-${predecessorId}`) || [];
-          const firstBatchOfPredecessor = predecessorProcesses.find(p => p.batchNumber === 1);
-          if (firstBatchOfPredecessor) {
-            const key = `${process.orderId}-${process.processId}-${process.batchNumber || 0}`;
-            map.set(key, firstBatchOfPredecessor.endDateTime);
-          }
-        } else if (currentIndex > processSequence.indexOf(SEWING_PROCESS_ID) && processSequence.includes(SEWING_PROCESS_ID)) { // Post-sewing
-          const sewingAnchorDate = sewingAnchorDates[order.id];
-          const dailyOutput = dailySewingOutputs[order.id];
-  
-          if (sewingAnchorDate && dailyOutput) {
-            const packingBatchSizeForOrder = packingBatchSizes[order.id] || 0;
-            if (packingBatchSizeForOrder > 0) {
-              const cumulativeQtyNeeded = (process.batchNumber || 1) * packingBatchSizeForOrder;
-              const qtyToProduce = Math.min(cumulativeQtyNeeded, order.quantity);
-  
-              const daysToProduce = getSewingDaysForQuantity(qtyToProduce, dailyOutput, sewingAnchorDate);
-              if (daysToProduce !== Infinity) {
-                const predecessorEndDate = addBusinessDays(sewingAnchorDate, daysToProduce - 1);
-                const key = `${process.orderId}-${process.processId}-${process.batchNumber || 0}`;
-                map.set(key, predecessorEndDate);
-              }
+      const key = `${process.orderId}-${process.processId}-${process.batchNumber || 0}`;
+
+      if (currentIndex <= 0) continue; // No predecessor
+
+      const predecessorId = processSequence[currentIndex - 1];
+
+      // --- Handle Sewing Process ---
+      if (process.processId === SEWING_PROCESS_ID) {
+        const predecessorProcesses = scheduledProcessMap.get(`${order.id}-${predecessorId}`) || [];
+        const firstBatchOfPredecessor = predecessorProcesses.find(p => p.batchNumber === 1);
+        if (firstBatchOfPredecessor) {
+          map.set(key, firstBatchOfPredecessor.endDateTime);
+        }
+      }
+      // --- Handle Post-Sewing (Packing) ---
+      else if (currentIndex > processSequence.indexOf(SEWING_PROCESS_ID) && processSequence.includes(SEWING_PROCESS_ID)) {
+        const sewingAnchorDate = sewingAnchorDates[order.id];
+        const dailyOutput = dailySewingOutputs[order.id];
+        
+        if (sewingAnchorDate && dailyOutput) {
+          const batchSize = packingBatchSizes[order.id] || 0;
+          if (batchSize > 0) {
+            const cumulativeQtyNeeded = (process.batchNumber || 1) * batchSize;
+            const qtyToProduce = Math.min(cumulativeQtyNeeded, order.quantity);
+            const daysToProduce = getSewingDaysForQuantity(qtyToProduce, dailyOutput, sewingAnchorDate);
+
+            if (daysToProduce !== Infinity) {
+              const predecessorEndDate = addBusinessDays(sewingAnchorDate, daysToProduce - 1);
+              map.set(key, predecessorEndDate);
             }
           }
-        } else { // Pre-sewing
-          const predecessorProcesses = scheduledProcessMap.get(`${order.id}-${predecessorId}`) || [];
-          const correspondingPredecessor = predecessorProcesses.find(p => p.batchNumber === process.batchNumber);
-          if (correspondingPredecessor) {
-            const key = `${process.orderId}-${process.processId}-${process.batchNumber || 0}`;
-            map.set(key, correspondingPredecessor.endDateTime);
-          }
+        }
+      }
+      // --- Handle Pre-Sewing Activities ---
+      else {
+        const predecessorProcesses = scheduledProcessMap.get(`${order.id}-${predecessorId}`) || [];
+        const correspondingPredecessor = predecessorProcesses.find(p => p.batchNumber === process.batchNumber);
+        if (correspondingPredecessor) {
+          map.set(key, correspondingPredecessor.endDateTime);
         }
       }
     }
@@ -341,15 +343,17 @@ function GanttPageContent() {
         const processIndex = order.processIds.indexOf(draggedItem.processId);
         if (processIndex > 0) {
             const predecessorId = order.processIds[processIndex - 1];
-            // The logic for new-order predecessor is complex and might be better handled by a different mechanism
-            // For now, we try a simple lookup assuming the predecessor is unsplit.
-            const simplePredecessorKey = `${draggedItem.orderId}-${predecessorId}-0`;
-            return predecessorEndDateMap.get(simplePredecessorKey);
+            // For a new, unsplit order, it's effectively batch 0. We'll check if the predecessor is split.
+            const predecessorProcesses = scheduledProcesses.filter(p => p.orderId === order.id && p.processId === predecessorId);
+            const firstPredecessorBatch = predecessorProcesses.find(p => p.batchNumber === 1);
+             if (firstPredecessorBatch) {
+                 return predecessorEndDateMap.get(`${order.id}-${predecessorId}-1`);
+             }
         }
     }
   
     return key ? predecessorEndDateMap.get(key) || null : null;
-  }, [draggedItem, predecessorEndDateMap, orders]);
+  }, [draggedItem, predecessorEndDateMap, orders, scheduledProcesses]);
   
   const draggedItemLatestStartDate = useMemo(() => {
     if (!draggedItem) return null;
@@ -359,7 +363,8 @@ function GanttPageContent() {
        if (process.processId === SEWING_PROCESS_ID) {
         return latestSewingStartDateMap.get(process.orderId);
       }
-      return process.latestStartDate || null;
+      const key = `${process.orderId}-${process.processId}-${process.batchNumber || 0}`;
+      return latestStartDatesMap.get(key) || process.latestStartDate || null;
     }
   
     if (draggedItem.type === 'new-batch') {
@@ -367,7 +372,8 @@ function GanttPageContent() {
       if (batch.processId === SEWING_PROCESS_ID) {
         return latestSewingStartDateMap.get(batch.orderId);
       }
-      return batch.latestStartDate || null;
+       const key = `${batch.orderId}-${batch.processId}-${batch.batchNumber || 0}`;
+       return latestStartDatesMap.get(key) || batch.latestStartDate || null;
     }
     
     if (draggedItem.type === 'new-order' && draggedItem.processId === SEWING_PROCESS_ID) {
@@ -376,6 +382,51 @@ function GanttPageContent() {
   
     return null;
   }, [draggedItem, latestSewingStartDateMap, latestStartDatesMap]);
+
+  const latestEndDateMap = useMemo(() => {
+    const map = new Map<string, Date>();
+    if (!isScheduleLoaded) return map;
+
+    const packingProcessInfo = PROCESSES.find(p => p.id === PACKING_PROCESS_ID);
+    if (!packingProcessInfo) return map;
+
+    orders.forEach(order => {
+        const packingKey = `${order.id}-${PACKING_PROCESS_ID}`;
+        map.set(packingKey, order.dueDate);
+
+        const packingBatchSizeForOrder = packingBatchSizes[order.id];
+        if (packingBatchSizeForOrder > 0) {
+            const finalBatchQty = order.quantity % packingBatchSizeForOrder;
+            const lastBatchQuantity = finalBatchQty === 0 ? (order.quantity > 0 ? packingBatchSizeForOrder : 0) : finalBatchQty;
+            
+            if (lastBatchQuantity > 0) {
+                const finalPackingDurationMinutes = lastBatchQuantity * packingProcessInfo.sam;
+                const sewingFinishDeadline = calculateStartDateTime(order.dueDate, finalPackingDurationMinutes);
+
+                const sewingKey = `${order.id}-${SEWING_PROCESS_ID}`;
+                map.set(sewingKey, sewingFinishDeadline);
+            }
+        }
+    });
+
+    return map;
+  }, [orders, isScheduleLoaded, packingBatchSizes]);
+
+  const draggedItemLatestEndDate = useMemo(() => {
+      if (!draggedItem) return null;
+      let key: string | null = null;
+      
+      if (draggedItem.type === 'existing') {
+        key = `${draggedItem.process.orderId}-${draggedItem.process.processId}`;
+      } else if (draggedItem.type === 'new-order' || draggedItem.type === 'new-batch') {
+        const processId = draggedItem.type === 'new-order' ? draggedItem.processId : draggedItem.batch.processId;
+        const orderId = draggedItem.type === 'new-order' ? draggedItem.orderId : draggedItem.batch.orderId;
+        key = `${orderId}-${processId}`;
+      }
+
+      return key ? latestEndDateMap.get(key) : null;
+  }, [draggedItem, latestEndDateMap]);
+
 
   const handleDropOnChart = (rowId: string, startDateTime: Date, draggedItemJSON: string) => {
     if (!draggedItemJSON) return;
@@ -816,6 +867,7 @@ function GanttPageContent() {
                       draggedItemLatestStartDate={draggedItemLatestStartDate}
                       predecessorEndDate={predecessorEndDate}
                       predecessorEndDateMap={predecessorEndDateMap}
+                      draggedItemLatestEndDate={draggedItemLatestEndDate}
                     />
                 </div>
             </div>
@@ -840,6 +892,7 @@ export default function Home() {
     <GanttPageContent />
   );
 }
+
 
 
 

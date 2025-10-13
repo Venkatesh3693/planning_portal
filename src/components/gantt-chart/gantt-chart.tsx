@@ -33,6 +33,7 @@ type GanttChartProps = {
   draggedItemLatestStartDate: Date | null;
   predecessorEndDate: Date | null;
   predecessorEndDateMap: Map<string, Date>;
+  draggedItemLatestEndDate: Date | null;
 };
 
 const ROW_HEIGHT_PX = 32;
@@ -58,8 +59,8 @@ const TopLeftCorner = () => (
 
 const Header = React.forwardRef<
   HTMLDivElement,
-  { timeColumns: { date: Date; type: 'day' | 'hour' }[]; viewMode: ViewMode, draggedItemLatestStartDate: Date | null; predecessorEndDate: Date | null }
->(({ timeColumns, viewMode, draggedItemLatestStartDate, predecessorEndDate }, ref) => {
+  { timeColumns: { date: Date; type: 'day' | 'hour' }[]; viewMode: ViewMode; draggedItemLatestStartDate: Date | null; predecessorEndDate: Date | null; draggedItemLatestEndDate: Date | null; }
+>(({ timeColumns, viewMode, draggedItemLatestStartDate, predecessorEndDate, draggedItemLatestEndDate }, ref) => {
   const monthHeaders = React.useMemo(() => {
     const headers: { name: string; span: number }[] = [];
     if (timeColumns.length === 0 || viewMode !== 'day') return headers;
@@ -124,10 +125,15 @@ const Header = React.forwardRef<
         {timeColumns.map((col, i) => {
            const isLatestStartDate = draggedItemLatestStartDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemLatestStartDate) : isSameHour(col.date, draggedItemLatestStartDate));
            const isPredecessorEnd = predecessorEndDate && (viewMode === 'day' ? isSameDay(col.date, predecessorEndDate) : isSameHour(col.date, predecessorEndDate));
+           const isLatestEndDate = draggedItemLatestEndDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemLatestEndDate) : isSameHour(col.date, draggedItemLatestEndDate));
            
            return (
               <div key={`bottom-header-${i}`} className="border-r border-border/60 text-center h-7 flex items-center justify-center relative">
-                {isLatestStartDate ? (
+                 {isLatestEndDate ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold z-10">
+                        FINISH BY
+                    </div>
+                ) : isLatestStartDate ? (
                    <div className="absolute inset-0 flex items-center justify-center bg-amber-500 text-white text-[10px] font-bold z-10">
                      START BY
                    </div>
@@ -167,6 +173,7 @@ export default function GanttChart({
   draggedItemLatestStartDate,
   predecessorEndDate,
   predecessorEndDateMap,
+  draggedItemLatestEndDate,
 }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const isDragging = !!draggedItem;
@@ -288,6 +295,7 @@ export default function GanttChart({
         viewMode={viewMode} 
         draggedItemLatestStartDate={draggedItemLatestStartDate}
         predecessorEndDate={predecessorEndDate}
+        draggedItemLatestEndDate={draggedItemLatestEndDate}
       />
 
       {/* Bottom-Left Sidebar (Machine Names) */}
@@ -343,6 +351,7 @@ export default function GanttChart({
                   
                   const isLatestStartDateColumn = draggedItemLatestStartDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemLatestStartDate) : isSameHour(col.date, draggedItemLatestStartDate));
                   const isPredecessorEndDateColumn = predecessorEndDate && (viewMode === 'day' ? isSameDay(col.date, predecessorEndDate) : isSameHour(col.date, predecessorEndDate));
+                  const isLatestEndDateColumn = draggedItemLatestEndDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemLatestEndDate) : isSameHour(col.date, draggedItemLatestEndDate));
 
                   return (
                       <div
@@ -352,6 +361,7 @@ export default function GanttChart({
                           onDrop={(e) => handleDrop(e, row.id, col.date)}
                           className={cn('relative border-b border-r border-border/60',
                               isDragOver ? 'bg-primary/20' : (rowIndex % 2 !== 0 ? 'bg-card' : 'bg-muted/20'),
+                              isLatestEndDateColumn && !isDragOver && 'bg-red-200/50',
                               isPredecessorEndDateColumn && 'bg-blue-200/50',
                               isLatestStartDateColumn && !isDragOver && 'bg-amber-200/50',
                               isInTnaRange && !isDragOver && 'bg-green-500/10',
