@@ -142,6 +142,10 @@ function GanttPageContent() {
       const finalStartDateTime = viewMode === 'day' 
         ? set(startDateTime, { hours: WORKING_HOURS_START, minutes: 0, seconds: 0, milliseconds: 0 })
         : startDateTime;
+      
+      const latestStartDate = droppedItem.processId === SEWING_PROCESS_ID 
+        ? latestSewingStartDateMap.get(droppedItem.orderId)
+        : undefined;
   
       processToPlace = {
         id: `${droppedItem.processId}-${droppedItem.orderId}-${crypto.randomUUID()}`,
@@ -152,6 +156,7 @@ function GanttPageContent() {
         endDateTime: calculateEndDateTime(finalStartDateTime, durationMinutes),
         durationMinutes,
         quantity: droppedItem.quantity,
+        latestStartDate: latestStartDate,
       };
       otherProcesses = [...scheduledProcesses];
     } else if (droppedItem.type === 'new-batch') {
