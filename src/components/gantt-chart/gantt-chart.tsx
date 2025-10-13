@@ -32,6 +32,7 @@ type GanttChartProps = {
   latestSewingStartDateMap: Map<string, Date>;
   draggedItemLatestStartDate: Date | null;
   predecessorEndDate: Date | null;
+  predecessorEndDateMap: Map<string, Date>;
 };
 
 const ROW_HEIGHT_PX = 32;
@@ -165,6 +166,7 @@ export default function GanttChart({
   latestSewingStartDateMap,
   draggedItemLatestStartDate,
   predecessorEndDate,
+  predecessorEndDateMap,
 }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const isDragging = !!draggedItem;
@@ -408,6 +410,7 @@ export default function GanttChart({
                         onDragStart={onProcessDragStart}
                         onSplit={onSplitProcess}
                         latestStartDatesMap={latestStartDatesMap}
+                        predecessorEndDateMap={predecessorEndDateMap}
                     />
                   </div>
               );

@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { PROCESSES } from '@/lib/data';
@@ -18,6 +19,7 @@ type ScheduledProcessProps = {
   onDragStart?: (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => void;
   onSplit?: (process: ScheduledProcess) => void;
   latestStartDatesMap: Map<string, Date>;
+  predecessorEndDateMap: Map<string, Date>;
 };
 
 export default function ScheduledProcessBar({ 
@@ -27,6 +29,7 @@ export default function ScheduledProcessBar({
   onDragStart,
   onSplit,
   latestStartDatesMap,
+  predecessorEndDateMap,
 }: ScheduledProcessProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -63,14 +66,15 @@ export default function ScheduledProcessBar({
     setIsMenuOpen(true);
   };
 
-  const dateMapKey = item.batchNumber ? `${item.orderId}-${item.processId}-${item.batchNumber}` : `${item.orderId}-${item.processId}`;
+  const dateMapKey = `${item.orderId}-${item.processId}-${item.batchNumber || 0}`;
   const liveLatestStartDate = latestStartDatesMap.get(dateMapKey);
+  const livePredecessorEndDate = predecessorEndDateMap.get(dateMapKey);
   
   const handleInternalDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     // Prevent the parent from trying to handle the drag as well
     e.stopPropagation();
     if (onDragStart) {
-      const freshProcessData = {
+      const freshProcessData: ScheduledProcess = {
         ...item,
         latestStartDate: liveLatestStartDate,
       };
@@ -131,8 +135,13 @@ export default function ScheduledProcessBar({
             </div>
           )}
 
-          <div className={cn(item.isSplit && "border-t mt-2 pt-2")}>
+          <div className={cn("border-t mt-2 pt-2", !item.isSplit && "border-none pt-0")}>
             <p className="text-sm"><strong>Total Order Quantity:</strong> {orderDetails.quantity.toLocaleString()}</p>
+             {livePredecessorEndDate && (
+                <p className="text-sm">
+                  <strong>Predecessor End:</strong> {format(livePredecessorEndDate, 'MMM d, h:mm a')}
+                </p>
+              )}
              {liveLatestStartDate && (
                 <p className="text-sm">
                   <strong>Latest Start:</strong> {format(liveLatestStartDate, 'MMM d, yyyy')}

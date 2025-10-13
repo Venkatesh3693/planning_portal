@@ -257,23 +257,24 @@ function GanttPageContent() {
   const predecessorEndDateMap = useMemo(() => {
     const map = new Map<string, Date>();
     if (!isScheduleLoaded) return map;
-
-    const scheduledProcessMap = new Map(scheduledProcesses.map(p => [
-      `${p.orderId}-${p.processId}-${p.batchNumber || 0}`, p
-    ]));
-
+  
+    const scheduledProcessMap = new Map(
+      scheduledProcesses.map(p => [`${p.orderId}-${p.processId}-${p.batchNumber || 0}`, p])
+    );
+  
     for (const process of scheduledProcesses) {
       const order = orders.find(o => o.id === process.orderId);
       if (!order) continue;
-
+  
       const processSequence = order.processIds;
       const currentIndex = processSequence.indexOf(process.processId);
-
+  
       if (currentIndex > 0) {
         const predecessorId = processSequence[currentIndex - 1];
+        // Use `process.batchNumber` which could be undefined, and `|| 0` handles that for unsplit processes.
         const predecessorKey = `${process.orderId}-${predecessorId}-${process.batchNumber || 0}`;
         const predecessorProcess = scheduledProcessMap.get(predecessorKey);
-
+  
         if (predecessorProcess) {
           const currentKey = `${process.orderId}-${process.processId}-${process.batchNumber || 0}`;
           map.set(currentKey, predecessorProcess.endDateTime);
@@ -286,15 +287,25 @@ function GanttPageContent() {
   const predecessorEndDate = useMemo(() => {
     if (!draggedItem) return null;
     let key: string | null = null;
+  
     if (draggedItem.type === 'existing') {
       const { process } = draggedItem;
       key = `${process.orderId}-${process.processId}-${process.batchNumber || 0}`;
     } else if (draggedItem.type === 'new-batch') {
       const { batch } = draggedItem;
       key = `${batch.orderId}-${batch.processId}-${batch.batchNumber || 0}`;
+    } else if (draggedItem.type === 'new-order') {
+        const order = orders.find(o => o.id === draggedItem.orderId);
+        if (!order) return null;
+        const processIndex = order.processIds.indexOf(draggedItem.processId);
+        if (processIndex > 0) {
+            const predecessorId = order.processIds[processIndex - 1];
+            key = `${draggedItem.orderId}-${predecessorId}-0`; // Assume batch 0 for unsplit orders
+        }
     }
+  
     return key ? predecessorEndDateMap.get(key) || null : null;
-  }, [draggedItem, predecessorEndDateMap]);
+  }, [draggedItem, predecessorEndDateMap, orders]);
   
   const draggedItemLatestStartDate = useMemo(() => {
     if (!draggedItem) return null;
@@ -756,6 +767,7 @@ function GanttPageContent() {
                       latestSewingStartDateMap={latestSewingStartDateMap}
                       draggedItemLatestStartDate={draggedItemLatestStartDate}
                       predecessorEndDate={predecessorEndDate}
+                      predecessorEndDateMap={predecessorEndDateMap}
                     />
                 </div>
             </div>
