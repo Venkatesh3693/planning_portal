@@ -3,7 +3,7 @@
 "use client";
 
 import * as React from 'react';
-import { format, getMonth, isWithinInterval, startOfDay, startOfHour, endOfHour, addDays, differenceInMilliseconds, endOfDay, compareAsc } from 'date-fns';
+import { format, getMonth, isWithinInterval, startOfDay, startOfHour, endOfHour, addDays, differenceInMilliseconds, endOfDay, compareAsc, isSameDay } from 'date-fns';
 import type { Order, ScheduledProcess } from '@/lib/types';
 import type { DraggedItemData } from '@/app/page';
 import { cn } from '@/lib/utils';
@@ -29,6 +29,7 @@ type GanttChartProps = {
   viewMode: ViewMode;
   draggedItem: DraggedItemData | null;
   latestStartDatesMap: Map<string, Date>;
+  latestSewingStartDateMap: Map<string, Date>;
 };
 
 const ROW_HEIGHT_PX = 32;
@@ -144,6 +145,7 @@ export default function GanttChart({
   viewMode,
   draggedItem,
   latestStartDatesMap,
+  latestSewingStartDateMap,
 }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const isDragging = !!draggedItem;
@@ -248,6 +250,21 @@ export default function GanttChart({
       end: successorStart
     };
   }, [draggedItem, orders, allProcesses]);
+  
+  const draggedItemLatestStartDate = React.useMemo(() => {
+    if (!draggedItem) return null;
+
+    if (draggedItem.type === 'new-batch') {
+      return draggedItem.batch.latestStartDate;
+    }
+    if (draggedItem.type === 'existing') {
+      return draggedItem.process.latestStartDate;
+    }
+    if (draggedItem.type === 'new-order' && draggedItem.processId === 'sewing') {
+      return latestSewingStartDateMap.get(draggedItem.orderId);
+    }
+    return null;
+  }, [draggedItem, latestSewingStartDateMap]);
 
 
   return (
@@ -293,7 +310,8 @@ export default function GanttChart({
                 {timeColumns.map((col, dateIndex) => {
                   const isDragOver = dragOverCell?.rowId === row.id && dragOverCell.date.getTime() === col.date.getTime();
                   let isInTnaRange = false;
-                  if (draggedItem?.type === 'new' && draggedItem.tna) {
+                  
+                  if (draggedItem?.type === 'new-order' && draggedItem.tna) {
                       const tnaStartDate = new Date(draggedItem.tna.startDate);
                       const tnaEndDate = new Date(draggedItem.tna.endDate);
 
@@ -311,6 +329,8 @@ export default function GanttChart({
                       };
                       isInValidRange = isWithinInterval(col.date, range);
                   }
+                  
+                  const isLatestStartDate = draggedItemLatestStartDate && isSameDay(col.date, draggedItemLatestStartDate);
 
                   return (
                       <div
@@ -318,14 +338,21 @@ export default function GanttChart({
                           onDragOver={(e) => handleDragOver(e, row.id, col.date)}
                           onDragLeave={handleDragLeave}
                           onDrop={(e) => handleDrop(e, row.id, col.date)}
-                          className={cn('border-b border-r border-border/60',
+                          className={cn('relative border-b border-r border-border/60',
                               isDragOver ? 'bg-primary/20' : (rowIndex % 2 !== 0 ? 'bg-card' : 'bg-muted/20'),
+                              isLatestStartDate && !isDragOver && 'bg-amber-200/50 border-amber-400',
                               isInTnaRange && !isDragOver && 'bg-green-500/10',
                               validDateRanges && 'bg-blue-500/5',
                               isInValidRange && !isDragOver && 'bg-blue-500/10',
                               'transition-colors duration-200'
                           )}
-                      />
+                      >
+                        {isLatestStartDate && viewMode === 'day' && (
+                           <div className="absolute top-0 right-0 text-[10px] leading-tight font-semibold bg-amber-500 text-white rounded-bl-md px-1 py-0.5">
+                             LATEST START
+                           </div>
+                        )}
+                      </div>
                   )
                 })}
               </React.Fragment>
