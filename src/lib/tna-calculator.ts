@@ -3,6 +3,8 @@
 import type { Order, Process, TnaProcess, RampUpEntry, ScheduledProcess } from './types';
 import { WORK_DAY_MINUTES } from './data';
 import { addDays, subDays, getDay, format, startOfDay, differenceInMinutes, isBefore, isAfter } from 'date-fns';
+import { calculateStartDateTime } from './utils';
+
 
 // Helper to add/subtract days while skipping weekends (assuming Sun is non-working)
 function addBusinessDays(startDate: Date, days: number): Date {
@@ -50,11 +52,7 @@ function calculateDaysToProduceBatch(
     return Math.ceil(totalMinutes / WORK_DAY_MINUTES);
 };
 
-/**
- * Calculates the total sewing duration in days for a given quantity based on a *static* number of lines.
- * This is used for initial estimation and display on UI cards.
- */
-export function calculateSewingDurationDays(quantity: number, sam: number, rampUpScheme: RampUpEntry[], numLines: number): number {
+export function calculateSewingDurationMinutes(quantity: number, sam: number, rampUpScheme: RampUpEntry[], numLines: number): number {
     if (quantity <= 0 || sam <= 0 || numLines <= 0) return 0;
     
     let remainingQty = quantity;
@@ -90,7 +88,17 @@ export function calculateSewingDurationDays(quantity: number, sam: number, rampU
             return Infinity;
         }
     }
-    return Math.floor(totalMinutes / WORK_DAY_MINUTES);
+    return totalMinutes;
+}
+
+
+/**
+ * Calculates the total sewing duration in days for a given quantity based on a *static* number of lines.
+ * This is used for initial estimation and display on UI cards.
+ */
+export function calculateSewingDurationDays(quantity: number, sam: number, rampUpScheme: RampUpEntry[], numLines: number): number {
+    const totalMinutes = calculateSewingDurationMinutes(quantity, sam, rampUpScheme, numLines);
+    return totalMinutes === Infinity ? Infinity : Math.ceil(totalMinutes / WORK_DAY_MINUTES);
 };
 
 /**
@@ -218,7 +226,7 @@ const calculateMoq = (process: Process, days: number, order: Order, numLines: nu
 };
 
 export const getProcessBatchSize = (order: Order, processes: Process[], numLines: number): number => {
-    if (!order.tna?.minRunDays) return order.quantity / 5;
+    if (!order.tna?.minRunDays) return Math.floor(order.quantity / 5) || 1;
 
     let maxMoq = 0;
     const preSewingAndSewingProcessIds = order.processIds.slice(0, order.processIds.indexOf('sewing') + 1);
@@ -234,20 +242,20 @@ export const getProcessBatchSize = (order: Order, processes: Process[], numLines
     });
     
     const finalBatchSize = maxMoq > order.quantity ? order.quantity : maxMoq;
-    return finalBatchSize > 0 ? finalBatchSize : order.quantity / 5;
+    return finalBatchSize > 0 ? finalBatchSize : Math.floor(order.quantity / 5) || 1;
 };
 
 export const getPackingBatchSize = (order: Order, processes: Process[]): number => {
-    if (!order.tna?.minRunDays) return order.quantity / 5;
+    if (!order.tna?.minRunDays) return Math.floor(order.quantity / 5) || 1;
 
     const packingProcess = processes.find(p => p.id === 'packing');
-    if (!packingProcess) return order.quantity / 5;
+    if (!packingProcess) return Math.floor(order.quantity / 5) || 1;
     
     const days = order.tna.minRunDays['packing'] || 1;
     const moq = calculateMoq(packingProcess, days, order, 1); // numLines is 1 for packing
 
     const finalBatchSize = moq > order.quantity ? order.quantity : moq;
-    return finalBatchSize > 0 ? finalBatchSize : order.quantity / 5;
+    return finalBatchSize > 0 ? finalBatchSize : Math.floor(order.quantity / 5) || 1;
 };
 
 
@@ -337,4 +345,33 @@ export function generateTnaPlan(
     return { newTna, newCkDate };
 }
 
+
+export function calculateLatestSewingStartDate(order: Order, allProcesses: Process[], numLines: number): Date | null {
+    const packingProcess = allProcesses.find(p => p.id === 'packing');
+    const sewingProcess = allProcesses.find(p => p.id === 'sewing');
+    if (!packingProcess || !sewingProcess) return null;
+
+    // Step 1: Determine the Final Packing Batch
+    const packingBatchSize = getPackingBatchSize(order, allProcesses);
+    const totalQty = order.quantity;
+    const finalBatchQty = totalQty % packingBatchSize;
+    const lastBatchQuantity = finalBatchQty === 0 ? (totalQty > 0 ? packingBatchSize : 0) : finalBatchQty;
+
+    if (lastBatchQuantity <= 0) return null;
+
+    // Step 2: Calculate the Duration of the Final Packing Task
+    const finalPackingDurationMinutes = lastBatchQuantity * packingProcess.sam;
+
+    // Step 3: Find the Critical Sewing Deadline
+    const sewingFinishDeadline = calculateStartDateTime(order.dueDate, finalPackingDurationMinutes);
+
+    // Step 4: Calculate the Total Duration of the Entire Sewing Process
+    const totalSewingDurationMinutes = calculateSewingDurationMinutes(order.quantity, sewingProcess.sam, order.sewingRampUpScheme || [], numLines);
+    if (totalSewingDurationMinutes === Infinity) return null;
+    
+    // Step 5: Calculate the Final Latest Sewing Start Date
+    const latestStartDate = calculateStartDateTime(sewingFinishDeadline, totalSewingDurationMinutes);
+
+    return latestStartDate;
+}
     

@@ -3,7 +3,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subMinutes } from 'date-fns';
+import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, PROCESSES, WORK_DAY_MINUTES } from '@/lib/data';
@@ -16,8 +16,8 @@ import { useSchedule } from '@/context/schedule-provider';
 import MachinePanel from '@/components/gantt-chart/machine-panel';
 import SplitProcessDialog from '@/components/gantt-chart/split-process-dialog';
 import PabView from '@/components/pab/pab-view';
-import { getSewingDaysForQuantity, calculateDailySewingOutput } from '@/lib/tna-calculator';
-import { subBusinessDays, addBusinessDays } from '@/lib/utils';
+import { getSewingDaysForQuantity, calculateDailySewingOutput, calculateLatestSewingStartDate } from '@/lib/tna-calculator';
+import { subBusinessDays, addBusinessDays, calculateEndDateTime } from '@/lib/utils';
 
 
 const SEWING_PROCESS_ID = 'sewing';
@@ -49,71 +49,7 @@ type ProcessToSplitState = {
 } | null;
 
 
-// Helper function to calculate end time considering only working hours
-const calculateEndDateTime = (startDateTime: Date, totalDurationMinutes: number): Date => {
-  let remainingMinutes = totalDurationMinutes;
-  let currentDateTime = new Date(startDateTime);
-
-  // If starting after working hours, move to the start of the next working day
-  if (currentDateTime.getHours() >= WORKING_HOURS_END) {
-    currentDateTime = set(addDays(currentDateTime, 1), { hours: WORKING_HOURS_START, minutes: 0, seconds: 0, milliseconds: 0 });
-  }
-  
-  // If starting before working hours, move to the start of the working day
-  if (currentDateTime.getHours() < WORKING_HOURS_START) {
-     currentDateTime = set(currentDateTime, { hours: WORKING_HOURS_START, minutes: 0, seconds: 0, milliseconds: 0 });
-  }
-
-  while (remainingMinutes > 0) {
-    // Skip Sundays (Sunday=0)
-    const dayOfWeek = getDay(currentDateTime);
-    if (dayOfWeek === 0) { // Sunday
-      currentDateTime = set(addDays(currentDateTime, 1), { hours: WORKING_HOURS_START, minutes: 0 });
-      continue;
-    }
-
-    const endOfWorkDay = set(currentDateTime, { hours: WORKING_HOURS_END, minutes: 0, seconds: 0, milliseconds: 0 });
-    const minutesLeftInDay = (endOfWorkDay.getTime() - currentDateTime.getTime()) / (1000 * 60);
-
-    if (remainingMinutes <= minutesLeftInDay) {
-      currentDateTime = addMinutes(currentDateTime, remainingMinutes);
-      remainingMinutes = 0;
-    } else {
-      remainingMinutes -= minutesLeftInDay;
-      currentDateTime = set(addDays(currentDateTime, 1), { hours: WORKING_HOURS_START, minutes: 0, seconds: 0, milliseconds: 0 });
-    }
-  }
-
-  return currentDateTime;
-};
-
-const calculateStartDateTime = (endDateTime: Date, totalDurationMinutes: number): Date => {
-  let remainingMinutes = totalDurationMinutes;
-  let currentDateTime = new Date(endDateTime);
-
-  while (remainingMinutes > 0) {
-    // Skip Sundays
-    const dayOfWeek = getDay(currentDateTime);
-    if (dayOfWeek === 0) {
-      currentDateTime = set(addDays(currentDateTime, -1), { hours: WORKING_HOURS_END, minutes: 0 });
-      continue;
-    }
-
-    const startOfWorkDay = set(currentDateTime, { hours: WORKING_HOURS_START, minutes: 0 });
-    const minutesIntoDay = (currentDateTime.getTime() - startOfWorkDay.getTime()) / (1000 * 60);
-    
-    if (remainingMinutes <= minutesIntoDay) {
-      currentDateTime = subMinutes(currentDateTime, remainingMinutes);
-      remainingMinutes = 0;
-    } else {
-      remainingMinutes -= minutesIntoDay;
-      currentDateTime = set(addDays(currentDateTime, -1), { hours: WORKING_HOURS_END, minutes: 0 });
-    }
-  }
-
-  return currentDateTime;
-};
-
+// Helper function to calculate duration for sewing process
 const calculateSewingDuration = (order: Order, quantity: number): number => {
     const process = PROCESSES.find(p => p.id === SEWING_PROCESS_ID);
     if (!process || quantity <= 0 || process.sam <= 0) return 0;
@@ -211,6 +147,7 @@ function GanttPageContent() {
         ...JSON.parse(draggedItemJSON).process,
         startDateTime: new Date(JSON.parse(draggedItemJSON).process.startDateTime),
         endDateTime: new Date(JSON.parse(draggedItemJSON).process.endDateTime),
+        latestStartDate: JSON.parse(draggedItemJSON).process.latestStartDate ? new Date(JSON.parse(draggedItemJSON).process.latestStartDate) : undefined,
       } : undefined,
       batch: JSON.parse(draggedItemJSON).batch ? {
         ...JSON.parse(draggedItemJSON).batch,
@@ -454,69 +391,83 @@ function GanttPageContent() {
 
   const latestStartDatesMap = useMemo(() => {
     const map = new Map<string, Date>();
-    if (selectedProcessId === 'pab' || !isScheduleLoaded) return map;
-
-    for (const order of orders) {
+    if (!isScheduleLoaded) return map;
+  
+    // Logic for pre-sewing and packing batches
+    if (selectedProcessId !== 'pab') {
+      for (const order of orders) {
         const sewingProcessesForOrder = scheduledProcesses.filter(sp => sp.orderId === order.id && sp.processId === SEWING_PROCESS_ID);
         const isSewingScheduled = sewingProcessesForOrder.length > 0;
         if (!isSewingScheduled) continue;
-        
+  
         const isProcessInOrder = order.processIds.includes(selectedProcessId);
         if (!isProcessInOrder) continue;
-
+  
         const sewingAnchorDate = sewingProcessesForOrder.reduce(
-            (earliest, p) => (isBefore(p.startDateTime, earliest) ? p.startDateTime : earliest),
-            sewingProcessesForOrder[0].startDateTime
+          (earliest, p) => (isBefore(p.startDateTime, earliest) ? p.startDateTime : earliest),
+          sewingProcessesForOrder[0].startDateTime
         );
         const sewingProcessInfo = PROCESSES.find(p => p.id === SEWING_PROCESS_ID)!;
         const dailySewingOutput = calculateDailySewingOutput(order, sewingProcessesForOrder, sewingProcessInfo);
-
-        const numLines = sewingLines[order.id] || 1;
-        const preSewingBatchSize = processBatchSizes[order.id] || 0;
-        const packingBatchSize = packingBatchSizes[order.id] || 0;
-
-        const batchSize = selectedProcessId === PACKING_PROCESS_ID ? packingBatchSize : preSewingBatchSize;
-        if (batchSize <= 0) continue;
-        
+  
+        const batchSize = selectedProcessId === PACKING_PROCESS_ID ? packingBatchSizes[order.id] : processBatchSizes[order.id];
+        if (!batchSize || batchSize <= 0) continue;
+  
         const totalBatches = Math.ceil(order.quantity / batchSize);
-        const batchQuantities: number[] = Array.from({ length: totalBatches }, (_, i) => 
-            Math.min(batchSize, order.quantity - (i * batchSize))
+        const batchQuantities: number[] = Array.from({ length: totalBatches }, (_, i) =>
+          (i < totalBatches - 1) ? batchSize : order.quantity - (i * batchSize)
         );
         const cumulativeQuantities = batchQuantities.reduce((acc, qty) => [...acc, (acc.length > 0 ? acc[acc.length - 1] : 0) + qty], [] as number[]);
-
+  
         for (let i = 0; i < totalBatches; i++) {
-            const batchNumber = i + 1;
-            const key = `${order.id}-${selectedProcessId}-${batchNumber}`;
-            let batchStartDate: Date;
-
-            if (selectedProcessId === PACKING_PROCESS_ID) {
-                const requiredSewingQty = cumulativeQuantities[i];
-                const timeToSew = getSewingDaysForQuantity(requiredSewingQty, dailySewingOutput, sewingAnchorDate);
-                batchStartDate = addBusinessDays(sewingAnchorDate, timeToSew);
-            } else { // Pre-sewing activities
-                const prerequisiteSewingQty = i > 0 ? cumulativeQuantities[i-1] : 0;
-                const timeToSewPrerequisites = getSewingDaysForQuantity(prerequisiteSewingQty, dailySewingOutput, sewingAnchorDate);
-                const sewingStartDateForThisBatch = addBusinessDays(sewingAnchorDate, timeToSewPrerequisites);
-                
-                let predecessorChainStartDate = sewingStartDateForThisBatch;
-                const predecessorChain = order.processIds.slice(
-                order.processIds.indexOf(selectedProcessId),
-                order.processIds.indexOf(SEWING_PROCESS_ID)
-                ).reverse();
-                
-                for (const predId of predecessorChain) {
-                    const processInfo = PROCESSES.find(p => p.id === predId)!;
-                    const durationMinutes = batchQuantities[i] * processInfo.sam; 
-                    const durationDays = Math.ceil(durationMinutes / WORK_DAY_MINUTES);
-                    predecessorChainStartDate = subBusinessDays(predecessorChainStartDate, durationDays);
-                }
-                batchStartDate = predecessorChainStartDate;
+          const batchNumber = i + 1;
+          const key = `${order.id}-${selectedProcessId}-${batchNumber}`;
+          let batchStartDate: Date;
+  
+          if (selectedProcessId === PACKING_PROCESS_ID) {
+            const requiredSewingQty = cumulativeQuantities[i];
+            const timeToSew = getSewingDaysForQuantity(requiredSewingQty, dailySewingOutput, sewingAnchorDate);
+            batchStartDate = addBusinessDays(sewingAnchorDate, timeToSew);
+          } else { // Pre-sewing activities
+            const prerequisiteSewingQty = i > 0 ? cumulativeQuantities[i - 1] : 0;
+            const timeToSewPrerequisites = getSewingDaysForQuantity(prerequisiteSewingQty, dailySewingOutput, sewingAnchorDate);
+            const sewingStartDateForThisBatch = addBusinessDays(sewingAnchorDate, timeToSewPrerequisites);
+  
+            let predecessorChainStartDate = sewingStartDateForThisBatch;
+            const predecessorChain = order.processIds.slice(
+              order.processIds.indexOf(selectedProcessId),
+              order.processIds.indexOf(SEWING_PROCESS_ID)
+            ).reverse();
+  
+            for (const predId of predecessorChain) {
+              const processInfo = PROCESSES.find(p => p.id === predId)!;
+              const durationMinutes = batchQuantities[i] * processInfo.sam;
+              const durationDays = Math.ceil(durationMinutes / WORK_DAY_MINUTES);
+              predecessorChainStartDate = subBusinessDays(predecessorChainStartDate, durationDays);
             }
-            map.set(key, batchStartDate);
+            batchStartDate = predecessorChainStartDate;
+          }
+          map.set(key, batchStartDate);
         }
+      }
     }
     return map;
   }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, sewingLines, processBatchSizes, packingBatchSizes]);
+  
+  const latestSewingStartDateMap = useMemo(() => {
+    const map = new Map<string, Date>();
+    if (selectedProcessId !== SEWING_PROCESS_ID) return map;
+
+    orders.forEach(order => {
+        const numLines = sewingLines[order.id] || 1;
+        const latestDate = calculateLatestSewingStartDate(order, PROCESSES, numLines);
+        if (latestDate) {
+            map.set(order.id, latestDate);
+        }
+    });
+
+    return map;
+  }, [orders, sewingLines, selectedProcessId]);
   
 
   const { unplannedOrderItems, unplannedBatches } = useMemo(() => {
@@ -743,6 +694,7 @@ function GanttPageContent() {
                 clearFilters={clearFilters}
                 splitOrderProcesses={splitOrderProcesses}
                 toggleSplitProcess={toggleSplitProcess}
+                latestSewingStartDateMap={latestSewingStartDateMap}
               />
               
               <div className="h-full flex-1 overflow-auto rounded-lg border bg-card">

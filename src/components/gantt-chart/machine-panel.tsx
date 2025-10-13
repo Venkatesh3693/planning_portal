@@ -59,6 +59,7 @@ type MachinePanelProps = {
   clearFilters: () => void;
   splitOrderProcesses: Record<string, boolean>;
   toggleSplitProcess: (orderId: string, processId: string) => void;
+  latestSewingStartDateMap: Map<string, Date>;
 };
 
 export default function MachinePanel({
@@ -81,6 +82,7 @@ export default function MachinePanel({
   clearFilters,
   splitOrderProcesses,
   toggleSplitProcess,
+  latestSewingStartDateMap,
 }: MachinePanelProps) {
 
   const handleSortToggle = () => {
@@ -263,6 +265,8 @@ export default function MachinePanel({
                 tna: null,
               };
 
+              const latestSewingStart = latestSewingStartDateMap.get(order.id);
+
               return (
                 <div
                   key={order.id}
@@ -303,7 +307,10 @@ export default function MachinePanel({
                      </div>
                     <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
                       <span>
-                        Due: {format(order.dueDate, 'MMM dd')}
+                        {selectedProcessId === SEWING_PROCESS_ID && latestSewingStart 
+                          ? `Latest Start: ${format(latestSewingStart, 'MMM dd')}`
+                          : `Due: ${format(order.dueDate, 'MMM dd')}`
+                        }
                       </span>
                       {selectedProcessId === SEWING_PROCESS_ID && (
                         <span>{numLines} {numLines > 1 ? 'Lines' : 'Line'}</span>
