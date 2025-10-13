@@ -34,6 +34,7 @@ type GanttChartProps = {
   predecessorEndDate: Date | null;
   predecessorEndDateMap: Map<string, Date>;
   draggedItemLatestEndDate: Date | null;
+  draggedItemCkDate: Date | null;
 };
 
 const ROW_HEIGHT_PX = 32;
@@ -59,8 +60,8 @@ const TopLeftCorner = () => (
 
 const Header = React.forwardRef<
   HTMLDivElement,
-  { timeColumns: { date: Date; type: 'day' | 'hour' }[]; viewMode: ViewMode; draggedItemLatestStartDate: Date | null; predecessorEndDate: Date | null; draggedItemLatestEndDate: Date | null; }
->(({ timeColumns, viewMode, draggedItemLatestStartDate, predecessorEndDate, draggedItemLatestEndDate }, ref) => {
+  { timeColumns: { date: Date; type: 'day' | 'hour' }[]; viewMode: ViewMode; draggedItemLatestStartDate: Date | null; predecessorEndDate: Date | null; draggedItemLatestEndDate: Date | null; draggedItemCkDate: Date | null; }
+>(({ timeColumns, viewMode, draggedItemLatestStartDate, predecessorEndDate, draggedItemLatestEndDate, draggedItemCkDate }, ref) => {
   const monthHeaders = React.useMemo(() => {
     const headers: { name: string; span: number }[] = [];
     if (timeColumns.length === 0 || viewMode !== 'day') return headers;
@@ -126,7 +127,8 @@ const Header = React.forwardRef<
            const isLatestStartDate = draggedItemLatestStartDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemLatestStartDate) : isSameHour(col.date, draggedItemLatestStartDate));
            const isPredecessorEnd = predecessorEndDate && (viewMode === 'day' ? isSameDay(col.date, predecessorEndDate) : isSameHour(col.date, predecessorEndDate));
            const isLatestEndDate = draggedItemLatestEndDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemLatestEndDate) : isSameHour(col.date, draggedItemLatestEndDate));
-           
+           const isCkDate = draggedItemCkDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemCkDate) : isSameHour(col.date, draggedItemCkDate));
+
            return (
               <div key={`bottom-header-${i}`} className="border-r border-border/60 text-center h-7 flex items-center justify-center relative">
                  {isLatestEndDate ? (
@@ -140,6 +142,10 @@ const Header = React.forwardRef<
                 ) : isPredecessorEnd ? (
                   <div className="absolute inset-0 flex items-center justify-center bg-blue-500 text-white text-[10px] font-bold">
                     PRED. END
+                  </div>
+                ) : isCkDate ? (
+                  <div className="absolute inset-0 flex items-center justify-center bg-green-500 text-white text-[10px] font-bold">
+                    CK DATE
                   </div>
                 ) : (
                   <div className="text-xs font-normal text-muted-foreground leading-tight">
@@ -174,6 +180,7 @@ export default function GanttChart({
   predecessorEndDate,
   predecessorEndDateMap,
   draggedItemLatestEndDate,
+  draggedItemCkDate,
 }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const isDragging = !!draggedItem;
@@ -296,6 +303,7 @@ export default function GanttChart({
         draggedItemLatestStartDate={draggedItemLatestStartDate}
         predecessorEndDate={predecessorEndDate}
         draggedItemLatestEndDate={draggedItemLatestEndDate}
+        draggedItemCkDate={draggedItemCkDate}
       />
 
       {/* Bottom-Left Sidebar (Machine Names) */}
@@ -352,6 +360,7 @@ export default function GanttChart({
                   const isLatestStartDateColumn = draggedItemLatestStartDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemLatestStartDate) : isSameHour(col.date, draggedItemLatestStartDate));
                   const isPredecessorEndDateColumn = predecessorEndDate && (viewMode === 'day' ? isSameDay(col.date, predecessorEndDate) : isSameHour(col.date, predecessorEndDate));
                   const isLatestEndDateColumn = draggedItemLatestEndDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemLatestEndDate) : isSameHour(col.date, draggedItemLatestEndDate));
+                  const isCkDateColumn = draggedItemCkDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemCkDate) : isSameHour(col.date, draggedItemCkDate));
 
                   return (
                       <div
@@ -362,6 +371,7 @@ export default function GanttChart({
                           className={cn('relative border-b border-r border-border/60',
                               isDragOver ? 'bg-primary/20' : (rowIndex % 2 !== 0 ? 'bg-card' : 'bg-muted/20'),
                               isLatestEndDateColumn && !isDragOver && 'bg-red-200/50',
+                              isCkDateColumn && !isDragOver && 'bg-green-200/50',
                               isPredecessorEndDateColumn && 'bg-blue-200/50',
                               isLatestStartDateColumn && !isDragOver && 'bg-amber-200/50',
                               isInTnaRange && !isDragOver && 'bg-green-500/10',
