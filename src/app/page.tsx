@@ -258,31 +258,76 @@ function GanttPageContent() {
     const map = new Map<string, Date>();
     if (!isScheduleLoaded) return map;
   
-    const scheduledProcessMap = new Map(
-      scheduledProcesses.map(p => [`${p.orderId}-${p.processId}-${p.batchNumber || 0}`, p])
-    );
+    // Pre-calculate sewing start date and daily outputs for efficiency
+    const sewingAnchorDates: Record<string, Date> = {};
+    const dailySewingOutputs: Record<string, Record<string, number>> = {};
+    
+    orders.forEach(order => {
+      const sewingProcessesForOrder = scheduledProcesses.filter(sp => sp.orderId === order.id && sp.processId === SEWING_PROCESS_ID);
+      if (sewingProcessesForOrder.length > 0) {
+        sewingAnchorDates[order.id] = sewingProcessesForOrder.reduce(
+          (earliest, p) => (isBefore(p.startDateTime, earliest) ? p.startDateTime : earliest),
+          sewingProcessesForOrder[0].startDateTime
+        );
+        const sewingProcessInfo = PROCESSES.find(p => p.id === SEWING_PROCESS_ID)!;
+        dailySewingOutputs[order.id] = calculateDailySewingOutput(order, sewingProcessesForOrder, sewingProcessInfo);
+      }
+    });
+
+    const scheduledProcessMap = new Map<string, ScheduledProcess[]>();
+    for (const p of scheduledProcesses) {
+        const key = `${p.orderId}-${p.processId}`;
+        if (!scheduledProcessMap.has(key)) {
+            scheduledProcessMap.set(key, []);
+        }
+        scheduledProcessMap.get(key)!.push(p);
+    }
   
     for (const process of scheduledProcesses) {
-      const order = orders.find(o => o.id === process.orderId);
-      if (!order) continue;
-  
-      const processSequence = order.processIds;
-      const currentIndex = processSequence.indexOf(process.processId);
-  
-      if (currentIndex > 0) {
-        const predecessorId = processSequence[currentIndex - 1];
-        // Use `process.batchNumber` which could be undefined, and `|| 0` handles that for unsplit processes.
-        const predecessorKey = `${process.orderId}-${predecessorId}-${process.batchNumber || 0}`;
-        const predecessorProcess = scheduledProcessMap.get(predecessorKey);
-  
-        if (predecessorProcess) {
-          const currentKey = `${process.orderId}-${process.processId}-${process.batchNumber || 0}`;
-          map.set(currentKey, predecessorProcess.endDateTime);
+        const order = orders.find(o => o.id === process.orderId);
+        if (!order) continue;
+    
+        const processSequence = order.processIds;
+        const currentIndex = processSequence.indexOf(process.processId);
+        const key = `${process.orderId}-${process.processId}-${process.batchNumber || 0}`;
+
+        if (currentIndex > 0) {
+            const predecessorId = processSequence[currentIndex - 1];
+            
+            if (process.processId === SEWING_PROCESS_ID) {
+                const predecessorProcesses = scheduledProcessMap.get(`${order.id}-${predecessorId}`) || [];
+                const firstBatchOfPredecessor = predecessorProcesses.find(p => p.batchNumber === 1);
+                if (firstBatchOfPredecessor) {
+                    map.set(key, firstBatchOfPredecessor.endDateTime);
+                }
+            } else if (currentIndex > processSequence.indexOf(SEWING_PROCESS_ID) && processSequence.includes(SEWING_PROCESS_ID)) { // Post-sewing
+                const sewingAnchorDate = sewingAnchorDates[order.id];
+                const dailyOutput = dailySewingOutputs[order.id];
+                
+                if (sewingAnchorDate && dailyOutput) {
+                    const packingBatchSizeForOrder = packingBatchSizes[order.id] || 0;
+                    if(packingBatchSizeForOrder > 0) {
+                        const cumulativeQtyNeeded = (process.batchNumber || 1) * packingBatchSizeForOrder;
+                        const qtyToProduce = Math.min(cumulativeQtyNeeded, order.quantity);
+
+                        const daysToProduce = getSewingDaysForQuantity(qtyToProduce, dailyOutput, sewingAnchorDate);
+                        if (daysToProduce !== Infinity) {
+                            const predecessorEndDate = addBusinessDays(sewingAnchorDate, daysToProduce - 1);
+                            map.set(key, predecessorEndDate);
+                        }
+                    }
+                }
+            } else { // Pre-sewing
+                const predecessorProcesses = scheduledProcessMap.get(`${order.id}-${predecessorId}`) || [];
+                const correspondingPredecessor = predecessorProcesses.find(p => p.batchNumber === process.batchNumber);
+                if (correspondingPredecessor) {
+                    map.set(key, correspondingPredecessor.endDateTime);
+                }
+            }
         }
-      }
     }
     return map;
-  }, [scheduledProcesses, orders, isScheduleLoaded]);
+  }, [scheduledProcesses, orders, isScheduleLoaded, packingBatchSizes]);
 
   const predecessorEndDate = useMemo(() => {
     if (!draggedItem) return null;
@@ -300,7 +345,10 @@ function GanttPageContent() {
         const processIndex = order.processIds.indexOf(draggedItem.processId);
         if (processIndex > 0) {
             const predecessorId = order.processIds[processIndex - 1];
-            key = `${draggedItem.orderId}-${predecessorId}-0`; // Assume batch 0 for unsplit orders
+            // The logic for new-order predecessor is complex and might be better handled by a different mechanism
+            // For now, we try a simple lookup assuming the predecessor is unsplit.
+            const simplePredecessorKey = `${draggedItem.orderId}-${predecessorId}-0`;
+            return predecessorEndDateMap.get(simplePredecessorKey);
         }
     }
   
@@ -312,14 +360,12 @@ function GanttPageContent() {
   
     if (draggedItem.type === 'existing') {
       const { process } = draggedItem;
-      const key = `${process.orderId}-${process.processId}-${process.batchNumber || 0}`;
-      return latestStartDatesMap.get(key) || process.latestStartDate || null;
+      return process.latestStartDate || null;
     }
   
     if (draggedItem.type === 'new-batch') {
       const { batch } = draggedItem;
-      const key = `${batch.orderId}-${batch.processId}-${batch.batchNumber}`;
-      return latestStartDatesMap.get(key) || batch.latestStartDate || null;
+      return batch.latestStartDate || null;
     }
     
     if (draggedItem.type === 'new-order' && draggedItem.processId === SEWING_PROCESS_ID) {
@@ -792,4 +838,5 @@ export default function Home() {
     <GanttPageContent />
   );
 }
+
 
