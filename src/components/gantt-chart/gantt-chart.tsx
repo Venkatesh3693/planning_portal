@@ -30,6 +30,7 @@ type GanttChartProps = {
   draggedItem: DraggedItemData | null;
   latestStartDatesMap: Map<string, Date>;
   latestSewingStartDateMap: Map<string, Date>;
+  draggedItemLatestStartDate: Date | null;
 };
 
 const ROW_HEIGHT_PX = 32;
@@ -155,6 +156,7 @@ export default function GanttChart({
   draggedItem,
   latestStartDatesMap,
   latestSewingStartDateMap,
+  draggedItemLatestStartDate,
 }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const isDragging = !!draggedItem;
@@ -259,26 +261,6 @@ export default function GanttChart({
       end: successorStart
     };
   }, [draggedItem, orders, allProcesses]);
-  
-  const draggedItemLatestStartDate = React.useMemo(() => {
-    if (!draggedItem) return null;
-  
-    if (draggedItem.type === 'existing') {
-      // This is the simplified logic after the fix.
-      return draggedItem.process.latestStartDate || null;
-    }
-  
-    if (draggedItem.type === 'new-batch') {
-      return draggedItem.batch.latestStartDate;
-    }
-    
-    if (draggedItem.type === 'new-order' && draggedItem.processId === 'sewing') {
-      return latestSewingStartDateMap.get(draggedItem.orderId);
-    }
-  
-    return null;
-  }, [draggedItem, latestSewingStartDateMap]);
-
 
   return (
     <div 

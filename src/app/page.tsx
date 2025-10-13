@@ -133,7 +133,7 @@ function GanttPageContent() {
       
       let durationMinutes;
       if (process.id === SEWING_PROCESS_ID) {
-        const numLines = 1; // Always calculate for a single line on initial drop.
+        const numLines = 1;
         durationMinutes = calculateSewingDuration(order, droppedItem.quantity, numLines);
       } else {
         durationMinutes = process.sam * droppedItem.quantity;
@@ -601,6 +601,27 @@ function GanttPageContent() {
   
   const isPabView = selectedProcessId === 'pab';
 
+  const draggedItemLatestStartDate = useMemo(() => {
+    if (!draggedItem) return null;
+  
+    if (draggedItem.type === 'existing') {
+      if (draggedItem.process.processId === SEWING_PROCESS_ID) {
+        return latestSewingStartDateMap.get(draggedItem.process.orderId);
+      }
+      return draggedItem.process.latestStartDate || null;
+    }
+  
+    if (draggedItem.type === 'new-batch') {
+      return draggedItem.batch.latestStartDate;
+    }
+    
+    if (draggedItem.type === 'new-order' && draggedItem.processId === SEWING_PROCESS_ID) {
+      return latestSewingStartDateMap.get(draggedItem.orderId);
+    }
+  
+    return null;
+  }, [draggedItem, latestSewingStartDateMap, latestStartDatesMap]);
+
   return (
     <div className="flex h-screen flex-col" onDragEnd={handleDragEnd}>
       <Header />
@@ -688,6 +709,7 @@ function GanttPageContent() {
                       orders={orders}
                       latestStartDatesMap={latestStartDatesMap}
                       latestSewingStartDateMap={latestSewingStartDateMap}
+                      draggedItemLatestStartDate={draggedItemLatestStartDate}
                     />
                 </div>
             </div>
