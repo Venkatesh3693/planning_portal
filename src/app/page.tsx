@@ -701,7 +701,8 @@ function GanttPageContent() {
               />
               
               <div className="h-full flex-1 overflow-auto rounded-lg border bg-card">
-                  <GanttChart 
+                  <GanttChart
+                      key={JSON.stringify(Array.from(latestStartDatesMap.entries()))} 
                       rows={chartRows} 
                       dates={dates}
                       scheduledProcesses={processesForGantt}
