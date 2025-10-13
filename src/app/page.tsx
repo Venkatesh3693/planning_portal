@@ -312,7 +312,7 @@ function GanttPageContent() {
   const handleConfirmSplit = (originalProcesses: ScheduledProcess[], newQuantities: number[]) => {
     const primaryProcess = originalProcesses[0];
     const orderInfo = orders.find(o => o.id === primaryProcess.orderId)!;
-    const numLines = sewingLines[orderInfo.id] || 1;
+    const numLines = 1;
   
     const parentId = primaryProcess.parentId || `${primaryProcess.id}-split-${crypto.randomUUID()}`;
     const originalIds = new Set(originalProcesses.map(p => p.id));
