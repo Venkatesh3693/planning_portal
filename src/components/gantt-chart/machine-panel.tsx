@@ -215,7 +215,16 @@ export default function MachinePanel({
         <ScrollArea className="h-full pr-4">
           <div className="space-y-2 p-2 pt-0">
             {unplannedBatches.map((batch) => {
-               const item: DraggedItemData = { type: 'new-batch', batch };
+               const liveLatestStartDate = latestSewingStartDateMap.get(`${batch.orderId}-${batch.processId}-${batch.batchNumber}`) || batch.latestStartDate;
+
+               const item: DraggedItemData = { 
+                 type: 'new-batch', 
+                 batch: {
+                   ...batch,
+                   latestStartDate: liveLatestStartDate,
+                 }
+               };
+
                return (
                   <div
                     key={`${batch.orderId}-${batch.processId}-${batch.batchNumber}`}
@@ -239,7 +248,7 @@ export default function MachinePanel({
                       <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
                         <span>Batch {batch.batchNumber}/{batch.totalBatches} ({batch.quantity} units)</span>
                         <span>
-                          Latest Start: {format(batch.latestStartDate, 'MMM dd')}
+                          Latest Start: {format(liveLatestStartDate, 'MMM dd')}
                         </span>
                       </div>
                     </div>

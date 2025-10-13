@@ -515,6 +515,34 @@ function GanttPageContent() {
     return { unplannedOrderItems: orderItems.sort((a,b) => compareAsc(a.dueDate, b.dueDate)), unplannedBatches: batches };
   }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, splitOrderProcesses, latestStartDatesMap, processBatchSizes, packingBatchSizes]);
   
+  const draggedItemLatestStartDate = useMemo(() => {
+    if (!draggedItem) return null;
+  
+    if (draggedItem.type === 'existing') {
+      if (draggedItem.process.processId === SEWING_PROCESS_ID) {
+        return latestSewingStartDateMap.get(draggedItem.process.orderId);
+      }
+      return draggedItem.process.latestStartDate || null;
+    }
+  
+    if (draggedItem.type === 'new-batch') {
+      return draggedItem.batch.latestStartDate;
+    }
+    
+    if (draggedItem.type === 'new-order' && draggedItem.processId === SEWING_PROCESS_ID) {
+      return latestSewingStartDateMap.get(draggedItem.orderId);
+    }
+  
+    return null;
+  }, [draggedItem, latestSewingStartDateMap, latestStartDatesMap]);
+
+  if (!isScheduleLoaded) {
+    return (
+        <div className="flex h-screen w-full items-center justify-center">
+            <p>Loading your schedule...</p>
+        </div>
+    );
+  }
 
   const chartRows = MACHINES.filter(m => m.processIds.includes(selectedProcessId));
 
@@ -590,37 +618,8 @@ function GanttPageContent() {
   };
 
   const isPabView = selectedProcessId === 'pab';
-
-  const draggedItemLatestStartDate = useMemo(() => {
-    if (!draggedItem) return null;
   
-    if (draggedItem.type === 'existing') {
-      if (draggedItem.process.processId === SEWING_PROCESS_ID) {
-        return latestSewingStartDateMap.get(draggedItem.process.orderId);
-      }
-      return draggedItem.process.latestStartDate || null;
-    }
-  
-    if (draggedItem.type === 'new-batch') {
-      return draggedItem.batch.latestStartDate;
-    }
-    
-    if (draggedItem.type === 'new-order' && draggedItem.processId === SEWING_PROCESS_ID) {
-      return latestSewingStartDateMap.get(draggedItem.orderId);
-    }
-  
-    return null;
-  }, [draggedItem, latestSewingStartDateMap, latestStartDatesMap]);
-
-  if (!isScheduleLoaded) {
-    return (
-        <div className="flex h-screen w-full items-center justify-center">
-            <p>Loading your schedule...</p>
-        </div>
-    );
-  }
-  
-  if (dates.length === 0) {
+  if (dates.length === 0 && isScheduleLoaded) {
     return (
         <div className="flex h-screen w-full items-center justify-center">
             <p>Initializing schedule dates...</p>
@@ -697,7 +696,7 @@ function GanttPageContent() {
                 clearFilters={clearFilters}
                 splitOrderProcesses={splitOrderProcesses}
                 toggleSplitProcess={toggleSplitProcess}
-                latestSewingStartDateMap={latestSewingStartDateMap}
+                latestSewingStartDateMap={latestStartDatesMap}
               />
               
               <div className="h-full flex-1 overflow-auto rounded-lg border bg-card">
