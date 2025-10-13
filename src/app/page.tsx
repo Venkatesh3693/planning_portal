@@ -130,10 +130,10 @@ function GanttPageContent() {
     if (droppedItem.type === 'new-order') {
       const order = orders.find(o => o.id === droppedItem.orderId)!;
       const process = PROCESSES.find(p => p.id === droppedItem.processId)!;
-      const numLines = sewingLines[order.id] || 1;
       
       let durationMinutes;
       if (process.id === SEWING_PROCESS_ID) {
+        const numLines = 1; // Always calculate for a single line on initial drop.
         durationMinutes = calculateSewingDuration(order, droppedItem.quantity, numLines);
       } else {
         durationMinutes = process.sam * droppedItem.quantity;
