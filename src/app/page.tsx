@@ -364,10 +364,9 @@ function GanttPageContent() {
   const selectableProcesses = PROCESSES.filter(p => p.id !== 'outsourcing');
 
   const latestStartDatesMap = useMemo(() => {
-    const map = new Map<string, Date>();
-    if (!isScheduleLoaded) return map;
+    const newMap = new Map<string, Date>();
+    if (!isScheduleLoaded) return newMap;
   
-    // This logic now ONLY applies to pre-sewing and packing batches because sewing is handled separately
     if (selectedProcessId !== 'pab' && selectedProcessId !== SEWING_PROCESS_ID) {
       for (const order of orders) {
         const sewingProcessesForOrder = scheduledProcesses.filter(sp => sp.orderId === order.id && sp.processId === SEWING_PROCESS_ID);
@@ -420,18 +419,17 @@ function GanttPageContent() {
             }
             batchStartDate = predecessorChainStartDate;
           }
-          map.set(key, batchStartDate);
+          newMap.set(key, batchStartDate);
         }
       }
     }
-    return map;
+    return newMap;
   }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, sewingLines, processBatchSizes, packingBatchSizes]);
   
   const latestSewingStartDateMap = useMemo(() => {
     const map = new Map<string, Date>();
     if (selectedProcessId !== SEWING_PROCESS_ID && !draggedItem) return map;
 
-    // Calculate for all orders if sewing is selected, or just for the dragged item
     const ordersToConsider = selectedProcessId === SEWING_PROCESS_ID 
       ? orders
       : (draggedItem?.type === 'new-order' && draggedItem.processId === SEWING_PROCESS_ID 
@@ -614,10 +612,18 @@ function GanttPageContent() {
     return null;
   }, [draggedItem, latestSewingStartDateMap, latestStartDatesMap]);
 
-  if (dates.length === 0 || !isScheduleLoaded) {
+  if (!isScheduleLoaded) {
     return (
         <div className="flex h-screen w-full items-center justify-center">
             <p>Loading your schedule...</p>
+        </div>
+    );
+  }
+  
+  if (dates.length === 0) {
+    return (
+        <div className="flex h-screen w-full items-center justify-center">
+            <p>Initializing schedule dates...</p>
         </div>
     );
   }
