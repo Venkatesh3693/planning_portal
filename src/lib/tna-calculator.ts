@@ -3,7 +3,7 @@
 import type { Order, Process, TnaProcess, RampUpEntry, ScheduledProcess } from './types';
 import { WORK_DAY_MINUTES } from './data';
 import { addDays, subDays, getDay, format, startOfDay, differenceInMinutes, isBefore, isAfter } from 'date-fns';
-import { calculateStartDateTime } from './utils';
+import { calculateStartDateTime, subBusinessDays } from './utils';
 
 
 // Helper to add/subtract days while skipping weekends (assuming Sun is non-working)
@@ -21,20 +21,6 @@ function addBusinessDays(startDate: Date, days: number): Date {
     }
   }
   return currentDate;
-}
-
-function subBusinessDays(startDate: Date, days: number): Date {
-    let currentDate = new Date(startDate);
-    let daysSubtracted = 0;
-
-    while(daysSubtracted < days) {
-        currentDate.setDate(currentDate.getDate() - 1);
-        const dayOfWeek = getDay(currentDate);
-        if (dayOfWeek !== 0) { // Not a Sunday
-            daysSubtracted++;
-        }
-    }
-    return currentDate;
 }
 
 
@@ -266,7 +252,7 @@ export function generateTnaPlan(
     processes: Process[], 
     numLinesForSewing: number,
     processBatchSize: number,
-): { newTna: TnaProcess[], newCkDate: Date } {
+): TnaProcess[] {
 
     // --- Phase 1: Calculate Durations ---
     const metrics = order.processIds.map(pid => {
@@ -377,9 +363,7 @@ export function generateTnaPlan(
         };
     });
 
-    const newCkDate = subBusinessDays(ftsLatestStartDateAnchor, 3);
-
-    return { newTna, newCkDate };
+    return newTna;
 }
 
 

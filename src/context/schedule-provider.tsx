@@ -20,7 +20,7 @@ type ScheduleContextType = {
   setScheduledProcesses: Dispatch<SetStateAction<ScheduledProcess[]>>;
   sewingRampUpSchemes: SewingRampUpSchemes;
   updateSewingRampUpScheme: (orderId: string, scheme: RampUpEntry[]) => void;
-  updateOrderTna: (orderId: string, newTnaProcesses: TnaProcess[], newCkDate: Date) => void;
+  updateOrderTna: (orderId: string, newTnaProcesses: TnaProcess[]) => void;
   updateOrderColor: (orderId: string, color: string) => void;
   updateOrderMinRunDays: (orderId: string, minRunDays: Record<string, number>) => void;
   sewingLines: SewingLines;
@@ -88,12 +88,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         const hydratedTna: Tna = { ...(baseOrder.tna as Tna) };
 
         if(override?.tna) {
-          if(override.tna.ckDate) {
-            hydratedTna.ckDate = new Date(override.tna.ckDate);
-          }
-          if(override.tna.minRunDays) {
-            hydratedTna.minRunDays = override.tna.minRunDays;
-          }
           if (override.tna.processes) {
               const storedProcessMap = new Map(override.tna.processes.map(p => [p.processId, p]));
               hydratedTna.processes = hydratedTna.processes.map(baseProcess => {
@@ -108,6 +102,9 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
                   }
                   return baseProcess;
               });
+          }
+           if(override.tna.minRunDays) {
+            hydratedTna.minRunDays = override.tna.minRunDays;
           }
         }
         
@@ -145,7 +142,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     }
   }, [scheduledProcesses, sewingLines, orderOverrides, timelineEndDate, splitOrderProcesses, isScheduleLoaded]);
 
-  const updateOrderTna = (orderId: string, newTnaProcesses: TnaProcess[], newCkDate: Date) => {
+  const updateOrderTna = (orderId: string, newTnaProcesses: TnaProcess[]) => {
       setOrderOverrides(prev => {
         const currentTna = prev[orderId]?.tna || {};
         return {
@@ -154,7 +151,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
           ...prev[orderId],
           tna: {
             ...currentTna,
-            ckDate: newCkDate,
             processes: newTnaProcesses.map(p => ({
               processId: p.processId,
               setupTime: p.setupTime,
@@ -221,7 +217,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         
         if (override.tna) {
            const newTna = { ...(updatedOrder.tna || { processes: [] }) } as Tna;
-           if(override.tna.ckDate) newTna.ckDate = new Date(override.tna.ckDate);
            if(override.tna.minRunDays) newTna.minRunDays = override.tna.minRunDays;
            
            if(override.tna.processes){

@@ -33,7 +33,6 @@ export type TnaProcess = {
 };
 
 export type Tna = {
-  ckDate: string | Date;
   processes: TnaProcess[];
   minRunDays?: Record<string, number>;
 };

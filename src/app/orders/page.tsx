@@ -24,7 +24,7 @@ import { Header } from '@/components/layout/header';
 import Link from 'next/link';
 import { PROCESSES, WORK_DAY_MINUTES } from '@/lib/data';
 import type { Order, ScheduledProcess, RampUpEntry, Tna, TnaProcess } from '@/lib/types';
-import { format, isAfter, isBefore, startOfDay } from 'date-fns';
+import { format, isAfter, isBefore, startOfDay, subDays } from 'date-fns';
 import {
   Table,
   TableBody,
@@ -267,11 +267,18 @@ const TnaPlan = ({
     totalProductionDays: number;
 }) => {
     if (!order.tna) return null;
-
-    const { ckDate } = order.tna;
     
     const sewingProcessIndex = order.processIds.indexOf('sewing');
     
+    const calculatedCkDate = useMemo(() => {
+        if (!order.processIds.length || !order.tna?.processes.length) return null;
+        const firstProcessId = order.processIds[0];
+        const firstTnaProcess = order.tna.processes.find(p => p.processId === firstProcessId);
+        if (!firstTnaProcess?.latestStartDate) return null;
+
+        return subDays(new Date(firstTnaProcess.latestStartDate), 7);
+    }, [order.tna?.processes, order.processIds]);
+
     const getAggregatedScheduledTimes = (processId: string) => {
         const relevantProcesses = scheduledProcesses.filter(p => p.orderId === order.id && p.processId === processId);
         if (relevantProcesses.length === 0) {
@@ -297,7 +304,7 @@ const TnaPlan = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 text-sm">
             <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
                 <div className="font-medium text-muted-foreground text-xs">CK Date</div>
-                <div className="font-semibold text-base">{ckDate instanceof Date ? format(ckDate, 'MMM dd, yyyy') : ckDate}</div>
+                <div className="font-semibold text-base">{calculatedCkDate ? format(calculatedCkDate, 'MMM dd, yyyy') : 'N/A'}</div>
             </div>
             <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
                 <div className="font-medium text-muted-foreground text-xs">Shipment Date</div>
@@ -638,8 +645,8 @@ export default function OrdersPage() {
   const handleGenerateTna = (order: Order) => {
     const numLines = sewingLines[order.id] || 1;
     const processBatchSize = processBatchSizes[order.id] || 0;
-    const { newTna, newCkDate } = generateTnaPlan(order, PROCESSES, numLines, processBatchSize);
-    updateOrderTna(order.id, newTna, newCkDate);
+    const newTna = generateTnaPlan(order, PROCESSES, numLines, processBatchSize);
+    updateOrderTna(order.id, newTna);
   };
   
   return (

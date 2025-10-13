@@ -62,12 +62,11 @@ export const ORDERS: Order[] = [
         leadTime: 60,
         budgetedEfficiency: 85,
         tna: {
-            ckDate: subDays(today, 5),
             processes: [
-                { processId: 'cutting', startDate: subDays(today, 2), endDate: subDays(today, 1), setupTime: 45 },
-                { processId: 'printing', startDate: today, endDate: addDays(today, 1), setupTime: 90 },
-                { processId: 'sewing', startDate: addDays(today, 2), endDate: addDays(today, 5), setupTime: 120 },
-                { processId: 'packing', startDate: addDays(today, 6), endDate: addDays(today, 8), setupTime: 15 },
+                { processId: 'cutting', setupTime: 45 },
+                { processId: 'printing', setupTime: 90 },
+                { processId: 'sewing', setupTime: 120 },
+                { processId: 'packing', setupTime: 15 },
             ]
         }
     },
@@ -84,12 +83,11 @@ export const ORDERS: Order[] = [
         leadTime: 90,
         budgetedEfficiency: 80,
         tna: {
-            ckDate: subDays(today, 10),
             processes: [
-                { processId: 'cutting', startDate: subDays(today, 5), endDate: subDays(today, 3), setupTime: 60 },
-                { processId: 'embroidery', startDate: subDays(today, 2), endDate: addDays(today, 2), setupTime: 150 },
-                { processId: 'sewing', startDate: addDays(today, 3), endDate: addDays(today, 9), setupTime: 180 },
-                { processId: 'packing', startDate: addDays(today, 10), endDate: addDays(today, 13), setupTime: 20 },
+                { processId: 'cutting', setupTime: 60 },
+                { processId: 'embroidery', setupTime: 150 },
+                { processId: 'sewing', setupTime: 180 },
+                { processId: 'packing', setupTime: 20 },
             ]
         }
     },
@@ -106,12 +104,11 @@ export const ORDERS: Order[] = [
         leadTime: 45,
         budgetedEfficiency: 90,
         tna: {
-            ckDate: subDays(today, 8),
             processes: [
-                { processId: 'cutting', startDate: subDays(today, 6), endDate: subDays(today, 5), setupTime: 30 },
-                { processId: 'printing', startDate: addDays(today, 2), endDate: addDays(today, 3), setupTime: 90 },
-                { processId: 'sewing', startDate: subDays(today, 4), endDate: addDays(today, 1), setupTime: 100 },
-                { processId: 'packing', startDate: addDays(today, 4), endDate: addDays(today, 5), setupTime: 10 },
+                { processId: 'cutting', setupTime: 30 },
+                { processId: 'printing', setupTime: 90 },
+                { processId: 'sewing', setupTime: 100 },
+                { processId: 'packing', setupTime: 10 },
             ]
         }
     }
