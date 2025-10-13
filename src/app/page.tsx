@@ -591,14 +591,6 @@ function GanttPageContent() {
     setScheduledProcesses(prev => prev.filter(p => p.processId !== selectedProcessId));
   };
 
-  if (dates.length === 0 || !isScheduleLoaded) {
-    return (
-        <div className="flex h-screen w-full items-center justify-center">
-            <p>Loading your schedule...</p>
-        </div>
-    );
-  }
-  
   const isPabView = selectedProcessId === 'pab';
 
   const draggedItemLatestStartDate = useMemo(() => {
@@ -621,6 +613,14 @@ function GanttPageContent() {
   
     return null;
   }, [draggedItem, latestSewingStartDateMap, latestStartDatesMap]);
+
+  if (dates.length === 0 || !isScheduleLoaded) {
+    return (
+        <div className="flex h-screen w-full items-center justify-center">
+            <p>Loading your schedule...</p>
+        </div>
+    );
+  }
 
   return (
     <div className="flex h-screen flex-col" onDragEnd={handleDragEnd}>
