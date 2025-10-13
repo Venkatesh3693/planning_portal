@@ -254,18 +254,61 @@ function GanttPageContent() {
     return { unplannedOrderItems: orderItems.sort((a,b) => compareAsc(a.dueDate, b.dueDate)), unplannedBatches: batches };
   }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, splitOrderProcesses, latestStartDatesMap, processBatchSizes, packingBatchSizes]);
   
+  const predecessorEndDateMap = useMemo(() => {
+    const map = new Map<string, Date>();
+    if (!isScheduleLoaded) return map;
+
+    const scheduledProcessMap = new Map(scheduledProcesses.map(p => [
+      `${p.orderId}-${p.processId}-${p.batchNumber || 0}`, p
+    ]));
+
+    for (const process of scheduledProcesses) {
+      const order = orders.find(o => o.id === process.orderId);
+      if (!order) continue;
+
+      const processSequence = order.processIds;
+      const currentIndex = processSequence.indexOf(process.processId);
+
+      if (currentIndex > 0) {
+        const predecessorId = processSequence[currentIndex - 1];
+        const predecessorKey = `${process.orderId}-${predecessorId}-${process.batchNumber || 0}`;
+        const predecessorProcess = scheduledProcessMap.get(predecessorKey);
+
+        if (predecessorProcess) {
+          const currentKey = `${process.orderId}-${process.processId}-${process.batchNumber || 0}`;
+          map.set(currentKey, predecessorProcess.endDateTime);
+        }
+      }
+    }
+    return map;
+  }, [scheduledProcesses, orders, isScheduleLoaded]);
+
+  const predecessorEndDate = useMemo(() => {
+    if (!draggedItem) return null;
+    let key: string | null = null;
+    if (draggedItem.type === 'existing') {
+      const { process } = draggedItem;
+      key = `${process.orderId}-${process.processId}-${process.batchNumber || 0}`;
+    } else if (draggedItem.type === 'new-batch') {
+      const { batch } = draggedItem;
+      key = `${batch.orderId}-${batch.processId}-${batch.batchNumber || 0}`;
+    }
+    return key ? predecessorEndDateMap.get(key) || null : null;
+  }, [draggedItem, predecessorEndDateMap]);
+  
   const draggedItemLatestStartDate = useMemo(() => {
     if (!draggedItem) return null;
   
     if (draggedItem.type === 'existing') {
-      if (draggedItem.process.processId === SEWING_PROCESS_ID) {
-        return latestSewingStartDateMap.get(draggedItem.process.orderId);
-      }
-      return draggedItem.process.latestStartDate || null;
+      const { process } = draggedItem;
+      const key = `${process.orderId}-${process.processId}-${process.batchNumber || 0}`;
+      return latestStartDatesMap.get(key) || process.latestStartDate || null;
     }
   
     if (draggedItem.type === 'new-batch') {
-      return draggedItem.batch.latestStartDate;
+      const { batch } = draggedItem;
+      const key = `${batch.orderId}-${batch.processId}-${batch.batchNumber}`;
+      return latestStartDatesMap.get(key) || batch.latestStartDate || null;
     }
     
     if (draggedItem.type === 'new-order' && draggedItem.processId === SEWING_PROCESS_ID) {
@@ -273,7 +316,7 @@ function GanttPageContent() {
     }
   
     return null;
-  }, [draggedItem, latestSewingStartDateMap]);
+  }, [draggedItem, latestSewingStartDateMap, latestStartDatesMap]);
 
   const handleDropOnChart = (rowId: string, startDateTime: Date, draggedItemJSON: string) => {
     if (!draggedItemJSON) return;
@@ -712,6 +755,7 @@ function GanttPageContent() {
                       latestStartDatesMap={latestStartDatesMap}
                       latestSewingStartDateMap={latestSewingStartDateMap}
                       draggedItemLatestStartDate={draggedItemLatestStartDate}
+                      predecessorEndDate={predecessorEndDate}
                     />
                 </div>
             </div>

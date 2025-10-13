@@ -3,7 +3,7 @@
 "use client";
 
 import * as React from 'react';
-import { format, getMonth, isWithinInterval, startOfDay, startOfHour, endOfHour, addDays, differenceInMilliseconds, endOfDay, compareAsc, isSameDay } from 'date-fns';
+import { format, getMonth, isWithinInterval, startOfDay, startOfHour, endOfHour, addDays, differenceInMilliseconds, endOfDay, compareAsc, isSameDay, isSameHour } from 'date-fns';
 import type { Order, ScheduledProcess } from '@/lib/types';
 import type { DraggedItemData } from '@/app/page';
 import { cn } from '@/lib/utils';
@@ -31,6 +31,7 @@ type GanttChartProps = {
   latestStartDatesMap: Map<string, Date>;
   latestSewingStartDateMap: Map<string, Date>;
   draggedItemLatestStartDate: Date | null;
+  predecessorEndDate: Date | null;
 };
 
 const ROW_HEIGHT_PX = 32;
@@ -56,8 +57,8 @@ const TopLeftCorner = () => (
 
 const Header = React.forwardRef<
   HTMLDivElement,
-  { timeColumns: { date: Date; type: 'day' | 'hour' }[]; viewMode: ViewMode, draggedItemLatestStartDate: Date | null; }
->(({ timeColumns, viewMode, draggedItemLatestStartDate }, ref) => {
+  { timeColumns: { date: Date; type: 'day' | 'hour' }[]; viewMode: ViewMode, draggedItemLatestStartDate: Date | null; predecessorEndDate: Date | null }
+>(({ timeColumns, viewMode, draggedItemLatestStartDate, predecessorEndDate }, ref) => {
   const monthHeaders = React.useMemo(() => {
     const headers: { name: string; span: number }[] = [];
     if (timeColumns.length === 0 || viewMode !== 'day') return headers;
@@ -120,13 +121,19 @@ const Header = React.forwardRef<
       </div>
       <div className="grid" style={{ gridTemplateColumns }}>
         {timeColumns.map((col, i) => {
-           const isLatestStartDate = draggedItemLatestStartDate && isSameDay(col.date, draggedItemLatestStartDate);
+           const isLatestStartDate = draggedItemLatestStartDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemLatestStartDate) : isSameHour(col.date, draggedItemLatestStartDate));
+           const isPredecessorEnd = predecessorEndDate && (viewMode === 'day' ? isSameDay(col.date, predecessorEndDate) : isSameHour(col.date, predecessorEndDate));
+           
            return (
               <div key={`bottom-header-${i}`} className="border-r border-border/60 text-center h-7 flex items-center justify-center relative">
-                {isLatestStartDate && viewMode === 'day' ? (
-                   <div className="absolute inset-0 flex items-center justify-center bg-amber-500 text-white text-[10px] font-bold">
+                {isLatestStartDate ? (
+                   <div className="absolute inset-0 flex items-center justify-center bg-amber-500 text-white text-[10px] font-bold z-10">
                      START BY
                    </div>
+                ) : isPredecessorEnd ? (
+                  <div className="absolute inset-0 flex items-center justify-center bg-blue-500 text-white text-[10px] font-bold">
+                    PRED. END
+                  </div>
                 ) : (
                   <div className="text-xs font-normal text-muted-foreground leading-tight">
                     {viewMode === 'day' ? format(col.date, 'd') : format(col.date, 'ha').toLowerCase()}
@@ -157,6 +164,7 @@ export default function GanttChart({
   latestStartDatesMap,
   latestSewingStartDateMap,
   draggedItemLatestStartDate,
+  predecessorEndDate,
 }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const isDragging = !!draggedItem;
@@ -272,7 +280,13 @@ export default function GanttChart({
     >
       <TopLeftCorner />
 
-      <Header ref={headerRef} timeColumns={timeColumns} viewMode={viewMode} draggedItemLatestStartDate={draggedItemLatestStartDate} />
+      <Header 
+        ref={headerRef} 
+        timeColumns={timeColumns} 
+        viewMode={viewMode} 
+        draggedItemLatestStartDate={draggedItemLatestStartDate}
+        predecessorEndDate={predecessorEndDate}
+      />
 
       {/* Bottom-Left Sidebar (Machine Names) */}
       <div ref={sidebarRef} className="row-start-2 overflow-hidden bg-muted/30 border-r border-border/60">
@@ -325,7 +339,8 @@ export default function GanttChart({
                       isInValidRange = isWithinInterval(col.date, range);
                   }
                   
-                  const isLatestStartDateColumn = draggedItemLatestStartDate && isSameDay(col.date, draggedItemLatestStartDate);
+                  const isLatestStartDateColumn = draggedItemLatestStartDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemLatestStartDate) : isSameHour(col.date, draggedItemLatestStartDate));
+                  const isPredecessorEndDateColumn = predecessorEndDate && (viewMode === 'day' ? isSameDay(col.date, predecessorEndDate) : isSameHour(col.date, predecessorEndDate));
 
                   return (
                       <div
@@ -335,6 +350,7 @@ export default function GanttChart({
                           onDrop={(e) => handleDrop(e, row.id, col.date)}
                           className={cn('relative border-b border-r border-border/60',
                               isDragOver ? 'bg-primary/20' : (rowIndex % 2 !== 0 ? 'bg-card' : 'bg-muted/20'),
+                              isPredecessorEndDateColumn && 'bg-blue-200/50',
                               isLatestStartDateColumn && !isDragOver && 'bg-amber-200/50',
                               isInTnaRange && !isDragOver && 'bg-green-500/10',
                               validDateRanges && 'bg-blue-500/5',
