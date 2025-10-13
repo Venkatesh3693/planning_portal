@@ -55,8 +55,8 @@ const TopLeftCorner = () => (
 
 const Header = React.forwardRef<
   HTMLDivElement,
-  { timeColumns: { date: Date; type: 'day' | 'hour' }[]; viewMode: ViewMode }
->(({ timeColumns, viewMode }, ref) => {
+  { timeColumns: { date: Date; type: 'day' | 'hour' }[]; viewMode: ViewMode, draggedItemLatestStartDate: Date | null; }
+>(({ timeColumns, viewMode, draggedItemLatestStartDate }, ref) => {
   const monthHeaders = React.useMemo(() => {
     const headers: { name: string; span: number }[] = [];
     if (timeColumns.length === 0 || viewMode !== 'day') return headers;
@@ -118,13 +118,22 @@ const Header = React.forwardRef<
         ))}
       </div>
       <div className="grid" style={{ gridTemplateColumns }}>
-        {timeColumns.map((col, i) => (
-          <div key={`bottom-header-${i}`} className="border-r border-border/60 text-center h-7 flex items-center justify-center">
-            <div className="text-xs font-normal text-muted-foreground leading-tight">
-              {viewMode === 'day' ? format(col.date, 'd') : format(col.date, 'ha').toLowerCase()}
-            </div>
-          </div>
-        ))}
+        {timeColumns.map((col, i) => {
+           const isLatestStartDate = draggedItemLatestStartDate && isSameDay(col.date, draggedItemLatestStartDate);
+           return (
+              <div key={`bottom-header-${i}`} className="border-r border-border/60 text-center h-7 flex items-center justify-center relative">
+                {isLatestStartDate && viewMode === 'day' ? (
+                   <div className="absolute inset-0 flex items-center justify-center bg-amber-500 text-white text-[10px] font-bold">
+                     START BY
+                   </div>
+                ) : (
+                  <div className="text-xs font-normal text-muted-foreground leading-tight">
+                    {viewMode === 'day' ? format(col.date, 'd') : format(col.date, 'ha').toLowerCase()}
+                  </div>
+                )}
+              </div>
+           );
+        })}
       </div>
     </div>
   );
@@ -253,16 +262,20 @@ export default function GanttChart({
   
   const draggedItemLatestStartDate = React.useMemo(() => {
     if (!draggedItem) return null;
-
+  
+    if (draggedItem.type === 'existing') {
+      // This is the simplified logic after the fix.
+      return draggedItem.process.latestStartDate || null;
+    }
+  
     if (draggedItem.type === 'new-batch') {
       return draggedItem.batch.latestStartDate;
     }
-    if (draggedItem.type === 'existing') {
-      return draggedItem.process.latestStartDate;
-    }
+    
     if (draggedItem.type === 'new-order' && draggedItem.processId === 'sewing') {
       return latestSewingStartDateMap.get(draggedItem.orderId);
     }
+  
     return null;
   }, [draggedItem, latestSewingStartDateMap]);
 
@@ -277,7 +290,7 @@ export default function GanttChart({
     >
       <TopLeftCorner />
 
-      <Header ref={headerRef} timeColumns={timeColumns} viewMode={viewMode} />
+      <Header ref={headerRef} timeColumns={timeColumns} viewMode={viewMode} draggedItemLatestStartDate={draggedItemLatestStartDate} />
 
       {/* Bottom-Left Sidebar (Machine Names) */}
       <div ref={sidebarRef} className="row-start-2 overflow-hidden bg-muted/30 border-r border-border/60">
@@ -330,7 +343,7 @@ export default function GanttChart({
                       isInValidRange = isWithinInterval(col.date, range);
                   }
                   
-                  const isLatestStartDate = draggedItemLatestStartDate && isSameDay(col.date, draggedItemLatestStartDate);
+                  const isLatestStartDateColumn = draggedItemLatestStartDate && isSameDay(col.date, draggedItemLatestStartDate);
 
                   return (
                       <div
@@ -340,18 +353,13 @@ export default function GanttChart({
                           onDrop={(e) => handleDrop(e, row.id, col.date)}
                           className={cn('relative border-b border-r border-border/60',
                               isDragOver ? 'bg-primary/20' : (rowIndex % 2 !== 0 ? 'bg-card' : 'bg-muted/20'),
-                              isLatestStartDate && !isDragOver && 'bg-amber-200/50 border-amber-400',
+                              isLatestStartDateColumn && !isDragOver && 'bg-amber-200/50',
                               isInTnaRange && !isDragOver && 'bg-green-500/10',
                               validDateRanges && 'bg-blue-500/5',
                               isInValidRange && !isDragOver && 'bg-blue-500/10',
                               'transition-colors duration-200'
                           )}
                       >
-                        {isLatestStartDate && viewMode === 'day' && (
-                           <div className="absolute top-0 right-0 text-[10px] leading-tight font-semibold bg-amber-500 text-white rounded-bl-md px-1 py-0.5">
-                             LATEST START
-                           </div>
-                        )}
                       </div>
                   )
                 })}
