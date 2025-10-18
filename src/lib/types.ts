@@ -1,5 +1,4 @@
 
-
 import type { LucideIcon } from 'lucide-react';
 
 export type Unit = {
@@ -42,6 +41,13 @@ export type RampUpEntry = {
   efficiency: number; // As a percentage, e.g., 85 for 85%
 };
 
+export type SewingOperation = {
+  operation: string;
+  machine: string;
+  operators: number;
+  sam: number;
+};
+
 export type Order = {
   id: string; // e.g. 'ZAR4531-Shirt-Blue'
   ocn: string; // e.g. 'ZAR4531'
@@ -73,6 +79,7 @@ export type ScheduledProcess = {
   isAutoScheduled?: boolean;
   totalBatches?: number;
   latestStartDate?: Date;
+  latestEndDate?: Date;
 };
 
 export type UnplannedBatch = {

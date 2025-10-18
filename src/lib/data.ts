@@ -1,5 +1,5 @@
 
-import type { Unit, Machine, Order, Process } from '@/lib/types';
+import type { Unit, Machine, Order, Process, SewingOperation } from '@/lib/types';
 import { Scissors, Printer, Fingerprint, ExternalLink, MoveHorizontal, PackageCheck } from 'lucide-react';
 import { addDays, subDays, startOfToday } from 'date-fns';
 
@@ -113,6 +113,39 @@ export const ORDERS: Order[] = [
         }
     }
 ];
+
+export const SEWING_OPERATIONS_BY_STYLE: Record<string, SewingOperation[]> = {
+    'Shirt': [
+      { operation: 'Collar Preparation', machine: 'Single Needle Lock Stitch', operators: 1, sam: 2.5 },
+      { operation: 'Collar Attachment', machine: 'Single Needle Lock Stitch', operators: 1, sam: 3.0 },
+      { operation: 'Cuff Preparation', machine: 'Single Needle Lock Stitch', operators: 1, sam: 2.0 },
+      { operation: 'Cuff Attachment', machine: 'Over Lock Machine', operators: 1, sam: 2.5 },
+      { operation: 'Sleeve Placket', machine: 'Single Needle Lock Stitch', operators: 1, sam: 3.5 },
+      { operation: 'Sleeve Attachment', machine: 'Over Lock Machine', operators: 1, sam: 4.0 },
+      { operation: 'Front & Back Panel Joining', machine: 'Over Lock Machine', operators: 1, sam: 2.0 },
+      { operation: 'Button Placket', machine: 'Single Needle Lock Stitch', operators: 1, sam: 3.0 },
+      { operation: 'Bottom Hemming', machine: 'Single Needle Lock Stitch', operators: 1, sam: 2.5 },
+    ],
+    'Pants': [
+      { operation: 'Pocket Preparation', machine: 'Single Needle Lock Stitch', operators: 1, sam: 3.0 },
+      { operation: 'Pocket Attachment', machine: 'Single Needle Lock Stitch', operators: 1, sam: 3.5 },
+      { operation: 'Zipper Attachment', machine: 'Single Needle Lock Stitch', operators: 1, sam: 4.0 },
+      { operation: 'Inseam Joining', machine: 'Over Lock Machine', operators: 1, sam: 3.0 },
+      { operation: 'Outseam Joining', machine: 'Over Lock Machine', operators: 1, sam: 3.0 },
+      { operation: 'Waistband Preparation', machine: 'Chain Stitch Machine', operators: 1, sam: 2.5 },
+      { operation: 'Waistband Attachment', machine: 'Chain Stitch Machine', operators: 1, sam: 4.5 },
+      { operation: 'Belt Loop Preparation', machine: 'Bar Tack Machine', operators: 1, sam: 2.0 },
+      { operation: 'Belt Loop Attachment', machine: 'Bar Tack Machine', operators: 1, sam: 3.0 },
+      { operation: 'Bottom Hemming', machine: 'Single Needle Lock Stitch', operators: 1, sam: 3.5 },
+    ],
+    'T-Shirt': [
+      { operation: 'Shoulder Joining', machine: 'Over Lock Machine', operators: 1, sam: 1.5 },
+      { operation: 'Neck Rib Attachment', machine: 'Over Lock Machine', operators: 1, sam: 2.0 },
+      { operation: 'Sleeve Attachment', machine: 'Over Lock Machine', operators: 1, sam: 2.5 },
+      { operation: 'Side Seam', machine: 'Over Lock Machine', operators: 1, sam: 2.0 },
+      { operation: 'Sleeve & Bottom Hemming', machine: 'Flat Lock Machine', operators: 1, sam: 3.0 },
+    ],
+  };
 
 // Assuming an 8-hour work day
 export const WORK_DAY_MINUTES = 8 * 60;

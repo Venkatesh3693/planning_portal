@@ -22,8 +22,8 @@ import {
 } from '@/components/ui/dialog';
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
-import { PROCESSES, WORK_DAY_MINUTES } from '@/lib/data';
-import type { Order, ScheduledProcess, RampUpEntry, Tna, TnaProcess } from '@/lib/types';
+import { PROCESSES, WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE } from '@/lib/data';
+import type { Order, ScheduledProcess, TnaProcess, SewingOperation } from '@/lib/types';
 import { format, isAfter, isBefore, startOfDay, subDays } from 'date-fns';
 import {
   Table,
@@ -44,6 +44,8 @@ import { LineChart, Zap, AlertCircle, X, Info } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { generateTnaPlan } from '@/lib/tna-calculator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import type { RampUpEntry } from '@/lib/types';
+
 
 const SEWING_PROCESS_ID = 'sewing';
 const sewingProcess = PROCESSES.find(p => p.id === SEWING_PROCESS_ID);
@@ -248,6 +250,43 @@ const getEhdForOrder = (orderId: string, scheduledProcesses: ScheduledProcess[])
     return latestEndDate;
 };
 
+const OperationBulletin = ({ order }: { order: Order }) => {
+    const operations = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
+  
+    if (operations.length === 0) {
+      return (
+        <div className="text-center text-muted-foreground py-10">
+          No detailed sewing operations defined for style: {order.style}
+        </div>
+      );
+    }
+  
+    return (
+      <div className="border rounded-lg overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50 hover:bg-muted/50">
+              <TableHead>Operation</TableHead>
+              <TableHead>Machine</TableHead>
+              <TableHead className="text-center">Operators</TableHead>
+              <TableHead className="text-right">Time (SAM)</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {operations.map((op, index) => (
+              <TableRow key={index}>
+                <TableCell className="font-medium">{op.operation}</TableCell>
+                <TableCell>{op.machine}</TableCell>
+                <TableCell className="text-center">{op.operators}</TableCell>
+                <TableCell className="text-right">{op.sam.toFixed(2)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
+};
+
 // Sub-components defined at the module level for stability
 const TnaPlan = ({
     order,
@@ -409,6 +448,7 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
   ({ order, onColorChange, onTnaGenerate, onRampUpSave, onSetSewingLines, numLines, scheduledProcesses, updateOrderMinRunDays, ...props }, ref) => {
   const [isTnaOpen, setIsTnaOpen] = useState(false);
   const [rampUpState, setRampUpState] = useState<RampUpDialogState | null>(null);
+  const [activeView, setActiveView] = useState<'tna' | 'ob'>('tna');
 
   const [minRunDays, setMinRunDays] = useState<Record<string, string>>({});
   
@@ -424,6 +464,7 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
         initialDays[pid] = String(savedDays[pid] || "1");
       });
       setMinRunDays(initialDays);
+      setActiveView('tna'); // Reset to TNA view on open
     }
   }, [isTnaOpen, order.id, order.processIds, order.tna?.minRunDays]);
 
@@ -511,15 +552,21 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
             <DialogContent className="max-w-7xl p-0" hideClose>
                 <DialogHeader className="flex-row justify-between items-center p-6 pb-0">
                     <div>
-                    <DialogTitle>{order.ocn} - {order.style} ({order.color})</DialogTitle>
-                    <DialogDescription>
-                        Order ID: {order.id} &bull; Buyer: {order.buyer}
-                    </DialogDescription>
+                        <DialogTitle>{order.ocn} - {order.style} ({order.color})</DialogTitle>
+                        <DialogDescription>
+                            Order ID: {order.id} &bull; Buyer: {order.buyer}
+                        </DialogDescription>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Button size="sm" variant="outline" onClick={handleRecalculate}>
-                            <Zap className="h-4 w-4 mr-2"/> Recalculate T&amp;A Plan
-                        </Button>
+                        <div className="flex items-center gap-1 rounded-md bg-muted p-1">
+                            <Button size="sm" variant={activeView === 'ob' ? 'default' : 'ghost'} onClick={() => setActiveView('ob')}>OB</Button>
+                            <Button size="sm" variant={activeView === 'tna' ? 'default' : 'ghost'} onClick={() => setActiveView('tna')}>T&amp;A Plan</Button>
+                        </div>
+                        {activeView === 'tna' && (
+                            <Button size="sm" variant="outline" onClick={handleRecalculate}>
+                                <Zap className="h-4 w-4 mr-2"/> Recalculate T&amp;A Plan
+                            </Button>
+                        )}
                         <DialogClose asChild>
                             <Button variant="ghost" size="icon" className="rounded-full">
                                 <X className="h-4 w-4" />
@@ -528,15 +575,19 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
                     </div>
                 </DialogHeader>
               <div className="p-6 pt-4" id={`tna-plan-${order.id}`}>
-                <TnaPlan 
-                  order={order}
-                  scheduledProcesses={scheduledProcesses}
-                  minRunDays={minRunDays}
-                  moqs={moqs}
-                  processBatchSize={processBatchSize}
-                  onMinRunDaysChange={handleMinRunDaysChange}
-                  totalProductionDays={totalProductionDays}
-                />
+                {activeView === 'tna' ? (
+                    <TnaPlan 
+                        order={order}
+                        scheduledProcesses={scheduledProcesses}
+                        minRunDays={minRunDays}
+                        moqs={moqs}
+                        processBatchSize={processBatchSize}
+                        onMinRunDaysChange={handleMinRunDaysChange}
+                        totalProductionDays={totalProductionDays}
+                    />
+                ) : (
+                    <OperationBulletin order={order} />
+                )}
               </div>
             </DialogContent>
           </Dialog>
