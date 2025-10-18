@@ -61,6 +61,7 @@ export const ORDERS: Order[] = [
         displayColor: ORDER_COLORS[0],
         leadTime: 60,
         budgetedEfficiency: 85,
+        orderType: 'Firm PO',
         tna: {
             processes: [
                 { processId: 'cutting', setupTime: 45 },
@@ -82,6 +83,7 @@ export const ORDERS: Order[] = [
         displayColor: ORDER_COLORS[1],
         leadTime: 90,
         budgetedEfficiency: 80,
+        orderType: 'Firm PO',
         tna: {
             processes: [
                 { processId: 'cutting', setupTime: 60 },
@@ -103,12 +105,54 @@ export const ORDERS: Order[] = [
         displayColor: ORDER_COLORS[2],
         leadTime: 45,
         budgetedEfficiency: 90,
+        orderType: 'Firm PO',
         tna: {
             processes: [
                 { processId: 'cutting', setupTime: 30 },
                 { processId: 'printing', setupTime: 90 },
                 { processId: 'sewing', setupTime: 100 },
                 { processId: 'packing', setupTime: 10 },
+            ]
+        }
+    },
+    {
+        id: 'DMI-114227-Purple',
+        ocn: '114227',
+        buyer: 'DMI',
+        style: 'T-Shirt',
+        color: 'Purple',
+        quantity: 800,
+        processIds: ['cutting', 'sewing', 'packing'],
+        displayColor: ORDER_COLORS[5],
+        leadTime: 21,
+        budgetedEfficiency: 75,
+        orderType: 'Forecasted',
+        tna: {
+            processes: [
+                { processId: 'cutting', setupTime: 30 },
+                { processId: 'sewing', setupTime: 100 },
+                { processId: 'packing', setupTime: 10 },
+            ]
+        }
+    },
+    {
+        id: 'DSI-300096-Green',
+        ocn: '300096',
+        buyer: 'DSI',
+        style: 'Pants',
+        color: 'Green',
+        quantity: 2000,
+        processIds: ['cutting', 'embroidery', 'sewing', 'packing'],
+        displayColor: ORDER_COLORS[6],
+        leadTime: 21,
+        budgetedEfficiency: 78,
+        orderType: 'Forecasted',
+        tna: {
+            processes: [
+                { processId: 'cutting', setupTime: 60 },
+                { processId: 'embroidery', setupTime: 150 },
+                { processId: 'sewing', setupTime: 180 },
+                { processId: 'packing', setupTime: 20 },
             ]
         }
     }

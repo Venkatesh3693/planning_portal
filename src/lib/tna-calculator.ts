@@ -253,6 +253,9 @@ export function generateTnaPlan(
     numLinesForSewing: number,
     processBatchSize: number,
 ): TnaProcess[] {
+    if (!order.dueDate) { // For forecasted orders, return empty TNA
+        return order.tna?.processes.map(p => ({...p, durationDays: undefined, earliestStartDate: undefined, latestStartDate: undefined })) || [];
+    }
 
     // --- Phase 1: Calculate Durations ---
     const metrics = order.processIds.map(pid => {
@@ -341,7 +344,7 @@ export function generateTnaPlan(
             let currentLatestStartDate: Date;
 
             if (nextProcessLatestStartDate === null) {
-                currentLatestStartDate = subBusinessDays(new Date(order.dueDate), metric.durationDays);
+                currentLatestStartDate = subBusinessDays(new Date(order.dueDate!), metric.durationDays);
             } else {
                 const currentProcessMetric = metrics.find(m => m.processId === pid)!;
                 currentLatestStartDate = subBusinessDays(nextProcessLatestStartDate, currentProcessMetric.daysToProduceBatch);
@@ -368,6 +371,7 @@ export function generateTnaPlan(
 
 
 export function calculateLatestSewingStartDate(order: Order, allProcesses: Process[], numLines: number): Date | null {
+    if (!order.dueDate) return null; // Cannot calculate for forecasted orders
     const packingProcess = allProcesses.find(p => p.id === 'packing');
     const sewingProcess = allProcesses.find(p => p.id === 'sewing');
     if (!packingProcess || !sewingProcess) return null;

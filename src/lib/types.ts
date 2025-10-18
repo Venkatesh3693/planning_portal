@@ -57,12 +57,13 @@ export type Order = {
   color: string; // e.g. 'Blue'
   quantity: number;
   processIds: string[];
-  dueDate: Date;
+  dueDate?: Date;
   tna?: Tna;
   displayColor?: string;
   leadTime?: number;
   budgetedEfficiency?: number;
   sewingRampUpScheme?: RampUpEntry[];
+  orderType: 'Firm PO' | 'Forecasted';
 };
 
 export type ScheduledProcess = {

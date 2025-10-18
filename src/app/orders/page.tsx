@@ -284,7 +284,7 @@ const OperationBulletin = ({ order }: { order: Order }) => {
 
   return (
     <div className="space-y-6">
-       <div className="flex rounded-lg border bg-card p-4">
+       <div className="flex rounded-lg border bg-card p-4 bg-white dark:bg-card">
         <div className="flex flex-col justify-center items-center pr-6">
           <p className="text-sm text-muted-foreground">Total SAM</p>
           <p className="text-3xl font-bold">{summary.totalSam.toFixed(2)}</p>
@@ -404,7 +404,7 @@ const TnaPlan = ({
             </div>
             <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
                 <div className="font-medium text-muted-foreground text-xs">Shipment Date</div>
-                <div className="font-semibold text-base">{format(new Date(order.dueDate), 'MMM dd, yyyy')}</div>
+                <div className="font-semibold text-base">{order.dueDate ? format(new Date(order.dueDate), 'MMM dd, yyyy') : '-'}</div>
             </div>
             <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
                 <div className="font-medium text-muted-foreground text-xs">Order Quantity</div>
@@ -584,7 +584,7 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
 
   const ehd = useMemo(() => getEhdForOrder(order.id, scheduledProcesses), [order.id, scheduledProcesses]);
   
-  const isLate = ehd && isAfter(startOfDay(ehd), startOfDay(new Date(order.dueDate)));
+  const isLate = ehd && order.dueDate && isAfter(startOfDay(ehd), startOfDay(new Date(order.dueDate)));
   
   const isBudgetUnreachable = daysToBudget === Infinity;
   const isSchemeInefficient = typeof daysToBudget === 'number' && totalProductionDays > 0 && daysToBudget > totalProductionDays;
@@ -650,7 +650,7 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
           </Dialog>
         </TableCell>
         <TableCell>{order.buyer}</TableCell>
-        <TableCell>Firm PO</TableCell>
+        <TableCell>{order.orderType}</TableCell>
         <TableCell>{order.budgetedEfficiency}%</TableCell>
         <TableCell>
           <Badge variant={avgEfficiency < (order.budgetedEfficiency || 0) ? 'destructive' : 'secondary'}>
@@ -723,12 +723,12 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
         </TableCell>
         <TableCell className="text-right">{order.quantity}</TableCell>
         <TableCell>{order.leadTime ? `${order.leadTime} days` : '-'}</TableCell>
-        <TableCell>{format(new Date(order.dueDate), 'PPP')}</TableCell>
+        <TableCell>{order.dueDate ? format(new Date(order.dueDate), 'PPP') : '-'}</TableCell>
         <TableCell className={cn(isLate && "text-destructive font-semibold")}>
           {ehd ? (
             format(ehd, 'PPP')
           ) : (
-            <span className="text-muted-foreground">Not Packed</span>
+            <span className="text-muted-foreground">{order.dueDate ? 'Not Packed' : '-'}</span>
           )}
         </TableCell>
     </TableRow>
@@ -823,6 +823,3 @@ export default function OrdersPage() {
     </div>
   );
 }
-
-
-
