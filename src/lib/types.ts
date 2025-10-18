@@ -46,6 +46,7 @@ export type SewingOperation = {
   machine: string;
   operators: number;
   sam: number;
+  grade: 'A' | 'B' | 'C' | 'D';
 };
 
 export type Order = {

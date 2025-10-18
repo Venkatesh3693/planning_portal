@@ -33,7 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import ColorPicker from '@/components/orders/color-picker';
 import { cn } from '@/lib/utils';
 import { useSchedule } from '@/context/schedule-provider';
@@ -251,23 +251,58 @@ const getEhdForOrder = (orderId: string, scheduledProcesses: ScheduledProcess[])
 };
 
 const OperationBulletin = ({ order }: { order: Order }) => {
-    const operations = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
-  
+  const operations = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
+
+  const summary = useMemo(() => {
     if (operations.length === 0) {
-      return (
-        <div className="text-center text-muted-foreground py-10">
-          No detailed sewing operations defined for style: {order.style}
-        </div>
-      );
+      return { totalSam: 0, gradeCounts: { A: 0, B: 0, C: 0, D: 0 } };
     }
-  
+    const totalSam = operations.reduce((sum, op) => sum + op.sam, 0);
+    const gradeCounts = operations.reduce((counts, op) => {
+      counts[op.grade] = (counts[op.grade] || 0) + 1;
+      return counts;
+    }, { A: 0, B: 0, C: 0, D: 0 } as Record<string, number>);
+
+    return { totalSam, gradeCounts };
+  }, [operations]);
+
+  if (operations.length === 0) {
     return (
+      <div className="text-center text-muted-foreground py-10">
+        No detailed sewing operations defined for style: {order.style}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total SAM</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{summary.totalSam.toFixed(2)}</div>
+          </CardContent>
+        </Card>
+        {(['A', 'B', 'C', 'D'] as const).map(grade => (
+          <Card key={grade}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Grade {grade} Tailors</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{summary.gradeCounts[grade]}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
       <div className="border rounded-lg overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50 hover:bg-muted/50">
               <TableHead>Operation</TableHead>
               <TableHead>Machine</TableHead>
+              <TableHead>Grade</TableHead>
               <TableHead className="text-center">Operators</TableHead>
               <TableHead className="text-right">Time (SAM)</TableHead>
             </TableRow>
@@ -277,6 +312,9 @@ const OperationBulletin = ({ order }: { order: Order }) => {
               <TableRow key={index}>
                 <TableCell className="font-medium">{op.operation}</TableCell>
                 <TableCell>{op.machine}</TableCell>
+                <TableCell>
+                  <Badge variant="secondary" className="w-6 h-6 justify-center">{op.grade}</Badge>
+                </TableCell>
                 <TableCell className="text-center">{op.operators}</TableCell>
                 <TableCell className="text-right">{op.sam.toFixed(2)}</TableCell>
               </TableRow>
@@ -284,7 +322,8 @@ const OperationBulletin = ({ order }: { order: Order }) => {
           </TableBody>
         </Table>
       </div>
-    );
+    </div>
+  );
 };
 
 // Sub-components defined at the module level for stability
