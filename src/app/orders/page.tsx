@@ -45,6 +45,7 @@ import { Input } from '@/components/ui/input';
 import { generateTnaPlan } from '@/lib/tna-calculator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { RampUpEntry } from '@/lib/types';
+import { Separator } from '@/components/ui/separator';
 
 
 const SEWING_PROCESS_ID = 'sewing';
@@ -283,41 +284,35 @@ const OperationBulletin = ({ order }: { order: Order }) => {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total SAM</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{summary.totalSam.toFixed(2)}</div>
-          </CardContent>
-        </Card>
-        <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Tailor Grades</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-4 gap-2 text-center pt-4">
+       <div className="flex rounded-lg border p-4">
+        <div className="flex flex-col justify-center items-center pr-6">
+          <p className="text-sm text-muted-foreground">Total SAM</p>
+          <p className="text-3xl font-bold">{summary.totalSam.toFixed(2)}</p>
+        </div>
+        <Separator orientation="vertical" className="h-auto" />
+        <div className="flex-1 pl-6 space-y-2">
+          <div>
+            <p className="text-sm text-muted-foreground">Tailor Grades</p>
+            <div className="flex flex-wrap gap-2 mt-1">
               {(['A', 'B', 'C', 'D'] as const).map(grade => (
-                <div key={grade}>
-                  <div className="text-2xl font-bold">{summary.gradeCounts[grade]}</div>
-                  <div className="text-xs text-muted-foreground">Grade {grade}</div>
-                </div>
+                <Badge key={grade} variant="secondary" className="text-base">
+                  {grade}: {summary.gradeCounts[grade]}
+                </Badge>
               ))}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Machine Types</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-3 gap-2 text-center pt-4">
-                {Object.entries(summary.machineCounts).map(([machine, count]) => (
-                  <div key={machine}>
-                    <div className="text-xl font-bold">{count}</div>
-                    <div className="text-xs text-muted-foreground">{machine}</div>
-                  </div>
-                ))}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
+          <Separator />
+          <div>
+            <p className="text-sm text-muted-foreground">Machine Types</p>
+            <div className="flex flex-wrap gap-2 mt-1">
+               {Object.entries(summary.machineCounts).map(([machine, count]) => (
+                <Badge key={machine} variant="secondary" className="text-base">
+                  {machine}: {count}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
       <div className="border rounded-lg overflow-hidden">
         <Table>
@@ -547,7 +542,7 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
     const calculatedMoqs: Record<string, number> = {};
     order.processIds.forEach((processId) => {
       const process = PROCESSES.find(p => p.id === processId)!;
-      const days = Number(minRunDays[process.id]) || 1;
+      const days = Number(minRunDays[processId]) || 1;
       let currentMoq = 0;
       if (days > 0) {
         if (process.id === 'sewing') {
@@ -828,4 +823,5 @@ export default function OrdersPage() {
     </div>
   );
 }
+
 
