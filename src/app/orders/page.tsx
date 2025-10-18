@@ -276,7 +276,7 @@ const OperationBulletin = ({ order }: { order: Order }) => {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total SAM</CardTitle>
@@ -285,16 +285,21 @@ const OperationBulletin = ({ order }: { order: Order }) => {
             <div className="text-2xl font-bold">{summary.totalSam.toFixed(2)}</div>
           </CardContent>
         </Card>
-        {(['A', 'B', 'C', 'D'] as const).map(grade => (
-          <Card key={grade}>
+        <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Grade {grade} Tailors</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Grade A/B/C/D Tailors</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{summary.gradeCounts[grade]}</div>
+              <div className="grid grid-cols-4 gap-2 text-center">
+                {(['A', 'B', 'C', 'D'] as const).map(grade => (
+                  <div key={grade}>
+                    <div className="text-2xl font-bold">{summary.gradeCounts[grade]}</div>
+                    <div className="text-xs text-muted-foreground">Grade {grade}</div>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
-        ))}
       </div>
       <div className="border rounded-lg overflow-hidden">
         <Table>
