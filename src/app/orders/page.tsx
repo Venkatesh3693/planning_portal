@@ -255,7 +255,7 @@ const OperationBulletin = ({ order }: { order: Order }) => {
 
   const summary = useMemo(() => {
     if (operations.length === 0) {
-      return { totalSam: 0, gradeCounts: { A: 0, B: 0, C: 0, D: 0 } };
+      return { totalSam: 0, gradeCounts: { A: 0, B: 0, C: 0, D: 0 }, machineCounts: {} };
     }
     const totalSam = operations.reduce((sum, op) => sum + op.sam, 0);
     const gradeCounts = operations.reduce((counts, op) => {
@@ -263,7 +263,12 @@ const OperationBulletin = ({ order }: { order: Order }) => {
       return counts;
     }, { A: 0, B: 0, C: 0, D: 0 } as Record<string, number>);
 
-    return { totalSam, gradeCounts };
+    const machineCounts = operations.reduce((counts, op) => {
+      counts[op.machine] = (counts[op.machine] || 0) + 1;
+      return counts;
+    }, {} as Record<string, number>);
+
+    return { totalSam, gradeCounts, machineCounts };
   }, [operations]);
 
   if (operations.length === 0) {
@@ -276,7 +281,7 @@ const OperationBulletin = ({ order }: { order: Order }) => {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total SAM</CardTitle>
@@ -287,14 +292,27 @@ const OperationBulletin = ({ order }: { order: Order }) => {
         </Card>
         <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Grade A/B/C/D Tailors</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Tailor Grades</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-4 gap-2 text-center">
-                {(['A', 'B', 'C', 'D'] as const).map(grade => (
-                  <div key={grade}>
-                    <div className="text-2xl font-bold">{summary.gradeCounts[grade]}</div>
-                    <div className="text-xs text-muted-foreground">Grade {grade}</div>
+            <CardContent className="grid grid-cols-4 gap-2 text-center pt-4">
+              {(['A', 'B', 'C', 'D'] as const).map(grade => (
+                <div key={grade}>
+                  <div className="text-2xl font-bold">{summary.gradeCounts[grade]}</div>
+                  <div className="text-xs text-muted-foreground">Grade {grade}</div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Machine Types</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-2">
+              <div className="space-y-1 text-sm">
+                {Object.entries(summary.machineCounts).map(([machine, count]) => (
+                  <div key={machine} className="flex justify-between items-center">
+                    <span className="text-muted-foreground truncate pr-2">{machine}</span>
+                    <Badge variant="secondary">{count}</Badge>
                   </div>
                 ))}
               </div>
