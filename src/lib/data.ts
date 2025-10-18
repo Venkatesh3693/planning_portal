@@ -114,6 +114,14 @@ export const ORDERS: Order[] = [
     }
 ];
 
+export const MACHINE_NAME_ABBREVIATIONS: Record<string, string> = {
+    'Single Needle Lock Stitch': 'SNLS',
+    'Over Lock Machine': 'OLM',
+    'Chain Stitch Machine': 'CSM',
+    'Bar Tack Machine': 'BTM',
+    'Flat Lock Machine': 'FLM',
+};
+
 export const SEWING_OPERATIONS_BY_STYLE: Record<string, SewingOperation[]> = {
     'Shirt': [
       { operation: 'Collar Preparation', machine: 'Single Needle Lock Stitch', operators: 1, sam: 2.5, grade: 'B' },

@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/dialog';
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
-import { PROCESSES, WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE } from '@/lib/data';
+import { PROCESSES, WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE, MACHINE_NAME_ABBREVIATIONS } from '@/lib/data';
 import type { Order, ScheduledProcess, TnaProcess, SewingOperation } from '@/lib/types';
 import { format, isAfter, isBefore, startOfDay, subDays } from 'date-fns';
 import {
@@ -258,13 +258,15 @@ const OperationBulletin = ({ order }: { order: Order }) => {
       return { totalSam: 0, gradeCounts: { A: 0, B: 0, C: 0, D: 0 }, machineCounts: {} };
     }
     const totalSam = operations.reduce((sum, op) => sum + op.sam, 0);
+    
     const gradeCounts = operations.reduce((counts, op) => {
       counts[op.grade] = (counts[op.grade] || 0) + 1;
       return counts;
     }, { A: 0, B: 0, C: 0, D: 0 } as Record<string, number>);
 
     const machineCounts = operations.reduce((counts, op) => {
-      counts[op.machine] = (counts[op.machine] || 0) + 1;
+      const machineAbbr = MACHINE_NAME_ABBREVIATIONS[op.machine] || op.machine;
+      counts[machineAbbr] = (counts[machineAbbr] || 0) + 1;
       return counts;
     }, {} as Record<string, number>);
 
@@ -307,15 +309,13 @@ const OperationBulletin = ({ order }: { order: Order }) => {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Machine Types</CardTitle>
             </CardHeader>
-            <CardContent className="pt-2">
-              <div className="space-y-1 text-sm">
+            <CardContent className="grid grid-cols-3 gap-2 text-center pt-4">
                 {Object.entries(summary.machineCounts).map(([machine, count]) => (
-                  <div key={machine} className="flex justify-between items-center">
-                    <span className="text-muted-foreground truncate pr-2">{machine}</span>
-                    <Badge variant="secondary">{count}</Badge>
+                  <div key={machine}>
+                    <div className="text-xl font-bold">{count}</div>
+                    <div className="text-xs text-muted-foreground">{machine}</div>
                   </div>
                 ))}
-              </div>
             </CardContent>
           </Card>
       </div>
@@ -828,3 +828,4 @@ export default function OrdersPage() {
     </div>
   );
 }
+
