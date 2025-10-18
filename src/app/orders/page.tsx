@@ -284,7 +284,7 @@ const OperationBulletin = ({ order }: { order: Order }) => {
 
   return (
     <div className="space-y-6">
-       <div className="flex rounded-lg border p-4">
+       <div className="flex rounded-lg border bg-card p-4">
         <div className="flex flex-col justify-center items-center pr-6">
           <p className="text-sm text-muted-foreground">Total SAM</p>
           <p className="text-3xl font-bold">{summary.totalSam.toFixed(2)}</p>
@@ -823,5 +823,6 @@ export default function OrdersPage() {
     </div>
   );
 }
+
 
 
