@@ -47,6 +47,7 @@ import type { RampUpEntry } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import PoDetailsDialog from '@/components/orders/po-details-dialog';
+import DemandDetailsDialog from '@/components/orders/demand-details-dialog';
 
 
 const SEWING_PROCESS_ID = 'sewing';
@@ -421,7 +422,7 @@ const TnaPlan = ({
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger><Info className="h-3 w-3" /></TooltipTrigger>
-                            <TooltipContent><p>The max of all Calculated MOQs (excluding Packing). <br/>This drives the overlap in the T&amp;A Plan.</p></TooltipContent>
+                            <TooltipContent><p>The max of all Calculated MOQs (excluding Packing). <br/>This drives the overlap in the T&A Plan.</p></TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
                 </div>
@@ -618,11 +619,11 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
                     <div className="flex items-center gap-2">
                         <div className="flex items-center gap-1 rounded-md bg-muted p-1">
                             <Button size="sm" variant={activeView === 'ob' ? 'default' : 'ghost'} onClick={() => setActiveView('ob')}>OB</Button>
-                            <Button size="sm" variant={activeView === 'tna' ? 'default' : 'ghost'} onClick={() => setActiveView('tna')}>T&amp;A Plan</Button>
+                            <Button size="sm" variant={activeView === 'tna' ? 'default' : 'ghost'} onClick={() => setActiveView('tna')}>T&A Plan</Button>
                         </div>
                         {activeView === 'tna' && (
                             <Button size="sm" variant="outline" onClick={handleRecalculate}>
-                                <Zap className="h-4 w-4 mr-2"/> Recalculate T&amp;A Plan
+                                <Zap className="h-4 w-4 mr-2"/> Recalculate T&A Plan
                             </Button>
                         )}
                         <DialogClose asChild>
@@ -759,6 +760,7 @@ export default function OrdersPage() {
     shipped: false,
   });
   const [poDetailsOrder, setPoDetailsOrder] = useState<Order | null>(null);
+  const [demandDetailsOrder, setDemandDetailsOrder] = useState<Order | null>(null);
 
   const handleToggleColumn = (column: keyof typeof expandedColumns) => {
     setExpandedColumns(prev => ({ ...prev, [column]: !prev[column] }));
@@ -968,7 +970,22 @@ export default function OrdersPage() {
                           <TableCell>{order.style}</TableCell>
                           <TableCell>{order.modelNo || '-'}</TableCell>
                           <TableCell className="text-right">{(order.quantity || 0).toLocaleString()}</TableCell>
-                          <TableCell className="text-right font-medium">{(order.poFcQty || 0).toLocaleString()}</TableCell>
+                          <TableCell className="text-right font-medium">
+                            {order.demandDetails ? (
+                               <Dialog onOpenChange={(isOpen) => !isOpen && setDemandDetailsOrder(null)}>
+                                <DialogTrigger asChild>
+                                  <span 
+                                    className="cursor-pointer text-primary hover:underline"
+                                    onClick={() => setDemandDetailsOrder(order)}
+                                  >
+                                    {(order.poFcQty || 0).toLocaleString()}
+                                  </span>
+                                </DialogTrigger>
+                              </Dialog>
+                            ) : (
+                                <span>{(order.poFcQty || 0).toLocaleString()}</span>
+                            )}
+                          </TableCell>
                           
                           {expandedColumns.projection ? (
                             <>
@@ -1053,6 +1070,14 @@ export default function OrdersPage() {
           order={poDetailsOrder}
           isOpen={!!poDetailsOrder}
           onOpenChange={(isOpen) => !isOpen && setPoDetailsOrder(null)}
+        />
+      )}
+
+      {demandDetailsOrder && (
+        <DemandDetailsDialog
+          order={demandDetailsOrder}
+          isOpen={!!demandDetailsOrder}
+          onOpenChange={(isOpen) => !isOpen && setDemandDetailsOrder(null)}
         />
       )}
     </div>

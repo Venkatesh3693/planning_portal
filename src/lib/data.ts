@@ -1,5 +1,5 @@
 
-import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail } from '@/lib/types';
+import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail } from '@/lib/types';
 import { Scissors, Printer, Fingerprint, ExternalLink, MoveHorizontal, PackageCheck } from 'lucide-react';
 import { addDays, subDays, startOfToday } from 'date-fns';
 
@@ -91,6 +91,18 @@ const dsiPoDetails: PoDetail[] = [
   },
 ];
 
+const dmiDemandDetails: DemandDetail[] = [
+    { destination: 'New York, USA', selectionQty: 50000, po: 45000, fc: 5000, poPlusFc: 50000 },
+    { destination: 'London, UK', selectionQty: 50000, po: 40000, fc: 15000, poPlusFc: 55000 },
+    { destination: 'Tokyo, Japan', selectionQty: 50000, po: 10000, fc: 35000, poPlusFc: 45000 },
+];
+
+const dsiDemandDetails: DemandDetail[] = [
+    { destination: 'Berlin, DE', selectionQty: 100000, po: 80000, fc: 25000, poPlusFc: 105000 },
+    { destination: 'Paris, FR', selectionQty: 150000, po: 100000, fc: 40000, poPlusFc: 140000 },
+];
+
+
 export const ORDERS: Order[] = [
     {
         id: 'ZAR4531-Shirt-Blue',
@@ -167,7 +179,7 @@ export const ORDERS: Order[] = [
         modelNo: 556622,
         season: 'AW-25',
         quantity: 150000,
-        poFcQty: 140000,
+        poFcQty: 150000,
         projection: { noPo: 50000, openPos: 40000, grn: 30000, total: 120000 },
         frc: { noPo: 40000, openPos: 35000, grn: 25000, total: 100000 },
         confirmedPoQty: 95000,
@@ -187,6 +199,7 @@ export const ORDERS: Order[] = [
             ]
         },
         poDetails: dmiPoDetails,
+        demandDetails: dmiDemandDetails,
     },
     {
         id: 'DSI-300096-Green',
@@ -197,7 +210,7 @@ export const ORDERS: Order[] = [
         modelNo: 778899,
         season: 'SS-26',
         quantity: 250000,
-        poFcQty: 230000,
+        poFcQty: 250000,
         projection: { noPo: 100000, openPos: 75000, grn: 50000, total: 225000 },
         frc: { noPo: 80000, openPos: 70000, grn: 50000, total: 200000 },
         confirmedPoQty: 180000,
@@ -218,6 +231,7 @@ export const ORDERS: Order[] = [
             ]
         },
         poDetails: dsiPoDetails,
+        demandDetails: dsiDemandDetails,
     }
 ];
 

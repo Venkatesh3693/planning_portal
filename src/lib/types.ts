@@ -70,6 +70,15 @@ export type PoDetail = {
   quantities: SizeBreakdown;
 };
 
+export type DemandDetail = {
+  destination: string;
+  selectionQty: number;
+  po: number;
+  fc: number;
+  poPlusFc: number;
+};
+
+
 export type Order = {
   id: string; // e.g. 'ZAR4531-Shirt-Blue'
   ocn: string; // e.g. 'ZAR4531'
@@ -95,6 +104,7 @@ export type Order = {
   produced?: SizeBreakdown;
   shipped?: SizeBreakdown;
   poDetails?: PoDetail[];
+  demandDetails?: DemandDetail[];
 };
 
 export type ScheduledProcess = {
