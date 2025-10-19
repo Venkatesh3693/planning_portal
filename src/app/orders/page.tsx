@@ -402,18 +402,22 @@ const TnaPlan = ({
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 text-sm">
-            <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
-                <div className="font-medium text-muted-foreground text-xs">CK Date</div>
-                <div className="font-semibold text-base">{calculatedCkDate ? format(calculatedCkDate, 'MMM dd, yyyy') : 'N/A'}</div>
-            </div>
-            <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
-                <div className="font-medium text-muted-foreground text-xs">Shipment Date</div>
-                <div className="font-semibold text-base">{order.dueDate ? format(new Date(order.dueDate), 'MMM dd, yyyy') : '-'}</div>
-            </div>
-            <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
-                <div className="font-medium text-muted-foreground text-xs">Order Quantity</div>
-                <div className="font-semibold text-base">{order.quantity.toLocaleString()} units</div>
-            </div>
+            {order.orderType === 'Firm PO' && (
+              <>
+                <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
+                    <div className="font-medium text-muted-foreground text-xs">CK Date</div>
+                    <div className="font-semibold text-base">{calculatedCkDate ? format(calculatedCkDate, 'MMM dd, yyyy') : 'N/A'}</div>
+                </div>
+                <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
+                    <div className="font-medium text-muted-foreground text-xs">Shipment Date</div>
+                    <div className="font-semibold text-base">{order.dueDate ? format(new Date(order.dueDate), 'MMM dd, yyyy') : '-'}</div>
+                </div>
+                <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
+                    <div className="font-medium text-muted-foreground text-xs">Order Quantity</div>
+                    <div className="font-semibold text-base">{order.quantity.toLocaleString()} units</div>
+                </div>
+              </>
+            )}
             <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
                 <div className="font-medium text-muted-foreground text-xs">Budgeted Efficiency</div>
                 <div className="font-semibold text-base">{order.budgetedEfficiency || 'N/A'}%</div>
@@ -740,103 +744,138 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
 });
 OrderRow.displayName = 'OrderRow';
 
-const ForecastedOrderRow = forwardRef<HTMLTableRowElement, { order: Order }>(
-  ({ order, ...props }, ref) => {
-    const [isTnaOpen, setIsTnaOpen] = useState(false);
-    const [activeView, setActiveView] = useState<'tna' | 'ob'>('tna');
-    const [poDetailsOrder, setPoDetailsOrder] = useState<Order | null>(null);
-    const [demandDetailsOrder, setDemandDetailsOrder] = useState<Order | null>(null);
-    const [projectionDetailsOrder, setProjectionDetailsOrder] = useState<Order | null>(null);
+const ForecastedOrderRow = forwardRef<
+  HTMLTableRowElement,
+  {
+    order: Order;
+    onRampUpSave: (orderId: string, scheme: RampUpEntry[]) => void;
+    children?: React.ReactNode;
+  }
+>(({ order, onRampUpSave, children, ...props }, ref) => {
+  const [isTnaOpen, setIsTnaOpen] = useState(false);
+  const [rampUpState, setRampUpState] = useState<RampUpDialogState | null>(null);
+  const [activeView, setActiveView] = useState<'tna' | 'ob'>('tna');
+  const [poDetailsOrder, setPoDetailsOrder] = useState<Order | null>(null);
+  const [demandDetailsOrder, setDemandDetailsOrder] = useState<Order | null>(null);
+  const [projectionDetailsOrder, setProjectionDetailsOrder] = useState<Order | null>(null);
 
-    // Dummy states and handlers to satisfy the TnaPlan component, will be changed later.
-    const { scheduledProcesses, processBatchSizes } = useSchedule();
-    const [minRunDays, setMinRunDays] = useState<Record<string, string>>({});
-    const handleMinRunDaysChange = (processId: string, value: string) => {
-        setMinRunDays(prev => ({...prev, [processId]: value}));
-    };
-    const moqs = useMemo(() => ({}), []);
-    const processBatchSize = processBatchSizes[order.id] || 0;
+  const { scheduledProcesses, processBatchSizes, updateOrderMinRunDays } = useSchedule();
+  const [minRunDays, setMinRunDays] = useState<Record<string, string>>({});
+  const handleMinRunDaysChange = (processId: string, value: string) => {
+    const newMinRunDays = { ...minRunDays, [processId]: value };
+    setMinRunDays(newMinRunDays);
 
+    const numericMinRunDays: Record<string, number> = {};
+    for (const [key, val] of Object.entries(newMinRunDays)) {
+      numericMinRunDays[key] = Number(val) || 1;
+    }
+    updateOrderMinRunDays(order.id, numericMinRunDays);
+  };
+  const moqs = useMemo(() => ({}), []);
+  const processBatchSize = processBatchSizes[order.id] || 0;
 
-    return (
-      <TableRow ref={ref} {...props}>
-        <TableCell>
-          <Dialog open={isTnaOpen} onOpenChange={setIsTnaOpen}>
+  const singleLineMinDays = useMemo(() =>
+    sewingProcess ? calculateMinDays(order, sewingProcess.sam, order.sewingRampUpScheme || []) : 0,
+    [order]
+  );
+  
+  return (
+    <TableRow ref={ref} {...props}>
+      <TableCell>
+        <Dialog open={isTnaOpen} onOpenChange={setIsTnaOpen}>
+          <DialogTrigger asChild>
+            <span className="font-medium text-primary cursor-pointer hover:underline">
+              {order.id}
+            </span>
+          </DialogTrigger>
+          <DialogContent className="max-w-7xl p-0" hideClose>
+            <DialogHeader className="flex-row justify-between items-center p-6 pb-0">
+              <div>
+                <DialogTitle>{order.ocn} - {order.style} ({order.color})</DialogTitle>
+                <DialogDescription>
+                  Forecasted Order ID: {order.id} &bull; Buyer: {order.buyer}
+                </DialogDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 rounded-md bg-muted p-1">
+                  <Button size="sm" variant={activeView === 'ob' ? 'default' : 'ghost'} onClick={() => setActiveView('ob')}>OB</Button>
+                  <Button size="sm" variant={activeView === 'tna' ? 'default' : 'ghost'} onClick={() => setActiveView('tna')}>T&A Plan</Button>
+                </div>
+                <DialogClose asChild>
+                  <Button variant="ghost" size="icon" className="rounded-full">
+                    <X className="h-4 w-4" />
+                  </Button>
+                </DialogClose>
+              </div>
+            </DialogHeader>
+            <div className="p-6 pt-4">
+              {activeView === 'tna' ? (
+                <TnaPlan 
+                  order={order}
+                  scheduledProcesses={scheduledProcesses}
+                  minRunDays={minRunDays}
+                  moqs={moqs}
+                  processBatchSize={processBatchSize}
+                  onMinRunDaysChange={handleMinRunDaysChange}
+                  totalProductionDays={0}
+                />
+              ) : (
+                <OperationBulletin order={order} />
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      </TableCell>
+      <TableCell>{order.season || '-'}</TableCell>
+      <TableCell>{order.style}</TableCell>
+      <TableCell>{order.modelNo || '-'}</TableCell>
+      <TableCell className="text-right">{(order.quantity || 0).toLocaleString()}</TableCell>
+      <TableCell className="text-right font-medium">
+        {order.demandDetails ? (
+          <Dialog onOpenChange={(isOpen) => !isOpen && setDemandDetailsOrder(null)}>
             <DialogTrigger asChild>
-              <span className="font-medium text-primary cursor-pointer hover:underline">
-                {order.id}
+              <span className="cursor-pointer text-primary hover:underline" onClick={() => setDemandDetailsOrder(order)}>
+                {(order.poFcQty || 0).toLocaleString()}
               </span>
             </DialogTrigger>
-            <DialogContent className="max-w-7xl p-0" hideClose>
-              <DialogHeader className="flex-row justify-between items-center p-6 pb-0">
-                <div>
-                  <DialogTitle>{order.ocn} - {order.style} ({order.color})</DialogTitle>
-                  <DialogDescription>
-                    Forecasted Order ID: {order.id} &bull; Buyer: {order.buyer}
-                  </DialogDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1 rounded-md bg-muted p-1">
-                    <Button size="sm" variant={activeView === 'ob' ? 'default' : 'ghost'} onClick={() => setActiveView('ob')}>OB</Button>
-                    <Button size="sm" variant={activeView === 'tna' ? 'default' : 'ghost'} onClick={() => setActiveView('tna')}>T&A Plan</Button>
-                  </div>
-                  <DialogClose asChild>
-                    <Button variant="ghost" size="icon" className="rounded-full">
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </DialogClose>
-                </div>
-              </DialogHeader>
-              <div className="p-6 pt-4">
-                {activeView === 'tna' ? (
-                  <TnaPlan 
-                    order={order}
-                    scheduledProcesses={scheduledProcesses}
-                    minRunDays={minRunDays}
-                    moqs={moqs}
-                    processBatchSize={processBatchSize}
-                    onMinRunDaysChange={handleMinRunDaysChange}
-                    totalProductionDays={0}
-                  />
-                ) : (
-                  <OperationBulletin order={order} />
-                )}
-              </div>
-            </DialogContent>
           </Dialog>
-        </TableCell>
-        <TableCell>{order.season || '-'}</TableCell>
-        <TableCell>{order.style}</TableCell>
-        <TableCell>{order.modelNo || '-'}</TableCell>
-        <TableCell className="text-right">{(order.quantity || 0).toLocaleString()}</TableCell>
-        <TableCell className="text-right font-medium">
-          {order.demandDetails ? (
-            <Dialog onOpenChange={(isOpen) => !isOpen && setDemandDetailsOrder(null)}>
-              <DialogTrigger asChild>
-                <span className="cursor-pointer text-primary hover:underline" onClick={() => setDemandDetailsOrder(order)}>
-                  {(order.poFcQty || 0).toLocaleString()}
-                </span>
-              </DialogTrigger>
-            </Dialog>
-          ) : (
-            <span>{(order.poFcQty || 0).toLocaleString()}</span>
-          )}
-        </TableCell>
-        {/* All the other cells for forecasted orders */}
-        {props.children}
-
-        {/* These dialogs need to be handled here as well */}
-        {demandDetailsOrder && (
-            <DemandDetailsDialog
-            order={demandDetailsOrder}
-            isOpen={!!demandDetailsOrder}
-            onOpenChange={(isOpen) => !isOpen && setDemandDetailsOrder(null)}
-            />
+        ) : (
+          <span>{(order.poFcQty || 0).toLocaleString()}</span>
         )}
-      </TableRow>
-    );
-  }
-);
+      </TableCell>
+      
+      {children}
+
+      <TableCell>
+        <Button variant="outline" size="sm" onClick={() => setRampUpState({ order, singleLineMinDays })}>
+          <LineChart className="h-4 w-4 mr-2" />
+          Scheme
+        </Button>
+      </TableCell>
+
+      {rampUpState && (
+        <RampUpDialog
+          key={rampUpState.order.id}
+          order={rampUpState.order}
+          singleLineMinDays={rampUpState.singleLineMinDays}
+          numLines={1}
+          isOpen={!!rampUpState}
+          onOpenChange={(isOpen) => !isOpen && setRampUpState(null)}
+          onSave={onRampUpSave}
+          calculateAverageEfficiency={calculateAverageEfficiency}
+        />
+      )}
+      
+      {demandDetailsOrder && (
+          <DemandDetailsDialog
+          order={demandDetailsOrder}
+          isOpen={!!demandDetailsOrder}
+          onOpenChange={(isOpen) => !isOpen && setDemandDetailsOrder(null)}
+          />
+      )}
+    </TableRow>
+  );
+});
 ForecastedOrderRow.displayName = 'ForecastedOrderRow';
 
 
@@ -1020,6 +1059,7 @@ export default function OrdersPage() {
                         </TableHead>
 
                         <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Lead Time</TableHead>
+                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Ramp-up</TableHead>
                       </TableRow>
                       {isAnyForecastColumnExpanded && (
                         <TableRow>
@@ -1066,7 +1106,11 @@ export default function OrdersPage() {
                     </TableHeader>
                     <TableBody>
                       {forecastedOrders.map((order) => (
-                        <ForecastedOrderRow key={order.id} order={order}>
+                        <ForecastedOrderRow
+                          key={order.id}
+                          order={order}
+                          onRampUpSave={updateSewingRampUpScheme}
+                        >
                           {expandedColumns.projection ? (
                             <>
                               <TableCell className="text-right">{order.projection?.noPo.toLocaleString() || '-'}</TableCell>
