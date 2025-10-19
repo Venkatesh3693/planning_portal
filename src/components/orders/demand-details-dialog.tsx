@@ -218,8 +218,8 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
   };
 
   return (
-    <div className="space-y-4">
-       <div className="flex items-center gap-4">
+    <div className="space-y-4 flex flex-col h-full">
+       <div className="flex items-center gap-4 flex-shrink-0">
         <Label htmlFor="size-filter" className="text-sm">View by Size:</Label>
         <Select value={selectedSize} onValueChange={(value) => setSelectedSize(value as Size | 'total')}>
           <SelectTrigger className="w-[180px]" id="size-filter">
@@ -242,7 +242,7 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
         </Button>
         {currentWeek > 0 && <Badge variant="outline" className="text-sm">Current Week: W{currentWeek}</Badge>}
       </div>
-      <div className="max-h-[60vh] overflow-auto border rounded-lg">
+      <div className="flex-1 min-h-0 overflow-auto border rounded-lg">
         <Table>
           <TableHeader className="sticky top-0 bg-background z-10">
             <TableRow>
@@ -299,22 +299,22 @@ export default function DemandDetailsDialog({
 }: DemandDetailsDialogProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-7xl">
+      <DialogContent className="max-w-5xl h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Demand Details for {order.id}</DialogTitle>
           <DialogDescription>
             Comparison of various demand signals for this forecast.
           </DialogDescription>
         </DialogHeader>
-        <Tabs defaultValue="demand-trend">
+        <Tabs defaultValue="demand-trend" className="flex-1 flex flex-col min-h-0">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="selection-vs-po-fc">Selection vs. PO+FC</TabsTrigger>
             <TabsTrigger value="demand-trend">Demand Trend Analysis</TabsTrigger>
           </TabsList>
-          <TabsContent value="selection-vs-po-fc" className="pt-4">
+          <TabsContent value="selection-vs-po-fc" className="pt-4 flex-1 overflow-auto">
              <SelectionVsPoFc order={order} />
           </TabsContent>
-          <TabsContent value="demand-trend" className="pt-4">
+          <TabsContent value="demand-trend" className="pt-4 flex-1 flex flex-col min-h-0">
              <DemandTrendAnalysis order={order} />
           </TabsContent>
         </Tabs>
