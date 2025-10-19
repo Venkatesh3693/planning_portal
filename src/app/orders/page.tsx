@@ -740,6 +740,105 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
 });
 OrderRow.displayName = 'OrderRow';
 
+const ForecastedOrderRow = forwardRef<HTMLTableRowElement, { order: Order }>(
+  ({ order, ...props }, ref) => {
+    const [isTnaOpen, setIsTnaOpen] = useState(false);
+    const [activeView, setActiveView] = useState<'tna' | 'ob'>('tna');
+    const [poDetailsOrder, setPoDetailsOrder] = useState<Order | null>(null);
+    const [demandDetailsOrder, setDemandDetailsOrder] = useState<Order | null>(null);
+    const [projectionDetailsOrder, setProjectionDetailsOrder] = useState<Order | null>(null);
+
+    // Dummy states and handlers to satisfy the TnaPlan component, will be changed later.
+    const { scheduledProcesses, processBatchSizes } = useSchedule();
+    const [minRunDays, setMinRunDays] = useState<Record<string, string>>({});
+    const handleMinRunDaysChange = (processId: string, value: string) => {
+        setMinRunDays(prev => ({...prev, [processId]: value}));
+    };
+    const moqs = useMemo(() => ({}), []);
+    const processBatchSize = processBatchSizes[order.id] || 0;
+
+
+    return (
+      <TableRow ref={ref} {...props}>
+        <TableCell>
+          <Dialog open={isTnaOpen} onOpenChange={setIsTnaOpen}>
+            <DialogTrigger asChild>
+              <span className="font-medium text-primary cursor-pointer hover:underline">
+                {order.id}
+              </span>
+            </DialogTrigger>
+            <DialogContent className="max-w-7xl p-0" hideClose>
+              <DialogHeader className="flex-row justify-between items-center p-6 pb-0">
+                <div>
+                  <DialogTitle>{order.ocn} - {order.style} ({order.color})</DialogTitle>
+                  <DialogDescription>
+                    Forecasted Order ID: {order.id} &bull; Buyer: {order.buyer}
+                  </DialogDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 rounded-md bg-muted p-1">
+                    <Button size="sm" variant={activeView === 'ob' ? 'default' : 'ghost'} onClick={() => setActiveView('ob')}>OB</Button>
+                    <Button size="sm" variant={activeView === 'tna' ? 'default' : 'ghost'} onClick={() => setActiveView('tna')}>T&A Plan</Button>
+                  </div>
+                  <DialogClose asChild>
+                    <Button variant="ghost" size="icon" className="rounded-full">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </DialogClose>
+                </div>
+              </DialogHeader>
+              <div className="p-6 pt-4">
+                {activeView === 'tna' ? (
+                  <TnaPlan 
+                    order={order}
+                    scheduledProcesses={scheduledProcesses}
+                    minRunDays={minRunDays}
+                    moqs={moqs}
+                    processBatchSize={processBatchSize}
+                    onMinRunDaysChange={handleMinRunDaysChange}
+                    totalProductionDays={0}
+                  />
+                ) : (
+                  <OperationBulletin order={order} />
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+        </TableCell>
+        <TableCell>{order.season || '-'}</TableCell>
+        <TableCell>{order.style}</TableCell>
+        <TableCell>{order.modelNo || '-'}</TableCell>
+        <TableCell className="text-right">{(order.quantity || 0).toLocaleString()}</TableCell>
+        <TableCell className="text-right font-medium">
+          {order.demandDetails ? (
+            <Dialog onOpenChange={(isOpen) => !isOpen && setDemandDetailsOrder(null)}>
+              <DialogTrigger asChild>
+                <span className="cursor-pointer text-primary hover:underline" onClick={() => setDemandDetailsOrder(order)}>
+                  {(order.poFcQty || 0).toLocaleString()}
+                </span>
+              </DialogTrigger>
+            </Dialog>
+          ) : (
+            <span>{(order.poFcQty || 0).toLocaleString()}</span>
+          )}
+        </TableCell>
+        {/* All the other cells for forecasted orders */}
+        {props.children}
+
+        {/* These dialogs need to be handled here as well */}
+        {demandDetailsOrder && (
+            <DemandDetailsDialog
+            order={demandDetailsOrder}
+            isOpen={!!demandDetailsOrder}
+            onOpenChange={(isOpen) => !isOpen && setDemandDetailsOrder(null)}
+            />
+        )}
+      </TableRow>
+    );
+  }
+);
+ForecastedOrderRow.displayName = 'ForecastedOrderRow';
+
 
 export default function OrdersPage() {
   const { 
@@ -967,29 +1066,7 @@ export default function OrdersPage() {
                     </TableHeader>
                     <TableBody>
                       {forecastedOrders.map((order) => (
-                        <TableRow key={order.id}>
-                          <TableCell className="font-medium">{order.id}</TableCell>
-                          <TableCell>{order.season || '-'}</TableCell>
-                          <TableCell>{order.style}</TableCell>
-                          <TableCell>{order.modelNo || '-'}</TableCell>
-                          <TableCell className="text-right">{(order.quantity || 0).toLocaleString()}</TableCell>
-                          <TableCell className="text-right font-medium">
-                            {order.demandDetails ? (
-                               <Dialog onOpenChange={(isOpen) => !isOpen && setDemandDetailsOrder(null)}>
-                                <DialogTrigger asChild>
-                                  <span 
-                                    className="cursor-pointer text-primary hover:underline"
-                                    onClick={() => setDemandDetailsOrder(order)}
-                                  >
-                                    {(order.poFcQty || 0).toLocaleString()}
-                                  </span>
-                                </DialogTrigger>
-                              </Dialog>
-                            ) : (
-                                <span>{(order.poFcQty || 0).toLocaleString()}</span>
-                            )}
-                          </TableCell>
-                          
+                        <ForecastedOrderRow key={order.id} order={order}>
                           {expandedColumns.projection ? (
                             <>
                               <TableCell className="text-right">{order.projection?.noPo.toLocaleString() || '-'}</TableCell>
@@ -999,10 +1076,7 @@ export default function OrdersPage() {
                                 {order.projection ? (
                                   <Dialog onOpenChange={(isOpen) => !isOpen && setProjectionDetailsOrder(null)}>
                                     <DialogTrigger asChild>
-                                      <span
-                                        className="cursor-pointer text-primary hover:underline"
-                                        onClick={() => setProjectionDetailsOrder(order)}
-                                      >
+                                      <span className="cursor-pointer text-primary hover:underline" onClick={() => setProjectionDetailsOrder(order)}>
                                         {order.projection?.total.toLocaleString() || '-'}
                                       </span>
                                     </DialogTrigger>
@@ -1017,10 +1091,7 @@ export default function OrdersPage() {
                                 {order.projection ? (
                                   <Dialog onOpenChange={(isOpen) => !isOpen && setProjectionDetailsOrder(null)}>
                                     <DialogTrigger asChild>
-                                      <span
-                                        className="cursor-pointer text-primary hover:underline"
-                                        onClick={() => setProjectionDetailsOrder(order)}
-                                      >
+                                      <span className="cursor-pointer text-primary hover:underline" onClick={() => setProjectionDetailsOrder(order)}>
                                         {order.projection?.total.toLocaleString() || '-'}
                                       </span>
                                     </DialogTrigger>
@@ -1046,10 +1117,7 @@ export default function OrdersPage() {
                             {(order.poDetails && order.confirmedPoQty) ? (
                               <Dialog onOpenChange={(isOpen) => !isOpen && setPoDetailsOrder(null)}>
                                 <DialogTrigger asChild>
-                                  <span 
-                                    className="cursor-pointer text-primary hover:underline"
-                                    onClick={() => setPoDetailsOrder(order)}
-                                  >
+                                  <span className="cursor-pointer text-primary hover:underline" onClick={() => setPoDetailsOrder(order)}>
                                     {(order.confirmedPoQty || 0).toLocaleString()}
                                   </span>
                                 </DialogTrigger>
@@ -1083,11 +1151,10 @@ export default function OrdersPage() {
                               <TableCell className="text-right font-bold">{order.shipped?.total.toLocaleString() || '-'}</TableCell>
                             </>
                           ) : (
-                             <TableCell className="text-right font-bold">{order.shipped?.total.toLocaleString() || '-'}</TableCell>
-                          )}
+                             <TableCell className="text-right font-bold">{order.shipped?.total.toLocaleString() || '-'}</TableCell>                          )}
                           
                           <TableCell>{order.leadTime ? `${order.leadTime} days` : '-'}</TableCell>
-                        </TableRow>
+                        </ForecastedOrderRow>
                       ))}
                     </TableBody>
                   </Table>
