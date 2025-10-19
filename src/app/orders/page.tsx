@@ -891,7 +891,6 @@ export default function OrdersPage() {
                               <TableHead className="text-right font-bold">Total</TableHead>
                             </>
                           )}
-                          {!expandedColumns.projection && <TableHead></TableHead>}
                           
                           {expandedColumns.frc && (
                             <>
@@ -901,7 +900,6 @@ export default function OrdersPage() {
                               <TableHead className="text-right font-bold">Total</TableHead>
                             </>
                           )}
-                           {!expandedColumns.frc && <TableHead></TableHead>}
                         </TableRow>
                       )}
                     </TableHeader>
