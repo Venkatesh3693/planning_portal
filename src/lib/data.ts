@@ -117,19 +117,11 @@ const dsiDemandDetails: DemandDetail[] = [
     { destination: 'Paris, FR', selectionQty: 150000, po: 100000, fc: 40000, poPlusFc: 140000 },
 ];
 
-const currentWeek = getWeek(new Date());
+const CURRENT_WEEK = getWeek(new Date());
+const FIRM_PO_WINDOW = 3; // weeks
 
-const generateFcBreakdown = (
-  total: number, 
-  demandWeek: number,
-  snapshotWeek: number
-): Record<Size | 'total', FcComposition> => {
-    const isFirmPo = demandWeek <= snapshotWeek + 3;
-    
-    const composition: Record<Size | 'total', FcComposition> = {
-        total: { po: isFirmPo ? total : 0, fc: isFirmPo ? 0 : total }
-    } as Record<Size | 'total', FcComposition>;
-
+const generateFcBreakdown = (total: number): Record<Size, number> => {
+    const breakdown: Record<Size, number> = {} as Record<Size, number>;
     const numSizes = SIZES.length;
     let baseQty = Math.floor(total / numSizes);
     let remainder = total % numSizes;
@@ -137,53 +129,84 @@ const generateFcBreakdown = (
     SIZES.forEach(size => {
         let qty = baseQty;
         if (remainder > 0) {
-        qty++;
-        remainder--;
+            qty++;
+            remainder--;
         }
-        composition[size] = { po: isFirmPo ? qty : 0, fc: isFirmPo ? 0 : qty };
+        breakdown[size] = qty;
     });
 
-    return composition;
+    return breakdown;
 };
 
+
 const generateFcSnapshots = (
-    snapshotStartWeek: number, 
-    numSnapshots: number,
-    numDemandWeeks: number,
-    initialQty: number,
+    seasonStartWeek: number,
+    seasonEndWeek: number,
+    currentWeek: number,
+    initialQtyPerWeek: number,
     volatility: number = 500
 ): FcSnapshot[] => {
     const snapshots: FcSnapshot[] = [];
-    let lastForecasts: Record<string, number> = {};
-
-    // Initialize base forecast
-    for(let i=0; i < numDemandWeeks; i++) {
-        lastForecasts[`W${snapshotStartWeek + i}`] = initialQty;
+    
+    // This will hold the "true" forecast for each week, evolving over time.
+    let weeklyForecasts: Record<string, number> = {};
+    for (let w = seasonStartWeek; w <= seasonEndWeek; w++) {
+        weeklyForecasts[`W${w}`] = initialQtyPerWeek;
     }
 
-    for (let s = 0; s < numSnapshots; s++) {
-        const snapshotWeek = snapshotStartWeek + s;
+    // This will store the locked PO values once a week becomes firm.
+    const lockedPoValues: Record<string, Record<Size | 'total', FcComposition>> = {};
+
+    // Generate snapshots from season start up to the current week
+    for (let s = seasonStartWeek; s <= currentWeek; s++) {
+        const snapshotWeek = s;
         const snapshot: FcSnapshot = { snapshotWeek, forecasts: {} };
 
-        for(let d=0; d < numDemandWeeks; d++) {
-            const demandWeek = snapshotWeek + d;
-            const weekKey = `W${demandWeek}`;
-            
-            // For the first snapshot, use initial values. For subsequent ones, apply volatility.
-            const baseQty = (s === 0) ? initialQty : lastForecasts[weekKey] || initialQty;
-            const newQty = Math.max(0, baseQty + (Math.random() - 0.5) * volatility);
+        // Apply volatility to future forecasts
+        for (let w = snapshotWeek; w <= seasonEndWeek; w++) {
+            const weekKey = `W${w}`;
+            const newQty = Math.max(0, weeklyForecasts[weekKey] + (Math.random() - 0.5) * volatility);
+            weeklyForecasts[weekKey] = newQty;
+        }
 
-            snapshot.forecasts[weekKey] = generateFcBreakdown(Math.round(newQty), demandWeek, snapshotWeek);
-            lastForecasts[weekKey] = newQty;
+        // For the current snapshot, build the forecast for all demand weeks
+        for (let d = seasonStartWeek; d <= seasonEndWeek; d++) {
+            const demandWeek = d;
+            const weekKey = `W${demandWeek}`;
+            const totalQty = Math.round(weeklyForecasts[weekKey] || 0);
+
+            // If this demand week is now a locked PO, use the locked value.
+            if (lockedPoValues[weekKey]) {
+                snapshot.forecasts[weekKey] = lockedPoValues[weekKey];
+                continue;
+            }
+
+            const sizeBreakdown = generateFcBreakdown(totalQty);
+            const isFirmPo = demandWeek <= snapshotWeek + FIRM_PO_WINDOW;
+
+            const breakdown: Record<Size | 'total', FcComposition> = {
+                total: { po: isFirmPo ? totalQty : 0, fc: isFirmPo ? 0 : totalQty }
+            };
+
+            SIZES.forEach(size => {
+                const qty = sizeBreakdown[size] || 0;
+                breakdown[size] = { po: isFirmPo ? qty : 0, fc: isFirmPo ? 0 : qty };
+            });
+
+            snapshot.forecasts[weekKey] = breakdown;
+            
+            // If this week just became a firm PO, lock its value for future snapshots.
+            if (isFirmPo) {
+                lockedPoValues[weekKey] = breakdown;
+            }
         }
         snapshots.push(snapshot);
     }
     return snapshots;
 };
 
-
-const dmiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots(36, 5, 8, 20000, 1000);
-const dsiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots(38, 5, 8, 50000, 2500);
+const dmiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots(CURRENT_WEEK - 5, CURRENT_WEEK + 8, CURRENT_WEEK, 20000, 1000);
+const dsiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots(CURRENT_WEEK - 5, CURRENT_WEEK + 8, CURRENT_WEEK, 50000, 2500);
 
 
 export const ORDERS: Order[] = [

@@ -200,6 +200,12 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
 
   const getCellBgClass = (demandWeek: string, snapshotWeek: number, data: FcComposition | undefined) => {
     const demandWeekNum = parseInt(demandWeek.substring(1));
+    const isHistorical = demandWeekNum < snapshotWeek;
+    
+    if (isHistorical) {
+        return 'bg-slate-100 dark:bg-slate-800';
+    }
+
     const isFirmRule = demandWeekNum <= snapshotWeek + 3;
 
     if (isFirmRule) {
