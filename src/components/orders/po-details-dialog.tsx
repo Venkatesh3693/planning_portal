@@ -110,7 +110,7 @@ export default function PoDetailsDialog({
             <TableBody>
               {(order.poDetails || []).map((po) => (
                 <TableRow key={po.poNumber}>
-                  <TableCell className="font-medium">{po.poNumber}</TableCell>
+                  <TableCell className="font-medium whitespace-nowrap">{po.poNumber}</TableCell>
                   <TableCell>{format(po.ehd, 'dd/MM/yy')}</TableCell>
                   <TableCell>{getWeek(po.ehd, { weekStartsOn: 1 })}</TableCell>
                   <TableCell>{format(po.chd, 'dd/MM/yy')}</TableCell>
