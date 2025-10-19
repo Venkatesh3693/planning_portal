@@ -1,5 +1,5 @@
 
-import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail } from '@/lib/types';
+import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail, FcSnapshot } from '@/lib/types';
 import { Scissors, Printer, Fingerprint, ExternalLink, MoveHorizontal, PackageCheck } from 'lucide-react';
 import { addDays, subDays, startOfToday } from 'date-fns';
 
@@ -102,6 +102,20 @@ const dsiDemandDetails: DemandDetail[] = [
     { destination: 'Paris, FR', selectionQty: 150000, po: 100000, fc: 40000, poPlusFc: 140000 },
 ];
 
+const dmiFcVsFcDetails: FcSnapshot[] = [
+    { snapshotWeek: 35, forecasts: { 'W40': 20000, 'W41': 25000, 'W42': 30000, 'W43': 30000, 'W44': 30000 } },
+    { snapshotWeek: 36, forecasts: { 'W40': 22000, 'W41': 25000, 'W42': 28000, 'W43': 32000, 'W44': 32000 } },
+    { snapshotWeek: 37, forecasts: { 'W40': 21000, 'W41': 26000, 'W42': 29000, 'W43': 31000, 'W44': 33000 } },
+    { snapshotWeek: 38, forecasts: { 'W40': 21500, 'W41': 25500, 'W42': 29500, 'W43': 31500, 'W44': 32500 } },
+];
+
+const dsiFcVsFcDetails: FcSnapshot[] = [
+    { snapshotWeek: 36, forecasts: { 'W42': 50000, 'W43': 50000, 'W44': 60000, 'W45': 60000, 'W46': 70000 } },
+    { snapshotWeek: 37, forecasts: { 'W42': 48000, 'W43': 52000, 'W44': 60000, 'W45': 65000, 'W46': 70000 } },
+    { snapshotWeek: 38, forecasts: { 'W42': 49000, 'W43': 51000, 'W44': 62000, 'W45': 63000, 'W46': 71000 } },
+    { snapshotWeek: 39, forecasts: { 'W42': 49500, 'W43': 51500, 'W44': 61500, 'W45': 63500, 'W46': 70500 } },
+];
+
 
 export const ORDERS: Order[] = [
     {
@@ -200,6 +214,7 @@ export const ORDERS: Order[] = [
         },
         poDetails: dmiPoDetails,
         demandDetails: dmiDemandDetails,
+        fcVsFcDetails: dmiFcVsFcDetails,
     },
     {
         id: 'DSI-300096-Green',
@@ -232,6 +247,7 @@ export const ORDERS: Order[] = [
         },
         poDetails: dsiPoDetails,
         demandDetails: dsiDemandDetails,
+        fcVsFcDetails: dsiFcVsFcDetails,
     }
 ];
 

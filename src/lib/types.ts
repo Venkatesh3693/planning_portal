@@ -78,6 +78,11 @@ export type DemandDetail = {
   poPlusFc: number;
 };
 
+export type FcSnapshot = {
+  snapshotWeek: number;
+  forecasts: Record<string, number>; // e.g., { 'W40': 1000, 'W41': 1200 }
+};
+
 
 export type Order = {
   id: string; // e.g. 'ZAR4531-Shirt-Blue'
@@ -105,6 +110,7 @@ export type Order = {
   shipped?: SizeBreakdown;
   poDetails?: PoDetail[];
   demandDetails?: DemandDetail[];
+  fcVsFcDetails?: FcSnapshot[];
 };
 
 export type ScheduledProcess = {
