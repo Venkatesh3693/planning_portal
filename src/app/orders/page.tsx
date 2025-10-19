@@ -46,6 +46,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import type { RampUpEntry } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import PoDetailsDialog from '@/components/orders/po-details-dialog';
 
 
 const SEWING_PROCESS_ID = 'sewing';
@@ -757,6 +758,7 @@ export default function OrdersPage() {
     produced: false,
     shipped: false,
   });
+  const [poDetailsOrder, setPoDetailsOrder] = useState<Order | null>(null);
 
   const handleToggleColumn = (column: keyof typeof expandedColumns) => {
     setExpandedColumns(prev => ({ ...prev, [column]: !prev[column] }));
@@ -990,7 +992,22 @@ export default function OrdersPage() {
                               <TableCell className="text-right font-bold">{order.frc?.total.toLocaleString() || '-'}</TableCell>
                           )}
 
-                          <TableCell className="text-right font-bold">{(order.confirmedPoQty || 0).toLocaleString()}</TableCell>
+                          <TableCell className="text-right font-bold">
+                            {(order.poDetails && order.confirmedPoQty) ? (
+                              <Dialog onOpenChange={(isOpen) => !isOpen && setPoDetailsOrder(null)}>
+                                <DialogTrigger asChild>
+                                  <span 
+                                    className="cursor-pointer text-primary hover:underline"
+                                    onClick={() => setPoDetailsOrder(order)}
+                                  >
+                                    {(order.confirmedPoQty || 0).toLocaleString()}
+                                  </span>
+                                </DialogTrigger>
+                              </Dialog>
+                            ) : (
+                              <span>{(order.confirmedPoQty || 0).toLocaleString()}</span>
+                            )}
+                          </TableCell>
                           
                           {expandedColumns.cutOrder ? (
                             <>
@@ -1030,9 +1047,14 @@ export default function OrdersPage() {
           </Tabs>
         </div>
       </main>
+      
+      {poDetailsOrder && (
+        <PoDetailsDialog 
+          order={poDetailsOrder}
+          isOpen={!!poDetailsOrder}
+          onOpenChange={(isOpen) => !isOpen && setPoDetailsOrder(null)}
+        />
+      )}
     </div>
   );
 }
-
-
-    

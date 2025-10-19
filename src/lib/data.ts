@@ -1,5 +1,5 @@
 
-import type { Unit, Machine, Order, Process, SewingOperation, Size } from '@/lib/types';
+import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail } from '@/lib/types';
 import { Scissors, Printer, Fingerprint, ExternalLink, MoveHorizontal, PackageCheck } from 'lucide-react';
 import { addDays, subDays, startOfToday } from 'date-fns';
 
@@ -49,6 +49,47 @@ export const PROCESSES: Process[] = [
 
 const today = startOfToday();
 const currentYear = today.getFullYear();
+
+const dmiPoDetails: PoDetail[] = [
+  {
+    poNumber: 'PO-DMI-001',
+    ehd: new Date(currentYear, 10, 15),
+    chd: new Date(currentYear, 10, 17),
+    destination: 'New York, USA',
+    quantities: { 'XS': 5000, 'S': 10000, 'M': 15000, 'L': 10000, 'XL': 5000, total: 45000 },
+  },
+  {
+    poNumber: 'PO-DMI-002',
+    ehd: new Date(currentYear, 11, 1),
+    chd: new Date(currentYear, 11, 3),
+    destination: 'London, UK',
+    quantities: { 'S': 5000, 'M': 10000, 'L': 10000, 'XL': 10000, '2XL': 5000, total: 40000 },
+  },
+  {
+    poNumber: 'PO-DMI-003',
+    ehd: new Date(currentYear, 11, 10),
+    chd: new Date(currentYear, 11, 10),
+    destination: 'Tokyo, Japan',
+    quantities: { '2XS': 1000, 'XS': 2000, 'S': 2000, 'M': 5000, total: 10000 },
+  },
+];
+
+const dsiPoDetails: PoDetail[] = [
+  {
+    poNumber: 'PO-DSI-201',
+    ehd: new Date(currentYear, 9, 20),
+    chd: new Date(currentYear, 9, 22),
+    destination: 'Berlin, DE',
+    quantities: { 'M': 20000, 'L': 30000, 'XL': 25000, '2XL': 5000, total: 80000 },
+  },
+  {
+    poNumber: 'PO-DSI-202',
+    ehd: new Date(currentYear, 10, 5),
+    chd: new Date(currentYear, 10, 5),
+    destination: 'Paris, FR',
+    quantities: { 'L': 25000, 'XL': 35000, '2XL': 20000, '3XL': 20000, total: 100000 },
+  },
+];
 
 export const ORDERS: Order[] = [
     {
@@ -144,7 +185,8 @@ export const ORDERS: Order[] = [
                 { processId: 'sewing', setupTime: 100 },
                 { processId: 'packing', setupTime: 10 },
             ]
-        }
+        },
+        poDetails: dmiPoDetails,
     },
     {
         id: 'DSI-300096-Green',
@@ -174,7 +216,8 @@ export const ORDERS: Order[] = [
                 { processId: 'sewing', setupTime: 180 },
                 { processId: 'packing', setupTime: 20 },
             ]
-        }
+        },
+        poDetails: dsiPoDetails,
     }
 ];
 

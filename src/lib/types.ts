@@ -59,9 +59,16 @@ export type ForecastDetail = {
 export type Size = '2XS' | 'XS' | 'S' | 'M' | 'L' | 'XL' | '2XL' | '3XL' | '4XL' | '5XL';
 
 export type SizeBreakdown = {
-  [key in Size]: number;
+  [key in Size]?: number;
 } & { total: number };
 
+export type PoDetail = {
+  poNumber: string;
+  ehd: Date;
+  chd: Date;
+  destination: string;
+  quantities: SizeBreakdown;
+};
 
 export type Order = {
   id: string; // e.g. 'ZAR4531-Shirt-Blue'
@@ -87,6 +94,7 @@ export type Order = {
   cutOrder?: SizeBreakdown;
   produced?: SizeBreakdown;
   shipped?: SizeBreakdown;
+  poDetails?: PoDetail[];
 };
 
 export type ScheduledProcess = {
