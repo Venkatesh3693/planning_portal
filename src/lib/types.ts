@@ -1,4 +1,5 @@
 
+
 import type { LucideIcon } from 'lucide-react';
 
 export type Unit = {
@@ -91,6 +92,14 @@ export type FcSnapshot = {
   forecasts: Record<string, Record<Size | 'total', FcComposition>>;
 };
 
+export type ProjectionDetail = {
+  projectionNumber: string;
+  projectionDate: Date;
+  projectionQty: number;
+  poQty: number;
+  grnQty: number;
+  receiptDate: Date;
+};
 
 export type Order = {
   id: string; // e.g. 'ZAR4531-Shirt-Blue'
@@ -119,6 +128,7 @@ export type Order = {
   poDetails?: PoDetail[];
   demandDetails?: DemandDetail[];
   fcVsFcDetails?: FcSnapshot[];
+  projectionDetails?: ProjectionDetail[];
 };
 
 export type ScheduledProcess = {

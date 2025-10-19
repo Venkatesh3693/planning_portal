@@ -1,5 +1,6 @@
 
-import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail, FcSnapshot, FcComposition } from '@/lib/types';
+
+import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail, FcSnapshot, FcComposition, ProjectionDetail } from '@/lib/types';
 import { Scissors, Printer, Fingerprint, ExternalLink, MoveHorizontal, PackageCheck } from 'lucide-react';
 import { addDays, subDays, startOfToday, getWeek } from 'date-fns';
 
@@ -141,12 +142,12 @@ const generateFcBreakdown = (total: number): Record<Size, number> => {
 
 const generateFcSnapshots = (
     seasonStartWeek: number,
-    seasonEndWeek: number,
     currentWeek: number,
     initialQtyPerWeek: number,
     volatility: number = 500
 ): FcSnapshot[] => {
     const snapshots: FcSnapshot[] = [];
+    const seasonEndWeek = currentWeek + 8; // Project 8 weeks into the future
     
     // This will hold the "true" forecast for each week, evolving over time.
     let weeklyForecasts: Record<string, number> = {};
@@ -164,23 +165,26 @@ const generateFcSnapshots = (
 
         // Apply volatility to future forecasts
         for (let w = snapshotWeek; w <= seasonEndWeek; w++) {
-            const weekKey = `W${w}`;
-            const newQty = Math.max(0, weeklyForecasts[weekKey] + (Math.random() - 0.5) * volatility);
-            weeklyForecasts[weekKey] = newQty;
+             const weekKey = `W${w}`;
+            // Don't change forecast if it's already a locked PO
+            if (!lockedPoValues[weekKey]) {
+                const newQty = Math.max(0, weeklyForecasts[weekKey] + (Math.random() - 0.5) * volatility);
+                weeklyForecasts[weekKey] = newQty;
+            }
         }
 
         // For the current snapshot, build the forecast for all demand weeks
         for (let d = seasonStartWeek; d <= seasonEndWeek; d++) {
             const demandWeek = d;
             const weekKey = `W${demandWeek}`;
-            const totalQty = Math.round(weeklyForecasts[weekKey] || 0);
-
+            
             // If this demand week is now a locked PO, use the locked value.
             if (lockedPoValues[weekKey]) {
                 snapshot.forecasts[weekKey] = lockedPoValues[weekKey];
                 continue;
             }
 
+            const totalQty = Math.round(weeklyForecasts[weekKey] || 0);
             const sizeBreakdown = generateFcBreakdown(totalQty);
             const isFirmPo = demandWeek <= snapshotWeek + FIRM_PO_WINDOW;
 
@@ -205,8 +209,15 @@ const generateFcSnapshots = (
     return snapshots;
 };
 
-const dmiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots(CURRENT_WEEK - 5, CURRENT_WEEK + 8, CURRENT_WEEK, 20000, 1000);
-const dsiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots(CURRENT_WEEK - 5, CURRENT_WEEK + 8, CURRENT_WEEK, 50000, 2500);
+const dmiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots(CURRENT_WEEK - 5, CURRENT_WEEK, 20000, 1000);
+const dsiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots(CURRENT_WEEK - 5, CURRENT_WEEK, 50000, 2500);
+
+const dmiProjectionDetails: ProjectionDetail[] = [
+  { projectionNumber: 'PRJ-DMI-01', projectionDate: subDays(today, 60), projectionQty: 40000, poQty: 30000, grnQty: 25000, receiptDate: subDays(today, 10) },
+  { projectionNumber: 'PRJ-DMI-02', projectionDate: subDays(today, 45), projectionQty: 42000, poQty: 40000, grnQty: 38000, receiptDate: subDays(today, 5) },
+  { projectionNumber: 'PRJ-DMI-03', projectionDate: subDays(today, 30), projectionQty: 45000, poQty: 45000, grnQty: 0, receiptDate: addDays(today, 15) },
+  { projectionNumber: 'PRJ-DMI-04', projectionDate: subDays(today, 15), projectionQty: 50000, poQty: 0, grnQty: 0, receiptDate: addDays(today, 30) },
+];
 
 
 export const ORDERS: Order[] = [
@@ -307,6 +318,7 @@ export const ORDERS: Order[] = [
         poDetails: dmiPoDetails,
         demandDetails: dmiDemandDetails,
         fcVsFcDetails: dmiFcVsFcDetails,
+        projectionDetails: dmiProjectionDetails,
     },
     {
         id: 'DSI-300096-Green',
