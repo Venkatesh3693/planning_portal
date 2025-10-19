@@ -39,7 +39,7 @@ import { useSchedule } from '@/context/schedule-provider';
 import { Button } from '@/components/ui/button';
 import RampUpDialog from '@/components/orders/ramp-up-dialog';
 import { Badge } from '@/components/ui/badge';
-import { LineChart, Zap, AlertCircle, X, Info } from 'lucide-react';
+import { LineChart, Zap, AlertCircle, X, Info, ChevronsRight, ChevronDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { generateTnaPlan } from '@/lib/tna-calculator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -284,7 +284,7 @@ const OperationBulletin = ({ order }: { order: Order }) => {
 
   return (
     <div className="space-y-6">
-       <div className="flex rounded-lg border bg-white dark:bg-card p-4">
+       <div className="flex rounded-lg border bg-background dark:bg-card p-4">
         <div className="flex flex-col justify-center items-center pr-6">
           <p className="text-sm text-muted-foreground">Total SAM</p>
           <p className="text-3xl font-bold">{summary.totalSam.toFixed(2)}</p>
@@ -750,6 +750,17 @@ export default function OrdersPage() {
     processBatchSizes,
   } = useSchedule();
 
+  const [expandedColumns, setExpandedColumns] = useState({
+    projection: false,
+    frc: false,
+  });
+
+  const handleToggleColumn = (column: 'projection' | 'frc') => {
+    setExpandedColumns(prev => ({ ...prev, [column]: !prev[column] }));
+  };
+
+  const isAnyForecastColumnExpanded = expandedColumns.projection || expandedColumns.frc;
+
   const handleGenerateTna = (order: Order) => {
     const numLines = sewingLines[order.id] || 1;
     const processBatchSize = processBatchSizes[order.id] || 0;
@@ -835,29 +846,54 @@ export default function OrdersPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead rowSpan={2}>Order ID</TableHead>
-                        <TableHead rowSpan={2}>Season</TableHead>
-                        <TableHead rowSpan={2}>Style</TableHead>
-                        <TableHead rowSpan={2}>Model no.</TableHead>
-                        <TableHead rowSpan={2} className="text-right">Selection Quantity</TableHead>
-                        <TableHead colSpan={4} className="text-center">Projection</TableHead>
-                        <TableHead colSpan={4} className="text-center">FRC</TableHead>
-                        <TableHead rowSpan={2} className="text-right">Confirmed PO</TableHead>
-                        <TableHead rowSpan={2} className="text-right">Cut Order</TableHead>
-                        <TableHead rowSpan={2} className="text-right">Produced</TableHead>
-                        <TableHead rowSpan={2} className="text-right">Shipped</TableHead>
-                        <TableHead rowSpan={2}>Lead Time</TableHead>
+                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Order ID</TableHead>
+                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Season</TableHead>
+                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Style</TableHead>
+                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Model no.</TableHead>
+                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1} className="text-right">Selection Quantity</TableHead>
+                        
+                        <TableHead colSpan={expandedColumns.projection ? 4 : 1} className="text-center">
+                           <Button variant="ghost" size="sm" onClick={() => handleToggleColumn('projection')} className="w-full">
+                              Projection
+                              {expandedColumns.projection ? <ChevronDown className="h-4 w-4 ml-2" /> : <ChevronsRight className="h-4 w-4 ml-2" />}
+                           </Button>
+                        </TableHead>
+                        <TableHead colSpan={expandedColumns.frc ? 4 : 1} className="text-center">
+                           <Button variant="ghost" size="sm" onClick={() => handleToggleColumn('frc')} className="w-full">
+                              FRC
+                              {expandedColumns.frc ? <ChevronDown className="h-4 w-4 ml-2" /> : <ChevronsRight className="h-4 w-4 ml-2" />}
+                           </Button>
+                        </TableHead>
+
+                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1} className="text-right">Confirmed PO</TableHead>
+                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1} className="text-right">Cut Order</TableHead>
+                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1} className="text-right">Produced</TableHead>
+                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1} className="text-right">Shipped</TableHead>
+                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Lead Time</TableHead>
                       </TableRow>
-                      <TableRow>
-                        <TableHead className="text-right">No PO</TableHead>
-                        <TableHead className="text-right">Open POs</TableHead>
-                        <TableHead className="text-right">GRN</TableHead>
-                        <TableHead className="text-right font-bold">Total</TableHead>
-                        <TableHead className="text-right">No PO</TableHead>
-                        <TableHead className="text-right">Open POs</TableHead>
-                        <TableHead className="text-right">GRN</TableHead>
-                        <TableHead className="text-right font-bold">Total</TableHead>
-                      </TableRow>
+                      {isAnyForecastColumnExpanded && (
+                        <TableRow>
+                          {expandedColumns.projection && (
+                            <>
+                              <TableHead className="text-right">No PO</TableHead>
+                              <TableHead className="text-right">Open POs</TableHead>
+                              <TableHead className="text-right">GRN</TableHead>
+                              <TableHead className="text-right font-bold">Total</TableHead>
+                            </>
+                          )}
+                          {!expandedColumns.projection && <TableHead></TableHead>}
+
+                          {expandedColumns.frc && (
+                             <>
+                              <TableHead className="text-right">No PO</TableHead>
+                              <TableHead className="text-right">Open POs</TableHead>
+                              <TableHead className="text-right">GRN</TableHead>
+                              <TableHead className="text-right font-bold">Total</TableHead>
+                             </>
+                          )}
+                          {!expandedColumns.frc && <TableHead></TableHead>}
+                        </TableRow>
+                      )}
                     </TableHeader>
                     <TableBody>
                       {forecastedOrders.map((order) => (
@@ -867,14 +903,29 @@ export default function OrdersPage() {
                           <TableCell>{order.style}</TableCell>
                           <TableCell>{order.modelNo || '-'}</TableCell>
                           <TableCell className="text-right">{(order.quantity || 0).toLocaleString()}</TableCell>
-                          <TableCell className="text-right">{order.projection?.noPo.toLocaleString() || '-'}</TableCell>
-                          <TableCell className="text-right">{order.projection?.openPos.toLocaleString() || '-'}</TableCell>
-                          <TableCell className="text-right">{order.projection?.grn.toLocaleString() || '-'}</TableCell>
-                          <TableCell className="text-right font-bold">{order.projection?.total.toLocaleString() || '-'}</TableCell>
-                          <TableCell className="text-right">{order.frc?.noPo.toLocaleString() || '-'}</TableCell>
-                          <TableCell className="text-right">{order.frc?.openPos.toLocaleString() || '-'}</TableCell>
-                          <TableCell className="text-right">{order.frc?.grn.toLocaleString() || '-'}</TableCell>
-                          <TableCell className="text-right font-bold">{order.frc?.total.toLocaleString() || '-'}</TableCell>
+                          
+                          {expandedColumns.projection ? (
+                            <>
+                              <TableCell className="text-right">{order.projection?.noPo.toLocaleString() || '-'}</TableCell>
+                              <TableCell className="text-right">{order.projection?.openPos.toLocaleString() || '-'}</TableCell>
+                              <TableCell className="text-right">{order.projection?.grn.toLocaleString() || '-'}</TableCell>
+                              <TableCell className="text-right font-bold">{order.projection?.total.toLocaleString() || '-'}</TableCell>
+                            </>
+                          ) : (
+                             <TableCell className="text-right font-bold">{order.projection?.total.toLocaleString() || '-'}</TableCell>
+                          )}
+                          
+                          {expandedColumns.frc ? (
+                             <>
+                              <TableCell className="text-right">{order.frc?.noPo.toLocaleString() || '-'}</TableCell>
+                              <TableCell className="text-right">{order.frc?.openPos.toLocaleString() || '-'}</TableCell>
+                              <TableCell className="text-right">{order.frc?.grn.toLocaleString() || '-'}</TableCell>
+                              <TableCell className="text-right font-bold">{order.frc?.total.toLocaleString() || '-'}</TableCell>
+                             </>
+                          ) : (
+                              <TableCell className="text-right font-bold">{order.frc?.total.toLocaleString() || '-'}</TableCell>
+                          )}
+
                           <TableCell className="text-right">{(order.confirmedPoQty || 0).toLocaleString()}</TableCell>
                           <TableCell className="text-right">{(order.cutOrderQty || 0).toLocaleString()}</TableCell>
                           <TableCell className="text-right">{(order.producedQty || 0).toLocaleString()}</TableCell>
@@ -893,3 +944,5 @@ export default function OrdersPage() {
     </div>
   );
 }
+
+    
