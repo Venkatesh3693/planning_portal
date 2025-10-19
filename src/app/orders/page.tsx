@@ -873,25 +873,27 @@ export default function OrdersPage() {
                       </TableRow>
                       {isAnyForecastColumnExpanded && (
                         <TableRow>
-                          {expandedColumns.projection && (
+                          {expandedColumns.projection ? (
                             <>
                               <TableHead className="text-right">No PO</TableHead>
                               <TableHead className="text-right">Open POs</TableHead>
                               <TableHead className="text-right">GRN</TableHead>
                               <TableHead className="text-right font-bold">Total</TableHead>
                             </>
+                          ) : (
+                            <TableHead />
                           )}
-                          {!expandedColumns.projection && <TableHead></TableHead>}
 
-                          {expandedColumns.frc && (
+                          {expandedColumns.frc ? (
                              <>
                               <TableHead className="text-right">No PO</TableHead>
                               <TableHead className="text-right">Open POs</TableHead>
                               <TableHead className="text-right">GRN</TableHead>
                               <TableHead className="text-right font-bold">Total</TableHead>
                              </>
+                          ) : (
+                            <TableHead />
                           )}
-                          {!expandedColumns.frc && <TableHead></TableHead>}
                         </TableRow>
                       )}
                     </TableHeader>
