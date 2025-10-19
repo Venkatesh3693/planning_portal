@@ -82,7 +82,7 @@ export default function PoDetailsDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-7xl">
+      <DialogContent className="max-w-screen-2xl">
         <DialogHeader>
           <DialogTitle>Confirmed Purchase Orders for {order.id}</DialogTitle>
           <DialogDescription>
