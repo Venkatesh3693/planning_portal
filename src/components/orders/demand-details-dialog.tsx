@@ -18,7 +18,7 @@ import {
   TableFooter,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { Order, Size } from '@/lib/types';
+import type { Order, Size, FcComposition } from '@/lib/types';
 import { useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { SIZES } from '@/lib/data';
@@ -144,7 +144,7 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
     
     const snapshots = order.fcVsFcDetails.sort((a, b) => a.snapshotWeek - b.snapshotWeek);
 
-    const totals: Record<number, { total: { po: number, fc: number }, [key: string]: any }> = {};
+    const totals: Record<number, { total: FcComposition, [key: string]: any }> = {};
     snapshots.forEach(snapshot => {
         totals[snapshot.snapshotWeek] = { total: { po: 0, fc: 0 }};
         let totalPo = 0;
@@ -168,12 +168,12 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
   }
   
   const renderCellContent = (
-    currentWeekData: { po: number, fc: number } | undefined, 
-    previousWeekData: { po: number, fc: number } | undefined, 
+    currentData: FcComposition | undefined, 
+    previousData: FcComposition | undefined, 
     isFirstRow = false
   ) => {
-    const currentValue = currentWeekData ? currentWeekData.po + currentWeekData.fc : undefined;
-    const previousValue = previousWeekData ? previousWeekData.po + previousWeekData.fc : undefined;
+    const currentValue = currentData ? (currentData.po || 0) + (currentData.fc || 0) : undefined;
+    const previousValue = previousData ? (previousData.po || 0) + (previousData.fc || 0) : undefined;
 
     if (viewMode === 'absolute') {
       return currentValue !== undefined ? currentValue.toLocaleString() : <span className="text-muted-foreground">-</span>;
@@ -192,21 +192,23 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
       );
     }
     
-    return currentValue !== undefined ? "0.0%" : <span className="text-muted-foreground">-</span>;
+    return currentValue !== undefined && currentValue > 0 ? "0.0%" : <span className="text-muted-foreground">-</span>;
   };
 
-  const getCellBgClass = (demandWeek: string, data: { po: number; fc: number } | undefined) => {
+  const getCellBgClass = (demandWeek: string, data: FcComposition | undefined) => {
     const demandWeekNum = parseInt(demandWeek.substring(1));
-    if (demandWeekNum <= currentWeek + 3) {
-      return 'bg-green-100 dark:bg-green-900/40';
+    const isFirmRule = demandWeekNum <= currentWeek + 3;
+
+    if (isFirmRule) {
+        return 'bg-green-100 dark:bg-green-900/40';
     }
-    if (!data || data.po + data.fc === 0) {
+    if (!data || ((data.po || 0) + (data.fc || 0)) === 0) {
       return '';
     }
-    if (data.fc === 0) {
+    if (data.fc === 0 && data.po > 0) {
       return 'bg-green-100 dark:bg-green-900/40'; // 100% PO
     }
-    if (data.po > 0) {
+    if (data.po > 0 && data.fc > 0) {
       return 'bg-yellow-100 dark:bg-yellow-900/40'; // Mix
     }
     return 'bg-blue-100 dark:bg-blue-900/40'; // 100% FC
@@ -235,6 +237,7 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
         >
             <Percent className="h-4 w-4" />
         </Button>
+        <Badge variant="outline" className="text-sm">Current Week: W{currentWeek}</Badge>
       </div>
       <div className="max-h-[60vh] overflow-auto border rounded-lg">
         <Table>
@@ -250,8 +253,9 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
           <TableBody>
             {snapshots.map((snapshot, rowIndex) => {
               const prevSnapshot = rowIndex > 0 ? snapshots[rowIndex - 1] : undefined;
-              const prevSnapshotTotal = prevSnapshot ? snapshotTotals[prevSnapshot.snapshotWeek]?.total : undefined;
-              const currentSnapshotTotal = snapshotTotals[snapshot.snapshotWeek]?.total;
+              
+              const currentDataForTotal = snapshotTotals[snapshot.snapshotWeek]?.total;
+              const prevDataForTotal = prevSnapshot ? snapshotTotals[prevSnapshot.snapshotWeek]?.total : undefined;
 
               const isFirstRow = rowIndex === 0;
 
@@ -274,7 +278,7 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
                     );
                   })}
                   <TableCell className="text-right font-bold tabular-nums">
-                     {renderCellContent(currentSnapshotTotal, prevSnapshotTotal, isFirstRow)}
+                     {renderCellContent(currentDataForTotal, prevDataForTotal, isFirstRow)}
                   </TableCell>
                 </TableRow>
               );
