@@ -306,7 +306,7 @@ export default function DemandDetailsDialog({
             Comparison of various demand signals for this forecast.
           </DialogDescription>
         </DialogHeader>
-        <Tabs defaultValue="selection-vs-po-fc">
+        <Tabs defaultValue="demand-trend">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="selection-vs-po-fc">Selection vs. PO+FC</TabsTrigger>
             <TabsTrigger value="demand-trend">Demand Trend Analysis</TabsTrigger>
