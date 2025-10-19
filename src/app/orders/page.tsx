@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useMemo, forwardRef, type ComponentProps, useEffect } from 'react';
@@ -740,8 +739,8 @@ OrderRow.displayName = 'OrderRow';
 
 export default function OrdersPage() {
   const { 
-    orders,
-    scheduledProcesses,
+    orders, 
+    scheduledProcesses, 
     updateSewingRampUpScheme, 
     sewingLines, 
     setSewingLines,
@@ -837,11 +836,15 @@ export default function OrdersPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Order ID</TableHead>
-                        <TableHead>Buyer</TableHead>
                         <TableHead>Style</TableHead>
-                        <TableHead>Color</TableHead>
                         <TableHead>Model no.</TableHead>
                         <TableHead className="text-right">Selection Quantity</TableHead>
+                        <TableHead className="text-right">Projection</TableHead>
+                        <TableHead className="text-right">FRC</TableHead>
+                        <TableHead className="text-right">Confirmed PO</TableHead>
+                        <TableHead className="text-right">Cut Order</TableHead>
+                        <TableHead className="text-right">Produced</TableHead>
+                        <TableHead className="text-right">Shipped</TableHead>
                         <TableHead>Lead Time</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -849,11 +852,15 @@ export default function OrdersPage() {
                       {forecastedOrders.map((order) => (
                         <TableRow key={order.id}>
                           <TableCell className="font-medium">{order.id}</TableCell>
-                          <TableCell>{order.buyer}</TableCell>
                           <TableCell>{order.style}</TableCell>
-                          <TableCell>{order.color}</TableCell>
                           <TableCell>{order.modelNo || '-'}</TableCell>
-                          <TableCell className="text-right">{order.quantity.toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{(order.quantity || 0).toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{(order.projectionQty || 0).toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{(order.frcQty || 0).toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{(order.confirmedPoQty || 0).toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{(order.cutOrderQty || 0).toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{(order.producedQty || 0).toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{(order.shippedQty || 0).toLocaleString()}</TableCell>
                           <TableCell>{order.leadTime ? `${order.leadTime} days` : '-'}</TableCell>
                         </TableRow>
                       ))}

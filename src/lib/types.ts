@@ -65,6 +65,12 @@ export type Order = {
   sewingRampUpScheme?: RampUpEntry[];
   orderType: 'Firm PO' | 'Forecasted';
   modelNo?: number;
+  projectionQty?: number;
+  frcQty?: number;
+  confirmedPoQty?: number;
+  cutOrderQty?: number;
+  producedQty?: number;
+  shippedQty?: number;
 };
 
 export type ScheduledProcess = {
