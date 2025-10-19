@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { Order, Size, FcComposition } from '@/lib/types';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { SIZES } from '@/lib/data';
 import {
