@@ -122,9 +122,9 @@ const SelectionVsPoFc = ({ order }: { order: Order }) => {
 const FcVsFc = ({ order }: { order: Order }) => {
   const [selectedSize, setSelectedSize] = useState<Size | 'total'>('total');
 
-  const { forecastWeeks, snapshots } = useMemo(() => {
+  const { forecastWeeks, snapshots, snapshotTotals } = useMemo(() => {
     if (!order.fcVsFcDetails || order.fcVsFcDetails.length === 0) {
-      return { forecastWeeks: [], snapshots: [] };
+      return { forecastWeeks: [], snapshots: [], snapshotTotals: {} };
     }
 
     const weekSet = new Set<string>();
@@ -138,7 +138,22 @@ const FcVsFc = ({ order }: { order: Order }) => {
     
     const snapshots = order.fcVsFcDetails.sort((a, b) => a.snapshotWeek - b.snapshotWeek);
 
-    return { forecastWeeks, snapshots };
+    const totals: Record<number, Record<Size | 'total', number>> = {};
+    snapshots.forEach(snapshot => {
+      totals[snapshot.snapshotWeek] = { total: 0 };
+      forecastWeeks.forEach(week => {
+         const weekForecast = snapshot.forecasts[week];
+         if (weekForecast) {
+            totals[snapshot.snapshotWeek].total += weekForecast.total;
+            SIZES.forEach(size => {
+              if(!totals[snapshot.snapshotWeek][size]) totals[snapshot.snapshotWeek][size] = 0;
+              totals[snapshot.snapshotWeek][size] += weekForecast[size] || 0;
+            })
+         }
+      })
+    });
+
+    return { forecastWeeks, snapshots, snapshotTotals: totals };
   }, [order.fcVsFcDetails]);
 
   if (snapshots.length === 0) {
@@ -174,9 +189,19 @@ const FcVsFc = ({ order }: { order: Order }) => {
           </TableHeader>
           <TableBody>
             {snapshots.map((snapshot, rowIndex) => {
-              const snapshotTotal = forecastWeeks.reduce((sum, week) => {
-                return sum + (snapshot.forecasts[week]?.[selectedSize] || 0);
-              }, 0);
+              const snapshotTotal = snapshotTotals[snapshot.snapshotWeek]?.[selectedSize] || 0;
+              const prevSnapshotWeek = rowIndex > 0 ? snapshots[rowIndex - 1].snapshotWeek : undefined;
+              const prevSnapshotTotal = prevSnapshotWeek ? snapshotTotals[prevSnapshotWeek]?.[selectedSize] : undefined;
+              
+              let totalChangeIndicator: React.ReactNode = null;
+              if (prevSnapshotTotal !== undefined && snapshotTotal !== undefined && prevSnapshotTotal > 0 && snapshotTotal !== prevSnapshotTotal) {
+                const change = ((snapshotTotal - prevSnapshotTotal) / prevSnapshotTotal) * 100;
+                totalChangeIndicator = (
+                  <Badge variant={change > 0 ? 'destructive' : 'secondary'} className="ml-2 text-xs tabular-nums">
+                    {change > 0 ? '+' : ''}{change.toFixed(1)}%
+                  </Badge>
+                );
+              }
 
               return (
                 <TableRow key={snapshot.snapshotWeek}>
@@ -211,7 +236,14 @@ const FcVsFc = ({ order }: { order: Order }) => {
                     );
                   })}
                   <TableCell className="text-right font-bold tabular-nums">
-                    {snapshotTotal > 0 ? snapshotTotal.toLocaleString() : <span className="text-muted-foreground">-</span>}
+                    {snapshotTotal > 0 ? (
+                       <div className="flex items-center justify-end">
+                          {snapshotTotal.toLocaleString()}
+                          {totalChangeIndicator}
+                        </div>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
                   </TableCell>
                 </TableRow>
               );
