@@ -917,53 +917,43 @@ export default function OrdersPage() {
                       </TableRow>
                       {isAnyForecastColumnExpanded && (
                         <TableRow>
-                          {expandedColumns.projection ? (
+                          {expandedColumns.projection && (
                             <>
                               <TableHead className="text-right">No PO</TableHead>
                               <TableHead className="text-right">Open POs</TableHead>
                               <TableHead className="text-right">GRN</TableHead>
                               <TableHead className="text-right font-bold">Total</TableHead>
                             </>
-                          ) : (
-                            !isAnyForecastColumnExpanded || <TableHead />
                           )}
                           
-                          {expandedColumns.frc ? (
+                          {expandedColumns.frc && (
                              <>
                               <TableHead className="text-right">No PO</TableHead>
                               <TableHead className="text-right">Open POs</TableHead>
                               <TableHead className="text-right">GRN</TableHead>
                               <TableHead className="text-right font-bold">Total</TableHead>
                              </>
-                          ) : (
-                             !isAnyForecastColumnExpanded || <TableHead />
                           )}
                           
-                          {expandedColumns.cutOrder ? (
+                          {expandedColumns.cutOrder && (
                             <>
                               {SIZES.map(size => <TableHead key={`cut-${size}`} className="text-right">{size}</TableHead>)}
                               <TableHead className="text-right font-bold">Total</TableHead>
                             </>
-                          ) : (
-                            !isAnyForecastColumnExpanded || <TableHead />
                           )}
                           
-                          {expandedColumns.produced ? (
+                          {expandedColumns.produced && (
                             <>
                               {SIZES.map(size => <TableHead key={`prod-${size}`} className="text-right">{size}</TableHead>)}
                               <TableHead className="text-right font-bold">Total</TableHead>
                             </>
-                          ) : (
-                            !isAnyForecastColumnExpanded || <TableHead />
                           )}
 
-                          {expandedColumns.shipped ? (
+                          {expandedColumns.shipped && (
                             <>
                               {SIZES.map(size => <TableHead key={`ship-${size}`} className="text-right">{size}</TableHead>)}
                               <TableHead className="text-right font-bold">Total</TableHead>
                             </>
-                          ) : (
-                            !isAnyForecastColumnExpanded || <TableHead />
                           )}
                         </TableRow>
                       )}
@@ -1043,3 +1033,6 @@ export default function OrdersPage() {
     </div>
   );
 }
+
+
+    
