@@ -169,43 +169,53 @@ const FcVsFc = ({ order }: { order: Order }) => {
               {forecastWeeks.map(week => (
                 <TableHead key={week} className="text-right min-w-[150px]">{week}</TableHead>
               ))}
+              <TableHead className="text-right min-w-[150px] font-bold">Total</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {snapshots.map((snapshot, rowIndex) => (
-              <TableRow key={snapshot.snapshotWeek}>
-                <TableCell className="font-medium sticky left-0 bg-background z-10">
-                  W{snapshot.snapshotWeek}
-                </TableCell>
-                {forecastWeeks.map(week => {
-                  const value = snapshot.forecasts[week]?.[selectedSize];
-                  const prevValue = rowIndex > 0 ? snapshots[rowIndex - 1].forecasts[week]?.[selectedSize] : undefined;
-                  
-                  let changeIndicator: React.ReactNode = null;
-                  if (prevValue !== undefined && value !== undefined && prevValue > 0 && value !== prevValue) {
-                    const change = ((value - prevValue) / prevValue) * 100;
-                    changeIndicator = (
-                      <Badge variant={change > 0 ? 'destructive' : 'secondary'} className="ml-2 text-xs tabular-nums">
-                        {change > 0 ? '+' : ''}{change.toFixed(1)}%
-                      </Badge>
-                    );
-                  }
+            {snapshots.map((snapshot, rowIndex) => {
+              const snapshotTotal = forecastWeeks.reduce((sum, week) => {
+                return sum + (snapshot.forecasts[week]?.[selectedSize] || 0);
+              }, 0);
 
-                  return (
-                    <TableCell key={`${snapshot.snapshotWeek}-${week}`} className="text-right tabular-nums">
-                      {value !== undefined ? (
-                        <div className="flex items-center justify-end">
-                          {value.toLocaleString()}
-                          {changeIndicator}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                  );
-                })}
-              </TableRow>
-            ))}
+              return (
+                <TableRow key={snapshot.snapshotWeek}>
+                  <TableCell className="font-medium sticky left-0 bg-background z-10">
+                    W{snapshot.snapshotWeek}
+                  </TableCell>
+                  {forecastWeeks.map(week => {
+                    const value = snapshot.forecasts[week]?.[selectedSize];
+                    const prevValue = rowIndex > 0 ? snapshots[rowIndex - 1].forecasts[week]?.[selectedSize] : undefined;
+                    
+                    let changeIndicator: React.ReactNode = null;
+                    if (prevValue !== undefined && value !== undefined && prevValue > 0 && value !== prevValue) {
+                      const change = ((value - prevValue) / prevValue) * 100;
+                      changeIndicator = (
+                        <Badge variant={change > 0 ? 'destructive' : 'secondary'} className="ml-2 text-xs tabular-nums">
+                          {change > 0 ? '+' : ''}{change.toFixed(1)}%
+                        </Badge>
+                      );
+                    }
+
+                    return (
+                      <TableCell key={`${snapshot.snapshotWeek}-${week}`} className="text-right tabular-nums">
+                        {value !== undefined ? (
+                          <div className="flex items-center justify-end">
+                            {value.toLocaleString()}
+                            {changeIndicator}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                    );
+                  })}
+                  <TableCell className="text-right font-bold tabular-nums">
+                    {snapshotTotal > 0 ? snapshotTotal.toLocaleString() : <span className="text-muted-foreground">-</span>}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>
