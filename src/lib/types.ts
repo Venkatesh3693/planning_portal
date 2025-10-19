@@ -72,6 +72,7 @@ export type Order = {
   sewingRampUpScheme?: RampUpEntry[];
   orderType: 'Firm PO' | 'Forecasted';
   modelNo?: number;
+  season?: string;
   projection?: ForecastDetail;
   frc?: ForecastDetail;
   confirmedPoQty?: number;

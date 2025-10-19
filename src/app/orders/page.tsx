@@ -836,6 +836,7 @@ export default function OrdersPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead rowSpan={2}>Order ID</TableHead>
+                        <TableHead rowSpan={2}>Season</TableHead>
                         <TableHead rowSpan={2}>Style</TableHead>
                         <TableHead rowSpan={2}>Model no.</TableHead>
                         <TableHead rowSpan={2} className="text-right">Selection Quantity</TableHead>
@@ -862,6 +863,7 @@ export default function OrdersPage() {
                       {forecastedOrders.map((order) => (
                         <TableRow key={order.id}>
                           <TableCell className="font-medium">{order.id}</TableCell>
+                          <TableCell>{order.season || '-'}</TableCell>
                           <TableCell>{order.style}</TableCell>
                           <TableCell>{order.modelNo || '-'}</TableCell>
                           <TableCell className="text-right">{(order.quantity || 0).toLocaleString()}</TableCell>
