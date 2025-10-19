@@ -1,7 +1,7 @@
 
-import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail, FcSnapshot } from '@/lib/types';
+import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail, FcSnapshot, FcComposition } from '@/lib/types';
 import { Scissors, Printer, Fingerprint, ExternalLink, MoveHorizontal, PackageCheck } from 'lucide-react';
-import { addDays, subDays, startOfToday } from 'date-fns';
+import { addDays, subDays, startOfToday, getWeek } from 'date-fns';
 
 export const UNITS: Unit[] = [
   { id: 'u1', name: 'Unit 1' },
@@ -102,37 +102,63 @@ const dsiDemandDetails: DemandDetail[] = [
     { destination: 'Paris, FR', selectionQty: 150000, po: 100000, fc: 40000, poPlusFc: 140000 },
 ];
 
-const generateFcBreakdown = (total: number): Partial<Record<Size, number>> & { total: number } => {
-    const breakdown: Partial<Record<Size, number>> & { total: number } = { total };
-    const numSizes = SIZES.length;
-    const baseQty = Math.floor(total / numSizes);
-    let remainder = total % numSizes;
+const currentWeek = getWeek(new Date());
 
-    SIZES.forEach(size => {
-        let qty = baseQty;
-        if (remainder > 0) {
-            qty++;
-            remainder--;
-        }
-        breakdown[size] = qty;
-    });
+const generateFcBreakdown = (
+  total: number, 
+  demandWeek: number
+): { total: FcComposition } & Partial<Record<Size, FcComposition>> => {
+  const isFirmPo = demandWeek <= currentWeek + 3;
+  
+  const composition: { total: FcComposition } & Partial<Record<Size, FcComposition>> = {
+    total: { po: isFirmPo ? total : 0, fc: isFirmPo ? 0 : total }
+  };
 
-    return breakdown;
+  const numSizes = SIZES.length;
+  let baseQty = Math.floor(total / numSizes);
+  let remainder = total % numSizes;
+
+  SIZES.forEach(size => {
+    let qty = baseQty;
+    if (remainder > 0) {
+      qty++;
+      remainder--;
+    }
+    composition[size] = { po: isFirmPo ? qty : 0, fc: isFirmPo ? 0 : qty };
+  });
+
+  return composition;
 };
 
-const dmiFcVsFcDetails: FcSnapshot[] = [
-    { snapshotWeek: 35, forecasts: { 'W40': generateFcBreakdown(20000), 'W41': generateFcBreakdown(25000), 'W42': generateFcBreakdown(30000), 'W43': generateFcBreakdown(30000), 'W44': generateFcBreakdown(30000) } },
-    { snapshotWeek: 36, forecasts: { 'W40': generateFcBreakdown(22000), 'W41': generateFcBreakdown(25000), 'W42': generateFcBreakdown(28000), 'W43': generateFcBreakdown(32000), 'W44': generateFcBreakdown(32000) } },
-    { snapshotWeek: 37, forecasts: { 'W40': generateFcBreakdown(21000), 'W41': generateFcBreakdown(26000), 'W42': generateFcBreakdown(29000), 'W43': generateFcBreakdown(31000), 'W44': generateFcBreakdown(33000) } },
-    { snapshotWeek: 38, forecasts: { 'W40': generateFcBreakdown(21500), 'W41': generateFcBreakdown(25500), 'W42': generateFcBreakdown(29500), 'W43': generateFcBreakdown(31500), 'W44': generateFcBreakdown(32500) } },
-];
+const generateFcSnapshots = (
+    baseWeek: number, 
+    numWeeks: number, 
+    initialQty: number,
+    volatility: number = 500
+): FcSnapshot[] => {
+    const snapshots: FcSnapshot[] = [];
+    const demandWeeks = Array.from({ length: numWeeks }, (_, i) => `W${baseWeek + i}`);
+    let lastForecasts: Record<string, number> = {};
 
-const dsiFcVsFcDetails: FcSnapshot[] = [
-    { snapshotWeek: 36, forecasts: { 'W42': generateFcBreakdown(50000), 'W43': generateFcBreakdown(50000), 'W44': generateFcBreakdown(60000), 'W45': generateFcBreakdown(60000), 'W46': generateFcBreakdown(70000) } },
-    { snapshotWeek: 37, forecasts: { 'W42': generateFcBreakdown(48000), 'W43': generateFcBreakdown(52000), 'W44': generateFcBreakdown(60000), 'W45': generateFcBreakdown(65000), 'W46': generateFcBreakdown(70000) } },
-    { snapshotWeek: 38, forecasts: { 'W42': generateFcBreakdown(49000), 'W43': generateFcBreakdown(51000), 'W44': generateFcBreakdown(62000), 'W45': generateFcBreakdown(63000), 'W46': generateFcBreakdown(71000) } },
-    { snapshotWeek: 39, forecasts: { 'W42': generateFcBreakdown(49500), 'W43': generateFcBreakdown(51500), 'W44': generateFcBreakdown(61500), 'W45': generateFcBreakdown(63500), 'W46': generateFcBreakdown(70500) } },
-];
+    demandWeeks.forEach(w => lastForecasts[w] = initialQty);
+
+    for (let s = baseWeek - 4; s < baseWeek; s++) {
+        const snapshot: FcSnapshot = { snapshotWeek: s, forecasts: {} };
+        demandWeeks.forEach(week => {
+            const demandWeekNum = parseInt(week.substring(1));
+            // Apply some volatility
+            const newQty = Math.max(0, lastForecasts[week] + (Math.random() - 0.5) * volatility);
+            snapshot.forecasts[week] = generateFcBreakdown(Math.round(newQty), demandWeekNum);
+            lastForecasts[week] = newQty;
+        });
+        snapshots.push(snapshot);
+    }
+    return snapshots;
+};
+
+
+const dmiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots(40, 5, 20000);
+const dsiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots(42, 5, 50000, 1000);
 
 
 export const ORDERS: Order[] = [

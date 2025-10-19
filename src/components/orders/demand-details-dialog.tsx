@@ -32,6 +32,8 @@ import {
 import { Label } from '../ui/label';
 import { Button } from '../ui/button';
 import { Percent } from 'lucide-react';
+import { getWeek } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 type DemandDetailsDialogProps = {
   order: Order;
@@ -121,9 +123,10 @@ const SelectionVsPoFc = ({ order }: { order: Order }) => {
   );
 };
 
-const FcVsFc = ({ order }: { order: Order }) => {
+const DemandTrendAnalysis = ({ order }: { order: Order }) => {
   const [selectedSize, setSelectedSize] = useState<Size | 'total'>('total');
   const [viewMode, setViewMode] = useState<'absolute' | 'percentage'>('absolute');
+  const currentWeek = getWeek(new Date());
 
   const { forecastWeeks, snapshots, snapshotTotals } = useMemo(() => {
     if (!order.fcVsFcDetails || order.fcVsFcDetails.length === 0) {
@@ -141,23 +144,20 @@ const FcVsFc = ({ order }: { order: Order }) => {
     
     const snapshots = order.fcVsFcDetails.sort((a, b) => a.snapshotWeek - b.snapshotWeek);
 
-    const totals: Record<number, Partial<Record<Size | 'total', number>>> = {};
+    const totals: Record<number, { total: { po: number, fc: number }, [key: string]: any }> = {};
     snapshots.forEach(snapshot => {
-      totals[snapshot.snapshotWeek] = { total: 0 };
-      SIZES.forEach(size => { totals[snapshot.snapshotWeek][size] = 0; });
-      
-      let weeklyTotal = 0;
-      forecastWeeks.forEach(week => {
-         const weekForecast = snapshot.forecasts[week];
-         if (weekForecast) {
-            weeklyTotal += weekForecast.total || 0;
-            SIZES.forEach(size => {
-              const sizeQty = weekForecast[size] || 0;
-              totals[snapshot.snapshotWeek][size] = (totals[snapshot.snapshotWeek][size] || 0) + sizeQty;
-            })
-         }
-      })
-      totals[snapshot.snapshotWeek].total = weeklyTotal;
+        totals[snapshot.snapshotWeek] = { total: { po: 0, fc: 0 }};
+        let totalPo = 0;
+        let totalFc = 0;
+
+        forecastWeeks.forEach(week => {
+            const weekForecast = snapshot.forecasts[week];
+            if (weekForecast) {
+                totalPo += weekForecast.total.po || 0;
+                totalFc += weekForecast.total.fc || 0;
+            }
+        });
+        totals[snapshot.snapshotWeek].total = { po: totalPo, fc: totalFc };
     });
 
     return { forecastWeeks, snapshots, snapshotTotals: totals };
@@ -167,7 +167,14 @@ const FcVsFc = ({ order }: { order: Order }) => {
     return <div className="text-center text-muted-foreground p-8">No Forecast vs. Forecast data available.</div>;
   }
   
-  const renderCellContent = (currentValue?: number, previousValue?: number, isFirstRow = false) => {
+  const renderCellContent = (
+    currentWeekData: { po: number, fc: number } | undefined, 
+    previousWeekData: { po: number, fc: number } | undefined, 
+    isFirstRow = false
+  ) => {
+    const currentValue = currentWeekData ? currentWeekData.po + currentWeekData.fc : undefined;
+    const previousValue = previousWeekData ? previousWeekData.po + previousWeekData.fc : undefined;
+
     if (viewMode === 'absolute') {
       return currentValue !== undefined ? currentValue.toLocaleString() : <span className="text-muted-foreground">-</span>;
     }
@@ -186,6 +193,23 @@ const FcVsFc = ({ order }: { order: Order }) => {
     }
     
     return currentValue !== undefined ? "0.0%" : <span className="text-muted-foreground">-</span>;
+  };
+
+  const getCellBgClass = (demandWeek: string, data: { po: number; fc: number } | undefined) => {
+    const demandWeekNum = parseInt(demandWeek.substring(1));
+    if (demandWeekNum <= currentWeek + 3) {
+      return 'bg-green-100 dark:bg-green-900/40';
+    }
+    if (!data || data.po + data.fc === 0) {
+      return '';
+    }
+    if (data.fc === 0) {
+      return 'bg-green-100 dark:bg-green-900/40'; // 100% PO
+    }
+    if (data.po > 0) {
+      return 'bg-yellow-100 dark:bg-yellow-900/40'; // Mix
+    }
+    return 'bg-blue-100 dark:bg-blue-900/40'; // 100% FC
   };
 
   return (
@@ -226,8 +250,9 @@ const FcVsFc = ({ order }: { order: Order }) => {
           <TableBody>
             {snapshots.map((snapshot, rowIndex) => {
               const prevSnapshot = rowIndex > 0 ? snapshots[rowIndex - 1] : undefined;
-              const prevSnapshotTotal = prevSnapshot ? snapshotTotals[prevSnapshot.snapshotWeek]?.[selectedSize] : undefined;
-              const currentSnapshotTotal = snapshotTotals[snapshot.snapshotWeek]?.[selectedSize];
+              const prevSnapshotTotal = prevSnapshot ? snapshotTotals[prevSnapshot.snapshotWeek]?.total : undefined;
+              const currentSnapshotTotal = snapshotTotals[snapshot.snapshotWeek]?.total;
+
               const isFirstRow = rowIndex === 0;
 
               return (
@@ -236,11 +261,15 @@ const FcVsFc = ({ order }: { order: Order }) => {
                     W{snapshot.snapshotWeek}
                   </TableCell>
                   {forecastWeeks.map(week => {
-                    const currentValue = snapshot.forecasts[week]?.[selectedSize];
-                    const prevValue = prevSnapshot?.forecasts[week]?.[selectedSize];
+                    const currentWeekData = snapshot.forecasts[week]?.[selectedSize] || snapshot.forecasts[week]?.total;
+                    const previousWeekData = prevSnapshot?.forecasts[week]?.[selectedSize] || prevSnapshot?.forecasts[week]?.total;
+                    
                     return (
-                      <TableCell key={`${snapshot.snapshotWeek}-${week}`} className="text-right tabular-nums">
-                        {renderCellContent(currentValue, prevValue, isFirstRow)}
+                      <TableCell 
+                        key={`${snapshot.snapshotWeek}-${week}`} 
+                        className={cn("text-right tabular-nums", getCellBgClass(week, currentWeekData))}
+                      >
+                        {renderCellContent(currentWeekData, previousWeekData, isFirstRow)}
                       </TableCell>
                     );
                   })}
@@ -275,13 +304,13 @@ export default function DemandDetailsDialog({
         <Tabs defaultValue="selection-vs-po-fc">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="selection-vs-po-fc">Selection vs. PO+FC</TabsTrigger>
-            <TabsTrigger value="fc-vs-fc">FC vs. FC</TabsTrigger>
+            <TabsTrigger value="demand-trend">Demand Trend Analysis</TabsTrigger>
           </TabsList>
           <TabsContent value="selection-vs-po-fc" className="pt-4">
              <SelectionVsPoFc order={order} />
           </TabsContent>
-          <TabsContent value="fc-vs-fc" className="pt-4">
-             <FcVsFc order={order} />
+          <TabsContent value="demand-trend" className="pt-4">
+             <DemandTrendAnalysis order={order} />
           </TabsContent>
         </Tabs>
       </DialogContent>

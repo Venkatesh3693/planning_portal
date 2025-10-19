@@ -78,9 +78,14 @@ export type DemandDetail = {
   poPlusFc: number;
 };
 
+export type FcComposition = {
+  po: number;
+  fc: number;
+};
+
 export type FcSnapshot = {
   snapshotWeek: number;
-  forecasts: Record<string, Partial<Record<Size, number>> & { total: number }>;
+  forecasts: Record<string, Partial<Record<Size, FcComposition>> & { total: FcComposition }>;
 };
 
 
