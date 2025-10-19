@@ -5,7 +5,7 @@ import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useSchedule } from '@/context/schedule-provider';
 import { useState, useMemo, useEffect } from 'react';
-import type { Order, Size, FcComposition } from '@/lib/types';
+import type { Order, Size, FcComposition, DemandDetail } from '@/lib/types';
 import { SIZES } from '@/lib/data';
 import { getWeek } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -43,28 +43,68 @@ import {
 
 const DemandTrendAnalysis = ({ order }: { order: Order }) => {
   const [selectedSize, setSelectedSize] = useState<Size | 'total'>('total');
+  const [selectedDestination, setSelectedDestination] = useState<string>('total');
   const [viewMode, setViewMode] = useState<'absolute' | 'percentage'>('absolute');
   const [currentWeek, setCurrentWeek] = useState(0);
 
   useEffect(() => {
     setCurrentWeek(getWeek(new Date()));
   }, []);
+  
+  const destinationOptions = useMemo(() => {
+    return order.demandDetails?.map(d => d.destination) || [];
+  }, [order.demandDetails]);
 
   const { forecastWeeks, snapshots, snapshotTotals } = useMemo(() => {
-    if (!order.fcVsFcDetails || order.fcVsFcDetails.length === 0) {
+    const allFcDetails = order.fcVsFcDetails || [];
+    if (allFcDetails.length === 0) {
       return { forecastWeeks: [], snapshots: [], snapshotTotals: {} };
     }
+    
+    // Determine the relevant forecast data
+    let relevantFcDetails = allFcDetails;
+    const isDestinationSpecificView = selectedDestination !== 'total';
+
+    if (isDestinationSpecificView) {
+      // Find the specific destination's forecast evolution if it exists
+      // This assumes a structure like order.destinationFcVsFcDetails: { [destination]: FcSnapshot[] }
+      // Since it doesn't exist, we will simulate it by scaling the total forecast.
+      const destinationDetail = order.demandDetails?.find(d => d.destination === selectedDestination);
+      const totalDemand = order.demandDetails?.reduce((sum, d) => sum + d.selectionQty, 0) || order.quantity;
+
+      if (destinationDetail && totalDemand > 0) {
+        const scalingFactor = destinationDetail.selectionQty / totalDemand;
+        relevantFcDetails = allFcDetails.map(snapshot => {
+          const newForecasts: typeof snapshot.forecasts = {};
+          for (const weekKey in snapshot.forecasts) {
+            newForecasts[weekKey] = {};
+            const weekData = snapshot.forecasts[weekKey];
+            for (const sizeKey in weekData) {
+              const fcComp = weekData[sizeKey as Size | 'total'];
+              newForecasts[weekKey][sizeKey as Size | 'total'] = {
+                po: Math.round(fcComp.po * scalingFactor),
+                fc: Math.round(fcComp.fc * scalingFactor),
+              };
+            }
+          }
+          return { ...snapshot, forecasts: newForecasts };
+        });
+      }
+    }
+
 
     const weekSet = new Set<string>();
-    order.fcVsFcDetails.forEach(snapshot => {
+    relevantFcDetails.forEach(snapshot => {
       Object.keys(snapshot.forecasts).forEach(week => weekSet.add(week));
     });
     
     const forecastWeeks = Array.from(weekSet).sort((a, b) => {
-      return parseInt(a.substring(1)) - parseInt(b.substring(1));
+      const weekA = parseInt(a.replace('W', ''));
+      const weekB = parseInt(b.replace('W', ''));
+      return weekA - weekB;
     });
     
-    const snapshots = order.fcVsFcDetails.sort((a, b) => a.snapshotWeek - b.snapshotWeek);
+    const snapshots = relevantFcDetails.sort((a, b) => a.snapshotWeek - b.snapshotWeek);
 
     const totals: Record<number, FcComposition> = {};
     snapshots.forEach(snapshot => {
@@ -82,7 +122,7 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
     });
 
     return { forecastWeeks, snapshots, snapshotTotals: totals };
-  }, [order.fcVsFcDetails, selectedSize]);
+  }, [order, selectedSize, selectedDestination]);
 
   if (snapshots.length === 0) {
     return <div className="text-center text-muted-foreground p-8">No Demand Trend Analysis data available.</div>;
@@ -144,18 +184,34 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
   return (
     <div className="space-y-4 flex flex-col h-full">
        <div className="flex items-center gap-4 flex-shrink-0">
-        <Label htmlFor="size-filter" className="text-sm">View by Size:</Label>
-        <Select value={selectedSize} onValueChange={(value) => setSelectedSize(value as Size | 'total')}>
-          <SelectTrigger className="w-[180px]" id="size-filter">
-            <SelectValue placeholder="Select a size" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="total">ALL</SelectItem>
-            {SIZES.map(size => (
-              <SelectItem key={size} value={size}>{size}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+            <Label htmlFor="destination-filter" className="text-sm">Destination:</Label>
+            <Select value={selectedDestination} onValueChange={setSelectedDestination}>
+              <SelectTrigger className="w-[180px]" id="destination-filter">
+                <SelectValue placeholder="Select a destination" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="total">ALL</SelectItem>
+                {destinationOptions.map(dest => (
+                  <SelectItem key={dest} value={dest}>{dest}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+        </div>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="size-filter" className="text-sm">Size:</Label>
+          <Select value={selectedSize} onValueChange={(value) => setSelectedSize(value as Size | 'total')}>
+            <SelectTrigger className="w-[120px]" id="size-filter">
+              <SelectValue placeholder="Select a size" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="total">ALL</SelectItem>
+              {SIZES.map(size => (
+                <SelectItem key={size} value={size}>{size}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <Button 
             variant={viewMode === 'percentage' ? 'secondary' : 'outline'} 
             size="icon" 
