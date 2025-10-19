@@ -68,6 +68,9 @@ export type PoDetail = {
   chd: Date;
   destination: string;
   quantities: SizeBreakdown;
+  productionStatus: 'not-started' | 'in-progress' | 'completed';
+  inspectionStatus: 'not-started' | 'in-progress' | 'completed';
+  shippingStatus: 'not-shipped' | 'shipped-late' | 'shipped-on-time';
 };
 
 export type DemandDetail = {

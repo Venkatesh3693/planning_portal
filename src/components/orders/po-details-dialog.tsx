@@ -18,8 +18,48 @@ import {
   TableFooter
 } from '@/components/ui/table';
 import { SIZES } from '@/lib/data';
-import type { Order, Size } from '@/lib/types';
+import type { Order, Size, PoDetail } from '@/lib/types';
 import { format, getWeek } from 'date-fns';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
+
+
+const statusConfig = {
+    production: {
+        'not-started': { label: 'Not Started', color: 'bg-red-500' },
+        'in-progress': { label: 'In Progress', color: 'bg-yellow-500' },
+        'completed': { label: 'Completed', color: 'bg-green-500' },
+    },
+    inspection: {
+        'not-started': { label: 'Not Started', color: 'bg-red-500' },
+        'in-progress': { label: 'In Progress', color: 'bg-yellow-500' },
+        'completed': { label: 'Completed', color: 'bg-green-500' },
+    },
+    shipping: {
+        'not-shipped': { label: 'Not Shipped', color: 'bg-red-500' },
+        'shipped-late': { label: 'Shipped Late', color: 'bg-yellow-500' },
+        'shipped-on-time': { label: 'Shipped On Time', color: 'bg-green-500' },
+    }
+}
+
+const StatusIndicator = ({ status, type }: { status: keyof typeof statusConfig.production | keyof typeof statusConfig.shipping; type: 'production' | 'inspection' | 'shipping' }) => {
+    const config = statusConfig[type][status as 'not-started'];
+    if (!config) return null;
+
+    return (
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger>
+                    <div className={cn("h-3 w-3 rounded-full mx-auto", config.color)} />
+                </TooltipTrigger>
+                <TooltipContent>
+                    <p>{config.label}</p>
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    )
+}
+
 
 type PoDetailsDialogProps = {
   order: Order;
@@ -62,15 +102,18 @@ export default function PoDetailsDialog({
                   <TableHead key={size} className="text-right">{size}</TableHead>
                 ))}
                 <TableHead className="text-right font-bold">Total</TableHead>
+                <TableHead className="text-center">Produced</TableHead>
+                <TableHead className="text-center">Inspection</TableHead>
+                <TableHead className="text-center">Shipped</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {(order.poDetails || []).map((po) => (
                 <TableRow key={po.poNumber}>
                   <TableCell className="font-medium">{po.poNumber}</TableCell>
-                  <TableCell>{format(po.ehd, 'MMM dd, yyyy')}</TableCell>
+                  <TableCell>{format(po.ehd, 'dd/MM/yy')}</TableCell>
                   <TableCell>{getWeek(po.ehd, { weekStartsOn: 1 })}</TableCell>
-                  <TableCell>{format(po.chd, 'MMM dd, yyyy')}</TableCell>
+                  <TableCell>{format(po.chd, 'dd/MM/yy')}</TableCell>
                   <TableCell>{po.destination}</TableCell>
                   {SIZES.map(size => (
                     <TableCell key={size} className="text-right">
@@ -79,6 +122,15 @@ export default function PoDetailsDialog({
                   ))}
                   <TableCell className="text-right font-bold">
                     {po.quantities.total.toLocaleString()}
+                  </TableCell>
+                   <TableCell className="text-center">
+                    <StatusIndicator type="production" status={po.productionStatus} />
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <StatusIndicator type="inspection" status={po.inspectionStatus} />
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <StatusIndicator type="shipping" status={po.shippingStatus} />
                   </TableCell>
                 </TableRow>
               ))}
@@ -94,6 +146,7 @@ export default function PoDetailsDialog({
                 <TableCell className="text-right font-bold">
                   {grandTotal.toLocaleString()}
                 </TableCell>
+                <TableCell colSpan={3}></TableCell>
               </TableRow>
             </TableFooter>
           </Table>

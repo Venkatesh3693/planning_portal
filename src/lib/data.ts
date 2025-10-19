@@ -57,6 +57,9 @@ const dmiPoDetails: PoDetail[] = [
     chd: new Date(currentYear, 10, 17),
     destination: 'New York, USA',
     quantities: { 'XS': 5000, 'S': 10000, 'M': 15000, 'L': 10000, 'XL': 5000, total: 45000 },
+    productionStatus: 'completed',
+    inspectionStatus: 'completed',
+    shippingStatus: 'shipped-on-time',
   },
   {
     poNumber: 'PO-DMI-002',
@@ -64,6 +67,9 @@ const dmiPoDetails: PoDetail[] = [
     chd: new Date(currentYear, 11, 3),
     destination: 'London, UK',
     quantities: { 'S': 5000, 'M': 10000, 'L': 10000, 'XL': 10000, '2XL': 5000, total: 40000 },
+    productionStatus: 'in-progress',
+    inspectionStatus: 'not-started',
+    shippingStatus: 'not-shipped',
   },
   {
     poNumber: 'PO-DMI-003',
@@ -71,6 +77,9 @@ const dmiPoDetails: PoDetail[] = [
     chd: new Date(currentYear, 11, 10),
     destination: 'Tokyo, Japan',
     quantities: { '2XS': 1000, 'XS': 2000, 'S': 2000, 'M': 5000, total: 10000 },
+    productionStatus: 'not-started',
+    inspectionStatus: 'not-started',
+    shippingStatus: 'not-shipped',
   },
 ];
 
@@ -81,6 +90,9 @@ const dsiPoDetails: PoDetail[] = [
     chd: new Date(currentYear, 9, 22),
     destination: 'Berlin, DE',
     quantities: { 'M': 20000, 'L': 30000, 'XL': 25000, '2XL': 5000, total: 80000 },
+    productionStatus: 'completed',
+    inspectionStatus: 'completed',
+    shippingStatus: 'shipped-late',
   },
   {
     poNumber: 'PO-DSI-202',
@@ -88,6 +100,9 @@ const dsiPoDetails: PoDetail[] = [
     chd: new Date(currentYear, 10, 5),
     destination: 'Paris, FR',
     quantities: { 'L': 25000, 'XL': 35000, '2XL': 20000, '3XL': 20000, total: 100000 },
+    productionStatus: 'completed',
+    inspectionStatus: 'in-progress',
+    shippingStatus: 'not-shipped',
   },
 ];
 
@@ -142,7 +157,7 @@ const generateFcSnapshots = (
     let lastForecasts: Record<string, number> = {};
 
     // Initialize base forecast
-    for(let i=0; i<numDemandWeeks; i++) {
+    for(let i=0; i < numDemandWeeks; i++) {
         lastForecasts[`W${snapshotStartWeek + i}`] = initialQty;
     }
 
