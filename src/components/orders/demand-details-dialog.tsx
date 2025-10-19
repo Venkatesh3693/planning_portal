@@ -126,7 +126,11 @@ const SelectionVsPoFc = ({ order }: { order: Order }) => {
 const DemandTrendAnalysis = ({ order }: { order: Order }) => {
   const [selectedSize, setSelectedSize] = useState<Size | 'total'>('total');
   const [viewMode, setViewMode] = useState<'absolute' | 'percentage'>('absolute');
-  const currentWeek = getWeek(new Date());
+  const [currentWeek, setCurrentWeek] = useState(0);
+
+  useEffect(() => {
+    setCurrentWeek(getWeek(new Date()));
+  }, []);
 
   const { forecastWeeks, snapshots, snapshotTotals } = useMemo(() => {
     if (!order.fcVsFcDetails || order.fcVsFcDetails.length === 0) {
@@ -144,33 +148,36 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
     
     const snapshots = order.fcVsFcDetails.sort((a, b) => a.snapshotWeek - b.snapshotWeek);
 
-    const totals: Record<number, { total: FcComposition, [key: string]: any }> = {};
+    const totals: Record<number, { po: number, fc: number }> = {};
     snapshots.forEach(snapshot => {
-        totals[snapshot.snapshotWeek] = { total: { po: 0, fc: 0 }};
+        totals[snapshot.snapshotWeek] = { po: 0, fc: 0 };
         let totalPo = 0;
         let totalFc = 0;
 
         forecastWeeks.forEach(week => {
-            const weekForecast = snapshot.forecasts[week];
+            const weekForecastForSize = snapshot.forecasts[week]?.[selectedSize];
+            const weekForecastForTotal = snapshot.forecasts[week]?.total;
+            const weekForecast = selectedSize === 'total' ? weekForecastForTotal : weekForecastForSize;
+            
             if (weekForecast) {
-                totalPo += weekForecast.total.po || 0;
-                totalFc += weekForecast.total.fc || 0;
+                totalPo += weekForecast.po || 0;
+                totalFc += weekForecast.fc || 0;
             }
         });
-        totals[snapshot.snapshotWeek].total = { po: totalPo, fc: totalFc };
+        totals[snapshot.snapshotWeek] = { po: totalPo, fc: totalFc };
     });
 
     return { forecastWeeks, snapshots, snapshotTotals: totals };
-  }, [order.fcVsFcDetails]);
+  }, [order.fcVsFcDetails, selectedSize]);
 
   if (snapshots.length === 0) {
-    return <div className="text-center text-muted-foreground p-8">No Forecast vs. Forecast data available.</div>;
+    return <div className="text-center text-muted-foreground p-8">No Demand Trend Analysis data available.</div>;
   }
   
   const renderCellContent = (
     currentData: FcComposition | undefined, 
-    previousData: FcComposition | undefined, 
-    isFirstRow = false
+    previousData: FcComposition | undefined,
+    isTotalCol: boolean = false
   ) => {
     const currentValue = currentData ? (currentData.po || 0) + (currentData.fc || 0) : undefined;
     const previousValue = previousData ? (previousData.po || 0) + (previousData.fc || 0) : undefined;
@@ -179,6 +186,7 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
       return currentValue !== undefined ? currentValue.toLocaleString() : <span className="text-muted-foreground">-</span>;
     }
     
+    const isFirstRow = previousData === undefined;
     if (isFirstRow) {
       return <Badge variant="outline">Baseline</Badge>;
     }
@@ -197,7 +205,7 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
 
   const getCellBgClass = (demandWeek: string, snapshotWeek: number, data: FcComposition | undefined) => {
     const demandWeekNum = parseInt(demandWeek.substring(1));
-    const isFirmRule = demandWeekNum <= snapshotWeek + 7;
+    const isFirmRule = demandWeekNum <= snapshotWeek + 3;
 
     if (isFirmRule) {
         return 'bg-green-100 dark:bg-green-900/40';
@@ -237,7 +245,7 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
         >
             <Percent className="h-4 w-4" />
         </Button>
-        <Badge variant="outline" className="text-sm">Current Week: W{currentWeek}</Badge>
+        {currentWeek > 0 && <Badge variant="outline" className="text-sm">Current Week: W{currentWeek}</Badge>}
       </div>
       <div className="max-h-[60vh] overflow-auto border rounded-lg">
         <Table>
@@ -254,10 +262,8 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
             {snapshots.map((snapshot, rowIndex) => {
               const prevSnapshot = rowIndex > 0 ? snapshots[rowIndex - 1] : undefined;
               
-              const currentDataForTotal = snapshotTotals[snapshot.snapshotWeek]?.total;
-              const prevDataForTotal = prevSnapshot ? snapshotTotals[prevSnapshot.snapshotWeek]?.total : undefined;
-
-              const isFirstRow = rowIndex === 0;
+              const currentDataForTotal = snapshotTotals[snapshot.snapshotWeek];
+              const prevDataForTotal = prevSnapshot ? snapshotTotals[prevSnapshot.snapshotWeek] : undefined;
 
               return (
                 <TableRow key={snapshot.snapshotWeek}>
@@ -265,20 +271,23 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
                     W{snapshot.snapshotWeek}
                   </TableCell>
                   {forecastWeeks.map(week => {
-                    const currentWeekData = snapshot.forecasts[week]?.[selectedSize] || snapshot.forecasts[week]?.total;
-                    const previousWeekData = prevSnapshot?.forecasts[week]?.[selectedSize] || prevSnapshot?.forecasts[week]?.total;
+                    const currentWeekDataBySize = snapshot.forecasts[week]?.[selectedSize];
+                    const currentWeekData = selectedSize === 'total' ? snapshot.forecasts[week]?.total : currentWeekDataBySize;
+                    
+                    const previousWeekDataBySize = prevSnapshot?.forecasts[week]?.[selectedSize];
+                    const previousWeekData = selectedSize === 'total' ? prevSnapshot?.forecasts[week]?.total : previousWeekDataBySize;
                     
                     return (
                       <TableCell 
                         key={`${snapshot.snapshotWeek}-${week}`} 
                         className={cn("text-right tabular-nums", getCellBgClass(week, snapshot.snapshotWeek, currentWeekData))}
                       >
-                        {renderCellContent(currentWeekData, previousWeekData, isFirstRow)}
+                        {renderCellContent(currentWeekData, previousWeekData)}
                       </TableCell>
                     );
                   })}
                   <TableCell className="text-right font-bold tabular-nums">
-                     {renderCellContent(currentDataForTotal, prevDataForTotal, isFirstRow)}
+                     {renderCellContent(currentDataForTotal, prevDataForTotal, true)}
                   </TableCell>
                 </TableRow>
               );
