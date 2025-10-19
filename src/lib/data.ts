@@ -219,6 +219,11 @@ const dmiProjectionDetails: ProjectionDetail[] = [
   { projectionNumber: 'PRJ-DMI-04', projectionDate: subDays(today, 15), projectionQty: 50000, poQty: 0, grnQty: 0, receiptDate: addDays(today, 30) },
 ];
 
+const dsiProjectionDetails: ProjectionDetail[] = [
+  { projectionNumber: 'PRJ-DSI-01', projectionDate: subDays(today, 50), projectionQty: 100000, poQty: 80000, grnQty: 75000, receiptDate: subDays(today, 20) },
+  { projectionNumber: 'PRJ-DSI-02', projectionDate: subDays(today, 25), projectionQty: 120000, poQty: 100000, grnQty: 0, receiptDate: addDays(today, 25) },
+];
+
 
 export const ORDERS: Order[] = [
     {
@@ -352,6 +357,7 @@ export const ORDERS: Order[] = [
         poDetails: dsiPoDetails,
         demandDetails: dsiDemandDetails,
         fcVsFcDetails: dsiFcVsFcDetails,
+        projectionDetails: dsiProjectionDetails,
     }
 ];
 

@@ -996,7 +996,7 @@ export default function OrdersPage() {
                               <TableCell className="text-right">{order.projection?.openPos.toLocaleString() || '-'}</TableCell>
                               <TableCell className="text-right">{order.projection?.grn.toLocaleString() || '-'}</TableCell>
                               <TableCell className="text-right font-bold">
-                                {order.projectionDetails ? (
+                                {order.projection ? (
                                   <Dialog onOpenChange={(isOpen) => !isOpen && setProjectionDetailsOrder(null)}>
                                     <DialogTrigger asChild>
                                       <span
@@ -1014,7 +1014,7 @@ export default function OrdersPage() {
                             </>
                           ) : (
                              <TableCell className="text-right font-bold">
-                                {order.projectionDetails ? (
+                                {order.projection ? (
                                   <Dialog onOpenChange={(isOpen) => !isOpen && setProjectionDetailsOrder(null)}>
                                     <DialogTrigger asChild>
                                       <span
