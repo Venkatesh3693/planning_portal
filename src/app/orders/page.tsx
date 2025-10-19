@@ -1013,7 +1013,22 @@ export default function OrdersPage() {
                               </TableCell>
                             </>
                           ) : (
-                             <TableCell className="text-right font-bold">{order.projection?.total.toLocaleString() || '-'}</TableCell>
+                             <TableCell className="text-right font-bold">
+                                {order.projectionDetails ? (
+                                  <Dialog onOpenChange={(isOpen) => !isOpen && setProjectionDetailsOrder(null)}>
+                                    <DialogTrigger asChild>
+                                      <span
+                                        className="cursor-pointer text-primary hover:underline"
+                                        onClick={() => setProjectionDetailsOrder(order)}
+                                      >
+                                        {order.projection?.total.toLocaleString() || '-'}
+                                      </span>
+                                    </DialogTrigger>
+                                  </Dialog>
+                                ) : (
+                                  <span>{order.projection?.total.toLocaleString() || '-'}</span>
+                                )}
+                              </TableCell>
                           )}
                           
                           {expandedColumns.frc ? (
