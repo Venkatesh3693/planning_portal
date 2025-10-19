@@ -46,6 +46,7 @@ import { generateTnaPlan } from '@/lib/tna-calculator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { RampUpEntry } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 
 const SEWING_PROCESS_ID = 'sewing';
@@ -284,7 +285,7 @@ const OperationBulletin = ({ order }: { order: Order }) => {
 
   return (
     <div className="space-y-6">
-       <div className="flex rounded-lg border bg-card p-4 bg-white dark:bg-card">
+       <div className="flex rounded-lg border bg-white dark:bg-card p-4">
         <div className="flex flex-col justify-center items-center pr-6">
           <p className="text-sm text-muted-foreground">Total SAM</p>
           <p className="text-3xl font-bold">{summary.totalSam.toFixed(2)}</p>
@@ -757,6 +758,9 @@ export default function OrdersPage() {
     updateOrderTna(order.id, newTna);
   };
   
+  const firmOrders = useMemo(() => orders.filter(o => o.orderType === 'Firm PO'), [orders]);
+  const forecastedOrders = useMemo(() => orders.filter(o => o.orderType === 'Forecasted'), [orders]);
+
   return (
     <div className="flex h-screen flex-col">
       <Header />
@@ -779,45 +783,84 @@ export default function OrdersPage() {
           <p className="text-muted-foreground">
             View all your orders in one place. Click on an Order ID to see details.
           </p>
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Order ID</TableHead>
-                    <TableHead>Buyer</TableHead>
-                    <TableHead>Order Type</TableHead>
-                    <TableHead>Budgeted Eff.</TableHead>
-                    <TableHead>Avg. Eff.</TableHead>
-                    <TableHead>Days to Budget</TableHead>
-                    <TableHead>Ramp-up</TableHead>
-                    <TableHead>No. of Lines</TableHead>
-                    <TableHead>Single Line Days</TableHead>
-                    <TableHead>Display Color</TableHead>
-                    <TableHead className="text-right">Quantity</TableHead>
-                    <TableHead>Lead Time</TableHead>
-                    <TableHead>Due Date</TableHead>
-                    <TableHead>EHD</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {orders.map((order) => (
-                    <OrderRow 
-                      key={order.id} 
-                      order={order} 
-                      onColorChange={updateOrderColor}
-                      onTnaGenerate={() => handleGenerateTna(order)}
-                      onRampUpSave={updateSewingRampUpScheme}
-                      onSetSewingLines={setSewingLines}
-                      numLines={sewingLines[order.id] || 1}
-                      scheduledProcesses={scheduledProcesses}
-                      updateOrderMinRunDays={updateOrderMinRunDays}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+
+          <Tabs defaultValue="firm">
+            <TabsList>
+              <TabsTrigger value="firm">Firm POs ({firmOrders.length})</TabsTrigger>
+              <TabsTrigger value="forecasted">Forecasted ({forecastedOrders.length})</TabsTrigger>
+            </TabsList>
+            <TabsContent value="firm">
+              <Card>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Order ID</TableHead>
+                        <TableHead>Buyer</TableHead>
+                        <TableHead>Order Type</TableHead>
+                        <TableHead>Budgeted Eff.</TableHead>
+                        <TableHead>Avg. Eff.</TableHead>
+                        <TableHead>Days to Budget</TableHead>
+                        <TableHead>Ramp-up</TableHead>
+                        <TableHead>No. of Lines</TableHead>
+                        <TableHead>Single Line Days</TableHead>
+                        <TableHead>Display Color</TableHead>
+                        <TableHead className="text-right">Quantity</TableHead>
+                        <TableHead>Lead Time</TableHead>
+                        <TableHead>Due Date</TableHead>
+                        <TableHead>EHD</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {firmOrders.map((order) => (
+                        <OrderRow 
+                          key={order.id} 
+                          order={order} 
+                          onColorChange={updateOrderColor}
+                          onTnaGenerate={() => handleGenerateTna(order)}
+                          onRampUpSave={updateSewingRampUpScheme}
+                          onSetSewingLines={setSewingLines}
+                          numLines={sewingLines[order.id] || 1}
+                          scheduledProcesses={scheduledProcesses}
+                          updateOrderMinRunDays={updateOrderMinRunDays}
+                        />
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            <TabsContent value="forecasted">
+              <Card>
+                 <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Order ID</TableHead>
+                        <TableHead>Buyer</TableHead>
+                        <TableHead>Style</TableHead>
+                        <TableHead>Color</TableHead>
+                        <TableHead className="text-right">Quantity</TableHead>
+                        <TableHead>Lead Time</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {forecastedOrders.map((order) => (
+                        <TableRow key={order.id}>
+                          <TableCell className="font-medium">{order.id}</TableCell>
+                          <TableCell>{order.buyer}</TableCell>
+                          <TableCell>{order.style}</TableCell>
+                          <TableCell>{order.color}</TableCell>
+                          <TableCell className="text-right">{order.quantity.toLocaleString()}</TableCell>
+                          <TableCell>{order.leadTime ? `${order.leadTime} days` : '-'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </div>
       </main>
     </div>

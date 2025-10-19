@@ -109,6 +109,7 @@ function GanttPageContent() {
   
     if (selectedProcessId !== 'pab' && selectedProcessId !== SEWING_PROCESS_ID) {
       for (const order of orders) {
+        if (order.orderType === 'Forecasted') continue;
         const sewingProcessesForOrder = scheduledProcesses.filter(sp => sp.orderId === order.id && sp.processId === SEWING_PROCESS_ID);
         if (sewingProcessesForOrder.length === 0) continue;
   
@@ -171,6 +172,7 @@ function GanttPageContent() {
     if (!isScheduleLoaded) return map;
 
     orders.forEach(order => {
+        if (order.orderType === 'Forecasted') return;
         const numLines = sewingLines[order.id] || 1;
         const latestDate = calculateLatestSewingStartDate(order, PROCESSES, numLines);
         if (latestDate) {
@@ -198,6 +200,8 @@ function GanttPageContent() {
     const batches: UnplannedBatch[] = [];
     
     for (const order of orders) {
+        if (order.orderType === 'Forecasted') continue; // Exclude forecasted orders
+
         const isProcessInOrder = order.processIds.includes(selectedProcessId);
         if (!isProcessInOrder) continue;
 
@@ -246,7 +250,7 @@ function GanttPageContent() {
         }
     }
 
-    return { unplannedOrderItems: orderItems.sort((a,b) => compareAsc(a.dueDate, b.dueDate)), unplannedBatches: batches };
+    return { unplannedOrderItems: orderItems.sort((a,b) => (a.dueDate && b.dueDate) ? compareAsc(a.dueDate, b.dueDate) : 0), unplannedBatches: batches };
   }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, splitOrderProcesses, latestStartDatesMap, processBatchSizes, packingBatchSizes]);
   
   const predecessorEndDateMap = useMemo(() => {
@@ -265,6 +269,7 @@ function GanttPageContent() {
     const sewingAnchorDates: Record<string, Date> = {};
     const dailySewingOutputs: Record<string, Record<string, number>> = {};
     orders.forEach(order => {
+        if (order.orderType === 'Forecasted') return;
         const sewingProcessesForOrder = scheduledProcesses.filter(sp => sp.orderId === order.id && sp.processId === SEWING_PROCESS_ID);
         if (sewingProcessesForOrder.length > 0) {
             sewingAnchorDates[order.id] = sewingProcessesForOrder.reduce(
@@ -278,7 +283,7 @@ function GanttPageContent() {
 
     for (const process of scheduledProcesses) {
         const order = orders.find(o => o.id === process.orderId);
-        if (!order) continue;
+        if (!order || order.orderType === 'Forecasted') continue;
 
         const processSequence = order.processIds;
         const currentIndex = processSequence.indexOf(process.processId);
@@ -336,7 +341,7 @@ function GanttPageContent() {
       key = `${batch.orderId}-${batch.processId}-${batch.batchNumber || 0}`;
     } else if (draggedItem.type === 'new-order') {
         const order = orders.find(o => o.id === draggedItem.orderId);
-        if (!order) return null;
+        if (!order || order.orderType === 'Forecasted') return null;
         const processIndex = order.processIds.indexOf(draggedItem.processId);
         if (processIndex > 0) {
             const predecessorId = order.processIds[processIndex - 1];
@@ -392,6 +397,7 @@ function GanttPageContent() {
     if (!packingProcessInfo) return map;
 
     orders.forEach(order => {
+        if (order.orderType === 'Forecasted' || !order.dueDate) return;
         const packingKey = `${order.id}-${PACKING_PROCESS_ID}`;
         map.set(packingKey, order.dueDate);
 
@@ -433,6 +439,7 @@ function GanttPageContent() {
     if (!isScheduleLoaded) return map;
 
     orders.forEach(order => {
+        if (order.orderType === 'Forecasted') return;
         if(order.processIds.length > 0) {
             const firstProcessId = order.processIds[0];
             const key = `${order.id}-${firstProcessId}-1`;
@@ -756,7 +763,7 @@ function GanttPageContent() {
       const ocnMatch = filterOcn ? order.ocn.toLowerCase().includes(filterOcn.toLowerCase()) : true;
       const buyerMatch = filterBuyer.length > 0 ? filterBuyer.includes(order.buyer) : true;
       const dueDateMatch = (() => {
-        if (!filterDueDate || !filterDueDate.from) return true;
+        if (!filterDueDate || !filterDueDate.from || !order.dueDate) return true;
         const orderDueDate = new Date(order.dueDate);
         const fromDate = filterDueDate.from;
         if (!filterDueDate.to) return orderDueDate.getFullYear() === fromDate.getFullYear() &&
@@ -770,8 +777,8 @@ function GanttPageContent() {
 
     if (dueDateSort) {
       return filtered.sort((a, b) => {
-        const dateA = new Date(a.dueDate);
-        const dateB = new Date(b.dueDate);
+        const dateA = new Date(a.dueDate!);
+        const dateB = new Date(b.dueDate!);
         return dueDateSort === 'asc' ? compareAsc(dateA, dateB) : compareDesc(dateA, dateB);
       });
     }
@@ -929,8 +936,3 @@ export default function Home() {
     <GanttPageContent />
   );
 }
-
-
-
-
-
