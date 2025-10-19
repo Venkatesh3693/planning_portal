@@ -107,59 +107,68 @@ const currentWeek = getWeek(new Date());
 const generateFcBreakdown = (
   total: number, 
   demandWeek: number,
-  snapshotWeek: number,
-): { total: FcComposition } & Partial<Record<Size, FcComposition>> => {
-  const isFirmPo = demandWeek <= snapshotWeek + 7;
-  
-  const composition: { total: FcComposition } & Partial<Record<Size, FcComposition>> = {
-    total: { po: isFirmPo ? total : 0, fc: isFirmPo ? 0 : total }
-  };
+  snapshotWeek: number
+): Record<Size | 'total', FcComposition> => {
+    const isFirmPo = demandWeek <= snapshotWeek + 3;
+    
+    const composition: Record<Size | 'total', FcComposition> = {
+        total: { po: isFirmPo ? total : 0, fc: isFirmPo ? 0 : total }
+    } as Record<Size | 'total', FcComposition>;
 
-  const numSizes = SIZES.length;
-  let baseQty = Math.floor(total / numSizes);
-  let remainder = total % numSizes;
+    const numSizes = SIZES.length;
+    let baseQty = Math.floor(total / numSizes);
+    let remainder = total % numSizes;
 
-  SIZES.forEach(size => {
-    let qty = baseQty;
-    if (remainder > 0) {
-      qty++;
-      remainder--;
-    }
-    composition[size] = { po: isFirmPo ? qty : 0, fc: isFirmPo ? 0 : qty };
-  });
+    SIZES.forEach(size => {
+        let qty = baseQty;
+        if (remainder > 0) {
+        qty++;
+        remainder--;
+        }
+        composition[size] = { po: isFirmPo ? qty : 0, fc: isFirmPo ? 0 : qty };
+    });
 
-  return composition;
+    return composition;
 };
 
 const generateFcSnapshots = (
-    baseWeek: number, 
-    numWeeks: number, 
+    snapshotStartWeek: number, 
+    numSnapshots: number,
+    numDemandWeeks: number,
     initialQty: number,
     volatility: number = 500
 ): FcSnapshot[] => {
     const snapshots: FcSnapshot[] = [];
-    const demandWeeks = Array.from({ length: numWeeks }, (_, i) => `W${baseWeek + i}`);
     let lastForecasts: Record<string, number> = {};
 
-    demandWeeks.forEach(w => lastForecasts[w] = initialQty);
+    // Initialize base forecast
+    for(let i=0; i<numDemandWeeks; i++) {
+        lastForecasts[`W${snapshotStartWeek + i}`] = initialQty;
+    }
 
-    for (let s = baseWeek - 4; s < baseWeek; s++) {
-        const snapshot: FcSnapshot = { snapshotWeek: s, forecasts: {} };
-        demandWeeks.forEach(week => {
-            const demandWeekNum = parseInt(week.substring(1));
-            // Apply some volatility
-            const newQty = Math.max(0, lastForecasts[week] + (Math.random() - 0.5) * volatility);
-            snapshot.forecasts[week] = generateFcBreakdown(Math.round(newQty), demandWeekNum, s);
-            lastForecasts[week] = newQty;
-        });
+    for (let s = 0; s < numSnapshots; s++) {
+        const snapshotWeek = snapshotStartWeek + s;
+        const snapshot: FcSnapshot = { snapshotWeek, forecasts: {} };
+
+        for(let d=0; d < numDemandWeeks; d++) {
+            const demandWeek = snapshotWeek + d;
+            const weekKey = `W${demandWeek}`;
+            
+            // For the first snapshot, use initial values. For subsequent ones, apply volatility.
+            const baseQty = (s === 0) ? initialQty : lastForecasts[weekKey] || initialQty;
+            const newQty = Math.max(0, baseQty + (Math.random() - 0.5) * volatility);
+
+            snapshot.forecasts[weekKey] = generateFcBreakdown(Math.round(newQty), demandWeek, snapshotWeek);
+            lastForecasts[weekKey] = newQty;
+        }
         snapshots.push(snapshot);
     }
     return snapshots;
 };
 
 
-const dmiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots(40, 5, 20000);
-const dsiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots(42, 5, 50000, 1000);
+const dmiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots(36, 5, 8, 20000, 1000);
+const dsiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots(38, 5, 8, 50000, 2500);
 
 
 export const ORDERS: Order[] = [

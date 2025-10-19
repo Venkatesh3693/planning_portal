@@ -148,17 +148,13 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
     
     const snapshots = order.fcVsFcDetails.sort((a, b) => a.snapshotWeek - b.snapshotWeek);
 
-    const totals: Record<number, { po: number, fc: number }> = {};
+    const totals: Record<number, FcComposition> = {};
     snapshots.forEach(snapshot => {
-        totals[snapshot.snapshotWeek] = { po: 0, fc: 0 };
         let totalPo = 0;
         let totalFc = 0;
 
         forecastWeeks.forEach(week => {
-            const weekForecastForSize = snapshot.forecasts[week]?.[selectedSize];
-            const weekForecastForTotal = snapshot.forecasts[week]?.total;
-            const weekForecast = selectedSize === 'total' ? weekForecastForTotal : weekForecastForSize;
-            
+            const weekForecast = snapshot.forecasts[week]?.[selectedSize];
             if (weekForecast) {
                 totalPo += weekForecast.po || 0;
                 totalFc += weekForecast.fc || 0;
@@ -177,20 +173,19 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
   const renderCellContent = (
     currentData: FcComposition | undefined, 
     previousData: FcComposition | undefined,
-    isTotalCol: boolean = false
   ) => {
     const currentValue = currentData ? (currentData.po || 0) + (currentData.fc || 0) : undefined;
     const previousValue = previousData ? (previousData.po || 0) + (previousData.fc || 0) : undefined;
-
-    if (viewMode === 'absolute') {
-      return currentValue !== undefined ? currentValue.toLocaleString() : <span className="text-muted-foreground">-</span>;
-    }
     
     const isFirstRow = previousData === undefined;
-    if (isFirstRow) {
+    if (viewMode === 'percentage' && isFirstRow) {
       return <Badge variant="outline">Baseline</Badge>;
     }
 
+    if (viewMode === 'absolute' || isFirstRow) {
+      return currentValue !== undefined ? currentValue.toLocaleString() : <span className="text-muted-foreground">-</span>;
+    }
+    
     if (previousValue !== undefined && currentValue !== undefined && previousValue > 0) {
       const change = ((currentValue - previousValue) / previousValue) * 100;
       return (
@@ -271,11 +266,8 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
                     W{snapshot.snapshotWeek}
                   </TableCell>
                   {forecastWeeks.map(week => {
-                    const currentWeekDataBySize = snapshot.forecasts[week]?.[selectedSize];
-                    const currentWeekData = selectedSize === 'total' ? snapshot.forecasts[week]?.total : currentWeekDataBySize;
-                    
-                    const previousWeekDataBySize = prevSnapshot?.forecasts[week]?.[selectedSize];
-                    const previousWeekData = selectedSize === 'total' ? prevSnapshot?.forecasts[week]?.total : previousWeekDataBySize;
+                    const currentWeekData = snapshot.forecasts[week]?.[selectedSize];
+                    const previousWeekData = prevSnapshot?.forecasts[week]?.[selectedSize];
                     
                     return (
                       <TableCell 
@@ -287,7 +279,7 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
                     );
                   })}
                   <TableCell className="text-right font-bold tabular-nums">
-                     {renderCellContent(currentDataForTotal, prevDataForTotal, true)}
+                     {renderCellContent(currentDataForTotal, prevDataForTotal)}
                   </TableCell>
                 </TableRow>
               );
