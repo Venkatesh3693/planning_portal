@@ -30,6 +30,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from '../ui/label';
+import { Button } from '../ui/button';
+import { Percent } from 'lucide-react';
 
 type DemandDetailsDialogProps = {
   order: Order;
@@ -121,6 +123,7 @@ const SelectionVsPoFc = ({ order }: { order: Order }) => {
 
 const FcVsFc = ({ order }: { order: Order }) => {
   const [selectedSize, setSelectedSize] = useState<Size | 'total'>('total');
+  const [viewMode, setViewMode] = useState<'absolute' | 'percentage'>('absolute');
 
   const { forecastWeeks, snapshots, snapshotTotals } = useMemo(() => {
     if (!order.fcVsFcDetails || order.fcVsFcDetails.length === 0) {
@@ -141,12 +144,12 @@ const FcVsFc = ({ order }: { order: Order }) => {
     const totals: Record<number, Record<Size | 'total', number>> = {};
     snapshots.forEach(snapshot => {
       totals[snapshot.snapshotWeek] = { total: 0 };
+      SIZES.forEach(size => { totals[snapshot.snapshotWeek][size] = 0; });
       forecastWeeks.forEach(week => {
          const weekForecast = snapshot.forecasts[week];
          if (weekForecast) {
             totals[snapshot.snapshotWeek].total += weekForecast.total;
             SIZES.forEach(size => {
-              if(!totals[snapshot.snapshotWeek][size]) totals[snapshot.snapshotWeek][size] = 0;
               totals[snapshot.snapshotWeek][size] += weekForecast[size] || 0;
             })
          }
@@ -159,6 +162,23 @@ const FcVsFc = ({ order }: { order: Order }) => {
   if (snapshots.length === 0) {
     return <div className="text-center text-muted-foreground p-8">No Forecast vs. Forecast data available.</div>;
   }
+  
+  const renderCellContent = (currentValue?: number, previousValue?: number) => {
+    if (viewMode === 'absolute') {
+      return currentValue !== undefined ? currentValue.toLocaleString() : <span className="text-muted-foreground">-</span>;
+    }
+    
+    if (previousValue !== undefined && currentValue !== undefined && previousValue > 0) {
+      const change = ((currentValue - previousValue) / previousValue) * 100;
+      return (
+        <Badge variant={change > 0 ? 'destructive' : 'secondary'} className="text-xs tabular-nums">
+          {change > 0 ? '+' : ''}{change.toFixed(1)}%
+        </Badge>
+      );
+    }
+    
+    return currentValue !== undefined ? "0.0%" : <span className="text-muted-foreground">-</span>;
+  };
 
   return (
     <div className="space-y-4">
@@ -175,6 +195,14 @@ const FcVsFc = ({ order }: { order: Order }) => {
             ))}
           </SelectContent>
         </Select>
+        <Button 
+            variant={viewMode === 'percentage' ? 'secondary' : 'outline'} 
+            size="icon" 
+            onClick={() => setViewMode(prev => prev === 'absolute' ? 'percentage' : 'absolute')}
+            title={viewMode === 'absolute' ? 'Show Percentage Change' : 'Show Absolute Numbers'}
+        >
+            <Percent className="h-4 w-4" />
+        </Button>
       </div>
       <div className="max-h-[60vh] overflow-auto border rounded-lg">
         <Table>
@@ -189,19 +217,9 @@ const FcVsFc = ({ order }: { order: Order }) => {
           </TableHeader>
           <TableBody>
             {snapshots.map((snapshot, rowIndex) => {
-              const snapshotTotal = snapshotTotals[snapshot.snapshotWeek]?.[selectedSize] || 0;
-              const prevSnapshotWeek = rowIndex > 0 ? snapshots[rowIndex - 1].snapshotWeek : undefined;
-              const prevSnapshotTotal = prevSnapshotWeek ? snapshotTotals[prevSnapshotWeek]?.[selectedSize] : undefined;
-              
-              let totalChangeIndicator: React.ReactNode = null;
-              if (prevSnapshotTotal !== undefined && snapshotTotal !== undefined && prevSnapshotTotal > 0 && snapshotTotal !== prevSnapshotTotal) {
-                const change = ((snapshotTotal - prevSnapshotTotal) / prevSnapshotTotal) * 100;
-                totalChangeIndicator = (
-                  <Badge variant={change > 0 ? 'destructive' : 'secondary'} className="ml-2 text-xs tabular-nums">
-                    {change > 0 ? '+' : ''}{change.toFixed(1)}%
-                  </Badge>
-                );
-              }
+              const prevSnapshot = rowIndex > 0 ? snapshots[rowIndex - 1] : undefined;
+              const prevSnapshotTotal = prevSnapshot ? snapshotTotals[prevSnapshot.snapshotWeek]?.[selectedSize] : undefined;
+              const currentSnapshotTotal = snapshotTotals[snapshot.snapshotWeek]?.[selectedSize];
 
               return (
                 <TableRow key={snapshot.snapshotWeek}>
@@ -209,41 +227,16 @@ const FcVsFc = ({ order }: { order: Order }) => {
                     W{snapshot.snapshotWeek}
                   </TableCell>
                   {forecastWeeks.map(week => {
-                    const value = snapshot.forecasts[week]?.[selectedSize];
-                    const prevValue = rowIndex > 0 ? snapshots[rowIndex - 1].forecasts[week]?.[selectedSize] : undefined;
-                    
-                    let changeIndicator: React.ReactNode = null;
-                    if (prevValue !== undefined && value !== undefined && prevValue > 0 && value !== prevValue) {
-                      const change = ((value - prevValue) / prevValue) * 100;
-                      changeIndicator = (
-                        <Badge variant={change > 0 ? 'destructive' : 'secondary'} className="ml-2 text-xs tabular-nums">
-                          {change > 0 ? '+' : ''}{change.toFixed(1)}%
-                        </Badge>
-                      );
-                    }
-
+                    const currentValue = snapshot.forecasts[week]?.[selectedSize];
+                    const prevValue = prevSnapshot?.forecasts[week]?.[selectedSize];
                     return (
                       <TableCell key={`${snapshot.snapshotWeek}-${week}`} className="text-right tabular-nums">
-                        {value !== undefined ? (
-                          <div className="flex items-center justify-end">
-                            {value.toLocaleString()}
-                            {changeIndicator}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
+                        {renderCellContent(currentValue, prevValue)}
                       </TableCell>
                     );
                   })}
                   <TableCell className="text-right font-bold tabular-nums">
-                    {snapshotTotal > 0 ? (
-                       <div className="flex items-center justify-end">
-                          {snapshotTotal.toLocaleString()}
-                          {totalChangeIndicator}
-                        </div>
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
+                     {renderCellContent(currentSnapshotTotal, prevSnapshotTotal)}
                   </TableCell>
                 </TableRow>
               );
@@ -271,10 +264,9 @@ export default function DemandDetailsDialog({
           </DialogDescription>
         </DialogHeader>
         <Tabs defaultValue="selection-vs-po-fc">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="selection-vs-po-fc">Selection vs. PO+FC</TabsTrigger>
             <TabsTrigger value="fc-vs-fc">FC vs. FC</TabsTrigger>
-            <TabsTrigger value="fc-vs-po" disabled>FC vs. PO</TabsTrigger>
           </TabsList>
           <TabsContent value="selection-vs-po-fc" className="pt-4">
              <SelectionVsPoFc order={order} />
