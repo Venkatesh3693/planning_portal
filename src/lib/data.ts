@@ -106,9 +106,10 @@ const currentWeek = getWeek(new Date());
 
 const generateFcBreakdown = (
   total: number, 
-  demandWeek: number
+  demandWeek: number,
+  snapshotWeek: number,
 ): { total: FcComposition } & Partial<Record<Size, FcComposition>> => {
-  const isFirmPo = demandWeek <= currentWeek + 3;
+  const isFirmPo = demandWeek <= snapshotWeek + 7;
   
   const composition: { total: FcComposition } & Partial<Record<Size, FcComposition>> = {
     total: { po: isFirmPo ? total : 0, fc: isFirmPo ? 0 : total }
@@ -148,7 +149,7 @@ const generateFcSnapshots = (
             const demandWeekNum = parseInt(week.substring(1));
             // Apply some volatility
             const newQty = Math.max(0, lastForecasts[week] + (Math.random() - 0.5) * volatility);
-            snapshot.forecasts[week] = generateFcBreakdown(Math.round(newQty), demandWeekNum);
+            snapshot.forecasts[week] = generateFcBreakdown(Math.round(newQty), demandWeekNum, s);
             lastForecasts[week] = newQty;
         });
         snapshots.push(snapshot);

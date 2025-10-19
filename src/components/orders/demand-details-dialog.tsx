@@ -195,9 +195,9 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
     return currentValue !== undefined && currentValue > 0 ? "0.0%" : <span className="text-muted-foreground">-</span>;
   };
 
-  const getCellBgClass = (demandWeek: string, data: FcComposition | undefined) => {
+  const getCellBgClass = (demandWeek: string, snapshotWeek: number, data: FcComposition | undefined) => {
     const demandWeekNum = parseInt(demandWeek.substring(1));
-    const isFirmRule = demandWeekNum <= currentWeek + 3;
+    const isFirmRule = demandWeekNum <= snapshotWeek + 7;
 
     if (isFirmRule) {
         return 'bg-green-100 dark:bg-green-900/40';
@@ -271,7 +271,7 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
                     return (
                       <TableCell 
                         key={`${snapshot.snapshotWeek}-${week}`} 
-                        className={cn("text-right tabular-nums", getCellBgClass(week, currentWeekData))}
+                        className={cn("text-right tabular-nums", getCellBgClass(week, snapshot.snapshotWeek, currentWeekData))}
                       >
                         {renderCellContent(currentWeekData, previousWeekData, isFirstRow)}
                       </TableCell>
