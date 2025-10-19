@@ -141,19 +141,23 @@ const FcVsFc = ({ order }: { order: Order }) => {
     
     const snapshots = order.fcVsFcDetails.sort((a, b) => a.snapshotWeek - b.snapshotWeek);
 
-    const totals: Record<number, Record<Size | 'total', number>> = {};
+    const totals: Record<number, Partial<Record<Size | 'total', number>>> = {};
     snapshots.forEach(snapshot => {
       totals[snapshot.snapshotWeek] = { total: 0 };
       SIZES.forEach(size => { totals[snapshot.snapshotWeek][size] = 0; });
+      
+      let weeklyTotal = 0;
       forecastWeeks.forEach(week => {
          const weekForecast = snapshot.forecasts[week];
          if (weekForecast) {
-            totals[snapshot.snapshotWeek].total += weekForecast.total;
+            weeklyTotal += weekForecast.total || 0;
             SIZES.forEach(size => {
-              totals[snapshot.snapshotWeek][size] += weekForecast[size] || 0;
+              const sizeQty = weekForecast[size] || 0;
+              totals[snapshot.snapshotWeek][size] = (totals[snapshot.snapshotWeek][size] || 0) + sizeQty;
             })
          }
       })
+      totals[snapshot.snapshotWeek].total = weeklyTotal;
     });
 
     return { forecastWeeks, snapshots, snapshotTotals: totals };
@@ -163,11 +167,15 @@ const FcVsFc = ({ order }: { order: Order }) => {
     return <div className="text-center text-muted-foreground p-8">No Forecast vs. Forecast data available.</div>;
   }
   
-  const renderCellContent = (currentValue?: number, previousValue?: number) => {
+  const renderCellContent = (currentValue?: number, previousValue?: number, isFirstRow = false) => {
     if (viewMode === 'absolute') {
       return currentValue !== undefined ? currentValue.toLocaleString() : <span className="text-muted-foreground">-</span>;
     }
     
+    if (isFirstRow) {
+      return <Badge variant="outline">Baseline</Badge>;
+    }
+
     if (previousValue !== undefined && currentValue !== undefined && previousValue > 0) {
       const change = ((currentValue - previousValue) / previousValue) * 100;
       return (
@@ -220,6 +228,7 @@ const FcVsFc = ({ order }: { order: Order }) => {
               const prevSnapshot = rowIndex > 0 ? snapshots[rowIndex - 1] : undefined;
               const prevSnapshotTotal = prevSnapshot ? snapshotTotals[prevSnapshot.snapshotWeek]?.[selectedSize] : undefined;
               const currentSnapshotTotal = snapshotTotals[snapshot.snapshotWeek]?.[selectedSize];
+              const isFirstRow = rowIndex === 0;
 
               return (
                 <TableRow key={snapshot.snapshotWeek}>
@@ -231,12 +240,12 @@ const FcVsFc = ({ order }: { order: Order }) => {
                     const prevValue = prevSnapshot?.forecasts[week]?.[selectedSize];
                     return (
                       <TableCell key={`${snapshot.snapshotWeek}-${week}`} className="text-right tabular-nums">
-                        {renderCellContent(currentValue, prevValue)}
+                        {renderCellContent(currentValue, prevValue, isFirstRow)}
                       </TableCell>
                     );
                   })}
                   <TableCell className="text-right font-bold tabular-nums">
-                     {renderCellContent(currentSnapshotTotal, prevSnapshotTotal)}
+                     {renderCellContent(currentSnapshotTotal, prevSnapshotTotal, isFirstRow)}
                   </TableCell>
                 </TableRow>
               );
