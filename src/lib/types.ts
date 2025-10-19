@@ -80,7 +80,7 @@ export type DemandDetail = {
 
 export type FcSnapshot = {
   snapshotWeek: number;
-  forecasts: Record<string, number>; // e.g., { 'W40': 1000, 'W41': 1200 }
+  forecasts: Record<string, Partial<Record<Size, number>> & { total: number }>;
 };
 
 

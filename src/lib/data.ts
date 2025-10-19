@@ -102,18 +102,36 @@ const dsiDemandDetails: DemandDetail[] = [
     { destination: 'Paris, FR', selectionQty: 150000, po: 100000, fc: 40000, poPlusFc: 140000 },
 ];
 
+const generateFcBreakdown = (total: number): Partial<Record<Size, number>> & { total: number } => {
+    const breakdown: Partial<Record<Size, number>> & { total: number } = { total };
+    const numSizes = SIZES.length;
+    const baseQty = Math.floor(total / numSizes);
+    let remainder = total % numSizes;
+
+    SIZES.forEach(size => {
+        let qty = baseQty;
+        if (remainder > 0) {
+            qty++;
+            remainder--;
+        }
+        breakdown[size] = qty;
+    });
+
+    return breakdown;
+};
+
 const dmiFcVsFcDetails: FcSnapshot[] = [
-    { snapshotWeek: 35, forecasts: { 'W40': 20000, 'W41': 25000, 'W42': 30000, 'W43': 30000, 'W44': 30000 } },
-    { snapshotWeek: 36, forecasts: { 'W40': 22000, 'W41': 25000, 'W42': 28000, 'W43': 32000, 'W44': 32000 } },
-    { snapshotWeek: 37, forecasts: { 'W40': 21000, 'W41': 26000, 'W42': 29000, 'W43': 31000, 'W44': 33000 } },
-    { snapshotWeek: 38, forecasts: { 'W40': 21500, 'W41': 25500, 'W42': 29500, 'W43': 31500, 'W44': 32500 } },
+    { snapshotWeek: 35, forecasts: { 'W40': generateFcBreakdown(20000), 'W41': generateFcBreakdown(25000), 'W42': generateFcBreakdown(30000), 'W43': generateFcBreakdown(30000), 'W44': generateFcBreakdown(30000) } },
+    { snapshotWeek: 36, forecasts: { 'W40': generateFcBreakdown(22000), 'W41': generateFcBreakdown(25000), 'W42': generateFcBreakdown(28000), 'W43': generateFcBreakdown(32000), 'W44': generateFcBreakdown(32000) } },
+    { snapshotWeek: 37, forecasts: { 'W40': generateFcBreakdown(21000), 'W41': generateFcBreakdown(26000), 'W42': generateFcBreakdown(29000), 'W43': generateFcBreakdown(31000), 'W44': generateFcBreakdown(33000) } },
+    { snapshotWeek: 38, forecasts: { 'W40': generateFcBreakdown(21500), 'W41': generateFcBreakdown(25500), 'W42': generateFcBreakdown(29500), 'W43': generateFcBreakdown(31500), 'W44': generateFcBreakdown(32500) } },
 ];
 
 const dsiFcVsFcDetails: FcSnapshot[] = [
-    { snapshotWeek: 36, forecasts: { 'W42': 50000, 'W43': 50000, 'W44': 60000, 'W45': 60000, 'W46': 70000 } },
-    { snapshotWeek: 37, forecasts: { 'W42': 48000, 'W43': 52000, 'W44': 60000, 'W45': 65000, 'W46': 70000 } },
-    { snapshotWeek: 38, forecasts: { 'W42': 49000, 'W43': 51000, 'W44': 62000, 'W45': 63000, 'W46': 71000 } },
-    { snapshotWeek: 39, forecasts: { 'W42': 49500, 'W43': 51500, 'W44': 61500, 'W45': 63500, 'W46': 70500 } },
+    { snapshotWeek: 36, forecasts: { 'W42': generateFcBreakdown(50000), 'W43': generateFcBreakdown(50000), 'W44': generateFcBreakdown(60000), 'W45': generateFcBreakdown(60000), 'W46': generateFcBreakdown(70000) } },
+    { snapshotWeek: 37, forecasts: { 'W42': generateFcBreakdown(48000), 'W43': generateFcBreakdown(52000), 'W44': generateFcBreakdown(60000), 'W45': generateFcBreakdown(65000), 'W46': generateFcBreakdown(70000) } },
+    { snapshotWeek: 38, forecasts: { 'W42': generateFcBreakdown(49000), 'W43': generateFcBreakdown(51000), 'W44': generateFcBreakdown(62000), 'W45': generateFcBreakdown(63000), 'W46': generateFcBreakdown(71000) } },
+    { snapshotWeek: 39, forecasts: { 'W42': generateFcBreakdown(49500), 'W43': generateFcBreakdown(51500), 'W44': generateFcBreakdown(61500), 'W45': generateFcBreakdown(63500), 'W46': generateFcBreakdown(70500) } },
 ];
 
 
