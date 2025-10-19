@@ -840,7 +840,8 @@ export default function OrdersPage() {
                         <TableHead>Buyer</TableHead>
                         <TableHead>Style</TableHead>
                         <TableHead>Color</TableHead>
-                        <TableHead className="text-right">Quantity</TableHead>
+                        <TableHead>Model no.</TableHead>
+                        <TableHead className="text-right">Selection Quantity</TableHead>
                         <TableHead>Lead Time</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -851,6 +852,7 @@ export default function OrdersPage() {
                           <TableCell>{order.buyer}</TableCell>
                           <TableCell>{order.style}</TableCell>
                           <TableCell>{order.color}</TableCell>
+                          <TableCell>{order.modelNo || '-'}</TableCell>
                           <TableCell className="text-right">{order.quantity.toLocaleString()}</TableCell>
                           <TableCell>{order.leadTime ? `${order.leadTime} days` : '-'}</TableCell>
                         </TableRow>

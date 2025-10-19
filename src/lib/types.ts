@@ -64,6 +64,7 @@ export type Order = {
   budgetedEfficiency?: number;
   sewingRampUpScheme?: RampUpEntry[];
   orderType: 'Firm PO' | 'Forecasted';
+  modelNo?: number;
 };
 
 export type ScheduledProcess = {
