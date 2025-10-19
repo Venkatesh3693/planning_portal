@@ -328,7 +328,7 @@ export default function MachinePanel({
                       <span>
                         {selectedProcessId === SEWING_PROCESS_ID && latestSewingStart 
                           ? `Latest Start: ${format(latestSewingStart, 'MMM dd')}`
-                          : `Due: ${format(order.dueDate, 'MMM dd')}`
+                          : order.dueDate ? `Due: ${format(order.dueDate, 'MMM dd')}` : `Lead Time: ${order.leadTime}d`
                         }
                       </span>
                       {selectedProcessId === SEWING_PROCESS_ID && (
