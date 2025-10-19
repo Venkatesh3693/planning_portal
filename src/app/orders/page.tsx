@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/dialog';
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
-import { PROCESSES, WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE, MACHINE_NAME_ABBREVIATIONS } from '@/lib/data';
+import { PROCESSES, WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE, MACHINE_NAME_ABBREVIATIONS, SIZES } from '@/lib/data';
 import type { Order, ScheduledProcess, TnaProcess, SewingOperation } from '@/lib/types';
 import { format, isAfter, isBefore, startOfDay, subDays } from 'date-fns';
 import {
@@ -753,9 +753,12 @@ export default function OrdersPage() {
   const [expandedColumns, setExpandedColumns] = useState({
     projection: false,
     frc: false,
+    cutOrder: false,
+    produced: false,
+    shipped: false,
   });
 
-  const handleToggleColumn = (column: 'projection' | 'frc') => {
+  const handleToggleColumn = (column: keyof typeof expandedColumns) => {
     setExpandedColumns(prev => ({ ...prev, [column]: !prev[column] }));
   };
 
@@ -769,7 +772,7 @@ export default function OrdersPage() {
   const firmOrders = useMemo(() => orders.filter(o => o.orderType === 'Firm PO'), [orders]);
   const forecastedOrders = useMemo(() => orders.filter(o => o.orderType === 'Forecasted'), [orders]);
 
-  const isAnyForecastColumnExpanded = expandedColumns.projection || expandedColumns.frc;
+  const isAnyForecastColumnExpanded = Object.values(expandedColumns).some(v => v);
 
   return (
     <div className="flex h-screen flex-col">
@@ -876,29 +879,91 @@ export default function OrdersPage() {
                         </TableHead>
 
                         <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Confirmed PO</TableHead>
-                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Cut Order</TableHead>
-                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Produced</TableHead>
-                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Shipped</TableHead>
+                        
+                        <TableHead
+                          colSpan={expandedColumns.cutOrder ? SIZES.length + 1 : 1}
+                          rowSpan={expandedColumns.cutOrder ? 1 : (isAnyForecastColumnExpanded ? 2 : 1)}
+                          className="text-center"
+                        >
+                           <Button variant="ghost" size="sm" onClick={() => handleToggleColumn('cutOrder')} className="w-full">
+                              Cut Order
+                              {expandedColumns.cutOrder ? <ChevronDown className="h-4 w-4 ml-2" /> : <ChevronsRight className="h-4 w-4 ml-2" />}
+                           </Button>
+                        </TableHead>
+                        
+                        <TableHead
+                          colSpan={expandedColumns.produced ? SIZES.length + 1 : 1}
+                          rowSpan={expandedColumns.produced ? 1 : (isAnyForecastColumnExpanded ? 2 : 1)}
+                          className="text-center"
+                        >
+                           <Button variant="ghost" size="sm" onClick={() => handleToggleColumn('produced')} className="w-full">
+                              Produced
+                              {expandedColumns.produced ? <ChevronDown className="h-4 w-4 ml-2" /> : <ChevronsRight className="h-4 w-4 ml-2" />}
+                           </Button>
+                        </TableHead>
+
+                        <TableHead
+                          colSpan={expandedColumns.shipped ? SIZES.length + 1 : 1}
+                          rowSpan={expandedColumns.shipped ? 1 : (isAnyForecastColumnExpanded ? 2 : 1)}
+                          className="text-center"
+                        >
+                           <Button variant="ghost" size="sm" onClick={() => handleToggleColumn('shipped')} className="w-full">
+                              Shipped
+                              {expandedColumns.shipped ? <ChevronDown className="h-4 w-4 ml-2" /> : <ChevronsRight className="h-4 w-4 ml-2" />}
+                           </Button>
+                        </TableHead>
+
                         <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Lead Time</TableHead>
                       </TableRow>
                       {isAnyForecastColumnExpanded && (
                         <TableRow>
-                          {expandedColumns.projection && (
+                          {expandedColumns.projection ? (
                             <>
                               <TableHead className="text-right">No PO</TableHead>
                               <TableHead className="text-right">Open POs</TableHead>
                               <TableHead className="text-right">GRN</TableHead>
                               <TableHead className="text-right font-bold">Total</TableHead>
                             </>
+                          ) : (
+                            !isAnyForecastColumnExpanded || <TableHead />
                           )}
                           
-                          {expandedColumns.frc && (
-                            <>
+                          {expandedColumns.frc ? (
+                             <>
                               <TableHead className="text-right">No PO</TableHead>
                               <TableHead className="text-right">Open POs</TableHead>
                               <TableHead className="text-right">GRN</TableHead>
                               <TableHead className="text-right font-bold">Total</TableHead>
+                             </>
+                          ) : (
+                             !isAnyForecastColumnExpanded || <TableHead />
+                          )}
+                          
+                          {expandedColumns.cutOrder ? (
+                            <>
+                              {SIZES.map(size => <TableHead key={`cut-${size}`} className="text-right">{size}</TableHead>)}
+                              <TableHead className="text-right font-bold">Total</TableHead>
                             </>
+                          ) : (
+                            !isAnyForecastColumnExpanded || <TableHead />
+                          )}
+                          
+                          {expandedColumns.produced ? (
+                            <>
+                              {SIZES.map(size => <TableHead key={`prod-${size}`} className="text-right">{size}</TableHead>)}
+                              <TableHead className="text-right font-bold">Total</TableHead>
+                            </>
+                          ) : (
+                            !isAnyForecastColumnExpanded || <TableHead />
+                          )}
+
+                          {expandedColumns.shipped ? (
+                            <>
+                              {SIZES.map(size => <TableHead key={`ship-${size}`} className="text-right">{size}</TableHead>)}
+                              <TableHead className="text-right font-bold">Total</TableHead>
+                            </>
+                          ) : (
+                            !isAnyForecastColumnExpanded || <TableHead />
                           )}
                         </TableRow>
                       )}
@@ -935,10 +1000,35 @@ export default function OrdersPage() {
                               <TableCell className="text-right font-bold">{order.frc?.total.toLocaleString() || '-'}</TableCell>
                           )}
 
-                          <TableCell className="text-right">{(order.confirmedPoQty || 0).toLocaleString()}</TableCell>
-                          <TableCell className="text-right">{(order.cutOrderQty || 0).toLocaleString()}</TableCell>
-                          <TableCell className="text-right">{(order.producedQty || 0).toLocaleString()}</TableCell>
-                          <TableCell className="text-right">{(order.shippedQty || 0).toLocaleString()}</TableCell>
+                          <TableCell className="text-right font-bold">{(order.confirmedPoQty || 0).toLocaleString()}</TableCell>
+                          
+                          {expandedColumns.cutOrder ? (
+                            <>
+                              {SIZES.map(size => <TableCell key={`cut-val-${size}`} className="text-right">{order.cutOrder?.[size]?.toLocaleString() || '-'}</TableCell>)}
+                              <TableCell className="text-right font-bold">{order.cutOrder?.total.toLocaleString() || '-'}</TableCell>
+                            </>
+                          ) : (
+                             <TableCell className="text-right font-bold">{order.cutOrder?.total.toLocaleString() || '-'}</TableCell>
+                          )}
+
+                          {expandedColumns.produced ? (
+                            <>
+                              {SIZES.map(size => <TableCell key={`prod-val-${size}`} className="text-right">{order.produced?.[size]?.toLocaleString() || '-'}</TableCell>)}
+                              <TableCell className="text-right font-bold">{order.produced?.total.toLocaleString() || '-'}</TableCell>
+                            </>
+                          ) : (
+                             <TableCell className="text-right font-bold">{order.produced?.total.toLocaleString() || '-'}</TableCell>
+                          )}
+
+                          {expandedColumns.shipped ? (
+                            <>
+                              {SIZES.map(size => <TableCell key={`ship-val-${size}`} className="text-right">{order.shipped?.[size]?.toLocaleString() || '-'}</TableCell>)}
+                              <TableCell className="text-right font-bold">{order.shipped?.total.toLocaleString() || '-'}</TableCell>
+                            </>
+                          ) : (
+                             <TableCell className="text-right font-bold">{order.shipped?.total.toLocaleString() || '-'}</TableCell>
+                          )}
+                          
                           <TableCell>{order.leadTime ? `${order.leadTime} days` : '-'}</TableCell>
                         </TableRow>
                       ))}

@@ -56,6 +56,13 @@ export type ForecastDetail = {
   total: number;
 };
 
+export type Size = '2XS' | 'XS' | 'S' | 'M' | 'L' | 'XL' | '2XL' | '3XL' | '4XL' | '5XL';
+
+export type SizeBreakdown = {
+  [key in Size]: number;
+} & { total: number };
+
+
 export type Order = {
   id: string; // e.g. 'ZAR4531-Shirt-Blue'
   ocn: string; // e.g. 'ZAR4531'
@@ -77,9 +84,9 @@ export type Order = {
   projection?: ForecastDetail;
   frc?: ForecastDetail;
   confirmedPoQty?: number;
-  cutOrderQty?: number;
-  producedQty?: number;
-  shippedQty?: number;
+  cutOrder?: SizeBreakdown;
+  produced?: SizeBreakdown;
+  shipped?: SizeBreakdown;
 };
 
 export type ScheduledProcess = {

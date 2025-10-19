@@ -1,5 +1,5 @@
 
-import type { Unit, Machine, Order, Process, SewingOperation } from '@/lib/types';
+import type { Unit, Machine, Order, Process, SewingOperation, Size } from '@/lib/types';
 import { Scissors, Printer, Fingerprint, ExternalLink, MoveHorizontal, PackageCheck } from 'lucide-react';
 import { addDays, subDays, startOfToday } from 'date-fns';
 
@@ -34,6 +34,8 @@ export const ORDER_COLORS = [
     'hsl(330, 84%, 50%)', // A vibrant pink
     'hsl(50, 95%, 55%)',  // A bright yellow
 ];
+
+export const SIZES: Size[] = ['2XS', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL'];
 
 
 export const PROCESSES: Process[] = [
@@ -128,9 +130,9 @@ export const ORDERS: Order[] = [
         projection: { noPo: 50000, openPos: 40000, grn: 30000, total: 120000 },
         frc: { noPo: 40000, openPos: 35000, grn: 25000, total: 100000 },
         confirmedPoQty: 95000,
-        cutOrderQty: 90000,
-        producedQty: 75000,
-        shippedQty: 50000,
+        cutOrder: { '2XS': 9000, 'XS': 9000, 'S': 9000, 'M': 9000, 'L': 9000, 'XL': 9000, '2XL': 9000, '3XL': 9000, '4XL': 9000, '5XL': 9000, total: 90000 },
+        produced: { '2XS': 7500, 'XS': 7500, 'S': 7500, 'M': 7500, 'L': 7500, 'XL': 7500, '2XL': 7500, '3XL': 7500, '4XL': 7500, '5XL': 7500, total: 75000 },
+        shipped: { '2XS': 5000, 'XS': 5000, 'S': 5000, 'M': 5000, 'L': 5000, 'XL': 5000, '2XL': 5000, '3XL': 5000, '4XL': 5000, '5XL': 5000, total: 50000 },
         processIds: ['cutting', 'sewing', 'packing'],
         displayColor: ORDER_COLORS[5],
         leadTime: 21,
@@ -157,9 +159,9 @@ export const ORDERS: Order[] = [
         projection: { noPo: 100000, openPos: 75000, grn: 50000, total: 225000 },
         frc: { noPo: 80000, openPos: 70000, grn: 50000, total: 200000 },
         confirmedPoQty: 180000,
-        cutOrderQty: 175000,
-        producedQty: 150000,
-        shippedQty: 120000,
+        cutOrder: { '2XS': 18000, 'XS': 18000, 'S': 18000, 'M': 18000, 'L': 18000, 'XL': 18000, '2XL': 18000, '3XL': 18000, '4XL': 18000, '5XL': 17000, total: 179000 },
+        produced: { '2XS': 15000, 'XS': 15000, 'S': 15000, 'M': 15000, 'L': 15000, 'XL': 15000, '2XL': 15000, '3XL': 15000, '4XL': 15000, '5XL': 15000, total: 150000 },
+        shipped: { '2XS': 12000, 'XS': 12000, 'S': 12000, 'M': 12000, 'L': 12000, 'XL': 12000, '2XL': 12000, '3XL': 12000, '4XL': 12000, '5XL': 12000, total: 120000 },
         processIds: ['cutting', 'embroidery', 'sewing', 'packing'],
         displayColor: ORDER_COLORS[6],
         leadTime: 21,
