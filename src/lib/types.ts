@@ -49,6 +49,13 @@ export type SewingOperation = {
   grade: 'A' | 'B' | 'C' | 'D';
 };
 
+export type ForecastDetail = {
+  noPo: number;
+  openPos: number;
+  grn: number;
+  total: number;
+};
+
 export type Order = {
   id: string; // e.g. 'ZAR4531-Shirt-Blue'
   ocn: string; // e.g. 'ZAR4531'
@@ -65,8 +72,8 @@ export type Order = {
   sewingRampUpScheme?: RampUpEntry[];
   orderType: 'Firm PO' | 'Forecasted';
   modelNo?: number;
-  projectionQty?: number;
-  frcQty?: number;
+  projection?: ForecastDetail;
+  frc?: ForecastDetail;
   confirmedPoQty?: number;
   cutOrderQty?: number;
   producedQty?: number;

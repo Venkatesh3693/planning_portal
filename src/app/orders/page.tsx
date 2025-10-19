@@ -835,17 +835,27 @@ export default function OrdersPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Order ID</TableHead>
-                        <TableHead>Style</TableHead>
-                        <TableHead>Model no.</TableHead>
-                        <TableHead className="text-right">Selection Quantity</TableHead>
-                        <TableHead className="text-right">Projection</TableHead>
-                        <TableHead className="text-right">FRC</TableHead>
-                        <TableHead className="text-right">Confirmed PO</TableHead>
-                        <TableHead className="text-right">Cut Order</TableHead>
-                        <TableHead className="text-right">Produced</TableHead>
-                        <TableHead className="text-right">Shipped</TableHead>
-                        <TableHead>Lead Time</TableHead>
+                        <TableHead rowSpan={2}>Order ID</TableHead>
+                        <TableHead rowSpan={2}>Style</TableHead>
+                        <TableHead rowSpan={2}>Model no.</TableHead>
+                        <TableHead rowSpan={2} className="text-right">Selection Quantity</TableHead>
+                        <TableHead colSpan={4} className="text-center">Projection</TableHead>
+                        <TableHead colSpan={4} className="text-center">FRC</TableHead>
+                        <TableHead rowSpan={2} className="text-right">Confirmed PO</TableHead>
+                        <TableHead rowSpan={2} className="text-right">Cut Order</TableHead>
+                        <TableHead rowSpan={2} className="text-right">Produced</TableHead>
+                        <TableHead rowSpan={2} className="text-right">Shipped</TableHead>
+                        <TableHead rowSpan={2}>Lead Time</TableHead>
+                      </TableRow>
+                      <TableRow>
+                        <TableHead className="text-right">No PO</TableHead>
+                        <TableHead className="text-right">Open POs</TableHead>
+                        <TableHead className="text-right">GRN</TableHead>
+                        <TableHead className="text-right font-bold">Total</TableHead>
+                        <TableHead className="text-right">No PO</TableHead>
+                        <TableHead className="text-right">Open POs</TableHead>
+                        <TableHead className="text-right">GRN</TableHead>
+                        <TableHead className="text-right font-bold">Total</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -855,8 +865,14 @@ export default function OrdersPage() {
                           <TableCell>{order.style}</TableCell>
                           <TableCell>{order.modelNo || '-'}</TableCell>
                           <TableCell className="text-right">{(order.quantity || 0).toLocaleString()}</TableCell>
-                          <TableCell className="text-right">{(order.projectionQty || 0).toLocaleString()}</TableCell>
-                          <TableCell className="text-right">{(order.frcQty || 0).toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{order.projection?.noPo.toLocaleString() || '-'}</TableCell>
+                          <TableCell className="text-right">{order.projection?.openPos.toLocaleString() || '-'}</TableCell>
+                          <TableCell className="text-right">{order.projection?.grn.toLocaleString() || '-'}</TableCell>
+                          <TableCell className="text-right font-bold">{order.projection?.total.toLocaleString() || '-'}</TableCell>
+                          <TableCell className="text-right">{order.frc?.noPo.toLocaleString() || '-'}</TableCell>
+                          <TableCell className="text-right">{order.frc?.openPos.toLocaleString() || '-'}</TableCell>
+                          <TableCell className="text-right">{order.frc?.grn.toLocaleString() || '-'}</TableCell>
+                          <TableCell className="text-right font-bold">{order.frc?.total.toLocaleString() || '-'}</TableCell>
                           <TableCell className="text-right">{(order.confirmedPoQty || 0).toLocaleString()}</TableCell>
                           <TableCell className="text-right">{(order.cutOrderQty || 0).toLocaleString()}</TableCell>
                           <TableCell className="text-right">{(order.producedQty || 0).toLocaleString()}</TableCell>
