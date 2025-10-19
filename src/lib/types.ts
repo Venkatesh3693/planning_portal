@@ -73,6 +73,7 @@ export type Order = {
   orderType: 'Firm PO' | 'Forecasted';
   modelNo?: number;
   season?: string;
+  poFcQty?: number;
   projection?: ForecastDetail;
   frc?: ForecastDetail;
   confirmedPoQty?: number;

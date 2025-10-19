@@ -851,6 +851,7 @@ export default function OrdersPage() {
                         <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Style</TableHead>
                         <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Model no.</TableHead>
                         <TableHead className="text-right" rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Selection Quantity</TableHead>
+                        <TableHead className="text-right" rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>PO + FC</TableHead>
                         
                         <TableHead
                           colSpan={expandedColumns.projection ? 4 : 1}
@@ -890,6 +891,8 @@ export default function OrdersPage() {
                               <TableHead className="text-right font-bold">Total</TableHead>
                             </>
                           )}
+                          {!expandedColumns.projection && <TableHead></TableHead>}
+                          
                           {expandedColumns.frc && (
                             <>
                               <TableHead className="text-right">No PO</TableHead>
@@ -898,6 +901,7 @@ export default function OrdersPage() {
                               <TableHead className="text-right font-bold">Total</TableHead>
                             </>
                           )}
+                           {!expandedColumns.frc && <TableHead></TableHead>}
                         </TableRow>
                       )}
                     </TableHeader>
@@ -909,6 +913,7 @@ export default function OrdersPage() {
                           <TableCell>{order.style}</TableCell>
                           <TableCell>{order.modelNo || '-'}</TableCell>
                           <TableCell className="text-right">{(order.quantity || 0).toLocaleString()}</TableCell>
+                          <TableCell className="text-right font-medium">{(order.poFcQty || 0).toLocaleString()}</TableCell>
                           
                           {expandedColumns.projection ? (
                             <>
@@ -950,5 +955,3 @@ export default function OrdersPage() {
     </div>
   );
 }
-
-    
