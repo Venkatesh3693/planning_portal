@@ -759,8 +759,6 @@ export default function OrdersPage() {
     setExpandedColumns(prev => ({ ...prev, [column]: !prev[column] }));
   };
 
-  const isAnyForecastColumnExpanded = expandedColumns.projection || expandedColumns.frc;
-
   const handleGenerateTna = (order: Order) => {
     const numLines = sewingLines[order.id] || 1;
     const processBatchSize = processBatchSizes[order.id] || 0;
@@ -846,11 +844,11 @@ export default function OrdersPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Order ID</TableHead>
-                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Season</TableHead>
-                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Style</TableHead>
-                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Model no.</TableHead>
-                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1} className="text-right">Selection Quantity</TableHead>
+                        <TableHead>Order ID</TableHead>
+                        <TableHead>Season</TableHead>
+                        <TableHead>Style</TableHead>
+                        <TableHead>Model no.</TableHead>
+                        <TableHead className="text-right">Selection Quantity</TableHead>
                         
                         <TableHead colSpan={expandedColumns.projection ? 4 : 1} className="text-center">
                            <Button variant="ghost" size="sm" onClick={() => handleToggleColumn('projection')} className="w-full">
@@ -865,37 +863,51 @@ export default function OrdersPage() {
                            </Button>
                         </TableHead>
 
-                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1} className="text-right">Confirmed PO</TableHead>
-                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1} className="text-right">Cut Order</TableHead>
-                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1} className="text-right">Produced</TableHead>
-                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1} className="text-right">Shipped</TableHead>
-                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Lead Time</TableHead>
+                        <TableHead>Confirmed PO</TableHead>
+                        <TableHead>Cut Order</TableHead>
+                        <TableHead>Produced</TableHead>
+                        <TableHead>Shipped</TableHead>
+                        <TableHead>Lead Time</TableHead>
                       </TableRow>
-                      {isAnyForecastColumnExpanded && (
-                        <TableRow>
-                          {expandedColumns.projection ? (
-                            <>
-                              <TableHead className="text-right">No PO</TableHead>
-                              <TableHead className="text-right">Open POs</TableHead>
-                              <TableHead className="text-right">GRN</TableHead>
-                              <TableHead className="text-right font-bold">Total</TableHead>
-                            </>
-                          ) : (
-                            <TableHead />
-                          )}
+                      <TableRow>
+                        {/* Placeholders for static columns */}
+                        <TableHead />
+                        <TableHead />
+                        <TableHead />
+                        <TableHead />
+                        <TableHead />
 
-                          {expandedColumns.frc ? (
-                             <>
-                              <TableHead className="text-right">No PO</TableHead>
-                              <TableHead className="text-right">Open POs</TableHead>
-                              <TableHead className="text-right">GRN</TableHead>
-                              <TableHead className="text-right font-bold">Total</TableHead>
-                             </>
-                          ) : (
-                            <TableHead />
-                          )}
-                        </TableRow>
-                      )}
+                        {/* Sub-headers for Projection */}
+                        {expandedColumns.projection ? (
+                          <>
+                            <TableHead className="text-right">No PO</TableHead>
+                            <TableHead className="text-right">Open POs</TableHead>
+                            <TableHead className="text-right">GRN</TableHead>
+                            <TableHead className="text-right font-bold">Total</TableHead>
+                          </>
+                        ) : (
+                          <TableHead /> // Placeholder for collapsed Projection
+                        )}
+
+                        {/* Sub-headers for FRC */}
+                        {expandedColumns.frc ? (
+                           <>
+                            <TableHead className="text-right">No PO</TableHead>
+                            <TableHead className="text-right">Open POs</TableHead>
+                            <TableHead className="text-right">GRN</TableHead>
+                            <TableHead className="text-right font-bold">Total</TableHead>
+                           </>
+                        ) : (
+                          <TableHead /> // Placeholder for collapsed FRC
+                        )}
+                        
+                        {/* Placeholders for static columns */}
+                        <TableHead />
+                        <TableHead />
+                        <TableHead />
+                        <TableHead />
+                        <TableHead />
+                      </TableRow>
                     </TableHeader>
                     <TableBody>
                       {forecastedOrders.map((order) => (
