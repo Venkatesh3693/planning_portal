@@ -1,10 +1,10 @@
 
 'use client';
 
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useSchedule } from '@/context/schedule-provider';
-import type { Order, ProjectionDetail, Size, StatusDetail, SizeBreakdown } from '@/lib/types';
+import type { Order, ProjectionDetail, Size, SizeBreakdown } from '@/lib/types';
 import { format } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
@@ -26,25 +26,13 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { SIZES } from '@/lib/data';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
-type ViewType = 'total' | 'grn' | 'poReleased' | 'notReleasedLate' | 'notReleasedEarly';
-
-const breakdownColors: Record<Exclude<ViewType, 'total'>, string> = {
+const breakdownColors = {
   grn: '#22c55e', 
   poReleased: '#3b82f6', 
   notReleasedLate: '#ef4444', 
   notReleasedEarly: '#6b7280',
-};
-
-const viewLabels: Record<ViewType, string> = {
-  total: 'Total Qty',
-  grn: 'GRN',
-  poReleased: 'PO Released',
-  notReleasedLate: 'Not Released (Late)',
-  notReleasedEarly: 'Not Released (Early)',
 };
 
 
@@ -84,19 +72,17 @@ const QuantityBreakdownBar = ({ detail }: { detail: ProjectionDetail }) => {
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
                     <div className="space-y-1 text-xs">
-                        <div className="font-bold mb-1 pb-1 border-b">Component Status</div>
                        {breakdowns.map(item => {
                            if (item.value === 0) return null;
-                           const statusDetail = detail[item.key as Exclude<ViewType, 'total'>];
+                           const statusDetail = detail[item.key as keyof Omit<ProjectionDetail, 'projectionNumber' | 'projectionDate' | 'receiptDate' | 'total' | 'totalComponents'>];
                            return (
                                <div key={item.key} className="flex items-center justify-between gap-4">
                                    <div className="flex items-center gap-2">
                                        <div className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }}></div>
-                                       <span>{item.label}</span>
+                                       <span>{item.label}:</span>
                                    </div>
                                    <div className="flex items-center gap-2">
-                                       <span className="font-semibold">{statusDetail.quantities.total.toLocaleString()}</span>
-                                       <span className="text-muted-foreground">({statusDetail.componentCount}/{detail.totalComponents})</span>
+                                       <span className="font-semibold">{statusDetail.componentCount} of {detail.totalComponents}</span>
                                    </div>
                                </div>
                            );
