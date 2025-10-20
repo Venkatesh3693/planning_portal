@@ -26,7 +26,7 @@ import {
   TableFooter
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, ChevronDown, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ChevronRight } from 'lucide-react';
 import { SIZES } from '@/lib/data';
 import { cn } from '@/lib/utils';
 import {
@@ -37,7 +37,7 @@ import {
 
 
 const SubRow = ({ label, data, isTotal = false }: { label: string, data: SizeBreakdown, isTotal?: boolean }) => (
-    <TableRow className={cn(isTotal ? "bg-muted/50 hover:bg-muted/50" : "bg-muted/20 hover:bg-muted/30")}>
+    <TableRow className={cn(isTotal ? "bg-muted/50 hover:bg-muted/50" : "bg-background hover:bg-muted/10")}>
         <TableCell className="pl-12 font-medium">{label}</TableCell>
         <TableCell></TableCell>
         <TableCell></TableCell>
@@ -57,40 +57,41 @@ const ProjectionRow = ({ detail }: { detail: ProjectionDetail }) => {
     const [isOpen, setIsOpen] = useState(true);
 
     return (
-        <>
-            <CollapsibleTrigger asChild>
-                <TableRow 
-                    onClick={() => setIsOpen(prev => !prev)} 
-                    className="cursor-pointer"
-                    data-state={isOpen ? 'open' : 'closed'}
-                >
-                    <TableCell className="font-medium whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                             <ChevronRight className={cn("h-4 w-4 transition-transform", isOpen && "rotate-90")} />
-                            {detail.projectionNumber}
-                        </div>
-                    </TableCell>
-                    <TableCell>{format(detail.projectionDate, 'dd/MM/yy')}</TableCell>
-                    <TableCell>{format(detail.receiptDate, 'dd/MM/yy')}</TableCell>
-                    {SIZES.map(size => (
-                         <TableCell key={`total-${size}`} className="text-right tabular-nums font-bold">
-                            {(detail.total[size] || 0).toLocaleString()}
+        <Collapsible asChild key={detail.projectionNumber} open={isOpen} onOpenChange={setIsOpen}>
+            <>
+                <CollapsibleTrigger asChild>
+                    <TableRow 
+                        className="cursor-pointer"
+                        data-state={isOpen ? 'open' : 'closed'}
+                    >
+                        <TableCell className="font-medium whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                                 <ChevronRight className={cn("h-4 w-4 transition-transform", isOpen && "rotate-90")} />
+                                {detail.projectionNumber}
+                            </div>
                         </TableCell>
-                    ))}
-                    <TableCell className="text-right font-bold tabular-nums">
-                        {detail.total.total.toLocaleString()}
-                    </TableCell>
-                </TableRow>
-            </CollapsibleTrigger>
-            <CollapsibleContent asChild>
-                <>
-                    <SubRow label="No PO Qty" data={detail.noPo} />
-                    <SubRow label="Open PO Qty" data={detail.openPo} />
-                    <SubRow label="GRN Qty" data={detail.grn} />
-                    <SubRow label="Cut Qty" data={detail.cut} />
-                </>
-            </CollapsibleContent>
-        </>
+                        <TableCell>{format(detail.projectionDate, 'dd/MM/yy')}</TableCell>
+                        <TableCell>{format(detail.receiptDate, 'dd/MM/yy')}</TableCell>
+                        {SIZES.map(size => (
+                             <TableCell key={`total-${size}`} className="text-right tabular-nums font-bold">
+                                {(detail.total[size] || 0).toLocaleString()}
+                            </TableCell>
+                        ))}
+                        <TableCell className="text-right font-bold tabular-nums">
+                            {detail.total.total.toLocaleString()}
+                        </TableCell>
+                    </TableRow>
+                </CollapsibleTrigger>
+                <CollapsibleContent asChild>
+                    <>
+                        <SubRow label="No PO Qty" data={detail.noPo} />
+                        <SubRow label="Open PO Qty" data={detail.openPo} />
+                        <SubRow label="GRN Qty" data={detail.grn} />
+                        <SubRow label="Cut Qty" data={detail.cut} />
+                    </>
+                </CollapsibleContent>
+            </>
+        </Collapsible>
     )
 }
 
@@ -114,14 +115,10 @@ const ProjectionDetailsTable = ({ order }: { order: Order }) => {
             <TableHead className="text-right">Total</TableHead>
           </TableRow>
         </TableHeader>
-        <TableBody asChild>
-            <Collapsible asChild>
-                <>
-                    {order.projectionDetails.map((detail) => (
-                        <ProjectionRow key={detail.projectionNumber} detail={detail} />
-                    ))}
-                </>
-            </Collapsible>
+        <TableBody>
+            {order.projectionDetails.map((detail) => (
+                <ProjectionRow key={detail.projectionNumber} detail={detail} />
+            ))}
         </TableBody>
       </Table>
     </div>
