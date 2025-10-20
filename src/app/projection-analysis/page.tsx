@@ -23,104 +23,84 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TableFooter
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { SIZES } from '@/lib/data';
-import { cn } from '@/lib/utils';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 
-
-const SubRow = ({ label, data, isTotal = false }: { label: string, data: SizeBreakdown, isTotal?: boolean }) => (
-    <TableRow className={cn(isTotal ? "bg-muted/50 hover:bg-muted/50" : "bg-background hover:bg-muted/10")}>
-        <TableCell className="pl-12 font-medium">{label}</TableCell>
-        <TableCell></TableCell>
-        <TableCell></TableCell>
-        {SIZES.map(size => (
-            <TableCell key={`${label}-${size}`} className="text-right tabular-nums">
-                {(data[size] || 0).toLocaleString()}
-            </TableCell>
-        ))}
-        <TableCell className="text-right font-bold tabular-nums">
-            {data.total.toLocaleString()}
-        </TableCell>
-    </TableRow>
-);
-
-
-const ProjectionRow = ({ detail }: { detail: ProjectionDetail }) => {
-    const [isOpen, setIsOpen] = useState(true);
-
-    return (
-        <>
-            <CollapsibleTrigger asChild>
-                <TableRow 
-                    className="cursor-pointer"
-                    data-state={isOpen ? 'open' : 'closed'}
-                >
-                    <TableCell className="font-medium whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                             <ChevronRight className={cn("h-4 w-4 transition-transform", isOpen && "rotate-90")} />
-                            {detail.projectionNumber}
-                        </div>
-                    </TableCell>
-                    <TableCell>{format(detail.projectionDate, 'dd/MM/yy')}</TableCell>
-                    <TableCell>{format(detail.receiptDate, 'dd/MM/yy')}</TableCell>
-                    {SIZES.map(size => (
-                         <TableCell key={`total-${size}`} className="text-right tabular-nums font-bold">
-                            {(detail.total[size] || 0).toLocaleString()}
-                        </TableCell>
-                    ))}
-                    <TableCell className="text-right font-bold tabular-nums">
-                        {detail.total.total.toLocaleString()}
-                    </TableCell>
-                </TableRow>
-            </CollapsibleTrigger>
-            <CollapsibleContent asChild>
-                <>
-                    <SubRow label="No PO Qty" data={detail.noPo} />
-                    <SubRow label="Open PO Qty" data={detail.openPo} />
-                    <SubRow label="GRN Qty" data={detail.grn} />
-                    <SubRow label="Cut Qty" data={detail.cut} />
-                </>
-            </CollapsibleContent>
-        </>
-    )
-}
+type ViewType = 'total' | 'noPo' | 'openPo' | 'grn' | 'cut';
 
 
 const ProjectionDetailsTable = ({ order }: { order: Order }) => {
+  const [selectedView, setSelectedView] = useState<ViewType>('total');
+
   if (!order.projectionDetails || order.projectionDetails.length === 0) {
     return <div className="text-center text-muted-foreground p-8">No projection details available for this order.</div>;
   }
+  
+  const viewLabels: Record<ViewType, string> = {
+    total: 'Total Qty',
+    noPo: 'No PO Qty',
+    openPo: 'Open PO Qty',
+    grn: 'GRN Qty',
+    cut: 'Cut Qty'
+  };
 
   return (
-     <div className="border rounded-lg overflow-hidden">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-[200px]">Projection Number</TableHead>
-            <TableHead>Projection Date</TableHead>
-            <TableHead>Receipt Date</TableHead>
-            {SIZES.map(size => (
-                <TableHead key={size} className="text-right">{size}</TableHead>
-            ))}
-            <TableHead className="text-right">Total</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-            {order.projectionDetails.map((detail) => (
-               <Collapsible asChild key={detail.projectionNumber} open={true}>
-                    <ProjectionRow detail={detail} />
-                </Collapsible>
-            ))}
-        </TableBody>
-      </Table>
+    <div className="space-y-4">
+        <div className="flex items-center gap-2 max-w-xs">
+            <Label htmlFor="view-select" className="text-sm font-medium">Show:</Label>
+             <Select value={selectedView} onValueChange={(value) => setSelectedView(value as ViewType)} >
+                <SelectTrigger id="view-select">
+                    <SelectValue placeholder="Select a view" />
+                </SelectTrigger>
+                <SelectContent>
+                    {Object.entries(viewLabels).map(([key, label]) => (
+                        <SelectItem key={key} value={key}>{label}</SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
+        <div className="border rounded-lg overflow-hidden">
+        <Table>
+            <TableHeader>
+            <TableRow>
+                <TableHead className="w-[200px]">Projection Number</TableHead>
+                <TableHead>Projection Date</TableHead>
+                <TableHead>Receipt Date</TableHead>
+                {SIZES.map(size => (
+                    <TableHead key={size} className="text-right">{size}</TableHead>
+                ))}
+                <TableHead className="text-right">Total</TableHead>
+            </TableRow>
+            </TableHeader>
+            <TableBody>
+            {order.projectionDetails.map((detail) => {
+                const dataToShow: SizeBreakdown = detail[selectedView];
+
+                return (
+                    <TableRow key={detail.projectionNumber}>
+                        <TableCell className="font-medium whitespace-nowrap">
+                            {detail.projectionNumber}
+                        </TableCell>
+                        <TableCell>{format(new Date(detail.projectionDate), 'dd/MM/yy')}</TableCell>
+                        <TableCell>{format(new Date(detail.receiptDate), 'dd/MM/yy')}</TableCell>
+                        {SIZES.map(size => (
+                            <TableCell key={`total-${size}`} className="text-right tabular-nums">
+                                {(dataToShow[size] || 0).toLocaleString()}
+                            </TableCell>
+                        ))}
+                        <TableCell className="text-right font-bold tabular-nums">
+                            {dataToShow.total.toLocaleString()}
+                        </TableCell>
+                    </TableRow>
+                )
+            })}
+            </TableBody>
+        </Table>
+        </div>
     </div>
   );
 };
