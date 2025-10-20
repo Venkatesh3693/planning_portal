@@ -4,7 +4,7 @@
 import { Suspense, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useSchedule } from '@/context/schedule-provider';
-import type { Order, ProjectionDetail, Size, SizeBreakdown } from '@/lib/types';
+import type { Order, ProjectionDetail, Size, SizeBreakdown, StatusDetail } from '@/lib/types';
 import { format } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
