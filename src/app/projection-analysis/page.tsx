@@ -4,7 +4,7 @@
 import { Suspense, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useSchedule } from '@/context/schedule-provider';
-import type { Order, ProjectionDetail, Size, StatusDetail } from '@/lib/types';
+import type { Order, ProjectionDetail, Size, StatusDetail, SizeBreakdown } from '@/lib/types';
 import { format } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
@@ -113,7 +113,6 @@ function ProjectionAnalysisPageContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get('orderId');
     const { orders, isScheduleLoaded } = useSchedule();
-    const [selectedView, setSelectedView] = useState<ViewType>('total');
 
     const order = useMemo(() => {
         if (!isScheduleLoaded || !orderId) return null;
@@ -125,30 +124,23 @@ function ProjectionAnalysisPageContent() {
             const emptyTotals = SIZES.reduce((acc, size) => ({...acc, [size]: 0}), {} as Record<Size, number>);
             return {
                 sizeTotals: emptyTotals,
-                grandTotal: 0,
-                componentCount: 0,
-                totalComponents: 0,
+                grandTotal: 0
             };
         }
     
         const sizeTotals = SIZES.reduce((acc, size) => {
             acc[size] = order.projectionDetails.reduce((sum, detail) => {
-                const viewData = detail[selectedView] as StatusDetail;
-                return sum + (viewData?.quantities?.[size] || 0);
+                return sum + (detail.total?.quantities?.[size] || 0);
             }, 0);
             return acc;
         }, {} as Record<Size, number>);
     
         const grandTotal = order.projectionDetails.reduce((sum, detail) => {
-            const viewData = detail[selectedView] as StatusDetail;
-            return sum + (viewData?.quantities?.total || 0);
+            return sum + (detail.total?.quantities?.total || 0);
         }, 0);
-
-        const componentCount = order.projectionDetails[0]?.[selectedView]?.componentCount ?? 0;
-        const totalComponents = order.projectionDetails[0]?.totalComponents ?? 0;
     
-        return { sizeTotals, grandTotal, componentCount, totalComponents };
-    }, [order, selectedView]);
+        return { sizeTotals, grandTotal };
+    }, [order]);
 
     if (!isScheduleLoaded) {
         return <div className="flex items-center justify-center h-full">Loading analysis data...</div>;
@@ -202,19 +194,6 @@ function ProjectionAnalysisPageContent() {
                             Order ID: {order.id}
                         </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <Label htmlFor="view-select" className="text-sm font-medium">Show:</Label>
-                         <Select value={selectedView} onValueChange={(value) => setSelectedView(value as ViewType)} >
-                            <SelectTrigger id="view-select" className="w-[240px]">
-                                <SelectValue placeholder="Select a view" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {Object.entries(viewLabels).map(([key, label]) => (
-                                    <SelectItem key={key} value={key}>{label}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
                 </div>
                 
                 <div className="flex-1 min-h-0">
@@ -233,8 +212,6 @@ function ProjectionAnalysisPageContent() {
                             </TableHeader>
                             <TableBody>
                             {(order.projectionDetails || []).map((detail) => {
-                                const currentViewData = detail[selectedView] as StatusDetail;
-
                                 return (
                                 <TableRow key={detail.projectionNumber}>
                                     <TableCell className="font-medium whitespace-nowrap">
@@ -245,29 +222,17 @@ function ProjectionAnalysisPageContent() {
                                     
                                     {SIZES.map(size => (
                                         <TableCell key={`${detail.projectionNumber}-${size}`} className="text-right tabular-nums">
-                                            {selectedView === 'total' ? (
-                                                <div>
-                                                    <span className="font-medium">{(currentViewData.quantities[size] || 0).toLocaleString()}</span>
-                                                    {(detail.total.quantities[size] || 0) > 0 && <QuantityBreakdownBar detail={detail} />}
-                                                </div>
-                                            ) : (
-                                                <div className="font-medium text-muted-foreground">
-                                                  ({currentViewData.componentCount}/{detail.totalComponents})
-                                                </div>
-                                            )}
+                                            <div>
+                                                <span className="font-medium">{(detail.total.quantities[size] || 0).toLocaleString()}</span>
+                                                {(detail.total.quantities[size] || 0) > 0 && <QuantityBreakdownBar detail={detail} />}
+                                            </div>
                                         </TableCell>
                                     ))}
 
                                     <TableCell className="text-right font-bold tabular-nums">
                                         <div>
-                                            <span className="font-bold">{(currentViewData.quantities.total).toLocaleString()}</span>
-                                            {selectedView === 'total' ? (
-                                               detail.total.quantities.total > 0 && <QuantityBreakdownBar detail={detail} />
-                                            ) : (
-                                                <div className="text-xs text-muted-foreground font-normal">
-                                                    ({currentViewData.componentCount}/{detail.totalComponents})
-                                                </div>
-                                            )}
+                                            <span className="font-bold">{(detail.total.quantities.total).toLocaleString()}</span>
+                                            {detail.total.quantities.total > 0 && <QuantityBreakdownBar detail={detail} />}
                                         </div>
                                     </TableCell>
                                 </TableRow>
@@ -279,22 +244,11 @@ function ProjectionAnalysisPageContent() {
                                     <TableCell colSpan={3} className="font-bold text-right">Total</TableCell>
                                     {SIZES.map(size => (
                                         <TableCell key={`total-${size}`} className="text-right font-bold">
-                                            {selectedView === 'total' ? (
-                                              (totals.sizeTotals[size] || 0).toLocaleString()
-                                            ) : (
-                                                <div className="font-medium text-muted-foreground">
-                                                    ({totals.componentCount}/{totals.totalComponents})
-                                                </div>
-                                            )}
+                                            {(totals.sizeTotals[size] || 0).toLocaleString()}
                                         </TableCell>
                                     ))}
                                     <TableCell className="text-right font-bold">
                                         {totals.grandTotal.toLocaleString()}
-                                        {selectedView !== 'total' && (
-                                            <div className="text-xs text-muted-foreground font-normal">
-                                                ({totals.componentCount}/{totals.totalComponents})
-                                            </div>
-                                        )}
                                     </TableCell>
                                 </TableRow>
                             </TableFooter>
