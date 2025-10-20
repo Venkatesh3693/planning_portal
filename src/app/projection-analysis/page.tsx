@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Suspense, useMemo, useState } from 'react';
@@ -30,29 +29,40 @@ import { SIZES } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { cn } from '@/lib/utils';
 
 type ViewType = 'total' | 'grn' | 'poReleased' | 'notReleasedLate' | 'notReleasedEarly';
 
 const breakdownColors: Record<Exclude<ViewType, 'total'>, string> = {
-  grn: '#22c55e', // Green
-  poReleased: '#3b82f6', // Blue
-  notReleasedLate: '#ef4444', // Red
-  notReleasedEarly: '#6b7280', // Gray
+  grn: '#22c55e', 
+  poReleased: '#3b82f6', 
+  notReleasedLate: '#ef4444', 
+  notReleasedEarly: '#6b7280',
 };
 
-const QuantityBreakdownBar = ({ detail, size }: { detail: ProjectionDetail, size: Size | 'total' }) => {
-    const total = detail.total.quantities[size] || 0;
+const viewLabels: Record<ViewType, string> = {
+  total: 'Total Qty',
+  grn: 'GRN',
+  poReleased: 'PO Released',
+  notReleasedLate: 'Not Released (Late)',
+  notReleasedEarly: 'Not Released (Early)',
+};
+
+
+const QuantityBreakdownBar = ({ detail }: { detail: ProjectionDetail }) => {
+    const total = detail.total.quantities.total || 0;
     if (total === 0) {
         return <div className="h-2 w-full bg-muted rounded-full"></div>;
     }
 
     const breakdowns = [
-        { key: 'grn', value: detail.grn.quantities[size] || 0, color: breakdownColors.grn, label: 'GRN' },
-        { key: 'poReleased', value: detail.poReleased.quantities[size] || 0, color: breakdownColors.poReleased, label: 'PO Released' },
-        { key: 'notReleasedLate', value: detail.notReleasedLate.quantities[size] || 0, color: breakdownColors.notReleasedLate, label: 'Not Released (Late)' },
-        { key: 'notReleasedEarly', value: detail.notReleasedEarly.quantities[size] || 0, color: breakdownColors.notReleasedEarly, label: 'Not Released (Early)' },
-    ].sort((a,b) => b.value - a.value); // Sort to prevent small slivers from being invisible
+        { key: 'grn', value: detail.grn.quantities.total || 0, color: breakdownColors.grn, label: 'GRN' },
+        { key: 'poReleased', value: detail.poReleased.quantities.total || 0, color: breakdownColors.poReleased, label: 'PO Released' },
+        { key: 'notReleasedLate', value: detail.notReleasedLate.quantities.total || 0, color: breakdownColors.notReleasedLate, label: 'Not Released (Late)' },
+        { key: 'notReleasedEarly', value: detail.notReleasedEarly.quantities.total || 0, color: breakdownColors.notReleasedEarly, label: 'Not Released (Early)' },
+    ].sort((a,b) => {
+        const order = ['grn', 'poReleased', 'notReleasedLate', 'notReleasedEarly'];
+        return order.indexOf(a.key) - order.indexOf(b.key);
+    });
 
     return (
         <TooltipProvider>
@@ -85,7 +95,7 @@ const QuantityBreakdownBar = ({ detail, size }: { detail: ProjectionDetail, size
                                        <span>{item.label}</span>
                                    </div>
                                    <div className="flex items-center gap-2">
-                                       <span className="font-semibold">{statusDetail.quantities[size]?.toLocaleString() || 0}</span>
+                                       <span className="font-semibold">{statusDetail.quantities.total.toLocaleString()}</span>
                                        <span className="text-muted-foreground">({statusDetail.componentCount}/{detail.totalComponents})</span>
                                    </div>
                                </div>
@@ -109,14 +119,6 @@ function ProjectionAnalysisPageContent() {
         if (!isScheduleLoaded || !orderId) return null;
         return orders.find(o => o.id === orderId);
     }, [orderId, orders, isScheduleLoaded]);
-
-    const viewLabels: Record<ViewType, (order: Order | null) => string> = {
-        total: () => 'Total Qty',
-        grn: (order) => `GRN (${order?.projectionDetails?.[0]?.grn.componentCount || 0}/${order?.projectionDetails?.[0]?.totalComponents || 0})`,
-        poReleased: (order) => `PO Released (${order?.projectionDetails?.[0]?.poReleased.componentCount || 0}/${order?.projectionDetails?.[0]?.totalComponents || 0})`,
-        notReleasedLate: (order) => `Not Released (Late) (${order?.projectionDetails?.[0]?.notReleasedLate.componentCount || 0}/${order?.projectionDetails?.[0]?.totalComponents || 0})`,
-        notReleasedEarly: (order) => `Not Released (Early) (${order?.projectionDetails?.[0]?.notReleasedEarly.componentCount || 0}/${order?.projectionDetails?.[0]?.totalComponents || 0})`,
-    };
     
     const totals = useMemo(() => {
         if (!order?.projectionDetails) {
@@ -189,8 +191,8 @@ function ProjectionAnalysisPageContent() {
                                 <SelectValue placeholder="Select a view" />
                             </SelectTrigger>
                             <SelectContent>
-                                {Object.entries(viewLabels).map(([key, labelFn]) => (
-                                    <SelectItem key={key} value={key}>{labelFn(order)}</SelectItem>
+                                {Object.entries(viewLabels).map(([key, label]) => (
+                                    <SelectItem key={key} value={key}>{label}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
@@ -225,16 +227,19 @@ function ProjectionAnalysisPageContent() {
                                     
                                     {SIZES.map(size => (
                                         <TableCell key={`${detail.projectionNumber}-${size}`} className="text-right tabular-nums">
-                                            <div>
-                                                <span className="font-medium">{(currentViewData.quantities[size] || 0).toLocaleString()}</span>
-                                                {selectedView === 'total' ? (
-                                                  (detail.total.quantities[size] || 0) > 0 && <QuantityBreakdownBar detail={detail} size={size} />
-                                                ) : (
+                                            {selectedView === 'total' ? (
+                                                <div>
+                                                    <span className="font-medium">{(currentViewData.quantities[size] || 0).toLocaleString()}</span>
+                                                    {(detail.total.quantities[size] || 0) > 0 && <QuantityBreakdownBar detail={detail} />}
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    <span className="font-medium">{(currentViewData.quantities[size] || 0).toLocaleString()}</span>
                                                     <div className="text-xs text-muted-foreground">
-                                                        {(detail.total.quantities[size] || 0).toLocaleString()}
+                                                        ({currentViewData.componentCount}/{detail.totalComponents})
                                                     </div>
-                                                )}
-                                            </div>
+                                                </div>
+                                            )}
                                         </TableCell>
                                     ))}
 
@@ -242,10 +247,10 @@ function ProjectionAnalysisPageContent() {
                                         <div>
                                             <span className="font-bold">{(currentViewData.quantities.total).toLocaleString()}</span>
                                             {selectedView === 'total' ? (
-                                               detail.total.quantities.total > 0 && <QuantityBreakdownBar detail={detail} size='total' />
+                                               detail.total.quantities.total > 0 && <QuantityBreakdownBar detail={detail} />
                                             ) : (
                                                 <div className="text-xs text-muted-foreground font-normal">
-                                                    {(detail.total.quantities.total).toLocaleString()}
+                                                    ({currentViewData.componentCount}/{detail.totalComponents})
                                                 </div>
                                             )}
                                         </div>
