@@ -269,13 +269,15 @@ const RampUpScheme = ({
   singleLineMinDays,
   numLines,
   onSave,
-  calculateAverageEfficiency
+  calculateAverageEfficiency,
+  onNumLinesChange,
 }: { 
   order: Order, 
   singleLineMinDays: number, 
   numLines: number, 
   onSave: (orderId: string, scheme: RampUpEntry[]) => void,
-  calculateAverageEfficiency: (scheme: RampUpEntry[], totalProductionDays: number) => number 
+  calculateAverageEfficiency: (scheme: RampUpEntry[], totalProductionDays: number) => number,
+  onNumLinesChange: (lines: number) => void
 }) => {
   const [scheme, setScheme] = useState<EditableRampUpEntry[]>([]);
 
@@ -431,10 +433,17 @@ const RampUpScheme = ({
             </p>
           )}
 
-          <div className="px-4 pt-4 border-t mt-4">
-             <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Number of Lines:</span>
-                <span>{numLines}</span>
+          <div className="px-4 pt-4 border-t mt-4 space-y-2">
+            <div className="flex items-center justify-between text-sm">
+                <Label htmlFor="num-lines-input" className="text-muted-foreground">Number of Lines:</Label>
+                <Input
+                    id="num-lines-input"
+                    type="number"
+                    min="1"
+                    value={numLines}
+                    onChange={(e) => onNumLinesChange(parseInt(e.target.value, 10) || 1)}
+                    className="w-20 h-8 text-center"
+                />
             </div>
             <div className="flex justify-between text-sm text-muted-foreground">
                 <span>Total Production Days:</span>
@@ -952,6 +961,7 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
                         numLines={numLines}
                         onSave={onRampUpSave}
                         calculateAverageEfficiency={calculateAverageEfficiency}
+                        onNumLinesChange={(lines) => onSetSewingLines(order.id, lines)}
                     />
                 )}
               </div>
@@ -986,15 +996,6 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
            <Badge variant={isBudgetUnreachable ? 'destructive' : 'secondary'}>
               {isBudgetUnreachable ? '∞' : (typeof daysToBudget === 'number' ? `${daysToBudget} days` : daysToBudget)}
            </Badge>
-        </TableCell>
-        <TableCell>
-          <Input
-            type="number"
-            min="1"
-            value={numLines}
-            onChange={(e) => onSetSewingLines(order.id, parseInt(e.target.value, 10) || 1)}
-            className="w-16 h-8 text-center"
-          />
         </TableCell>
         <TableCell>
           {singleLineMinDays > 0 && singleLineMinDays !== Infinity ? (
@@ -1032,9 +1033,11 @@ const ForecastedOrderRow = forwardRef<
     order: Order;
     onRampUpSave: (orderId: string, scheme: RampUpEntry[]) => void;
     onBomChange: (orderId: string, componentName: string, field: keyof BomItem, value: any) => void;
+    onSetSewingLines: (orderId: string, lines: number) => void;
+    numLines: number;
     children?: React.ReactNode;
   }
->(({ order, onRampUpSave, onBomChange, children, ...props }, ref) => {
+>(({ order, onRampUpSave, onBomChange, onSetSewingLines, numLines, children, ...props }, ref) => {
   const [isTnaOpen, setIsTnaOpen] = useState(false);
   const [activeView, setActiveView] = useState<'tna' | 'ob' | 'bom' | 'ramp-up'>('tna');
   const [poDetailsOrder, setPoDetailsOrder] = useState<Order | null>(null);
@@ -1111,9 +1114,10 @@ const ForecastedOrderRow = forwardRef<
                 <RampUpScheme 
                   order={order}
                   singleLineMinDays={singleLineMinDays}
-                  numLines={1}
+                  numLines={numLines}
                   onSave={onRampUpSave}
                   calculateAverageEfficiency={calculateAverageEfficiency}
+                  onNumLinesChange={(lines) => onSetSewingLines(order.id, lines)}
                 />
               )}
             </div>
@@ -1234,7 +1238,6 @@ export default function OrdersPage() {
                         <TableHead>Budgeted Eff.</TableHead>
                         <TableHead>Avg. Eff.</TableHead>
                         <TableHead>Days to Budget</TableHead>
-                        <TableHead>No. of Lines</TableHead>
                         <TableHead>Single Line Days</TableHead>
                         <TableHead>Display Color</TableHead>
                         <TableHead className="text-right">Quantity</TableHead>
@@ -1384,6 +1387,8 @@ export default function OrdersPage() {
                           order={order}
                           onRampUpSave={updateSewingRampUpScheme}
                           onBomChange={updateOrderBom}
+                          onSetSewingLines={setSewingLines}
+                          numLines={sewingLines[order.id] || 1}
                         >
                           {expandedColumns.projection ? (
                             <>
@@ -1509,3 +1514,5 @@ export default function OrdersPage() {
     </div>
   );
 }
+
+    
