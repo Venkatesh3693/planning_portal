@@ -23,7 +23,7 @@ type ScheduleContextType = {
   updateOrderTna: (orderId: string, newTnaProcesses: TnaProcess[]) => void;
   updateOrderColor: (orderId: string, color: string) => void;
   updateOrderMinRunDays: (orderId: string, minRunDays: Record<string, number>) => void;
-  updateOrderBom: (orderId: string, componentName: string, forecastType: 'Projection' | 'FRC') => void;
+  updateOrderBom: (orderId: string, componentName: string, field: keyof BomItem, value: any) => void;
   sewingLines: SewingLines;
   setSewingLines: (orderId: string, lines: number) => void;
   timelineEndDate: Date;
@@ -195,12 +195,12 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const updateOrderBom = (orderId: string, componentName: string, forecastType: 'Projection' | 'FRC') => {
+  const updateOrderBom = (orderId: string, componentName: string, field: keyof BomItem, value: any) => {
     setOrderOverrides(prev => {
       const orderToUpdate = orders.find(o => o.id === orderId);
       const currentBom = prev[orderId]?.bom || orderToUpdate?.bom || [];
       const newBom = currentBom.map(item => 
-        item.componentName === componentName ? { ...item, forecastType } : item
+        item.componentName === componentName ? { ...item, [field]: value } : item
       );
       
       return {

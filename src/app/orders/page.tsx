@@ -50,7 +50,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import PoDetailsDialog from '@/components/orders/po-details-dialog';
 import DemandDetailsDialog from '@/components/orders/demand-details-dialog';
 import ProjectionDetailsDialog from '@/components/orders/projection-details-dialog';
-import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 
 
@@ -337,7 +337,7 @@ const OperationBulletin = ({ order }: { order: Order }) => {
                 <TableCell className="font-medium">{op.operation}</TableCell>
                 <TableCell>{op.machine}</TableCell>
                 <TableCell>
-                  <Badge variant="secondary" className="w-6 h-6 justify-center">{op.grade}</Badge>
+                  <Badge variant="secondary" className="w-6 h-6 justify-center">{op.grade}</TableCell>
                 </TableCell>
                 <TableCell className="text-center">{op.operators}</TableCell>
                 <TableCell className="text-right">{op.sam.toFixed(2)}</TableCell>
@@ -350,8 +350,12 @@ const OperationBulletin = ({ order }: { order: Order }) => {
   );
 };
 
-const BillOfMaterials = ({ order, onForecastTypeChange }: { order: Order, onForecastTypeChange: (componentName: string, forecastType: 'Projection' | 'FRC') => void }) => {
+const BillOfMaterials = ({ order, onBomChange }: { order: Order, onBomChange: (orderId: string, componentName: string, field: keyof BomItem, value: any) => void }) => {
   const bom = order.bom || [];
+  
+  const sortedBom = useMemo(() => {
+    return [...bom].sort((a, b) => b.leadTime - a.leadTime);
+  }, [bom]);
 
   if (bom.length === 0) {
     return (
@@ -375,23 +379,39 @@ const BillOfMaterials = ({ order, onForecastTypeChange }: { order: Order, onFore
           </TableRow>
         </TableHeader>
         <TableBody>
-          {bom.map((item, index) => (
+          {sortedBom.map((item, index) => (
             <TableRow key={index}>
               <TableCell className="font-medium">{item.componentName}</TableCell>
-              <TableCell>{item.sizeDependent ? 'Yes' : 'No'}</TableCell>
+              <TableCell>
+                <Select
+                  value={item.sizeDependent ? 'yes' : 'no'}
+                  onValueChange={(value) => onBomChange(order.id, item.componentName, 'sizeDependent', value === 'yes')}
+                >
+                  <SelectTrigger className="w-[100px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="yes">Yes</SelectItem>
+                    <SelectItem value="no">No</SelectItem>
+                  </SelectContent>
+                </Select>
+              </TableCell>
               <TableCell>{item.source}</TableCell>
               <TableCell>{item.leadTime} days</TableCell>
               <TableCell>{item.supplier}</TableCell>
               <TableCell>
-                 <div className="flex items-center space-x-2">
-                    <Label htmlFor={`frc-switch-${index}`} className={cn(item.forecastType === 'FRC' && 'text-muted-foreground')}>Projection</Label>
-                    <Switch
-                        id={`frc-switch-${index}`}
-                        checked={item.forecastType === 'FRC'}
-                        onCheckedChange={(checked) => onForecastTypeChange(item.componentName, checked ? 'FRC' : 'Projection')}
-                    />
-                    <Label htmlFor={`frc-switch-${index}`} className={cn(item.forecastType === 'Projection' && 'text-muted-foreground')}>FRC</Label>
-                 </div>
+                 <Select
+                    value={item.forecastType}
+                    onValueChange={(value: 'Projection' | 'FRC') => onBomChange(order.id, item.componentName, 'forecastType', value)}
+                  >
+                    <SelectTrigger className="w-[120px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Projection">Projection</SelectItem>
+                      <SelectItem value="FRC">FRC</SelectItem>
+                    </SelectContent>
+                  </Select>
               </TableCell>
             </TableRow>
           ))}
@@ -803,7 +823,7 @@ const ForecastedOrderRow = forwardRef<
   {
     order: Order;
     onRampUpSave: (orderId: string, scheme: RampUpEntry[]) => void;
-    onBomChange: (orderId: string, componentName: string, forecastType: 'Projection' | 'FRC') => void;
+    onBomChange: (orderId: string, componentName: string, field: keyof BomItem, value: any) => void;
     children?: React.ReactNode;
   }
 >(({ order, onRampUpSave, onBomChange, children, ...props }, ref) => {
@@ -833,10 +853,6 @@ const ForecastedOrderRow = forwardRef<
     sewingProcess ? calculateMinDays(order, sewingProcess.sam, order.sewingRampUpScheme || []) : 0,
     [order]
   );
-
-  const handleBomForecastTypeChange = (componentName: string, forecastType: 'Projection' | 'FRC') => {
-    onBomChange(order.id, componentName, forecastType);
-  };
   
   return (
     <TableRow ref={ref} {...props}>
@@ -882,7 +898,7 @@ const ForecastedOrderRow = forwardRef<
               ) : activeView === 'ob' ? (
                 <OperationBulletin order={order} />
               ) : (
-                <BillOfMaterials order={order} onForecastTypeChange={handleBomForecastTypeChange} />
+                <BillOfMaterials order={order} onBomChange={onBomChange} />
               )}
             </div>
           </DialogContent>
@@ -1196,7 +1212,7 @@ export default function OrdersPage() {
                             </>
                           ) : (
                              <TableCell className="text-right font-bold">
-                                {order.projectionDetails ? (
+                                {order.projection ? (
                                   <Dialog onOpenChange={(isOpen) => !isOpen && setProjectionDetailsOrder(null)}>
                                     <DialogTrigger asChild>
                                       <span className="cursor-pointer text-primary hover:underline" onClick={() => setProjectionDetailsOrder(order)}>
