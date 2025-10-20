@@ -476,9 +476,10 @@ const OperationBulletin = ({ order }: { order: Order }) => {
 
   const summary = useMemo(() => {
     if (operations.length === 0) {
-      return { totalSam: 0, gradeCounts: { A: 0, B: 0, C: 0, D: 0 }, machineCounts: {} };
+      return { totalSam: 0, totalTailors: 0, gradeCounts: { A: 0, B: 0, C: 0, D: 0 }, machineCounts: {} };
     }
     const totalSam = operations.reduce((sum, op) => sum + op.sam, 0);
+    const totalTailors = operations.reduce((sum, op) => sum + op.operators, 0);
     const gradeCounts = operations.reduce((counts, op) => {
       counts[op.grade] = (counts[op.grade] || 0) + 1;
       return counts;
@@ -490,7 +491,7 @@ const OperationBulletin = ({ order }: { order: Order }) => {
       return counts;
     }, {} as Record<string, number>);
 
-    return { totalSam, gradeCounts, machineCounts };
+    return { totalSam, totalTailors, gradeCounts, machineCounts };
   }, [operations]);
 
 
@@ -504,12 +505,17 @@ const OperationBulletin = ({ order }: { order: Order }) => {
 
   return (
     <div className="space-y-6">
-       <div className="flex rounded-lg border bg-background dark:bg-card p-4">
-        <div className="flex flex-col justify-center items-center pr-6">
+       <div className="flex rounded-lg border bg-background dark:bg-card p-4 items-center">
+        <div className="flex flex-col justify-center items-center px-6">
           <p className="text-sm text-muted-foreground">Total SAM</p>
           <p className="text-3xl font-bold">{summary.totalSam.toFixed(2)}</p>
         </div>
-        <Separator orientation="vertical" className="h-auto" />
+        <Separator orientation="vertical" className="h-16" />
+        <div className="flex flex-col justify-center items-center px-6">
+          <p className="text-sm text-muted-foreground">Total Tailors</p>
+          <p className="text-3xl font-bold">{summary.totalTailors}</p>
+        </div>
+        <Separator orientation="vertical" className="h-16" />
         <div className="flex-1 pl-6 space-y-2">
           <div>
             <p className="text-sm text-muted-foreground">Tailor Grades</p>
@@ -819,7 +825,7 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
 
   const [minRunDays, setMinRunDays] = useState<Record<string, string>>({});
   
-  const { processBatchSizes, sewingLines } = useSchedule();
+  const { processBatchSizes, sewingLines, setSewingLines: setGlobalSewingLines } = useSchedule();
   const numLines = sewingLines[order.id] || 1;
   const processBatchSize = processBatchSizes[order.id] || 0;
 
@@ -846,6 +852,12 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
       }
       updateOrderMinRunDays(order.id, numericMinRunDays);
   };
+  
+  const handleSetSewingLines = (lines: number) => {
+    onSetSewingLines(order.id, lines);
+    // Also update global state if needed, assuming the function exists
+    if(setGlobalSewingLines) setGlobalSewingLines(order.id, lines);
+  }
 
   const moqs = useMemo(() => {
     const calculatedMoqs: Record<string, number> = {};
@@ -961,7 +973,7 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
                         numLines={numLines}
                         onSave={onRampUpSave}
                         calculateAverageEfficiency={calculateAverageEfficiency}
-                        onNumLinesChange={(lines) => onSetSewingLines(order.id, lines)}
+                        onNumLinesChange={handleSetSewingLines}
                     />
                 )}
               </div>
