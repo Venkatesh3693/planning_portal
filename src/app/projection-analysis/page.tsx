@@ -33,10 +33,10 @@ import { cn } from '@/lib/utils';
 type ViewType = 'total' | 'noPo' | 'openPo' | 'grn' | 'cut';
 
 const breakdownColors: Record<Exclude<ViewType, 'total'>, string> = {
-  noPo: 'bg-sky-500',
-  openPo: 'bg-amber-500',
-  grn: 'bg-emerald-500',
-  cut: 'bg-rose-500',
+  noPo: '#2A6478',
+  openPo: '#36A29C',
+  grn: '#EBCB8B',
+  cut: '#F0A071',
 };
 
 const QuantityBreakdownBar = ({ detail, size }: { detail: ProjectionDetail, size: Size | 'total' }) => {
@@ -63,8 +63,8 @@ const QuantityBreakdownBar = ({ detail, size }: { detail: ProjectionDetail, size
                             return (
                                 <div
                                     key={item.key}
-                                    className={cn("h-full", item.color)}
-                                    style={{ width: `${percentage}%` }}
+                                    className="h-full"
+                                    style={{ width: `${percentage}%`, backgroundColor: item.color }}
                                 />
                             );
                         })}
@@ -77,7 +77,7 @@ const QuantityBreakdownBar = ({ detail, size }: { detail: ProjectionDetail, size
                            return (
                                <div key={item.key} className="flex items-center justify-between text-xs gap-4">
                                    <div className="flex items-center gap-2">
-                                       <div className={cn("h-2 w-2 rounded-full", item.color)}></div>
+                                       <div className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }}></div>
                                        <span>{item.label}</span>
                                    </div>
                                    <span className="font-semibold">{item.value.toLocaleString()}</span>
@@ -191,7 +191,7 @@ function ProjectionAnalysisPageContent() {
                                     {SIZES.map(size => (
                                         <TableCell key={`${detail.projectionNumber}-${size}`} className="text-right tabular-nums">
                                             <div>
-                                                <span className="font-medium">{(detail[selectedView][size] || 0).toLocaleString()}</span>
+                                                <span className="font-medium">{(detail[selectedView]?.[size] || 0).toLocaleString()}</span>
                                                 {selectedView !== 'total' && (
                                                     <div className="text-xs text-muted-foreground">
                                                         {(detail.total[size] || 0).toLocaleString()}
@@ -204,7 +204,7 @@ function ProjectionAnalysisPageContent() {
 
                                     <TableCell className="text-right font-bold tabular-nums">
                                         <div>
-                                            <span className="font-bold">{(detail[selectedView].total).toLocaleString()}</span>
+                                            <span className="font-bold">{(detail[selectedView]?.total || 0).toLocaleString()}</span>
                                             {selectedView !== 'total' && (
                                                 <div className="text-xs text-muted-foreground font-normal">
                                                     {(detail.total.total).toLocaleString()}
