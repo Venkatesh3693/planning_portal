@@ -47,7 +47,6 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import PoDetailsDialog from '@/components/orders/po-details-dialog';
 import DemandDetailsDialog from '@/components/orders/demand-details-dialog';
-import ProjectionDetailsDialog from '@/components/orders/projection-details-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 
@@ -1044,8 +1043,7 @@ const ForecastedOrderRow = forwardRef<
   const [activeView, setActiveView] = useState<'tna' | 'ob' | 'bom' | 'ramp-up'>('tna');
   const [poDetailsOrder, setPoDetailsOrder] = useState<Order | null>(null);
   const [demandDetailsOrder, setDemandDetailsOrder] = useState<Order | null>(null);
-  const [projectionDetailsOrder, setProjectionDetailsOrder] = useState<Order | null>(null);
-
+  
   const { scheduledProcesses, processBatchSizes, updateOrderMinRunDays, sewingLines } = useSchedule();
   const [minRunDays, setMinRunDays] = useState<Record<string, string>>({});
   const numLines = sewingLines[order.id] || 1;
@@ -1184,7 +1182,6 @@ export default function OrdersPage() {
   });
   const [poDetailsOrder, setPoDetailsOrder] = useState<Order | null>(null);
   const [demandDetailsOrder, setDemandDetailsOrder] = useState<Order | null>(null);
-  const [projectionDetailsOrder, setProjectionDetailsOrder] = useState<Order | null>(null);
 
   const handleToggleColumn = (column: keyof typeof expandedColumns) => {
     setExpandedColumns(prev => ({ ...prev, [column]: !prev[column] }));
@@ -1398,13 +1395,9 @@ export default function OrdersPage() {
                               <TableCell className="text-right">{order.projection?.grn.toLocaleString() || '-'}</TableCell>
                               <TableCell className="text-right font-bold">
                                 {order.projectionDetails ? (
-                                  <Dialog onOpenChange={(isOpen) => !isOpen && setProjectionDetailsOrder(null)}>
-                                    <DialogTrigger asChild>
-                                      <span className="cursor-pointer text-primary hover:underline" onClick={() => setProjectionDetailsOrder(order)}>
-                                        {order.projection?.total.toLocaleString() || '-'}
-                                      </span>
-                                    </DialogTrigger>
-                                  </Dialog>
+                                  <Link href={`/projection-analysis?orderId=${order.id}`} className="text-primary hover:underline">
+                                    {order.projection?.total.toLocaleString() || '-'}
+                                  </Link>
                                 ) : (
                                   <span>{order.projection?.total.toLocaleString() || '-'}</span>
                                 )}
@@ -1413,13 +1406,9 @@ export default function OrdersPage() {
                           ) : (
                              <TableCell className="text-right font-bold">
                                 {order.projection?.total && order.projectionDetails ? (
-                                  <Dialog onOpenChange={(isOpen) => !isOpen && setProjectionDetailsOrder(null)}>
-                                    <DialogTrigger asChild>
-                                      <span className="cursor-pointer text-primary hover:underline" onClick={() => setProjectionDetailsOrder(order)}>
-                                        {order.projection.total.toLocaleString()}
-                                      </span>
-                                    </DialogTrigger>
-                                  </Dialog>
+                                   <Link href={`/projection-analysis?orderId=${order.id}`} className="text-primary hover:underline">
+                                    {order.projection.total.toLocaleString()}
+                                  </Link>
                                 ) : (
                                   <span>{order.projection?.total?.toLocaleString() || '-'}</span>
                                 )}
@@ -1502,14 +1491,6 @@ export default function OrdersPage() {
           order={demandDetailsOrder}
           isOpen={!!demandDetailsOrder}
           onOpenChange={(isOpen) => !isOpen && setDemandDetailsOrder(null)}
-        />
-      )}
-
-      {projectionDetailsOrder && (
-        <ProjectionDetailsDialog
-          order={projectionDetailsOrder}
-          isOpen={!!projectionDetailsOrder}
-          onOpenChange={(isOpen) => !isOpen && setProjectionDetailsOrder(null)}
         />
       )}
     </div>
