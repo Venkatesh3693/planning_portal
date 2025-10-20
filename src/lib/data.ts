@@ -1,6 +1,6 @@
 
 
-import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail, FcSnapshot, FcComposition, ProjectionDetail, BomItem } from '@/lib/types';
+import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail, FcSnapshot, FcComposition, ProjectionDetail, BomItem, StatusDetail } from '@/lib/types';
 import { Scissors, Printer, Fingerprint, ExternalLink, MoveHorizontal, PackageCheck } from 'lucide-react';
 import { addDays, subDays, startOfToday, getWeek } from 'date-fns';
 
@@ -212,49 +212,54 @@ const generateFcSnapshots = (
 const dmiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots(CURRENT_WEEK - 5, CURRENT_WEEK, 20000, 1000);
 const dsiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots(CURRENT_WEEK - 5, CURRENT_WEEK, 50000, 2500);
 
-const createProjectionDetails = (): ProjectionDetail[] => {
+const createProjectionDetails = (bom: BomItem[]): ProjectionDetail[] => {
   const details: ProjectionDetail[] = [];
-  for (let i = 1; i <= 4; i++) {
-    const total = 40000 + i * 2000;
-    
-    // New logic for component status
-    const grn = Math.floor(total * 0.25); // 25% received
-    const poReleased = Math.floor(total * 0.40); // 40% ordered
-    const notReleasedLate = Math.floor(total * 0.10); // 10% are late
-    const notReleasedEarly = total - grn - poReleased - notReleasedLate; // remaining are early
+  const totalComponents = bom.length;
 
-    const createBreakdown = (mainQty: number): SizeBreakdown => {
-        if (mainQty < 0) mainQty = 0;
-        const bd: Partial<SizeBreakdown> = { total: mainQty };
+  for (let i = 1; i <= 4; i++) {
+    const totalQty = 40000 + i * 2000;
+    
+    // Simulate component counts
+    const grnCount = Math.floor(totalComponents * (0.15 + i * 0.05)); // 20% -> 35%
+    const poReleasedCount = Math.floor(totalComponents * (0.30 + i * 0.05)); // 35% -> 50%
+    const lateCount = Math.max(0, Math.floor(totalComponents * 0.1) - i); // 10% -> 0%
+    const earlyCount = totalComponents - grnCount - poReleasedCount - lateCount;
+    
+    // Simulate quantity distribution based on component counts
+    const grnQty = Math.floor(totalQty * (grnCount / totalComponents));
+    const poReleasedQty = Math.floor(totalQty * (poReleasedCount / totalComponents));
+    const lateQty = Math.floor(totalQty * (lateCount / totalComponents));
+    const earlyQty = totalQty - grnQty - poReleasedQty - lateQty;
+
+    const createStatusDetail = (qty: number, count: number): StatusDetail => {
+        const quantities: Partial<SizeBreakdown> = { total: qty };
         let distributedQty = 0;
         SIZES.forEach(size => {
-            const sizeQty = Math.floor(mainQty / SIZES.length);
-            bd[size] = sizeQty;
+            const sizeQty = Math.floor(qty / SIZES.length);
+            quantities[size] = sizeQty;
             distributedQty += sizeQty;
         });
-        const remainder = mainQty - distributedQty;
-        if (SIZES.length > 0 && bd[SIZES[0]] !== undefined) {
-          bd[SIZES[0]]! += remainder;
+        const remainder = qty - distributedQty;
+        if (SIZES.length > 0) {
+          (quantities[SIZES[0]] as number) += remainder;
         }
-        return bd as SizeBreakdown;
+        return { quantities: quantities as SizeBreakdown, componentCount: count };
     };
     
     details.push({
       projectionNumber: `PRJ-DMI-0${i}`,
       projectionDate: subDays(today, (4 - i) * 15),
       receiptDate: addDays(today, i * 15),
-      grn: createBreakdown(grn),
-      poReleased: createBreakdown(poReleased),
-      notReleasedLate: createBreakdown(notReleasedLate),
-      notReleasedEarly: createBreakdown(notReleasedEarly),
-      total: createBreakdown(total),
+      grn: createStatusDetail(grnQty, grnCount),
+      poReleased: createStatusDetail(poReleasedQty, poReleasedCount),
+      notReleasedLate: createStatusDetail(lateQty, lateCount),
+      notReleasedEarly: createStatusDetail(earlyQty, earlyCount),
+      total: createStatusDetail(totalQty, totalComponents),
+      totalComponents: totalComponents,
     });
   }
   return details;
 };
-
-const dmiProjectionDetails: ProjectionDetail[] = createProjectionDetails();
-const dsiProjectionDetails: ProjectionDetail[] = createProjectionDetails();
 
 const paddedJacketBom: BomItem[] = [
   { componentName: 'Shell Fabric (Nylon)', sizeDependent: true, source: 'Import', leadTime: 90, supplier: 'Global Textiles', forecastType: 'Projection' },
@@ -277,6 +282,9 @@ const pantsBom: BomItem[] = [
   { componentName: 'Polybag', sizeDependent: false, source: 'Local', leadTime: 15, supplier: 'PackRight', forecastType: 'FRC' },
   { componentName: 'Carton Box', sizeDependent: false, source: 'Local', leadTime: 10, supplier: 'BoxFactory', forecastType: 'FRC' },
 ];
+
+const dmiProjectionDetails: ProjectionDetail[] = createProjectionDetails(paddedJacketBom);
+const dsiProjectionDetails: ProjectionDetail[] = createProjectionDetails(pantsBom);
 
 
 export const ORDERS: Order[] = [

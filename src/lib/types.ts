@@ -92,15 +92,21 @@ export type FcSnapshot = {
   forecasts: Record<string, Record<Size | 'total', FcComposition>>;
 };
 
+export type StatusDetail = {
+  quantities: SizeBreakdown;
+  componentCount: number;
+};
+
 export type ProjectionDetail = {
   projectionNumber: string;
   projectionDate: Date;
   receiptDate: Date;
-  grn: SizeBreakdown;
-  poReleased: SizeBreakdown;
-  notReleasedLate: SizeBreakdown;
-  notReleasedEarly: SizeBreakdown;
-  total: SizeBreakdown;
+  total: StatusDetail;
+  grn: StatusDetail;
+  poReleased: StatusDetail;
+  notReleasedLate: StatusDetail;
+  notReleasedEarly: StatusDetail;
+  totalComponents: number;
 };
 
 export type BomItem = {
