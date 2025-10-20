@@ -224,14 +224,15 @@ const dsiProjectionDetails: ProjectionDetail[] = [
   { projectionNumber: 'PRJ-DSI-02', projectionDate: subDays(today, 25), projectionQty: 120000, poQty: 100000, grnQty: 0, receiptDate: addDays(today, 25) },
 ];
 
-const tShirtBom: BomItem[] = [
-  { componentName: 'Main Fabric (Cotton Jersey)', sizeDependent: true, source: 'Import', leadTime: 60, supplier: 'Global Textiles', forecastType: 'Projection' },
-  { componentName: 'Neck Rib', sizeDependent: true, source: 'Local', leadTime: 15, supplier: 'Local Knitters', forecastType: 'FRC' },
+const paddedJacketBom: BomItem[] = [
+  { componentName: 'Shell Fabric (Nylon)', sizeDependent: true, source: 'Import', leadTime: 90, supplier: 'Global Textiles', forecastType: 'Projection' },
+  { componentName: 'Lining Fabric (Polyester)', sizeDependent: true, source: 'Local', leadTime: 30, supplier: 'Local Weavers', forecastType: 'FRC' },
+  { componentName: 'Insulation Padding (Down)', sizeDependent: true, source: 'Import', leadTime: 100, supplier: 'Feather Inc.', forecastType: 'Projection' },
+  { componentName: 'Main Zipper', sizeDependent: false, source: 'Import', leadTime: 60, supplier: 'YKK', forecastType: 'Projection' },
+  { componentName: 'Pocket Zippers', sizeDependent: false, source: 'Import', leadTime: 60, supplier: 'YKK', forecastType: 'FRC' },
   { componentName: 'Sewing Thread', sizeDependent: false, source: 'Local', leadTime: 7, supplier: 'Stitch Co.', forecastType: 'FRC' },
+  { componentName: 'Cuff Elastic', sizeDependent: false, source: 'Local', leadTime: 20, supplier: 'Elasticorp', forecastType: 'FRC' },
   { componentName: 'Brand Label', sizeDependent: false, source: 'Import', leadTime: 45, supplier: 'LabelMakers Inc.', forecastType: 'Projection' },
-  { componentName: 'Size Label', sizeDependent: true, source: 'Local', leadTime: 10, supplier: 'Stitch Co.', forecastType: 'FRC' },
-  { componentName: 'Polybag', sizeDependent: false, source: 'Local', leadTime: 15, supplier: 'PackRight', forecastType: 'FRC' },
-  { componentName: 'Carton Box', sizeDependent: false, source: 'Local', leadTime: 10, supplier: 'BoxFactory', forecastType: 'FRC' },
 ];
 
 const pantsBom: BomItem[] = [
@@ -317,7 +318,7 @@ export const ORDERS: Order[] = [
         id: 'DMI-114227-Purple',
         ocn: '114227',
         buyer: 'DMI',
-        style: 'T-Shirt',
+        style: 'Padded Jacket',
         color: 'Purple',
         modelNo: 556622,
         season: 'AW-25',
@@ -345,7 +346,7 @@ export const ORDERS: Order[] = [
         demandDetails: dmiDemandDetails,
         fcVsFcDetails: dmiFcVsFcDetails,
         projectionDetails: dmiProjectionDetails,
-        bom: tShirtBom,
+        bom: paddedJacketBom,
     },
     {
         id: 'DSI-300096-Green',
@@ -423,7 +424,19 @@ export const SEWING_OPERATIONS_BY_STYLE: Record<string, SewingOperation[]> = {
       { operation: 'Side Seam', machine: 'Over Lock Machine', operators: 1, sam: 2.0, grade: 'D' },
       { operation: 'Sleeve & Bottom Hemming', machine: 'Flat Lock Machine', operators: 1, sam: 3.0, grade: 'B' },
     ],
+    'Padded Jacket': [
+      { operation: 'Shell & Lining Cutting', machine: 'Cutting Machine Alpha', operators: 1, sam: 5.0, grade: 'B' },
+      { operation: 'Padding Cutting & Quilting', machine: 'Chain Stitch Machine', operators: 1, sam: 8.0, grade: 'A' },
+      { operation: 'Front Pocket Setting', machine: 'Single Needle Lock Stitch', operators: 1, sam: 4.5, grade: 'B' },
+      { operation: 'Front Zipper Attachment', machine: 'Single Needle Lock Stitch', operators: 1, sam: 5.0, grade: 'A' },
+      { operation: 'Sleeve Assembly', machine: 'Over Lock Machine', operators: 1, sam: 6.0, grade: 'C' },
+      { operation: 'Sleeve Attachment to Body', machine: 'Over Lock Machine', operators: 1, sam: 5.5, grade: 'B' },
+      { operation: 'Joining Shell and Lining', machine: 'Single Needle Lock Stitch', operators: 1, sam: 7.0, grade: 'A' },
+      { operation: 'Cuff & Hem Finishing', machine: 'Flat Lock Machine', operators: 1, sam: 4.0, grade: 'C' },
+    ],
   };
 
 // Assuming an 8-hour work day
 export const WORK_DAY_MINUTES = 8 * 60;
+
+    
