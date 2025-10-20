@@ -130,6 +130,7 @@ export default function RampUpDialog({
     );
 
     onSave(order.id, uniqueDayScheme);
+    onOpenChange(false);
   };
 
   if (!order) return null;

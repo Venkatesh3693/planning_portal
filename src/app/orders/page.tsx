@@ -23,7 +23,7 @@ import {
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
 import { PROCESSES, WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE, MACHINE_NAME_ABBREVIATIONS, SIZES } from '@/lib/data';
-import type { Order, ScheduledProcess, TnaProcess, SewingOperation, BomItem } from '@/lib/types';
+import type { Order, ScheduledProcess, TnaProcess, SewingOperation, BomItem, RampUpEntry } from '@/lib/types';
 import { format, isAfter, isBefore, startOfDay, subDays } from 'date-fns';
 import {
   Table,
@@ -40,11 +40,10 @@ import { useSchedule } from '@/context/schedule-provider';
 import { Button } from '@/components/ui/button';
 import RampUpDialog from '@/components/orders/ramp-up-dialog';
 import { Badge } from '@/components/ui/badge';
-import { LineChart, Zap, AlertCircle, X, Info, ChevronsRight, ChevronDown } from 'lucide-react';
+import { LineChart, Zap, AlertCircle, X, Info, ChevronsRight, ChevronDown, PlusCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { generateTnaPlan } from '@/lib/tna-calculator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import type { RampUpEntry } from '@/lib/types';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import PoDetailsDialog from '@/components/orders/po-details-dialog';
@@ -257,6 +256,211 @@ const getEhdForOrder = (orderId: string, scheduledProcesses: ScheduledProcess[])
     return latestEndDate;
 };
 
+// Use a local state type that can handle string for efficiency and has a unique id
+type EditableRampUpEntry = {
+  id: number;
+  day: number | string;
+  efficiency: number | string;
+};
+let nextId = 0;
+
+const RampUpScheme = ({ 
+  order,
+  singleLineMinDays,
+  numLines,
+  onSave,
+  calculateAverageEfficiency
+}: { 
+  order: Order, 
+  singleLineMinDays: number, 
+  numLines: number, 
+  onSave: (orderId: string, scheme: RampUpEntry[]) => void,
+  calculateAverageEfficiency: (scheme: RampUpEntry[], totalProductionDays: number) => number 
+}) => {
+  const [scheme, setScheme] = useState<EditableRampUpEntry[]>([]);
+
+  useEffect(() => {
+    if (order) {
+      const initialScheme = (order.sewingRampUpScheme || [
+        { day: 1, efficiency: order.budgetedEfficiency || 85 },
+      ]).map(s => ({ ...s, id: nextId++ }));
+      setScheme(initialScheme);
+    }
+  }, [order]);
+
+  const totalProductionDays = useMemo(() => {
+    if (singleLineMinDays > 0 && numLines > 0) {
+      return singleLineMinDays / numLines;
+    }
+    return 0;
+  }, [singleLineMinDays, numLines]);
+
+  const averageEfficiency = useMemo(() => {
+    const numericScheme = scheme.map(s => ({...s, day: Number(s.day) || 0, efficiency: Number(s.efficiency) || 0}));
+    return calculateAverageEfficiency(numericScheme, totalProductionDays);
+  }, [scheme, totalProductionDays, calculateAverageEfficiency]);
+  
+  const hasDuplicateDays = useMemo(() => {
+    const dayCounts = new Map<number, number>();
+    scheme.forEach(entry => {
+      const day = Number(entry.day);
+      if (day > 0) {
+        dayCounts.set(day, (dayCounts.get(day) || 0) + 1);
+      }
+    });
+    return Array.from(dayCounts.values()).some(count => count > 1);
+  }, [scheme]);
+
+
+  const handleAddDay = () => {
+    const nextDay = scheme.length > 0 ? Math.max(...scheme.map(s => Number(s.day))) + 1 : 1;
+    const lastEfficiency = scheme.length > 0 ? scheme[scheme.length - 1].efficiency : 0;
+    setScheme([...scheme, { id: nextId++, day: nextDay, efficiency: lastEfficiency }]);
+  };
+
+  const handleRemoveDay = (idToRemove: number) => {
+    setScheme(prevScheme => {
+      const newScheme = prevScheme.filter(s => s.id !== idToRemove);
+      return newScheme.sort((a,b) => Number(a.day) - Number(b.day));
+    });
+  };
+
+  const handleEfficiencyChange = (idToChange: number, newEfficiency: string) => {
+    setScheme(
+      scheme.map(s =>
+        s.id === idToChange ? { ...s, efficiency: newEfficiency } : s
+      )
+    );
+  };
+  
+  const handleDayChange = (idToChange: number, newDay: string) => {
+     setScheme(
+      scheme.map(s =>
+        s.id === idToChange ? { ...s, day: newDay } : s
+      ).sort((a,b) => Number(a.day) - Number(b.day))
+    );
+  }
+
+  const handleSave = () => {
+    if (hasDuplicateDays) return;
+
+    const validScheme: RampUpEntry[] = scheme
+      .map(s => ({
+          day: Number(s.day) || 0,
+          efficiency: Number(s.efficiency) || 0
+      }))
+      .filter(s => s.efficiency > 0 && s.efficiency <= 100 && s.day > 0)
+      .sort((a, b) => a.day - b.day);
+      
+    const uniqueDayScheme = Object.values(
+      validScheme.reduce((acc, curr) => {
+        if (!acc[curr.day] || acc[curr.day].efficiency < curr.efficiency) {
+          acc[curr.day] = curr;
+        }
+        return acc;
+      }, {} as Record<number, RampUpEntry>)
+    );
+
+    onSave(order.id, uniqueDayScheme);
+  };
+  
+  return (
+    <div className="space-y-6">
+       <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+          <div className="grid grid-cols-[1fr_1fr_40px] items-center gap-x-4 gap-y-2 text-sm font-medium text-muted-foreground px-4">
+            <span>Day</span>
+            <span className="text-left">Target Efficiency (%)</span>
+            <span></span>
+          </div>
+
+          {scheme.map((entry) => (
+            <div
+              key={entry.id}
+              className="grid grid-cols-[1fr_1fr_40px] items-center gap-x-4 px-4"
+            >
+              <Input
+                id={`day-${entry.id}`}
+                type="text"
+                value={entry.day}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '' || /^[1-9]\d*$/.test(val)) {
+                    handleDayChange(entry.id, val);
+                  }
+                }}
+              />
+              <Input
+                id={`eff-${entry.id}`}
+                type="text"
+                value={entry.efficiency}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '' || (Number(val) >= 0 && Number(val) <= 100 && !val.includes('.'))) {
+                    handleEfficiencyChange(entry.id, val);
+                  }
+                }}
+              />
+              {scheme.length > 1 && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleRemoveDay(entry.id)}
+                  className="justify-self-center"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          ))}
+
+          <div className="px-4">
+            <Button
+              variant="link"
+              size="sm"
+              onClick={handleAddDay}
+              className="p-0 h-auto"
+            >
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Add Day
+            </Button>
+          </div>
+          
+          {hasDuplicateDays && (
+             <p className="px-4 text-sm text-destructive">
+                Duplicate day numbers are not allowed. Please enter a unique day for each entry.
+            </p>
+          )}
+
+          <div className="px-4 pt-4 border-t mt-4">
+             <div className="flex justify-between text-sm text-muted-foreground">
+                <span>Number of Lines:</span>
+                <span>{numLines}</span>
+            </div>
+            <div className="flex justify-between text-sm text-muted-foreground">
+                <span>Total Production Days:</span>
+                <span>
+                    {totalProductionDays.toFixed(2)}
+                </span>
+            </div>
+             <div className="flex justify-between font-medium mt-2">
+                <span>Weighted Avg. Efficiency:</span>
+                <span className="text-primary">
+                    {averageEfficiency.toFixed(2)}%
+                </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <Button onClick={handleSave} disabled={hasDuplicateDays}>
+            Save Scheme
+          </Button>
+        </div>
+    </div>
+  );
+};
+
+
 const OperationBulletin = ({ order }: { order: Order }) => {
   const operations = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
 
@@ -275,6 +479,7 @@ const OperationBulletin = ({ order }: { order: Order }) => {
       counts[machineAbbr] = (counts[machineAbbr] || 0) + 1;
       return counts;
     }, {} as Record<string, number>);
+
     return { totalSam, gradeCounts, machineCounts };
   }, [operations]);
 
@@ -600,8 +805,7 @@ interface OrderRowProps extends ComponentProps<typeof TableRow> {
 const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
   ({ order, onColorChange, onTnaGenerate, onRampUpSave, onSetSewingLines, numLines, scheduledProcesses, updateOrderMinRunDays, ...props }, ref) => {
   const [isTnaOpen, setIsTnaOpen] = useState(false);
-  const [rampUpState, setRampUpState] = useState<RampUpDialogState | null>(null);
-  const [activeView, setActiveView] = useState<'tna' | 'ob'>('tna');
+  const [activeView, setActiveView] = useState<'tna' | 'ob' | 'ramp-up'>('tna');
 
   const [minRunDays, setMinRunDays] = useState<Record<string, string>>({});
   
@@ -714,6 +918,7 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
                         <div className="flex items-center gap-1 rounded-md bg-muted p-1">
                             <Button size="sm" variant={activeView === 'ob' ? 'default' : 'ghost'} onClick={() => setActiveView('ob')}>OB</Button>
                             <Button size="sm" variant={activeView === 'tna' ? 'default' : 'ghost'} onClick={() => setActiveView('tna')}>T&A Plan</Button>
+                            <Button size="sm" variant={activeView === 'ramp-up' ? 'default' : 'ghost'} onClick={() => setActiveView('ramp-up')}>Ramp-up</Button>
                         </div>
                         {activeView === 'tna' && (
                             <Button size="sm" variant="outline" onClick={handleRecalculate}>
@@ -738,8 +943,16 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
                         onMinRunDaysChange={handleMinRunDaysChange}
                         totalProductionDays={totalProductionDays}
                     />
-                ) : (
+                ) : activeView === 'ob' ? (
                     <OperationBulletin order={order} />
+                ) : (
+                    <RampUpScheme 
+                        order={order}
+                        singleLineMinDays={singleLineMinDays}
+                        numLines={numLines}
+                        onSave={onRampUpSave}
+                        calculateAverageEfficiency={calculateAverageEfficiency}
+                    />
                 )}
               </div>
             </DialogContent>
@@ -749,49 +962,30 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
         <TableCell>{order.orderType}</TableCell>
         <TableCell>{order.budgetedEfficiency}%</TableCell>
         <TableCell>
-          <Badge variant={avgEfficiency < (order.budgetedEfficiency || 0) ? 'destructive' : 'secondary'}>
-              {avgEfficiency.toFixed(2)}%
-          </Badge>
-        </TableCell>
-        <TableCell>
-           <Badge variant={isBudgetUnreachable ? 'destructive' : 'secondary'}>
-              {isBudgetUnreachable ? '∞' : (typeof daysToBudget === 'number' ? `${daysToBudget} days` : daysToBudget)}
-           </Badge>
-        </TableCell>
-        <TableCell>
           <TooltipProvider delayDuration={100}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="sm" onClick={() => setRampUpState({ order, singleLineMinDays })}>
-                  {showWarning && <AlertCircle className="h-4 w-4 mr-2 text-destructive" />}
-                  <LineChart className="h-4 w-4 mr-2" />
-                  Scheme
-                </Button>
+                <Badge variant={avgEfficiency < (order.budgetedEfficiency || 0) ? 'destructive' : 'secondary'} className={showWarning ? 'border-2 border-destructive' : ''}>
+                  {avgEfficiency.toFixed(2)}%
+                </Badge>
               </TooltipTrigger>
               {showWarning && (
                 <TooltipContent>
-                  <p>
+                  <p className="flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4" />
                     {isBudgetUnreachable
-                      ? "Budgeted efficiency is unreachable with this scheme."
-                      : "Ramp-up is too slow to meet budgeted efficiency within the allocated production time."}
+                      ? "Budgeted efficiency is unreachable."
+                      : "Ramp-up too slow for production time."}
                   </p>
                 </TooltipContent>
               )}
             </Tooltip>
           </TooltipProvider>
-
-          {rampUpState && (
-            <RampUpDialog
-              key={rampUpState.order.id}
-              order={rampUpState.order}
-              singleLineMinDays={rampUpState.singleLineMinDays}
-              numLines={numLines}
-              isOpen={!!rampUpState}
-              onOpenChange={(isOpen) => !isOpen && setRampUpState(null)}
-              onSave={onRampUpSave}
-              calculateAverageEfficiency={calculateAverageEfficiency}
-            />
-         )}
+        </TableCell>
+        <TableCell>
+           <Badge variant={isBudgetUnreachable ? 'destructive' : 'secondary'}>
+              {isBudgetUnreachable ? '∞' : (typeof daysToBudget === 'number' ? `${daysToBudget} days` : daysToBudget)}
+           </Badge>
         </TableCell>
         <TableCell>
           <Input
@@ -842,8 +1036,7 @@ const ForecastedOrderRow = forwardRef<
   }
 >(({ order, onRampUpSave, onBomChange, children, ...props }, ref) => {
   const [isTnaOpen, setIsTnaOpen] = useState(false);
-  const [rampUpState, setRampUpState] = useState<RampUpDialogState | null>(null);
-  const [activeView, setActiveView] = useState<'tna' | 'ob' | 'bom'>('tna');
+  const [activeView, setActiveView] = useState<'tna' | 'ob' | 'bom' | 'ramp-up'>('tna');
   const [poDetailsOrder, setPoDetailsOrder] = useState<Order | null>(null);
   const [demandDetailsOrder, setDemandDetailsOrder] = useState<Order | null>(null);
   const [projectionDetailsOrder, setProjectionDetailsOrder] = useState<Order | null>(null);
@@ -890,6 +1083,7 @@ const ForecastedOrderRow = forwardRef<
                   <Button size="sm" variant={activeView === 'tna' ? 'default' : 'ghost'} onClick={() => setActiveView('tna')}>T&A Plan</Button>
                   <Button size="sm" variant={activeView === 'ob' ? 'default' : 'ghost'} onClick={() => setActiveView('ob')}>OB</Button>
                   <Button size="sm" variant={activeView === 'bom' ? 'default' : 'ghost'} onClick={() => setActiveView('bom')}>BOM</Button>
+                  <Button size="sm" variant={activeView === 'ramp-up' ? 'default' : 'ghost'} onClick={() => setActiveView('ramp-up')}>Ramp-up</Button>
                 </div>
                 <DialogClose asChild>
                   <Button variant="ghost" size="icon" className="rounded-full">
@@ -911,8 +1105,16 @@ const ForecastedOrderRow = forwardRef<
                 />
               ) : activeView === 'ob' ? (
                 <OperationBulletin order={order} />
-              ) : (
+              ) : activeView === 'bom' ? (
                 <BillOfMaterials order={order} onBomChange={onBomChange} />
+              ) : (
+                <RampUpScheme 
+                  order={order}
+                  singleLineMinDays={singleLineMinDays}
+                  numLines={1}
+                  onSave={onRampUpSave}
+                  calculateAverageEfficiency={calculateAverageEfficiency}
+                />
               )}
             </div>
           </DialogContent>
@@ -937,26 +1139,6 @@ const ForecastedOrderRow = forwardRef<
       </TableCell>
       
       {children}
-
-      <TableCell>
-        <Button variant="outline" size="sm" onClick={() => setRampUpState({ order, singleLineMinDays })}>
-          <LineChart className="h-4 w-4 mr-2" />
-          Scheme
-        </Button>
-      </TableCell>
-
-      {rampUpState && (
-        <RampUpDialog
-          key={rampUpState.order.id}
-          order={rampUpState.order}
-          singleLineMinDays={rampUpState.singleLineMinDays}
-          numLines={1}
-          isOpen={!!rampUpState}
-          onOpenChange={(isOpen) => !isOpen && setRampUpState(null)}
-          onSave={onRampUpSave}
-          calculateAverageEfficiency={calculateAverageEfficiency}
-        />
-      )}
       
       {demandDetailsOrder && (
           <DemandDetailsDialog
@@ -1052,7 +1234,6 @@ export default function OrdersPage() {
                         <TableHead>Budgeted Eff.</TableHead>
                         <TableHead>Avg. Eff.</TableHead>
                         <TableHead>Days to Budget</TableHead>
-                        <TableHead>Ramp-up</TableHead>
                         <TableHead>No. of Lines</TableHead>
                         <TableHead>Single Line Days</TableHead>
                         <TableHead>Display Color</TableHead>
@@ -1152,7 +1333,6 @@ export default function OrdersPage() {
                         </TableHead>
 
                         <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Lead Time</TableHead>
-                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Ramp-up</TableHead>
                       </TableRow>
                       {isAnyForecastColumnExpanded && (
                         <TableRow>
