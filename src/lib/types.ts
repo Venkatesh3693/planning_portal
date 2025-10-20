@@ -96,10 +96,10 @@ export type ProjectionDetail = {
   projectionNumber: string;
   projectionDate: Date;
   receiptDate: Date;
-  noPo: SizeBreakdown;
-  openPo: SizeBreakdown;
   grn: SizeBreakdown;
-  cut: SizeBreakdown;
+  poReleased: SizeBreakdown;
+  notReleasedLate: SizeBreakdown;
+  notReleasedEarly: SizeBreakdown;
   total: SizeBreakdown;
 };
 

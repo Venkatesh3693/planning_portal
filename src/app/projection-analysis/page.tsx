@@ -31,13 +31,13 @@ import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
-type ViewType = 'total' | 'noPo' | 'openPo' | 'grn' | 'cut';
+type ViewType = 'total' | 'grn' | 'poReleased' | 'notReleasedLate' | 'notReleasedEarly';
 
 const breakdownColors: Record<Exclude<ViewType, 'total'>, string> = {
-  noPo: '#2A6478',
-  openPo: '#36A29C',
-  grn: '#EBCB8B',
-  cut: '#F0A071',
+  grn: '#22c55e', // Green
+  poReleased: '#3b82f6', // Blue
+  notReleasedLate: '#ef4444', // Red
+  notReleasedEarly: '#6b7280', // Gray
 };
 
 const QuantityBreakdownBar = ({ detail, size }: { detail: ProjectionDetail, size: Size | 'total' }) => {
@@ -47,10 +47,10 @@ const QuantityBreakdownBar = ({ detail, size }: { detail: ProjectionDetail, size
     }
 
     const breakdowns = [
-        { key: 'noPo', value: detail.noPo[size] || 0, color: breakdownColors.noPo, label: 'No PO' },
-        { key: 'openPo', value: detail.openPo[size] || 0, color: breakdownColors.openPo, label: 'Open PO' },
         { key: 'grn', value: detail.grn[size] || 0, color: breakdownColors.grn, label: 'GRN' },
-        { key: 'cut', value: detail.cut[size] || 0, color: breakdownColors.cut, label: 'Cut' },
+        { key: 'poReleased', value: detail.poReleased[size] || 0, color: breakdownColors.poReleased, label: 'PO Released' },
+        { key: 'notReleasedLate', value: detail.notReleasedLate[size] || 0, color: breakdownColors.notReleasedLate, label: 'Not Released (Late)' },
+        { key: 'notReleasedEarly', value: detail.notReleasedEarly[size] || 0, color: breakdownColors.notReleasedEarly, label: 'Not Released (Early)' },
     ];
 
     return (
@@ -101,10 +101,10 @@ function ProjectionAnalysisPageContent() {
 
     const viewLabels: Record<ViewType, string> = {
         total: 'Total Qty',
-        noPo: 'No PO Qty',
-        openPo: 'Open PO Qty',
-        grn: 'GRN Qty',
-        cut: 'Cut Qty'
+        grn: 'GRN',
+        poReleased: 'PO Released',
+        notReleasedLate: 'PO Not Released (Late)',
+        notReleasedEarly: 'PO Not Released (Early)',
     };
 
     const order = useMemo(() => {
@@ -179,7 +179,7 @@ function ProjectionAnalysisPageContent() {
                     <div className="flex items-center gap-2">
                         <Label htmlFor="view-select" className="text-sm font-medium">Show:</Label>
                          <Select value={selectedView} onValueChange={(value) => setSelectedView(value as ViewType)} >
-                            <SelectTrigger id="view-select" className="w-[180px]">
+                            <SelectTrigger id="view-select" className="w-[220px]">
                                 <SelectValue placeholder="Select a view" />
                             </SelectTrigger>
                             <SelectContent>
@@ -218,12 +218,13 @@ function ProjectionAnalysisPageContent() {
                                         <TableCell key={`${detail.projectionNumber}-${size}`} className="text-right tabular-nums">
                                             <div>
                                                 <span className="font-medium">{(detail[selectedView]?.[size] || 0).toLocaleString()}</span>
-                                                {selectedView !== 'total' && (
+                                                {selectedView === 'total' ? (
+                                                  (detail.total[size] || 0) > 0 && <QuantityBreakdownBar detail={detail} size={size} />
+                                                ) : (
                                                     <div className="text-xs text-muted-foreground">
                                                         {(detail.total[size] || 0).toLocaleString()}
                                                     </div>
                                                 )}
-                                                {selectedView === 'total' && (detail.total[size] || 0) > 0 && <QuantityBreakdownBar detail={detail} size={size} />}
                                             </div>
                                         </TableCell>
                                     ))}
@@ -231,12 +232,13 @@ function ProjectionAnalysisPageContent() {
                                     <TableCell className="text-right font-bold tabular-nums">
                                         <div>
                                             <span className="font-bold">{(detail[selectedView]?.total || 0).toLocaleString()}</span>
-                                            {selectedView !== 'total' && (
+                                            {selectedView === 'total' ? (
+                                               detail.total.total > 0 && <QuantityBreakdownBar detail={detail} size='total' />
+                                            ) : (
                                                 <div className="text-xs text-muted-foreground font-normal">
                                                     {(detail.total.total).toLocaleString()}
                                                 </div>
                                             )}
-                                            {selectedView === 'total' && detail.total.total > 0 && <QuantityBreakdownBar detail={detail} size='total' />}
                                         </div>
                                     </TableCell>
                                 </TableRow>

@@ -216,11 +216,13 @@ const createProjectionDetails = (): ProjectionDetail[] => {
   const details: ProjectionDetail[] = [];
   for (let i = 1; i <= 4; i++) {
     const total = 40000 + i * 2000;
-    const noPo = Math.floor(total * 0.4);
-    const openPo = Math.floor(total * 0.3);
-    const grn = Math.floor(total * 0.2);
-    const cut = Math.floor(total * 0.1);
     
+    // New logic for component status
+    const grn = Math.floor(total * 0.25); // 25% received
+    const poReleased = Math.floor(total * 0.40); // 40% ordered
+    const notReleasedLate = Math.floor(total * 0.10); // 10% are late
+    const notReleasedEarly = total - grn - poReleased - notReleasedLate; // remaining are early
+
     const createBreakdown = (mainQty: number): SizeBreakdown => {
         if (mainQty < 0) mainQty = 0;
         const bd: Partial<SizeBreakdown> = { total: mainQty };
@@ -230,12 +232,10 @@ const createProjectionDetails = (): ProjectionDetail[] => {
             bd[size] = sizeQty;
             distributedQty += sizeQty;
         });
-
         const remainder = mainQty - distributedQty;
-        if (bd[SIZES[0]] !== undefined) {
+        if (SIZES.length > 0 && bd[SIZES[0]] !== undefined) {
           bd[SIZES[0]]! += remainder;
         }
-
         return bd as SizeBreakdown;
     };
     
@@ -243,10 +243,10 @@ const createProjectionDetails = (): ProjectionDetail[] => {
       projectionNumber: `PRJ-DMI-0${i}`,
       projectionDate: subDays(today, (4 - i) * 15),
       receiptDate: addDays(today, i * 15),
-      noPo: createBreakdown(noPo),
-      openPo: createBreakdown(openPo),
       grn: createBreakdown(grn),
-      cut: createBreakdown(cut),
+      poReleased: createBreakdown(poReleased),
+      notReleasedLate: createBreakdown(notReleasedLate),
+      notReleasedEarly: createBreakdown(notReleasedEarly),
       total: createBreakdown(total),
     });
   }
