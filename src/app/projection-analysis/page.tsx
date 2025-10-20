@@ -70,17 +70,20 @@ const QuantityBreakdownBar = ({ detail, size }: { detail: ProjectionDetail, size
                         })}
                     </div>
                 </TooltipTrigger>
-                <TooltipContent>
+                <TooltipContent side="bottom">
                     <div className="space-y-1">
-                       {breakdowns.map(item => (
-                           <div key={item.key} className="flex items-center justify-between text-xs gap-4">
-                               <div className="flex items-center gap-2">
-                                   <div className={cn("h-2 w-2 rounded-full", item.color)}></div>
-                                   <span>{item.label}</span>
+                       {breakdowns.map(item => {
+                           if (item.value === 0) return null;
+                           return (
+                               <div key={item.key} className="flex items-center justify-between text-xs gap-4">
+                                   <div className="flex items-center gap-2">
+                                       <div className={cn("h-2 w-2 rounded-full", item.color)}></div>
+                                       <span>{item.label}</span>
+                                   </div>
+                                   <span className="font-semibold">{item.value.toLocaleString()}</span>
                                </div>
-                               <span className="font-semibold">{item.value.toLocaleString()}</span>
-                           </div>
-                       ))}
+                           );
+                       })}
                     </div>
                 </TooltipContent>
             </Tooltip>
@@ -189,7 +192,7 @@ function ProjectionAnalysisPageContent() {
                                         <TableCell key={`${detail.projectionNumber}-${size}`} className="text-right tabular-nums">
                                             <div>
                                                 {(detail[selectedView][size] || 0).toLocaleString()}
-                                                {selectedView === 'total' && <QuantityBreakdownBar detail={detail} size={size} />}
+                                                {selectedView === 'total' && (detail[selectedView][size] || 0) > 0 && <QuantityBreakdownBar detail={detail} size={size} />}
                                             </div>
                                         </TableCell>
                                     ))}
@@ -197,7 +200,7 @@ function ProjectionAnalysisPageContent() {
                                     <TableCell className="text-right font-bold tabular-nums">
                                         <div>
                                             {(detail[selectedView].total).toLocaleString()}
-                                            {selectedView === 'total' && <QuantityBreakdownBar detail={detail} size='total' />}
+                                            {selectedView === 'total' && detail[selectedView].total > 0 && <QuantityBreakdownBar detail={detail} size='total' />}
                                         </div>
                                     </TableCell>
                                 </TableRow>
