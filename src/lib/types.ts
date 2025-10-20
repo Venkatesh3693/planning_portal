@@ -101,6 +101,15 @@ export type ProjectionDetail = {
   receiptDate: Date;
 };
 
+export type BomItem = {
+  componentName: string;
+  sizeDependent: boolean;
+  source: 'Import' | 'Local';
+  leadTime: number; // in days
+  supplier: string;
+  forecastType: 'Projection' | 'FRC';
+};
+
 export type Order = {
   id: string; // e.g. 'ZAR4531-Shirt-Blue'
   ocn: string; // e.g. 'ZAR4531'
@@ -129,6 +138,7 @@ export type Order = {
   demandDetails?: DemandDetail[];
   fcVsFcDetails?: FcSnapshot[];
   projectionDetails?: ProjectionDetail[];
+  bom?: BomItem[];
 };
 
 export type ScheduledProcess = {

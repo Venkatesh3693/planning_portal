@@ -3,7 +3,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, Dispatch, SetStateAction, useMemo } from 'react';
-import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess } from '@/lib/types';
+import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem } from '@/lib/types';
 import { ORDERS as staticOrders, PROCESSES, ORDER_COLORS } from '@/lib/data';
 import { addDays, startOfToday, isAfter } from 'date-fns';
 import { getProcessBatchSize, getPackingBatchSize } from '@/lib/tna-calculator';
@@ -12,7 +12,7 @@ const STORE_KEY = 'stitchplan_schedule_v3';
 
 type SewingRampUpSchemes = Record<string, RampUpEntry[]>;
 type SewingLines = Record<string, number>;
-type StoredOrderOverrides = Record<string, Partial<Pick<Order, 'displayColor' | 'sewingRampUpScheme' | 'tna'>>>;
+type StoredOrderOverrides = Record<string, Partial<Pick<Order, 'displayColor' | 'sewingRampUpScheme' | 'tna' | 'bom'>>>;
 
 type ScheduleContextType = {
   orders: Order[];
@@ -23,6 +23,7 @@ type ScheduleContextType = {
   updateOrderTna: (orderId: string, newTnaProcesses: TnaProcess[]) => void;
   updateOrderColor: (orderId: string, color: string) => void;
   updateOrderMinRunDays: (orderId: string, minRunDays: Record<string, number>) => void;
+  updateOrderBom: (orderId: string, componentName: string, forecastType: 'Projection' | 'FRC') => void;
   sewingLines: SewingLines;
   setSewingLines: (orderId: string, lines: number) => void;
   timelineEndDate: Date;
@@ -113,6 +114,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
           displayColor: override?.displayColor || ORDER_COLORS[index % ORDER_COLORS.length],
           sewingRampUpScheme: override?.sewingRampUpScheme || [{ day: 1, efficiency: baseOrder.budgetedEfficiency || 85 }],
           tna: hydratedTna,
+          bom: override?.bom || baseOrder.bom,
         };
       });
       setOrders(hydratedOrders);
@@ -193,6 +195,24 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const updateOrderBom = (orderId: string, componentName: string, forecastType: 'Projection' | 'FRC') => {
+    setOrderOverrides(prev => {
+      const orderToUpdate = orders.find(o => o.id === orderId);
+      const currentBom = prev[orderId]?.bom || orderToUpdate?.bom || [];
+      const newBom = currentBom.map(item => 
+        item.componentName === componentName ? { ...item, forecastType } : item
+      );
+      
+      return {
+        ...prev,
+        [orderId]: {
+          ...prev[orderId],
+          bom: newBom
+        }
+      };
+    });
+  };
+
   const setSewingLines = (orderId: string, lines: number) => {
     setSewingLinesState(prev => ({ ...prev, [orderId]: lines }));
   };
@@ -214,6 +234,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         const updatedOrder = { ...order };
         if (override.displayColor) updatedOrder.displayColor = override.displayColor;
         if (override.sewingRampUpScheme) updatedOrder.sewingRampUpScheme = override.sewingRampUpScheme;
+        if (override.bom) updatedOrder.bom = override.bom;
         
         if (override.tna) {
            const newTna = { ...(updatedOrder.tna || { processes: [] }) } as Tna;
@@ -270,6 +291,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     updateOrderTna,
     updateOrderColor,
     updateOrderMinRunDays,
+    updateOrderBom,
     sewingLines,
     setSewingLines,
     timelineEndDate,

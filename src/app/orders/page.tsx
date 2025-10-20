@@ -23,7 +23,7 @@ import {
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
 import { PROCESSES, WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE, MACHINE_NAME_ABBREVIATIONS, SIZES } from '@/lib/data';
-import type { Order, ScheduledProcess, TnaProcess, SewingOperation } from '@/lib/types';
+import type { Order, ScheduledProcess, TnaProcess, SewingOperation, BomItem } from '@/lib/types';
 import { format, isAfter, isBefore, startOfDay, subDays } from 'date-fns';
 import {
   Table,
@@ -50,6 +50,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import PoDetailsDialog from '@/components/orders/po-details-dialog';
 import DemandDetailsDialog from '@/components/orders/demand-details-dialog';
 import ProjectionDetailsDialog from '@/components/orders/projection-details-dialog';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 
 const SEWING_PROCESS_ID = 'sewing';
@@ -347,6 +349,58 @@ const OperationBulletin = ({ order }: { order: Order }) => {
     </div>
   );
 };
+
+const BillOfMaterials = ({ order, onForecastTypeChange }: { order: Order, onForecastTypeChange: (componentName: string, forecastType: 'Projection' | 'FRC') => void }) => {
+  const bom = order.bom || [];
+
+  if (bom.length === 0) {
+    return (
+      <div className="text-center text-muted-foreground py-10">
+        No Bill of Materials (BOM) defined for this order.
+      </div>
+    );
+  }
+
+  return (
+    <div className="border rounded-lg overflow-hidden">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-muted/50 hover:bg-muted/50">
+            <TableHead>Component Name</TableHead>
+            <TableHead>Size Dependent</TableHead>
+            <TableHead>Import / Local</TableHead>
+            <TableHead>Lead Time</TableHead>
+            <TableHead>Supplier</TableHead>
+            <TableHead>Projection / FRC</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {bom.map((item, index) => (
+            <TableRow key={index}>
+              <TableCell className="font-medium">{item.componentName}</TableCell>
+              <TableCell>{item.sizeDependent ? 'Yes' : 'No'}</TableCell>
+              <TableCell>{item.source}</TableCell>
+              <TableCell>{item.leadTime} days</TableCell>
+              <TableCell>{item.supplier}</TableCell>
+              <TableCell>
+                 <div className="flex items-center space-x-2">
+                    <Label htmlFor={`frc-switch-${index}`} className={cn(item.forecastType === 'FRC' && 'text-muted-foreground')}>Projection</Label>
+                    <Switch
+                        id={`frc-switch-${index}`}
+                        checked={item.forecastType === 'FRC'}
+                        onCheckedChange={(checked) => onForecastTypeChange(item.componentName, checked ? 'FRC' : 'Projection')}
+                    />
+                    <Label htmlFor={`frc-switch-${index}`} className={cn(item.forecastType === 'Projection' && 'text-muted-foreground')}>FRC</Label>
+                 </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+};
+
 
 // Sub-components defined at the module level for stability
 const TnaPlan = ({
@@ -749,12 +803,13 @@ const ForecastedOrderRow = forwardRef<
   {
     order: Order;
     onRampUpSave: (orderId: string, scheme: RampUpEntry[]) => void;
+    onBomChange: (orderId: string, componentName: string, forecastType: 'Projection' | 'FRC') => void;
     children?: React.ReactNode;
   }
->(({ order, onRampUpSave, children, ...props }, ref) => {
+>(({ order, onRampUpSave, onBomChange, children, ...props }, ref) => {
   const [isTnaOpen, setIsTnaOpen] = useState(false);
   const [rampUpState, setRampUpState] = useState<RampUpDialogState | null>(null);
-  const [activeView, setActiveView] = useState<'tna' | 'ob'>('tna');
+  const [activeView, setActiveView] = useState<'tna' | 'ob' | 'bom'>('tna');
   const [poDetailsOrder, setPoDetailsOrder] = useState<Order | null>(null);
   const [demandDetailsOrder, setDemandDetailsOrder] = useState<Order | null>(null);
   const [projectionDetailsOrder, setProjectionDetailsOrder] = useState<Order | null>(null);
@@ -778,6 +833,10 @@ const ForecastedOrderRow = forwardRef<
     sewingProcess ? calculateMinDays(order, sewingProcess.sam, order.sewingRampUpScheme || []) : 0,
     [order]
   );
+
+  const handleBomForecastTypeChange = (componentName: string, forecastType: 'Projection' | 'FRC') => {
+    onBomChange(order.id, componentName, forecastType);
+  };
   
   return (
     <TableRow ref={ref} {...props}>
@@ -798,8 +857,9 @@ const ForecastedOrderRow = forwardRef<
               </div>
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1 rounded-md bg-muted p-1">
-                  <Button size="sm" variant={activeView === 'ob' ? 'default' : 'ghost'} onClick={() => setActiveView('ob')}>OB</Button>
                   <Button size="sm" variant={activeView === 'tna' ? 'default' : 'ghost'} onClick={() => setActiveView('tna')}>T&A Plan</Button>
+                  <Button size="sm" variant={activeView === 'ob' ? 'default' : 'ghost'} onClick={() => setActiveView('ob')}>OB</Button>
+                  <Button size="sm" variant={activeView === 'bom' ? 'default' : 'ghost'} onClick={() => setActiveView('bom')}>BOM</Button>
                 </div>
                 <DialogClose asChild>
                   <Button variant="ghost" size="icon" className="rounded-full">
@@ -819,8 +879,10 @@ const ForecastedOrderRow = forwardRef<
                   onMinRunDaysChange={handleMinRunDaysChange}
                   totalProductionDays={0}
                 />
-              ) : (
+              ) : activeView === 'ob' ? (
                 <OperationBulletin order={order} />
+              ) : (
+                <BillOfMaterials order={order} onForecastTypeChange={handleBomForecastTypeChange} />
               )}
             </div>
           </DialogContent>
@@ -889,6 +951,7 @@ export default function OrdersPage() {
     updateOrderTna,
     updateOrderColor,
     updateOrderMinRunDays,
+    updateOrderBom,
     processBatchSizes,
   } = useSchedule();
 
@@ -1110,6 +1173,7 @@ export default function OrdersPage() {
                           key={order.id}
                           order={order}
                           onRampUpSave={updateSewingRampUpScheme}
+                          onBomChange={updateOrderBom}
                         >
                           {expandedColumns.projection ? (
                             <>
@@ -1117,7 +1181,7 @@ export default function OrdersPage() {
                               <TableCell className="text-right">{order.projection?.openPos.toLocaleString() || '-'}</TableCell>
                               <TableCell className="text-right">{order.projection?.grn.toLocaleString() || '-'}</TableCell>
                               <TableCell className="text-right font-bold">
-                                {order.projection ? (
+                                {order.projectionDetails ? (
                                   <Dialog onOpenChange={(isOpen) => !isOpen && setProjectionDetailsOrder(null)}>
                                     <DialogTrigger asChild>
                                       <span className="cursor-pointer text-primary hover:underline" onClick={() => setProjectionDetailsOrder(order)}>
@@ -1132,7 +1196,7 @@ export default function OrdersPage() {
                             </>
                           ) : (
                              <TableCell className="text-right font-bold">
-                                {order.projection ? (
+                                {order.projectionDetails ? (
                                   <Dialog onOpenChange={(isOpen) => !isOpen && setProjectionDetailsOrder(null)}>
                                     <DialogTrigger asChild>
                                       <span className="cursor-pointer text-primary hover:underline" onClick={() => setProjectionDetailsOrder(order)}>

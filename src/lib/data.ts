@@ -1,6 +1,6 @@
 
 
-import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail, FcSnapshot, FcComposition, ProjectionDetail } from '@/lib/types';
+import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail, FcSnapshot, FcComposition, ProjectionDetail, BomItem } from '@/lib/types';
 import { Scissors, Printer, Fingerprint, ExternalLink, MoveHorizontal, PackageCheck } from 'lucide-react';
 import { addDays, subDays, startOfToday, getWeek } from 'date-fns';
 
@@ -224,6 +224,27 @@ const dsiProjectionDetails: ProjectionDetail[] = [
   { projectionNumber: 'PRJ-DSI-02', projectionDate: subDays(today, 25), projectionQty: 120000, poQty: 100000, grnQty: 0, receiptDate: addDays(today, 25) },
 ];
 
+const tShirtBom: BomItem[] = [
+  { componentName: 'Main Fabric (Cotton Jersey)', sizeDependent: true, source: 'Import', leadTime: 60, supplier: 'Global Textiles', forecastType: 'Projection' },
+  { componentName: 'Neck Rib', sizeDependent: true, source: 'Local', leadTime: 15, supplier: 'Local Knitters', forecastType: 'FRC' },
+  { componentName: 'Sewing Thread', sizeDependent: false, source: 'Local', leadTime: 7, supplier: 'Stitch Co.', forecastType: 'FRC' },
+  { componentName: 'Brand Label', sizeDependent: false, source: 'Import', leadTime: 45, supplier: 'LabelMakers Inc.', forecastType: 'Projection' },
+  { componentName: 'Size Label', sizeDependent: true, source: 'Local', leadTime: 10, supplier: 'Stitch Co.', forecastType: 'FRC' },
+  { componentName: 'Polybag', sizeDependent: false, source: 'Local', leadTime: 15, supplier: 'PackRight', forecastType: 'FRC' },
+  { componentName: 'Carton Box', sizeDependent: false, source: 'Local', leadTime: 10, supplier: 'BoxFactory', forecastType: 'FRC' },
+];
+
+const pantsBom: BomItem[] = [
+  { componentName: 'Main Fabric (Twill)', sizeDependent: true, source: 'Import', leadTime: 75, supplier: 'Premium Fabrics', forecastType: 'Projection' },
+  { componentName: 'Pocketing Fabric', sizeDependent: true, source: 'Local', leadTime: 20, supplier: 'Local Weavers', forecastType: 'FRC' },
+  { componentName: 'Zipper', sizeDependent: false, source: 'Import', leadTime: 50, supplier: 'YKK', forecastType: 'Projection' },
+  { componentName: 'Button', sizeDependent: false, source: 'Import', leadTime: 50, supplier: 'Button World', forecastType: 'Projection' },
+  { componentName: 'Sewing Thread', sizeDependent: false, source: 'Local', leadTime: 7, supplier: 'Stitch Co.', forecastType: 'FRC' },
+  { componentName: 'Brand Label', sizeDependent: false, source: 'Import', leadTime: 45, supplier: 'LabelMakers Inc.', forecastType: 'Projection' },
+  { componentName: 'Polybag', sizeDependent: false, source: 'Local', leadTime: 15, supplier: 'PackRight', forecastType: 'FRC' },
+  { componentName: 'Carton Box', sizeDependent: false, source: 'Local', leadTime: 10, supplier: 'BoxFactory', forecastType: 'FRC' },
+];
+
 
 export const ORDERS: Order[] = [
     {
@@ -324,6 +345,7 @@ export const ORDERS: Order[] = [
         demandDetails: dmiDemandDetails,
         fcVsFcDetails: dmiFcVsFcDetails,
         projectionDetails: dmiProjectionDetails,
+        bom: tShirtBom,
     },
     {
         id: 'DSI-300096-Green',
@@ -358,6 +380,7 @@ export const ORDERS: Order[] = [
         demandDetails: dsiDemandDetails,
         fcVsFcDetails: dsiFcVsFcDetails,
         projectionDetails: dsiProjectionDetails,
+        bom: pantsBom,
     }
 ];
 
