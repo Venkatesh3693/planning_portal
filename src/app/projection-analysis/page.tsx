@@ -176,7 +176,7 @@ function ProjectionAnalysisPageContent() {
                                 {SIZES.map(size => (
                                     <TableHead key={size} className="text-right">{size}</TableHead>
                                 ))}
-                                <TableHead className="text-right">Total</TableHead>
+                                <TableHead className="text-right font-bold">Total</TableHead>
                             </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -191,16 +191,26 @@ function ProjectionAnalysisPageContent() {
                                     {SIZES.map(size => (
                                         <TableCell key={`${detail.projectionNumber}-${size}`} className="text-right tabular-nums">
                                             <div>
-                                                {(detail[selectedView][size] || 0).toLocaleString()}
-                                                {selectedView === 'total' && (detail[selectedView][size] || 0) > 0 && <QuantityBreakdownBar detail={detail} size={size} />}
+                                                <span className="font-medium">{(detail[selectedView][size] || 0).toLocaleString()}</span>
+                                                {selectedView !== 'total' && (
+                                                    <div className="text-xs text-muted-foreground">
+                                                        of {(detail.total[size] || 0).toLocaleString()}
+                                                    </div>
+                                                )}
+                                                {selectedView === 'total' && (detail.total[size] || 0) > 0 && <QuantityBreakdownBar detail={detail} size={size} />}
                                             </div>
                                         </TableCell>
                                     ))}
 
                                     <TableCell className="text-right font-bold tabular-nums">
                                         <div>
-                                            {(detail[selectedView].total).toLocaleString()}
-                                            {selectedView === 'total' && detail[selectedView].total > 0 && <QuantityBreakdownBar detail={detail} size='total' />}
+                                            <span className="font-bold">{(detail[selectedView].total).toLocaleString()}</span>
+                                            {selectedView !== 'total' && (
+                                                <div className="text-xs text-muted-foreground font-normal">
+                                                    of {(detail.total.total).toLocaleString()}
+                                                </div>
+                                            )}
+                                            {selectedView === 'total' && detail.total.total > 0 && <QuantityBreakdownBar detail={detail} size='total' />}
                                         </div>
                                     </TableCell>
                                 </TableRow>
