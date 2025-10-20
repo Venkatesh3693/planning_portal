@@ -24,8 +24,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
 import { SIZES } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -50,19 +48,6 @@ const ProjectionDetailsTable = ({ order }: { order: Order }) => {
 
   return (
     <div className="space-y-4">
-        <div className="flex items-center gap-2 max-w-xs">
-            <Label htmlFor="view-select" className="text-sm font-medium">Show:</Label>
-             <Select value={selectedView} onValueChange={(value) => setSelectedView(value as ViewType)} >
-                <SelectTrigger id="view-select">
-                    <SelectValue placeholder="Select a view" />
-                </SelectTrigger>
-                <SelectContent>
-                    {Object.entries(viewLabels).map(([key, label]) => (
-                        <SelectItem key={key} value={key}>{label}</SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-        </div>
         <div className="border rounded-lg overflow-hidden">
         <Table>
             <TableHeader>
@@ -110,11 +95,36 @@ function ProjectionAnalysisPageContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get('orderId');
     const { orders, isScheduleLoaded } = useSchedule();
+    const [selectedView, setSelectedView] = useState<ViewType>('total');
+
+    const viewLabels: Record<ViewType, string> = {
+        total: 'Total Qty',
+        noPo: 'No PO Qty',
+        openPo: 'Open PO Qty',
+        grn: 'GRN Qty',
+        cut: 'Cut Qty'
+    };
 
     const order = useMemo(() => {
         if (!isScheduleLoaded || !orderId) return null;
         return orders.find(o => o.id === orderId);
     }, [orderId, orders, isScheduleLoaded]);
+    
+    const filteredOrder = useMemo(() => {
+        if (!order || !order.projectionDetails) return null;
+
+        const newDetails = order.projectionDetails.map(detail => {
+            const dataToShow: SizeBreakdown = detail[selectedView];
+            return {
+                ...detail,
+                displayData: dataToShow,
+            };
+        });
+
+        return { ...order, displayDetails: newDetails };
+
+    }, [order, selectedView]);
+
 
     if (!isScheduleLoaded) {
         return <div className="flex items-center justify-center h-full">Loading analysis data...</div>;
@@ -155,16 +165,63 @@ function ProjectionAnalysisPageContent() {
                             Order ID: {order.id}
                         </p>
                     </div>
-                     <Button variant="outline" asChild>
-                        <Link href="/orders">
-                            <ArrowLeft className="mr-2 h-4 w-4" />
-                            Back to Orders
-                        </Link>
-                    </Button>
+                    <div className="flex items-center gap-2 max-w-xs">
+                        <Label htmlFor="view-select" className="text-sm font-medium">Show:</Label>
+                         <Select value={selectedView} onValueChange={(value) => setSelectedView(value as ViewType)} >
+                            <SelectTrigger id="view-select" className="w-[180px]">
+                                <SelectValue placeholder="Select a view" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {Object.entries(viewLabels).map(([key, label]) => (
+                                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
                 
                 <div className="flex-1 min-h-0">
-                    <ProjectionDetailsTable order={order} />
+                    <div className="border rounded-lg overflow-hidden">
+                        <Table>
+                            <TableHeader>
+                            <TableRow>
+                                <TableHead className="w-[200px]">Projection Number</TableHead>
+                                <TableHead>Projection Date</TableHead>
+                                <TableHead>Receipt Date</TableHead>
+                                {SIZES.map(size => (
+                                    <TableHead key={size} className="text-right">{size}</TableHead>
+                                ))}
+                                <TableHead className="text-right">Total</TableHead>
+                            </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                            {(filteredOrder?.displayDetails || []).map((detail) => (
+                                <TableRow key={detail.projectionNumber}>
+                                    <TableCell className="font-medium whitespace-nowrap">
+                                        {detail.projectionNumber}
+                                    </TableCell>
+                                    <TableCell>{format(new Date(detail.projectionDate), 'dd/MM/yy')}</TableCell>
+                                    <TableCell>{format(new Date(detail.receiptDate), 'dd/MM/yy')}</TableCell>
+                                    {SIZES.map(size => (
+                                        <TableCell key={`total-${size}`} className="text-right tabular-nums">
+                                            {(detail.displayData[size] || 0).toLocaleString()}
+                                        </TableCell>
+                                    ))}
+                                    <TableCell className="text-right font-bold tabular-nums">
+                                        {detail.displayData.total.toLocaleString()}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                            {(!filteredOrder?.displayDetails || filteredOrder.displayDetails.length === 0) && (
+                                <TableRow>
+                                    <TableCell colSpan={SIZES.length + 4} className="h-24 text-center">
+                                        No projection details available for this order.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                            </TableBody>
+                        </Table>
+                    </div>
                 </div>
             </main>
         </div>

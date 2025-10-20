@@ -221,16 +221,22 @@ const createProjectionDetails = (): ProjectionDetail[] => {
     const grn = Math.floor(total * 0.2);
     const cut = Math.floor(total * 0.1);
     
-    const sizeDist = SIZES.reduce((acc, size) => ({ ...acc, [size]: Math.floor(1/SIZES.length * 100) }), {});
-    
-    const createBreakdown = (mainQty: number) => {
-        const bd = { total: mainQty };
-        SIZES.forEach(s => {
-            bd[s] = Math.floor(mainQty / SIZES.length);
+    const createBreakdown = (mainQty: number): SizeBreakdown => {
+        if (mainQty < 0) mainQty = 0;
+        const bd: Partial<SizeBreakdown> = { total: mainQty };
+        let distributedQty = 0;
+        SIZES.forEach(size => {
+            const sizeQty = Math.floor(mainQty / SIZES.length);
+            bd[size] = sizeQty;
+            distributedQty += sizeQty;
         });
-        const remainder = mainQty - Object.values(bd).reduce((s, v) => s + v, 0);
-        bd[SIZES[0]] += remainder;
-        return bd;
+
+        const remainder = mainQty - distributedQty;
+        if (bd[SIZES[0]] !== undefined) {
+          bd[SIZES[0]]! += remainder;
+        }
+
+        return bd as SizeBreakdown;
     };
     
     details.push({
