@@ -265,18 +265,15 @@ const OperationBulletin = ({ order }: { order: Order }) => {
       return { totalSam: 0, gradeCounts: { A: 0, B: 0, C: 0, D: 0 }, machineCounts: {} };
     }
     const totalSam = operations.reduce((sum, op) => sum + op.sam, 0);
-    
     const gradeCounts = operations.reduce((counts, op) => {
       counts[op.grade] = (counts[op.grade] || 0) + 1;
       return counts;
     }, { A: 0, B: 0, C: 0, D: 0 } as Record<string, number>);
-
     const machineCounts = operations.reduce((counts, op) => {
       const machineAbbr = MACHINE_NAME_ABBREVIATIONS[op.machine] || op.machine;
       counts[machineAbbr] = (counts[machineAbbr] || 0) + 1;
       return counts;
     }, {} as Record<string, number>);
-
     return { totalSam, gradeCounts, machineCounts };
   }, [operations]);
 
@@ -489,6 +486,22 @@ const TnaPlan = ({
                 <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
                     <div className="font-medium text-muted-foreground text-xs">Order Quantity</div>
                     <div className="font-semibold text-base">{order.quantity.toLocaleString()} units</div>
+                </div>
+              </>
+            )}
+            {order.orderType === 'Forecasted' && (
+              <>
+                <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
+                    <div className="font-medium text-muted-foreground text-xs">Season</div>
+                    <div className="font-semibold text-base">{order.season || '-'}</div>
+                </div>
+                <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
+                    <div className="font-medium text-muted-foreground text-xs">Style</div>
+                    <div className="font-semibold text-base">{order.style}</div>
+                </div>
+                 <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
+                    <div className="font-medium text-muted-foreground text-xs">Selection Qty</div>
+                    <div className="font-semibold text-base">{order.quantity.toLocaleString()}</div>
                 </div>
               </>
             )}
@@ -1212,7 +1225,7 @@ export default function OrdersPage() {
                             </>
                           ) : (
                              <TableCell className="text-right font-bold">
-                                {order.projection ? (
+                                {order.projectionDetails ? (
                                   <Dialog onOpenChange={(isOpen) => !isOpen && setProjectionDetailsOrder(null)}>
                                     <DialogTrigger asChild>
                                       <span className="cursor-pointer text-primary hover:underline" onClick={() => setProjectionDetailsOrder(order)}>
@@ -1241,7 +1254,7 @@ export default function OrdersPage() {
                             {(order.poDetails && order.confirmedPoQty) ? (
                               <Dialog onOpenChange={(isOpen) => !isOpen && setPoDetailsOrder(null)}>
                                 <DialogTrigger asChild>
-                                  <span className="cursor-pointer text-primary hover:underline" onClick={() => setPoDetailsOrder(order)}>
+                                  <span className="cursor-pointer text-primary hover:underline whitespace-nowrap" onClick={() => setPoDetailsOrder(order)}>
                                     {(order.confirmedPoQty || 0).toLocaleString()}
                                   </span>
                                 </DialogTrigger>
@@ -1315,3 +1328,4 @@ export default function OrdersPage() {
     </div>
   );
 }
+
