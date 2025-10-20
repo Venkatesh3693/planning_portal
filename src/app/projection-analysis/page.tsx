@@ -3,7 +3,6 @@
 
 import { Suspense, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useSchedule } from '@/context/schedule-provider';
 import type { Order, ProjectionDetail, Size, SizeBreakdown, StatusDetail } from '@/lib/types';
 import { format } from 'date-fns';
 import { Header } from '@/components/layout/header';
@@ -27,30 +26,33 @@ import {
 } from '@/components/ui/table';
 import { SIZES } from '@/lib/data';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useSchedule } from '@/context/schedule-provider';
+
 
 const breakdownColors = {
-  grn: '#22c55e', 
-  poReleased: '#3b82f6', 
-  notReleasedLate: '#ef4444', 
-  notReleasedEarly: '#6b7280',
+  grn: '#0284c7', // Sky-500
+  poReleased: '#22c55e', // Green-500
+  notReleasedLate: '#ef4444', // Red-500
+  notReleasedEarly: '#6b7280', // Slate-500
 };
 
-
 const QuantityBreakdownBar = ({ detail }: { detail: ProjectionDetail }) => {
-    const total = detail.total.quantities.total || 0;
+    const total = detail.total?.quantities?.total || 0;
     if (total === 0) {
         return <div className="h-2 w-full bg-muted rounded-full"></div>;
     }
 
-    const breakdowns = [
-        { key: 'grn', value: detail.grn.quantities.total || 0, color: breakdownColors.grn, label: 'GRN' },
-        { key: 'poReleased', value: detail.poReleased.quantities.total || 0, color: breakdownColors.poReleased, label: 'PO Released' },
-        { key: 'notReleasedLate', value: detail.notReleasedLate.quantities.total || 0, color: breakdownColors.notReleasedLate, label: 'Not Released (Late)' },
-        { key: 'notReleasedEarly', value: detail.notReleasedEarly.quantities.total || 0, color: breakdownColors.notReleasedEarly, label: 'Not Released (Early)' },
-    ].sort((a,b) => {
-        const order = ['grn', 'poReleased', 'notReleasedLate', 'notReleasedEarly'];
-        return order.indexOf(a.key) - order.indexOf(b.key);
-    });
+    const breakdowns: {
+        key: keyof typeof breakdownColors,
+        value: number,
+        label: string,
+        componentCount: number
+    }[] = [
+        { key: 'grn', value: detail.grn?.quantities?.total || 0, label: 'GRN', componentCount: detail.grn?.componentCount || 0 },
+        { key: 'poReleased', value: detail.poReleased?.quantities?.total || 0, label: 'PO Released', componentCount: detail.poReleased?.componentCount || 0 },
+        { key: 'notReleasedLate', value: detail.notReleasedLate?.quantities?.total || 0, label: 'Not Released (Late)', componentCount: detail.notReleasedLate?.componentCount || 0 },
+        { key: 'notReleasedEarly', value: detail.notReleasedEarly?.quantities?.total || 0, label: 'Not Released (Early)', componentCount: detail.notReleasedEarly?.componentCount || 0 },
+    ];
 
     return (
         <TooltipProvider>
@@ -64,7 +66,7 @@ const QuantityBreakdownBar = ({ detail }: { detail: ProjectionDetail }) => {
                                 <div
                                     key={item.key}
                                     className="h-full"
-                                    style={{ width: `${percentage}%`, backgroundColor: item.color }}
+                                    style={{ width: `${percentage}%`, backgroundColor: breakdownColors[item.key] }}
                                 />
                             );
                         })}
@@ -74,16 +76,13 @@ const QuantityBreakdownBar = ({ detail }: { detail: ProjectionDetail }) => {
                     <div className="space-y-1 text-xs">
                        {breakdowns.map(item => {
                            if (item.value === 0) return null;
-                           const statusDetail = detail[item.key as keyof Omit<ProjectionDetail, 'projectionNumber' | 'projectionDate' | 'receiptDate' | 'total' | 'totalComponents'>];
                            return (
                                <div key={item.key} className="flex items-center justify-between gap-4">
                                    <div className="flex items-center gap-2">
-                                       <div className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }}></div>
+                                       <div className="h-2 w-2 rounded-full" style={{ backgroundColor: breakdownColors[item.key] }}></div>
                                        <span>{item.label}:</span>
                                    </div>
-                                   <div className="flex items-center gap-2">
-                                       <span className="font-semibold">{statusDetail.componentCount} of {detail.totalComponents}</span>
-                                   </div>
+                                   <span className="font-semibold">{item.componentCount} of {detail.totalComponents}</span>
                                </div>
                            );
                        })}
@@ -208,7 +207,7 @@ function ProjectionAnalysisPageContent() {
                                     
                                     {SIZES.map(size => (
                                         <TableCell key={`${detail.projectionNumber}-${size}`} className="text-right tabular-nums">
-                                            <div>
+                                             <div>
                                                 <span className="font-medium">{(detail.total.quantities[size] || 0).toLocaleString()}</span>
                                                 {(detail.total.quantities[size] || 0) > 0 && <QuantityBreakdownBar detail={detail} />}
                                             </div>
