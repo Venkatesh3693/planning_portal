@@ -20,6 +20,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -110,6 +111,31 @@ function ProjectionAnalysisPageContent() {
         if (!isScheduleLoaded || !orderId) return null;
         return orders.find(o => o.id === orderId);
     }, [orderId, orders, isScheduleLoaded]);
+    
+    const totals = useMemo(() => {
+        if (!order?.projectionDetails) {
+            return {
+                sizeTotals: SIZES.reduce((acc, size) => ({...acc, [size]: 0}), {} as Record<Size, number>),
+                grandTotal: 0
+            };
+        }
+    
+        const sizeTotals = SIZES.reduce((acc, size) => {
+            acc[size] = order.projectionDetails.reduce((sum, detail) => {
+                const viewData = detail[selectedView];
+                return sum + (viewData?.[size] || 0);
+            }, 0);
+            return acc;
+        }, {} as Record<Size, number>);
+    
+        const grandTotal = order.projectionDetails.reduce((sum, detail) => {
+            const viewData = detail[selectedView];
+            return sum + (viewData?.total || 0);
+        }, 0);
+    
+        return { sizeTotals, grandTotal };
+    }, [order, selectedView]);
+
 
     if (!isScheduleLoaded) {
         return <div className="flex items-center justify-center h-full">Loading analysis data...</div>;
@@ -166,7 +192,7 @@ function ProjectionAnalysisPageContent() {
                 </div>
                 
                 <div className="flex-1 min-h-0">
-                    <div className="border rounded-lg overflow-hidden">
+                    <div className="border rounded-lg overflow-auto">
                         <Table>
                             <TableHeader>
                             <TableRow>
@@ -223,6 +249,19 @@ function ProjectionAnalysisPageContent() {
                                 </TableRow>
                             )}
                             </TableBody>
+                            <TableFooter>
+                                <TableRow>
+                                    <TableCell colSpan={3} className="font-bold text-right">Total</TableCell>
+                                    {SIZES.map(size => (
+                                        <TableCell key={`total-${size}`} className="text-right font-bold">
+                                            {(totals.sizeTotals[size] || 0).toLocaleString()}
+                                        </TableCell>
+                                    ))}
+                                    <TableCell className="text-right font-bold">
+                                        {totals.grandTotal.toLocaleString()}
+                                    </TableCell>
+                                </TableRow>
+                            </TableFooter>
                         </Table>
                     </div>
                 </div>
