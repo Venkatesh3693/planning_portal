@@ -27,67 +27,65 @@ import {
 import { SIZES } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 type ViewType = 'total' | 'noPo' | 'openPo' | 'grn' | 'cut';
 
+const breakdownColors: Record<Exclude<ViewType, 'total'>, string> = {
+  noPo: 'bg-sky-500',
+  openPo: 'bg-amber-500',
+  grn: 'bg-emerald-500',
+  cut: 'bg-rose-500',
+};
 
-const ProjectionDetailsTable = ({ order }: { order: Order }) => {
-  const [selectedView, setSelectedView] = useState<ViewType>('total');
+const QuantityBreakdownBar = ({ detail, size }: { detail: ProjectionDetail, size: Size | 'total' }) => {
+    const total = detail.total[size] || 0;
+    if (total === 0) {
+        return <div className="h-2 w-full bg-muted rounded-full"></div>;
+    }
 
-  if (!order.projectionDetails || order.projectionDetails.length === 0) {
-    return <div className="text-center text-muted-foreground p-8">No projection details available for this order.</div>;
-  }
-  
-  const viewLabels: Record<ViewType, string> = {
-    total: 'Total Qty',
-    noPo: 'No PO Qty',
-    openPo: 'Open PO Qty',
-    grn: 'GRN Qty',
-    cut: 'Cut Qty'
-  };
+    const breakdowns = [
+        { key: 'noPo', value: detail.noPo[size] || 0, color: breakdownColors.noPo, label: 'No PO' },
+        { key: 'openPo', value: detail.openPo[size] || 0, color: breakdownColors.openPo, label: 'Open PO' },
+        { key: 'grn', value: detail.grn[size] || 0, color: breakdownColors.grn, label: 'GRN' },
+        { key: 'cut', value: detail.cut[size] || 0, color: breakdownColors.cut, label: 'Cut' },
+    ];
 
-  return (
-    <div className="space-y-4">
-        <div className="border rounded-lg overflow-hidden">
-        <Table>
-            <TableHeader>
-            <TableRow>
-                <TableHead className="w-[200px]">Projection Number</TableHead>
-                <TableHead>Projection Date</TableHead>
-                <TableHead>Receipt Date</TableHead>
-                {SIZES.map(size => (
-                    <TableHead key={size} className="text-right">{size}</TableHead>
-                ))}
-                <TableHead className="text-right">Total</TableHead>
-            </TableRow>
-            </TableHeader>
-            <TableBody>
-            {order.projectionDetails.map((detail) => {
-                const dataToShow: SizeBreakdown = detail[selectedView];
-
-                return (
-                    <TableRow key={detail.projectionNumber}>
-                        <TableCell className="font-medium whitespace-nowrap">
-                            {detail.projectionNumber}
-                        </TableCell>
-                        <TableCell>{format(new Date(detail.projectionDate), 'dd/MM/yy')}</TableCell>
-                        <TableCell>{format(new Date(detail.receiptDate), 'dd/MM/yy')}</TableCell>
-                        {SIZES.map(size => (
-                            <TableCell key={`total-${size}`} className="text-right tabular-nums">
-                                {(dataToShow[size] || 0).toLocaleString()}
-                            </TableCell>
-                        ))}
-                        <TableCell className="text-right font-bold tabular-nums">
-                            {dataToShow.total.toLocaleString()}
-                        </TableCell>
-                    </TableRow>
-                )
-            })}
-            </TableBody>
-        </Table>
-        </div>
-    </div>
-  );
+    return (
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <div className="h-2 w-full flex rounded-full overflow-hidden bg-muted mt-1">
+                        {breakdowns.map(item => {
+                            if (item.value === 0) return null;
+                            const percentage = (item.value / total) * 100;
+                            return (
+                                <div
+                                    key={item.key}
+                                    className={cn("h-full", item.color)}
+                                    style={{ width: `${percentage}%` }}
+                                />
+                            );
+                        })}
+                    </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                    <div className="space-y-1">
+                       {breakdowns.map(item => (
+                           <div key={item.key} className="flex items-center justify-between text-xs gap-4">
+                               <div className="flex items-center gap-2">
+                                   <div className={cn("h-2 w-2 rounded-full", item.color)}></div>
+                                   <span>{item.label}</span>
+                               </div>
+                               <span className="font-semibold">{item.value.toLocaleString()}</span>
+                           </div>
+                       ))}
+                    </div>
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    );
 };
 
 
@@ -109,22 +107,6 @@ function ProjectionAnalysisPageContent() {
         if (!isScheduleLoaded || !orderId) return null;
         return orders.find(o => o.id === orderId);
     }, [orderId, orders, isScheduleLoaded]);
-    
-    const filteredOrder = useMemo(() => {
-        if (!order || !order.projectionDetails) return null;
-
-        const newDetails = order.projectionDetails.map(detail => {
-            const dataToShow: SizeBreakdown = detail[selectedView];
-            return {
-                ...detail,
-                displayData: dataToShow,
-            };
-        });
-
-        return { ...order, displayDetails: newDetails };
-
-    }, [order, selectedView]);
-
 
     if (!isScheduleLoaded) {
         return <div className="flex items-center justify-center h-full">Loading analysis data...</div>;
@@ -165,7 +147,7 @@ function ProjectionAnalysisPageContent() {
                             Order ID: {order.id}
                         </p>
                     </div>
-                    <div className="flex items-center gap-2 max-w-xs">
+                    <div className="flex items-center gap-2">
                         <Label htmlFor="view-select" className="text-sm font-medium">Show:</Label>
                          <Select value={selectedView} onValueChange={(value) => setSelectedView(value as ViewType)} >
                             <SelectTrigger id="view-select" className="w-[180px]">
@@ -195,24 +177,32 @@ function ProjectionAnalysisPageContent() {
                             </TableRow>
                             </TableHeader>
                             <TableBody>
-                            {(filteredOrder?.displayDetails || []).map((detail) => (
+                            {(order.projectionDetails || []).map((detail) => (
                                 <TableRow key={detail.projectionNumber}>
                                     <TableCell className="font-medium whitespace-nowrap">
                                         {detail.projectionNumber}
                                     </TableCell>
                                     <TableCell>{format(new Date(detail.projectionDate), 'dd/MM/yy')}</TableCell>
                                     <TableCell>{format(new Date(detail.receiptDate), 'dd/MM/yy')}</TableCell>
+                                    
                                     {SIZES.map(size => (
-                                        <TableCell key={`total-${size}`} className="text-right tabular-nums">
-                                            {(detail.displayData[size] || 0).toLocaleString()}
+                                        <TableCell key={`${detail.projectionNumber}-${size}`} className="text-right tabular-nums">
+                                            <div>
+                                                {(detail[selectedView][size] || 0).toLocaleString()}
+                                                {selectedView === 'total' && <QuantityBreakdownBar detail={detail} size={size} />}
+                                            </div>
                                         </TableCell>
                                     ))}
+
                                     <TableCell className="text-right font-bold tabular-nums">
-                                        {detail.displayData.total.toLocaleString()}
+                                        <div>
+                                            {(detail[selectedView].total).toLocaleString()}
+                                            {selectedView === 'total' && <QuantityBreakdownBar detail={detail} size='total' />}
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             ))}
-                            {(!filteredOrder?.displayDetails || filteredOrder.displayDetails.length === 0) && (
+                            {(!order.projectionDetails || order.projectionDetails.length === 0) && (
                                 <TableRow>
                                     <TableCell colSpan={SIZES.length + 4} className="h-24 text-center">
                                         No projection details available for this order.
