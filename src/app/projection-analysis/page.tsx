@@ -194,7 +194,7 @@ function ProjectionAnalysisPageContent() {
                                                 <span className="font-medium">{(detail[selectedView][size] || 0).toLocaleString()}</span>
                                                 {selectedView !== 'total' && (
                                                     <div className="text-xs text-muted-foreground">
-                                                        of {(detail.total[size] || 0).toLocaleString()}
+                                                        {(detail.total[size] || 0).toLocaleString()}
                                                     </div>
                                                 )}
                                                 {selectedView === 'total' && (detail.total[size] || 0) > 0 && <QuantityBreakdownBar detail={detail} size={size} />}
@@ -207,7 +207,7 @@ function ProjectionAnalysisPageContent() {
                                             <span className="font-bold">{(detail[selectedView].total).toLocaleString()}</span>
                                             {selectedView !== 'total' && (
                                                 <div className="text-xs text-muted-foreground font-normal">
-                                                    of {(detail.total.total).toLocaleString()}
+                                                    {(detail.total.total).toLocaleString()}
                                                 </div>
                                             )}
                                             {selectedView === 'total' && detail.total.total > 0 && <QuantityBreakdownBar detail={detail} size='total' />}
