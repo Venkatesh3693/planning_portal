@@ -38,7 +38,6 @@ import ColorPicker from '@/components/orders/color-picker';
 import { cn } from '@/lib/utils';
 import { useSchedule } from '@/context/schedule-provider';
 import { Button } from '@/components/ui/button';
-import RampUpDialog from '@/components/orders/ramp-up-dialog';
 import { Badge } from '@/components/ui/badge';
 import { LineChart, Zap, AlertCircle, X, Info, ChevronsRight, ChevronDown, PlusCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -368,7 +367,35 @@ const RampUpScheme = ({
   
   return (
     <div className="space-y-6">
-       <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+       <Card>
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm p-4">
+            <div className="p-3 bg-muted rounded-md">
+                <div className="font-medium text-muted-foreground text-xs">Budgeted Efficiency</div>
+                <div className="font-semibold text-base">{order.budgetedEfficiency || 'N/A'}%</div>
+            </div>
+            <div className="p-3 bg-muted rounded-md">
+                <div className="font-medium text-muted-foreground text-xs">Total Production Days</div>
+                <div className="font-semibold text-base">{totalProductionDays.toFixed(2)}</div>
+            </div>
+            <div className="p-3 bg-muted rounded-md">
+                <div className="font-medium text-muted-foreground text-xs">Weighted Avg. Efficiency</div>
+                <div className="font-semibold text-base text-primary">{averageEfficiency.toFixed(2)}%</div>
+            </div>
+             <div className="p-3 bg-muted rounded-md flex flex-col justify-center">
+                <Label htmlFor="num-lines-input" className="font-medium text-muted-foreground text-xs">Number of Lines</Label>
+                <Input
+                    id="num-lines-input"
+                    type="number"
+                    min="1"
+                    value={numLines}
+                    onChange={(e) => onNumLinesChange(parseInt(e.target.value, 10) || 1)}
+                    className="w-full h-8 text-base bg-transparent border-0 shadow-none focus-visible:ring-0 px-0"
+                />
+            </div>
+        </CardContent>
+       </Card>
+
+       <div className="space-y-4 py-4 max-h-[40vh] overflow-y-auto">
           <div className="grid grid-cols-[1fr_1fr_40px] items-center gap-x-4 gap-y-2 text-sm font-medium text-muted-foreground px-4">
             <span>Day</span>
             <span className="text-left">Target Efficiency (%)</span>
@@ -432,35 +459,9 @@ const RampUpScheme = ({
                 Duplicate day numbers are not allowed. Please enter a unique day for each entry.
             </p>
           )}
-
-          <div className="px-4 pt-4 border-t mt-4 space-y-2">
-            <div className="flex items-center justify-between text-sm">
-                <Label htmlFor="num-lines-input" className="text-muted-foreground">Number of Lines:</Label>
-                <Input
-                    id="num-lines-input"
-                    type="number"
-                    min="1"
-                    value={numLines}
-                    onChange={(e) => onNumLinesChange(parseInt(e.target.value, 10) || 1)}
-                    className="w-20 h-8 text-center"
-                />
-            </div>
-            <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Total Production Days:</span>
-                <span>
-                    {totalProductionDays.toFixed(2)}
-                </span>
-            </div>
-             <div className="flex justify-between font-medium mt-2">
-                <span>Weighted Avg. Efficiency:</span>
-                <span className="text-primary">
-                    {averageEfficiency.toFixed(2)}%
-                </span>
-            </div>
-          </div>
         </div>
 
-        <div className="flex justify-end">
+        <div className="flex justify-end pt-4 border-t">
           <Button onClick={handleSave} disabled={hasDuplicateDays}>
             Save Scheme
           </Button>
@@ -491,6 +492,7 @@ const OperationBulletin = ({ order }: { order: Order }) => {
 
     return { totalSam, gradeCounts, machineCounts };
   }, [operations]);
+
 
   if (operations.length === 0) {
     return (
@@ -806,19 +808,19 @@ interface OrderRowProps extends ComponentProps<typeof TableRow> {
   onTnaGenerate: (order: Order, processBatchSize: number) => void;
   onRampUpSave: (orderId: string, scheme: RampUpEntry[]) => void;
   onSetSewingLines: (orderId: string, lines: number) => void;
-  numLines: number;
   scheduledProcesses: ScheduledProcess[];
   updateOrderMinRunDays: (orderId: string, minRunDays: Record<string, number>) => void;
 }
 
 const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
-  ({ order, onColorChange, onTnaGenerate, onRampUpSave, onSetSewingLines, numLines, scheduledProcesses, updateOrderMinRunDays, ...props }, ref) => {
+  ({ order, onColorChange, onTnaGenerate, onRampUpSave, onSetSewingLines, scheduledProcesses, updateOrderMinRunDays, ...props }, ref) => {
   const [isTnaOpen, setIsTnaOpen] = useState(false);
   const [activeView, setActiveView] = useState<'tna' | 'ob' | 'ramp-up'>('tna');
 
   const [minRunDays, setMinRunDays] = useState<Record<string, string>>({});
   
-  const { processBatchSizes } = useSchedule();
+  const { processBatchSizes, sewingLines } = useSchedule();
+  const numLines = sewingLines[order.id] || 1;
   const processBatchSize = processBatchSizes[order.id] || 0;
 
   useEffect(() => {
@@ -844,8 +846,6 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
       }
       updateOrderMinRunDays(order.id, numericMinRunDays);
   };
-
-  const { sewingLines } = useSchedule();
 
   const moqs = useMemo(() => {
     const calculatedMoqs: Record<string, number> = {};
@@ -925,8 +925,8 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
                     </div>
                     <div className="flex items-center gap-2">
                         <div className="flex items-center gap-1 rounded-md bg-muted p-1">
-                            <Button size="sm" variant={activeView === 'ob' ? 'default' : 'ghost'} onClick={() => setActiveView('ob')}>OB</Button>
                             <Button size="sm" variant={activeView === 'tna' ? 'default' : 'ghost'} onClick={() => setActiveView('tna')}>T&A Plan</Button>
+                            <Button size="sm" variant={activeView === 'ob' ? 'default' : 'ghost'} onClick={() => setActiveView('ob')}>OB</Button>
                             <Button size="sm" variant={activeView === 'ramp-up' ? 'default' : 'ghost'} onClick={() => setActiveView('ramp-up')}>Ramp-up</Button>
                         </div>
                         {activeView === 'tna' && (
@@ -998,15 +998,6 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
            </Badge>
         </TableCell>
         <TableCell>
-          {singleLineMinDays > 0 && singleLineMinDays !== Infinity ? (
-            <Badge variant="secondary" title="Minimum days to complete sewing on a single line">
-              {Math.ceil(singleLineMinDays)} days
-            </Badge>
-          ) : (
-            <span className="text-muted-foreground">-</span>
-          )}
-        </TableCell>
-        <TableCell>
           <ColorPicker 
             color={order.displayColor}
             onColorChange={(newColor) => onColorChange(order.id, newColor)}
@@ -1034,18 +1025,19 @@ const ForecastedOrderRow = forwardRef<
     onRampUpSave: (orderId: string, scheme: RampUpEntry[]) => void;
     onBomChange: (orderId: string, componentName: string, field: keyof BomItem, value: any) => void;
     onSetSewingLines: (orderId: string, lines: number) => void;
-    numLines: number;
     children?: React.ReactNode;
   }
->(({ order, onRampUpSave, onBomChange, onSetSewingLines, numLines, children, ...props }, ref) => {
+>(({ order, onRampUpSave, onBomChange, onSetSewingLines, children, ...props }, ref) => {
   const [isTnaOpen, setIsTnaOpen] = useState(false);
   const [activeView, setActiveView] = useState<'tna' | 'ob' | 'bom' | 'ramp-up'>('tna');
   const [poDetailsOrder, setPoDetailsOrder] = useState<Order | null>(null);
   const [demandDetailsOrder, setDemandDetailsOrder] = useState<Order | null>(null);
   const [projectionDetailsOrder, setProjectionDetailsOrder] = useState<Order | null>(null);
 
-  const { scheduledProcesses, processBatchSizes, updateOrderMinRunDays } = useSchedule();
+  const { scheduledProcesses, processBatchSizes, updateOrderMinRunDays, sewingLines } = useSchedule();
   const [minRunDays, setMinRunDays] = useState<Record<string, string>>({});
+  const numLines = sewingLines[order.id] || 1;
+
   const handleMinRunDaysChange = (processId: string, value: string) => {
     const newMinRunDays = { ...minRunDays, [processId]: value };
     setMinRunDays(newMinRunDays);
@@ -1238,7 +1230,6 @@ export default function OrdersPage() {
                         <TableHead>Budgeted Eff.</TableHead>
                         <TableHead>Avg. Eff.</TableHead>
                         <TableHead>Days to Budget</TableHead>
-                        <TableHead>Single Line Days</TableHead>
                         <TableHead>Display Color</TableHead>
                         <TableHead className="text-right">Quantity</TableHead>
                         <TableHead>Lead Time</TableHead>
@@ -1255,7 +1246,6 @@ export default function OrdersPage() {
                           onTnaGenerate={() => handleGenerateTna(order)}
                           onRampUpSave={updateSewingRampUpScheme}
                           onSetSewingLines={setSewingLines}
-                          numLines={sewingLines[order.id] || 1}
                           scheduledProcesses={scheduledProcesses}
                           updateOrderMinRunDays={updateOrderMinRunDays}
                         />
@@ -1388,7 +1378,6 @@ export default function OrdersPage() {
                           onRampUpSave={updateSewingRampUpScheme}
                           onBomChange={updateOrderBom}
                           onSetSewingLines={setSewingLines}
-                          numLines={sewingLines[order.id] || 1}
                         >
                           {expandedColumns.projection ? (
                             <>
@@ -1514,5 +1503,3 @@ export default function OrdersPage() {
     </div>
   );
 }
-
-    
