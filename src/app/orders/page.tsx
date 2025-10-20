@@ -269,6 +269,7 @@ const OperationBulletin = ({ order }: { order: Order }) => {
       counts[op.grade] = (counts[op.grade] || 0) + 1;
       return counts;
     }, { A: 0, B: 0, C: 0, D: 0 } as Record<string, number>);
+    
     const machineCounts = operations.reduce((counts, op) => {
       const machineAbbr = MACHINE_NAME_ABBREVIATIONS[op.machine] || op.machine;
       counts[machineAbbr] = (counts[machineAbbr] || 0) + 1;
@@ -334,7 +335,7 @@ const OperationBulletin = ({ order }: { order: Order }) => {
                 <TableCell className="font-medium">{op.operation}</TableCell>
                 <TableCell>{op.machine}</TableCell>
                 <TableCell>
-                  <Badge variant="secondary" className="w-6 h-6 justify-center">{op.grade}</TableCell>
+                  <Badge variant="secondary" className="w-6 h-6 justify-center">{op.grade}</Badge>
                 </TableCell>
                 <TableCell className="text-center">{op.operators}</TableCell>
                 <TableCell className="text-right">{op.sam.toFixed(2)}</TableCell>
@@ -1225,16 +1226,16 @@ export default function OrdersPage() {
                             </>
                           ) : (
                              <TableCell className="text-right font-bold">
-                                {order.projectionDetails ? (
+                                {order.projection?.total && order.projectionDetails ? (
                                   <Dialog onOpenChange={(isOpen) => !isOpen && setProjectionDetailsOrder(null)}>
                                     <DialogTrigger asChild>
                                       <span className="cursor-pointer text-primary hover:underline" onClick={() => setProjectionDetailsOrder(order)}>
-                                        {order.projection?.total.toLocaleString() || '-'}
+                                        {order.projection.total.toLocaleString()}
                                       </span>
                                     </DialogTrigger>
                                   </Dialog>
                                 ) : (
-                                  <span>{order.projection?.total.toLocaleString() || '-'}</span>
+                                  <span>{order.projection?.total?.toLocaleString() || '-'}</span>
                                 )}
                               </TableCell>
                           )}
@@ -1328,4 +1329,3 @@ export default function OrdersPage() {
     </div>
   );
 }
-
