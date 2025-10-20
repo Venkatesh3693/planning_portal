@@ -95,10 +95,12 @@ export type FcSnapshot = {
 export type ProjectionDetail = {
   projectionNumber: string;
   projectionDate: Date;
-  projectionQty: number;
-  poQty: number;
-  grnQty: number;
   receiptDate: Date;
+  noPo: SizeBreakdown;
+  openPo: SizeBreakdown;
+  grn: SizeBreakdown;
+  cut: SizeBreakdown;
+  total: SizeBreakdown;
 };
 
 export type BomItem = {

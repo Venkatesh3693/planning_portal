@@ -1,10 +1,10 @@
 
 'use client';
 
-import { Suspense, useMemo } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useSchedule } from '@/context/schedule-provider';
-import type { Order, ProjectionDetail } from '@/lib/types';
+import type { Order, ProjectionDetail, Size, SizeBreakdown } from '@/lib/types';
 import { format } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
@@ -26,69 +26,103 @@ import {
   TableFooter
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronRight } from 'lucide-react';
+import { SIZES } from '@/lib/data';
+import { cn } from '@/lib/utils';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+
+
+const SubRow = ({ label, data, isTotal = false }: { label: string, data: SizeBreakdown, isTotal?: boolean }) => (
+    <TableRow className={cn(isTotal ? "bg-muted/50 hover:bg-muted/50" : "bg-muted/20 hover:bg-muted/30")}>
+        <TableCell className="pl-12 font-medium">{label}</TableCell>
+        <TableCell></TableCell>
+        <TableCell></TableCell>
+        {SIZES.map(size => (
+            <TableCell key={`${label}-${size}`} className="text-right tabular-nums">
+                {(data[size] || 0).toLocaleString()}
+            </TableCell>
+        ))}
+        <TableCell className="text-right font-bold tabular-nums">
+            {data.total.toLocaleString()}
+        </TableCell>
+    </TableRow>
+);
+
+
+const ProjectionRow = ({ detail }: { detail: ProjectionDetail }) => {
+    const [isOpen, setIsOpen] = useState(true);
+
+    return (
+        <>
+            <CollapsibleTrigger asChild>
+                <TableRow 
+                    onClick={() => setIsOpen(prev => !prev)} 
+                    className="cursor-pointer"
+                    data-state={isOpen ? 'open' : 'closed'}
+                >
+                    <TableCell className="font-medium whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                             <ChevronRight className={cn("h-4 w-4 transition-transform", isOpen && "rotate-90")} />
+                            {detail.projectionNumber}
+                        </div>
+                    </TableCell>
+                    <TableCell>{format(detail.projectionDate, 'dd/MM/yy')}</TableCell>
+                    <TableCell>{format(detail.receiptDate, 'dd/MM/yy')}</TableCell>
+                    {SIZES.map(size => (
+                         <TableCell key={`total-${size}`} className="text-right tabular-nums font-bold">
+                            {(detail.total[size] || 0).toLocaleString()}
+                        </TableCell>
+                    ))}
+                    <TableCell className="text-right font-bold tabular-nums">
+                        {detail.total.total.toLocaleString()}
+                    </TableCell>
+                </TableRow>
+            </CollapsibleTrigger>
+            <CollapsibleContent asChild>
+                <>
+                    <SubRow label="No PO Qty" data={detail.noPo} />
+                    <SubRow label="Open PO Qty" data={detail.openPo} />
+                    <SubRow label="GRN Qty" data={detail.grn} />
+                    <SubRow label="Cut Qty" data={detail.cut} />
+                </>
+            </CollapsibleContent>
+        </>
+    )
+}
 
 
 const ProjectionDetailsTable = ({ order }: { order: Order }) => {
-  const totals = useMemo(() => {
-    if (!order.projectionDetails) {
-      return { projectionQty: 0, poQty: 0, grnQty: 0 };
-    }
-    return order.projectionDetails.reduce(
-      (acc, detail) => {
-        acc.projectionQty += detail.projectionQty;
-        acc.poQty += detail.poQty;
-        acc.grnQty += detail.grnQty;
-        return acc;
-      },
-      { projectionQty: 0, poQty: 0, grnQty: 0 }
-    );
-  }, [order.projectionDetails]);
-
   if (!order.projectionDetails || order.projectionDetails.length === 0) {
     return <div className="text-center text-muted-foreground p-8">No projection details available for this order.</div>;
   }
 
   return (
-     <div className="border rounded-lg">
+     <div className="border rounded-lg overflow-hidden">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Projection Number</TableHead>
+            <TableHead className="w-[200px]">Projection Number</TableHead>
             <TableHead>Projection Date</TableHead>
-            <TableHead className="text-right">Projection Qty</TableHead>
-            <TableHead className="text-right">PO Qty</TableHead>
-            <TableHead className="text-right">GRN Qty</TableHead>
             <TableHead>Receipt Date</TableHead>
+            {SIZES.map(size => (
+                <TableHead key={size} className="text-right">{size}</TableHead>
+            ))}
+            <TableHead className="text-right">Total</TableHead>
           </TableRow>
         </TableHeader>
-        <TableBody>
-          {(order.projectionDetails || []).map((detail) => (
-            <TableRow key={detail.projectionNumber}>
-              <TableCell className="font-medium whitespace-nowrap">{detail.projectionNumber}</TableCell>
-              <TableCell>{format(detail.projectionDate, 'dd/MM/yy')}</TableCell>
-              <TableCell className="text-right">{detail.projectionQty.toLocaleString()}</TableCell>
-              <TableCell className="text-right">{detail.poQty.toLocaleString()}</TableCell>
-              <TableCell className="text-right">{detail.grnQty.toLocaleString()}</TableCell>
-              <TableCell>{format(detail.receiptDate, 'dd/MM/yy')}</TableCell>
-            </TableRow>
-          ))}
+        <TableBody asChild>
+            <Collapsible asChild>
+                <>
+                    {order.projectionDetails.map((detail) => (
+                        <ProjectionRow key={detail.projectionNumber} detail={detail} />
+                    ))}
+                </>
+            </Collapsible>
         </TableBody>
-        <TableFooter>
-          <TableRow>
-            <TableCell colSpan={2} className="font-bold">Total</TableCell>
-            <TableCell className="text-right font-bold">
-              {totals.projectionQty.toLocaleString()}
-            </TableCell>
-            <TableCell className="text-right font-bold">
-              {totals.poQty.toLocaleString()}
-            </TableCell>
-            <TableCell className="text-right font-bold">
-              {totals.grnQty.toLocaleString()}
-            </TableCell>
-            <TableCell></TableCell>
-          </TableRow>
-        </TableFooter>
       </Table>
     </div>
   );

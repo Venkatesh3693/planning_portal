@@ -212,17 +212,43 @@ const generateFcSnapshots = (
 const dmiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots(CURRENT_WEEK - 5, CURRENT_WEEK, 20000, 1000);
 const dsiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots(CURRENT_WEEK - 5, CURRENT_WEEK, 50000, 2500);
 
-const dmiProjectionDetails: ProjectionDetail[] = [
-  { projectionNumber: 'PRJ-DMI-01', projectionDate: subDays(today, 60), projectionQty: 40000, poQty: 30000, grnQty: 25000, receiptDate: subDays(today, 10) },
-  { projectionNumber: 'PRJ-DMI-02', projectionDate: subDays(today, 45), projectionQty: 42000, poQty: 40000, grnQty: 38000, receiptDate: subDays(today, 5) },
-  { projectionNumber: 'PRJ-DMI-03', projectionDate: subDays(today, 30), projectionQty: 45000, poQty: 45000, grnQty: 0, receiptDate: addDays(today, 15) },
-  { projectionNumber: 'PRJ-DMI-04', projectionDate: subDays(today, 15), projectionQty: 50000, poQty: 0, grnQty: 0, receiptDate: addDays(today, 30) },
-];
+const createProjectionDetails = (): ProjectionDetail[] => {
+  const details: ProjectionDetail[] = [];
+  for (let i = 1; i <= 4; i++) {
+    const total = 40000 + i * 2000;
+    const noPo = Math.floor(total * 0.4);
+    const openPo = Math.floor(total * 0.3);
+    const grn = Math.floor(total * 0.2);
+    const cut = Math.floor(total * 0.1);
+    
+    const sizeDist = SIZES.reduce((acc, size) => ({ ...acc, [size]: Math.floor(1/SIZES.length * 100) }), {});
+    
+    const createBreakdown = (mainQty: number) => {
+        const bd = { total: mainQty };
+        SIZES.forEach(s => {
+            bd[s] = Math.floor(mainQty / SIZES.length);
+        });
+        const remainder = mainQty - Object.values(bd).reduce((s, v) => s + v, 0);
+        bd[SIZES[0]] += remainder;
+        return bd;
+    };
+    
+    details.push({
+      projectionNumber: `PRJ-DMI-0${i}`,
+      projectionDate: subDays(today, (4 - i) * 15),
+      receiptDate: addDays(today, i * 15),
+      noPo: createBreakdown(noPo),
+      openPo: createBreakdown(openPo),
+      grn: createBreakdown(grn),
+      cut: createBreakdown(cut),
+      total: createBreakdown(total),
+    });
+  }
+  return details;
+};
 
-const dsiProjectionDetails: ProjectionDetail[] = [
-  { projectionNumber: 'PRJ-DSI-01', projectionDate: subDays(today, 50), projectionQty: 100000, poQty: 80000, grnQty: 75000, receiptDate: subDays(today, 20) },
-  { projectionNumber: 'PRJ-DSI-02', projectionDate: subDays(today, 25), projectionQty: 120000, poQty: 100000, grnQty: 0, receiptDate: addDays(today, 25) },
-];
+const dmiProjectionDetails: ProjectionDetail[] = createProjectionDetails();
+const dsiProjectionDetails: ProjectionDetail[] = createProjectionDetails();
 
 const paddedJacketBom: BomItem[] = [
   { componentName: 'Shell Fabric (Nylon)', sizeDependent: true, source: 'Import', leadTime: 90, supplier: 'Global Textiles', forecastType: 'Projection' },
