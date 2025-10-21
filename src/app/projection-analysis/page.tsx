@@ -25,7 +25,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
-import { format, differenceInWeeks } from 'date-fns';
+import { format, getWeek } from 'date-fns';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
@@ -36,15 +36,14 @@ const QuantityBreakdownBar = ({ projection }: { projection: ProjectionDetail }) 
     label: string;
     color: string;
     count: number;
-    qty: number;
   }[] = [
-    { key: 'grn', label: 'GRN', color: 'bg-green-500', count: projection.grn.componentCount, qty: projection.grn.quantities.total },
-    { key: 'openPo', label: 'Open PO', color: 'bg-blue-500', count: projection.openPo.componentCount, qty: projection.openPo.quantities.total },
-    { key: 'noPo', label: 'No PO', color: 'bg-gray-400', count: projection.noPo.componentCount, qty: projection.noPo.quantities.total },
+    { key: 'grn', label: 'GRN', color: 'bg-green-500', count: projection.grn.componentCount },
+    { key: 'openPo', label: 'Open PO', color: 'bg-blue-500', count: projection.openPo.componentCount },
+    { key: 'noPo', label: 'No PO', color: 'bg-gray-400', count: projection.noPo.componentCount },
   ];
 
-  const totalQty = projection.total.quantities.total;
-  if (totalQty === 0) return <div className="h-4 w-full bg-muted rounded-full" />;
+  const totalComponents = projection.totalComponents;
+  if (totalComponents === 0) return <div className="h-4 w-full bg-muted rounded-full" />;
 
   return (
     <TooltipProvider>
@@ -52,8 +51,8 @@ const QuantityBreakdownBar = ({ projection }: { projection: ProjectionDetail }) 
         <TooltipTrigger>
           <div className="flex h-4 w-full rounded-full overflow-hidden bg-muted">
             {breakdowns.map(b => {
-              if (b.qty <= 0) return null;
-              const percentage = (b.qty / totalQty) * 100;
+              if (b.count <= 0) return null;
+              const percentage = (b.count / totalComponents) * 100;
               return (
                 <div
                   key={b.key}
@@ -150,12 +149,13 @@ function ProjectionAnalysisPageContent() {
                                 <TableBody>
                                     {projectionDetails.length > 0 ? (
                                         projectionDetails.map((proj) => {
-                                            const weeks = differenceInWeeks(proj.receiptDate, proj.projectionDate);
+                                            const startWeek = getWeek(proj.projectionDate, { weekStartsOn: 1 });
+                                            const endWeek = getWeek(proj.receiptDate, { weekStartsOn: 1 });
                                             return (
                                                 <TableRow key={proj.projectionNumber}>
                                                     <TableCell className="font-medium">{proj.projectionNumber}</TableCell>
                                                     <TableCell>{format(proj.projectionDate, 'PPP')}</TableCell>
-                                                    <TableCell>{weeks} weeks</TableCell>
+                                                    <TableCell>W{startWeek} - W{endWeek}</TableCell>
                                                     <TableCell className="text-right">{proj.total.quantities.total.toLocaleString()}</TableCell>
                                                     <TableCell>
                                                         <QuantityBreakdownBar projection={proj} />
