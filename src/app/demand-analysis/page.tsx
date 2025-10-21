@@ -223,14 +223,14 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
         {currentWeek > 0 && <Badge variant="outline" className="text-sm">Current Week: W{currentWeek}</Badge>}
       </div>
       <div className="flex-1 min-h-0 overflow-auto border rounded-lg">
-        <Table>
+        <Table className="text-xs">
           <TableHeader className="sticky top-0 bg-background z-10">
             <TableRow>
-              <TableHead className="sticky left-0 bg-background z-20 min-w-[120px]">Snapshot Week</TableHead>
+              <TableHead className="sticky left-0 bg-background z-20 min-w-[90px] px-2">Snapshot Week</TableHead>
               {forecastWeeks.map(week => (
-                <TableHead key={week} className="text-right min-w-[150px]">{week}</TableHead>
+                <TableHead key={week} className="text-right min-w-[90px] px-2">{week}</TableHead>
               ))}
-              <TableHead className="text-right min-w-[150px] font-bold">Total</TableHead>
+              <TableHead className="text-right min-w-[100px] font-bold px-2">Total</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -242,7 +242,7 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
 
               return (
                 <TableRow key={snapshot.snapshotWeek}>
-                  <TableCell className="font-medium sticky left-0 bg-background z-10">
+                  <TableCell className="font-medium sticky left-0 bg-background z-10 px-2">
                     W{snapshot.snapshotWeek}
                   </TableCell>
                   {forecastWeeks.map(week => {
@@ -252,13 +252,13 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
                     return (
                       <TableCell 
                         key={`${snapshot.snapshotWeek}-${week}`} 
-                        className={cn("text-right tabular-nums", getCellBgClass(week, snapshot.snapshotWeek, currentWeekData))}
+                        className={cn("text-right tabular-nums px-2", getCellBgClass(week, snapshot.snapshotWeek, currentWeekData))}
                       >
                         {renderCellContent(currentWeekData, previousWeekData)}
                       </TableCell>
                     );
                   })}
-                  <TableCell className="text-right font-bold tabular-nums">
+                  <TableCell className="text-right font-bold tabular-nums px-2">
                      {renderCellContent(currentDataForTotal, prevDataForTotal)}
                   </TableCell>
                 </TableRow>
