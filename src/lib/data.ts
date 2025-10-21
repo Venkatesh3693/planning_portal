@@ -108,9 +108,9 @@ const dsiPoDetails: PoDetail[] = [
 ];
 
 const dmiDemandDetails: DemandDetail[] = [
-    { destination: 'New York, USA', selectionQty: 50000, po: 45000, fc: 5000, poPlusFc: 50000 },
-    { destination: 'London, UK', selectionQty: 50000, po: 40000, fc: 15000, poPlusFc: 55000 },
-    { destination: 'Tokyo, Japan', selectionQty: 50000, po: 10000, fc: 35000, poPlusFc: 45000 },
+    { destination: 'New York, USA', selectionQty: 28333, po: 45000, fc: 5000, poPlusFc: 50000 },
+    { destination: 'London, UK', selectionQty: 28333, po: 40000, fc: 15000, poPlusFc: 55000 },
+    { destination: 'Tokyo, Japan', selectionQty: 28334, po: 10000, fc: 35000, poPlusFc: 45000 },
 ];
 
 const dsiDemandDetails: DemandDetail[] = [
@@ -469,7 +469,7 @@ export const ORDERS: Order[] = [
         color: 'Purple',
         modelNo: 556622,
         season: 'AW-25',
-        quantity: 150000,
+        quantity: 85000,
         poFcQty: 150000,
         projection: { noPo: 50000, openPos: 40000, grn: 30000, total: 120000 },
         frc: { noPo: 40000, openPos: 35000, grn: 25000, total: 100000 },
