@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Suspense, useMemo } from 'react';
@@ -26,6 +27,52 @@ import { Card, CardContent } from '@/components/ui/card';
 import { format, getWeek, subDays } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import type { ProjectionDetail } from '@/lib/types';
+import { cn } from '@/lib/utils';
+
+const QuantityBreakdownBar = ({ projection }: { projection: ProjectionDetail }) => {
+  if (!projection.totalComponents || projection.totalComponents === 0) {
+    return <div className="h-6 w-full bg-muted rounded-md" />;
+  }
+  
+  const grnPercentage = (projection.grn.componentCount / projection.totalComponents) * 100;
+  const openPoPercentage = (projection.openPo.componentCount / projection.totalComponents) * 100;
+  const noPoPercentage = (projection.noPo.componentCount / projection.totalComponents) * 100;
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger className="w-full">
+          <div className="flex h-6 w-full rounded-md overflow-hidden border">
+            <div className="bg-green-500" style={{ width: `${grnPercentage}%` }} />
+            <div className="bg-blue-500" style={{ width: `${openPoPercentage}%` }} />
+            <div className="bg-gray-300 dark:bg-gray-700" style={{ width: `${noPoPercentage}%` }} />
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <div className="space-y-1 text-sm">
+            <div className="font-bold">Component Status Breakdown:</div>
+            <div className="flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full bg-green-500" />
+              <span>GRN: {projection.grn.componentCount} component(s)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full bg-blue-500" />
+              <span>Open PO: {projection.openPo.componentCount} component(s)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full bg-gray-300 dark:bg-gray-700" />
+              <span>No PO: {projection.noPo.componentCount} component(s)</span>
+            </div>
+            <hr className="my-1"/>
+            <div className="font-semibold">Total: {projection.totalComponents} component(s)</div>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+};
 
 
 function ProjectionAnalysisPageContent() {
@@ -90,56 +137,56 @@ function ProjectionAnalysisPageContent() {
                     </Button>
                 </div>
                 
-                <div className="flex-1 min-h-0">
-                    <Card>
-                        <CardContent className="p-0">
-                             <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Projection No.</TableHead>
-                                        <TableHead>Projection Date</TableHead>
-                                        <TableHead>Projection Week</TableHead>
-                                        <TableHead>Coverage Weeks</TableHead>
-                                        <TableHead>CK Date</TableHead>
-                                        <TableHead className="text-right">Projection Qty</TableHead>
-                                        <TableHead className="text-right">FRC Qty</TableHead>
-                                        <TableHead className="text-right">FRC Pending</TableHead>
-                                        <TableHead className="text-right">BOM Components</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {(order.projectionDetails || []).map((proj) => {
-                                        const projDate = new Date(proj.projectionDate);
-                                        const receiptDate = new Date(proj.receiptDate);
-                                        const ckDate = subDays(receiptDate, 7);
-                                        const frcPending = proj.total.quantities.total - proj.frcQty;
+                <Card>
+                    <CardContent className="p-0">
+                        <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Projection No.</TableHead>
+                                <TableHead>Projection Date</TableHead>
+                                <TableHead>Projection Week</TableHead>
+                                <TableHead>Coverage Weeks</TableHead>
+                                <TableHead>CK Date</TableHead>
+                                <TableHead className="text-right">Projection Qty</TableHead>
+                                <TableHead className="text-right">FRC Qty</TableHead>
+                                <TableHead className="text-right">FRC Pending</TableHead>
+                                <TableHead className="w-[200px]">BOM Components Status</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {(order.projectionDetails || []).map((proj) => {
+                                const projDate = new Date(proj.projectionDate);
+                                const receiptDate = new Date(proj.receiptDate);
+                                const ckDate = subDays(receiptDate, 7);
+                                const frcPending = proj.total.quantities.total - proj.frcQty;
 
-                                        return (
-                                            <TableRow key={proj.projectionNumber}>
-                                                <TableCell className="font-medium">{proj.projectionNumber}</TableCell>
-                                                <TableCell>{format(projDate, 'dd/MM/yy')}</TableCell>
-                                                <TableCell>W{getWeek(projDate)}</TableCell>
-                                                <TableCell>W{getWeek(projDate)} - W{getWeek(receiptDate)}</TableCell>
-                                                <TableCell>{format(ckDate, 'dd/MM/yy')}</TableCell>
-                                                <TableCell className="text-right font-semibold">{proj.total.quantities.total.toLocaleString()}</TableCell>
-                                                <TableCell className="text-right">{proj.frcQty.toLocaleString()}</TableCell>
-                                                <TableCell className="text-right font-semibold">{frcPending.toLocaleString()}</TableCell>
-                                                <TableCell className="text-right">{projectionComponentsCount}</TableCell>
-                                            </TableRow>
-                                        )
-                                    })}
-                                     {(!order.projectionDetails || order.projectionDetails.length === 0) && (
-                                        <TableRow>
-                                            <TableCell colSpan={9} className="h-24 text-center">
-                                                No projection details available for this order.
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                </div>
+                                return (
+                                    <TableRow key={proj.projectionNumber}>
+                                        <TableCell className="font-medium">{proj.projectionNumber}</TableCell>
+                                        <TableCell>{format(projDate, 'dd/MM/yy')}</TableCell>
+                                        <TableCell>W{getWeek(projDate)}</TableCell>
+                                        <TableCell>W{getWeek(projDate)} - W{getWeek(receiptDate)}</TableCell>
+                                        <TableCell>{format(ckDate, 'dd/MM/yy')}</TableCell>
+                                        <TableCell className="text-right font-semibold">{proj.total.quantities.total.toLocaleString()}</TableCell>
+                                        <TableCell className="text-right">{proj.frcQty.toLocaleString()}</TableCell>
+                                        <TableCell className="text-right font-semibold">{frcPending.toLocaleString()}</TableCell>
+                                        <TableCell>
+                                            <QuantityBreakdownBar projection={proj} />
+                                        </TableCell>
+                                    </TableRow>
+                                )
+                            })}
+                                {(!order.projectionDetails || order.projectionDetails.length === 0) && (
+                                <TableRow>
+                                    <TableCell colSpan={9} className="h-24 text-center">
+                                        No projection details available for this order.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
             </main>
         </div>
     );

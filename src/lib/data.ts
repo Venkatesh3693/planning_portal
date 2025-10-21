@@ -213,17 +213,18 @@ const dmiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots(CURRENT_WEEK - 5, CUR
 const dsiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots(CURRENT_WEEK - 5, CURRENT_WEEK, 50000, 2500);
 
 const createProjectionDetails = (bom: BomItem[]): ProjectionDetail[] => {
-  const projectionComponents = bom.filter(item => item.forecastType === 'Projection');
-  const totalComponents = projectionComponents.length;
-  if (totalComponents === 0) return [];
-
-  const details: ProjectionDetail[] = [];
-
-  for (let i = 1; i <= 4; i++) {
-    const totalQty = 40000 + i * 2000;
-    // FRC is a percentage of the projection
-    const frcQty = Math.round(totalQty * (0.6 + i * 0.05)); 
-
+    const projectionComponents = bom.filter(item => item.forecastType === 'Projection');
+    const totalComponents = projectionComponents.length;
+    if (totalComponents === 0) return [];
+  
+    const details: ProjectionDetail[] = [];
+  
+    // Static definition of component counts for each stage
+    const grnCount = 2;
+    const openPoCount = 1;
+    const noPoCount = 2;
+    const actualTotalComponents = grnCount + openPoCount + noPoCount;
+  
     const createStatusDetail = (qty: number, count: number): StatusDetail => {
         const quantities: Partial<SizeBreakdown> = { total: qty };
         let distributedQty = 0;
@@ -238,31 +239,29 @@ const createProjectionDetails = (bom: BomItem[]): ProjectionDetail[] => {
         }
         return { quantities: quantities as SizeBreakdown, componentCount: count };
     };
-
-    // Static breakdown: 2 GRN, 1 Open PO, 2 No PO (total 5)
-    const grnCount = 2;
-    const openPoCount = 1;
-    const noPoCount = 2;
-    const actualTotalComponents = grnCount + openPoCount + noPoCount;
-
-    // Distribute total quantity based on component counts
-    const grnQty = Math.floor(totalQty * (grnCount / actualTotalComponents));
-    const openPoQty = Math.floor(totalQty * (openPoCount / actualTotalComponents));
-    const noPoQty = totalQty - grnQty - openPoQty;
-
-    details.push({
-      projectionNumber: `PRJ-DMI-0${i}`,
-      projectionDate: subDays(today, (4 - i) * 15),
-      receiptDate: addDays(today, i * 15),
-      frcQty: frcQty,
-      grn: createStatusDetail(grnQty, grnCount),
-      openPo: createStatusDetail(openPoQty, openPoCount),
-      noPo: createStatusDetail(noPoQty, noPoCount),
-      total: createStatusDetail(totalQty, actualTotalComponents),
-      totalComponents: actualTotalComponents,
-    });
-  }
-  return details;
+  
+    for (let i = 1; i <= 4; i++) {
+      const totalQty = 40000 + i * 2000;
+      const frcQty = Math.round(totalQty * (0.6 + i * 0.05));
+  
+      // Distribute total quantity based on component counts
+      const grnQty = Math.floor(totalQty * (grnCount / actualTotalComponents));
+      const openPoQty = Math.floor(totalQty * (openPoCount / actualTotalComponents));
+      const noPoQty = totalQty - grnQty - openPoQty;
+  
+      details.push({
+        projectionNumber: `PRJ-DMI-0${i}`,
+        projectionDate: subDays(today, (4 - i) * 15),
+        receiptDate: addDays(today, i * 15),
+        frcQty: frcQty,
+        grn: createStatusDetail(grnQty, grnCount),
+        openPo: createStatusDetail(openPoQty, openPoCount),
+        noPo: createStatusDetail(noPoQty, noPoCount),
+        total: createStatusDetail(totalQty, actualTotalComponents),
+        totalComponents: actualTotalComponents,
+      });
+    }
+    return details;
 };
 
 const paddedJacketBom: BomItem[] = [
