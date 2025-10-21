@@ -31,6 +31,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import type { ProjectionDetail, FrcDetail, ComponentStatusDetail, BomItem, SizeBreakdown } from '@/lib/types';
 import { SIZES } from '@/lib/data';
 import { cn } from '@/lib/utils';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 
 type ComponentBreakdown = {
   grn: ComponentStatusDetail;
@@ -140,6 +142,7 @@ function ProjectionAnalysisPageContent() {
     const orderId = searchParams.get('orderId');
     const { orders, isScheduleLoaded, productionPlans } = useSchedule();
     const [selectedProjection, setSelectedProjection] = useState<ProjectionDetail | null>(null);
+    const [coverageWeeks, setCoverageWeeks] = useState(4);
 
     const order = useMemo(() => {
         if (!isScheduleLoaded || !orderId) return null;
@@ -177,16 +180,19 @@ function ProjectionAnalysisPageContent() {
         // Calculate projection date
         const projectionDate = subDays(firstProductionDate, maxLeadTimeDays);
 
-        // Calculate projection quantity (sum of first 4 weeks)
-        const coveredProductionWeeks = productionWeeks.slice(0, 4);
+        // Calculate projection quantity (sum of first N weeks)
+        const coveredProductionWeeks = productionWeeks.slice(0, coverageWeeks);
         const projectionQuantity = coveredProductionWeeks.reduce((sum, week) => sum + (plan[week] || 0), 0);
             
-        // Calculate receipt date (end of 4-week production window)
-        const receiptDate = addWeeks(firstProductionDate, 3);
+        // Calculate receipt date (end of coverage window)
+        const lastCoveredWeekNum = coveredProductionWeeks.length > 0
+          ? parseInt(coveredProductionWeeks[coveredProductionWeeks.length - 1].replace('W', ''))
+          : firstProductionWeekNum;
+        const receiptDate = addWeeks(new Date(year, 0, 1), lastCoveredWeekNum - 1);
         const ckDate = subDays(receiptDate, 7);
 
         const coverageStartWeek = firstProductionWeekNum;
-        const coverageEndWeek = parseInt(coveredProductionWeeks[coveredProductionWeeks.length - 1].replace('W', ''));
+        const coverageEndWeek = lastCoveredWeekNum;
 
 
         // Mock component status (can be improved later)
@@ -216,7 +222,7 @@ function ProjectionAnalysisPageContent() {
             coverageStartWeek,
             coverageEndWeek,
         };
-    }, [order, productionPlans]);
+    }, [order, productionPlans, coverageWeeks]);
     
     const projectionDetails = useMemo(() => {
        return dynamicProjection ? [dynamicProjection] : [];
@@ -274,6 +280,25 @@ function ProjectionAnalysisPageContent() {
                     </Button>
                 </div>
                 
+                <Card className="mb-6">
+                    <CardHeader>
+                        <CardTitle>Configuration</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex items-center gap-4">
+                            <Label htmlFor="coverage-weeks">Demand Coverage (Weeks)</Label>
+                            <Input
+                                id="coverage-weeks"
+                                type="number"
+                                min="1"
+                                value={coverageWeeks}
+                                onChange={(e) => setCoverageWeeks(parseInt(e.target.value, 10) || 1)}
+                                className="w-24"
+                            />
+                        </div>
+                    </CardContent>
+                </Card>
+
                 <Card>
                     <CardContent className="p-0">
                         <Table>
