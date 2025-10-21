@@ -108,9 +108,9 @@ const dsiPoDetails: PoDetail[] = [
 ];
 
 const dmiDemandDetails: DemandDetail[] = [
-    { destination: 'New York, USA', selectionQty: 28333, po: 45000, fc: 5000, poPlusFc: 50000 },
-    { destination: 'London, UK', selectionQty: 28333, po: 40000, fc: 15000, poPlusFc: 55000 },
-    { destination: 'Tokyo, Japan', selectionQty: 28334, po: 10000, fc: 35000, poPlusFc: 45000 },
+    { destination: 'New York, USA', selectionQty: 30000, po: 25000, fc: 2000, poPlusFc: 27000 },
+    { destination: 'London, UK', selectionQty: 30000, po: 20000, fc: 8000, poPlusFc: 28000 },
+    { destination: 'Tokyo, Japan', selectionQty: 25000, po: 5000, fc: 20000, poPlusFc: 25000 },
 ];
 
 const dsiDemandDetails: DemandDetail[] = [
@@ -255,7 +255,7 @@ const generateFcSnapshots = (
 };
 
 
-const dmiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots('AW', CURRENT_WEEK, 20000, 1000);
+const dmiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots('AW', CURRENT_WEEK, 1200, 500);
 const dsiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots('SS', CURRENT_WEEK, 50000, 2500);
 
 const createComponentStatus = (
@@ -341,7 +341,7 @@ const createProjectionDetails = (bom: BomItem[]): ProjectionDetail[] => {
     const details: ProjectionDetail[] = [];
   
     for (let i = 1; i <= 4; i++) {
-      const totalQty = 40000 + i * 5000;
+      const totalQty = 25000 + i * 5000;
       const frcQty = Math.round(totalQty * (0.6 + i * 0.05));
       const receiptDate = addDays(today, i * 20);
       const ckDate = subDays(receiptDate, 7);
@@ -470,13 +470,13 @@ export const ORDERS: Order[] = [
         modelNo: 556622,
         season: 'AW-25',
         quantity: 85000,
-        poFcQty: 150000,
-        projection: { noPo: 50000, openPos: 40000, grn: 30000, total: 120000 },
-        frc: { noPo: 40000, openPos: 35000, grn: 25000, total: 100000 },
-        confirmedPoQty: 95000,
-        cutOrder: { '2XS': 9000, 'XS': 9000, 'S': 9000, 'M': 9000, 'L': 9000, 'XL': 9000, '2XL': 9000, '3XL': 9000, '4XL': 9000, '5XL': 9000, total: 90000 },
-        produced: { '2XS': 7500, 'XS': 7500, 'S': 7500, 'M': 7500, 'L': 7500, 'XL': 7500, '2XL': 7500, '3XL': 7500, '4XL': 7500, '5XL': 7500, total: 75000 },
-        shipped: { '2XS': 5000, 'XS': 5000, 'S': 5000, 'M': 5000, 'L': 5000, 'XL': 5000, '2XL': 5000, '3XL': 5000, '4XL': 5000, '5XL': 5000, total: 50000 },
+        poFcQty: 80000,
+        projection: { noPo: 25000, openPos: 20000, grn: 15000, total: 60000 },
+        frc: { noPo: 20000, openPos: 18000, grn: 12000, total: 50000 },
+        confirmedPoQty: 45000,
+        cutOrder: { '2XS': 4500, 'XS': 4500, 'S': 4500, 'M': 4500, 'L': 4500, 'XL': 4500, '2XL': 4500, '3XL': 4500, '4XL': 4500, '5XL': 4500, total: 45000 },
+        produced: { '2XS': 3750, 'XS': 3750, 'S': 3750, 'M': 3750, 'L': 3750, 'XL': 3750, '2XL': 3750, '3XL': 3750, '4XL': 3750, '5XL': 3750, total: 37500 },
+        shipped: { '2XS': 2500, 'XS': 2500, 'S': 2500, 'M': 2500, 'L': 2500, 'XL': 2500, '2XL': 2500, '3XL': 2500, '4XL': 2500, '5XL': 2500, total: 25000 },
         processIds: ['cutting', 'sewing', 'packing'],
         displayColor: ORDER_COLORS[5],
         leadTime: 21,
