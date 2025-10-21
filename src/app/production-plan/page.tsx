@@ -18,17 +18,24 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SEWING_OPERATIONS_BY_STYLE, WORK_DAY_MINUTES } from '@/lib/data';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 
 
 function ProductionPlanPageContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get('orderId');
-    const { orders, isScheduleLoaded } = useSchedule();
+    const { orders, isScheduleLoaded, sewingLines, setSewingLines } = useSchedule();
 
     const order = useMemo(() => {
         if (!isScheduleLoaded || !orderId) return null;
         return orders.find(o => o.id === orderId);
     }, [orderId, orders, isScheduleLoaded]);
+
+    const numLines = useMemo(() => {
+        if (!orderId) return 1;
+        return sewingLines[orderId] || 1;
+    }, [orderId, sewingLines]);
 
     const { totalSam, totalTailors } = useMemo(() => {
         if (!order) return { totalSam: 0, totalTailors: 0 };
@@ -42,12 +49,18 @@ function ProductionPlanPageContent() {
     }, [order]);
 
     const outputPerDay = useMemo(() => {
-        if (!order || totalSam === 0 || totalTailors === 0 || !order.budgetedEfficiency) {
+        if (!order || totalSam === 0 || totalTailors === 0 || !order.budgetedEfficiency || numLines <= 0) {
             return 0;
         }
         const efficiency = order.budgetedEfficiency / 100;
-        return ((totalTailors * WORK_DAY_MINUTES) / totalSam) * efficiency;
-    }, [order, totalSam, totalTailors]);
+        return (((totalTailors * numLines) * WORK_DAY_MINUTES) / totalSam) * efficiency;
+    }, [order, totalSam, totalTailors, numLines]);
+
+    const handleNumLinesChange = (lines: number) => {
+        if (orderId) {
+            setSewingLines(orderId, lines);
+        }
+    };
 
     if (!isScheduleLoaded) {
         return <div className="flex items-center justify-center h-full">Loading data...</div>;
@@ -101,19 +114,30 @@ function ProductionPlanPageContent() {
                                 <CardTitle>Production Stats</CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                     <div className="p-4 bg-muted rounded-lg">
                                         <div className="text-sm text-muted-foreground">Output per Day</div>
                                         <div className="text-2xl font-bold">{Math.round(outputPerDay).toLocaleString()} units</div>
                                         <div className="text-xs text-muted-foreground">Based on {order.budgetedEfficiency}% budgeted efficiency</div>
                                     </div>
                                     <div className="p-4 bg-muted rounded-lg">
-                                        <div className="text-sm text-muted-foreground">Total Tailors</div>
+                                        <div className="text-sm text-muted-foreground">Total Tailors (per line)</div>
                                         <div className="text-2xl font-bold">{totalTailors}</div>
                                     </div>
                                     <div className="p-4 bg-muted rounded-lg">
                                         <div className="text-sm text-muted-foreground">Total SAM</div>
                                         <div className="text-2xl font-bold">{totalSam.toFixed(2)}</div>
+                                    </div>
+                                    <div className="p-4 bg-muted rounded-lg flex flex-col justify-center">
+                                        <Label htmlFor="num-lines-input" className="text-sm text-muted-foreground">Number of Lines</Label>
+                                        <Input
+                                            id="num-lines-input"
+                                            type="number"
+                                            min="1"
+                                            value={numLines}
+                                            onChange={(e) => handleNumLinesChange(parseInt(e.target.value, 10) || 1)}
+                                            className="w-full h-8 text-2xl font-bold bg-transparent border-0 shadow-none focus-visible:ring-0 p-0"
+                                        />
                                     </div>
                                 </div>
                             </CardContent>
