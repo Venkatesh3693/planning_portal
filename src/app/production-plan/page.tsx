@@ -29,13 +29,24 @@ import { useToast } from '@/hooks/use-toast';
 function ProductionPlanPageContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get('orderId');
-    const { orders, isScheduleLoaded, sewingLines, setSewingLines } = useSchedule();
+    const { 
+        orders, 
+        isScheduleLoaded, 
+        sewingLines, 
+        setSewingLines,
+        productionPlans,
+        updateProductionPlan
+    } = useSchedule();
     const { toast } = useToast();
 
     const [openingFgStock, setOpeningFgStock] = useState(0);
     const [displayOpeningFgStock, setDisplayOpeningFgStock] = useState(String(openingFgStock));
-    const [productionPlan, setProductionPlan] = useState<Record<string, number>>({});
     const [planError, setPlanError] = useState<string | null>(null);
+
+    const productionPlan = useMemo(() => {
+        if (!orderId) return {};
+        return productionPlans[orderId] || {};
+    }, [orderId, productionPlans]);
 
     const order = useMemo(() => {
         if (!isScheduleLoaded || !orderId) return null;
@@ -123,6 +134,7 @@ function ProductionPlanPageContent() {
     }, [firstSnapshot]);
 
     const handlePlan = () => {
+        if (!orderId) return;
         setPlanError(null);
         if (!firstSnapshot || weeklyOutput <= 0) {
           toast({
@@ -132,51 +144,40 @@ function ProductionPlanPageContent() {
           });
           return;
         }
-      
-        const firstDemandWeekIndex = snapshotForecastWeeks.findIndex(week => {
-            const demand = (firstSnapshot.forecasts[week]?.total.po || 0) + (firstSnapshot.forecasts[week]?.total.fc || 0);
-            return demand > 0;
+
+        const demands = snapshotForecastWeeks.map(week => {
+            const weekData = firstSnapshot.forecasts[week]?.total;
+            return weekData ? weekData.po + weekData.fc : 0;
         });
       
+        const firstDemandWeekIndex = demands.findIndex(d => d > 0);
         if (firstDemandWeekIndex === -1) {
-            setProductionPlan({});
+            updateProductionPlan(orderId, {});
             toast({ title: 'Plan Generated', description: 'No demand found, no production planned.' });
             return;
         }
         
-        const lastDemandWeekIndex = snapshotForecastWeeks.findLastIndex(week => {
-            const demand = (firstSnapshot.forecasts[week]?.total.po || 0) + (firstSnapshot.forecasts[week]?.total.fc || 0);
-            return demand > 0;
-        });
+        const lastDemandWeekIndex = demands.findLastIndex(d => d > 0);
 
         // --- Trial Run ---
-        const trialStartWeekIndex = firstDemandWeekIndex - 1;
-        const trialPlan: Record<string, number> = {};
-        const totalDemand = snapshotForecastWeeks.reduce((sum, week) => {
-            return sum + ((firstSnapshot.forecasts[week]?.total.po || 0) + (firstSnapshot.forecasts[week]?.total.fc || 0));
-        }, 0);
-
+        const tempStartWeekIndex = firstDemandWeekIndex - 1;
+        const trialPlan: number[] = Array(snapshotForecastWeeks.length).fill(0);
+        const totalDemand = demands.reduce((sum, d) => sum + d, 0);
+        
         let cumulativeProduction = 0;
-        for (let i = 0; i < snapshotForecastWeeks.length; i++) {
-            const week = snapshotForecastWeeks[i];
-            let productionThisWeek = 0;
-            if (i >= trialStartWeekIndex && i < lastDemandWeekIndex) {
-                 if (openingFgStock + cumulativeProduction < totalDemand) {
-                    productionThisWeek = weeklyOutput;
-                    cumulativeProduction += weeklyOutput;
-                }
+        for (let i = tempStartWeekIndex; i < lastDemandWeekIndex; i++) {
+            if (i >= 0 && (openingFgStock + cumulativeProduction) < totalDemand) {
+                trialPlan[i] = weeklyOutput;
+                cumulativeProduction += weeklyOutput;
             }
-            trialPlan[week] = productionThisWeek;
         }
-
+        
         const trialInventories: number[] = [];
         let currentInventory = openingFgStock;
       
         for (let i = 0; i < snapshotForecastWeeks.length; i++) {
-            const week = snapshotForecastWeeks[i];
-            const demand = (firstSnapshot.forecasts[week]?.total.po || 0) + (firstSnapshot.forecasts[week]?.total.fc || 0);
-            const production = i > 0 ? (trialPlan[snapshotForecastWeeks[i-1]] || 0) : 0;
-            currentInventory = currentInventory + production - demand;
+            const production = i > 0 ? (trialPlan[i-1] || 0) : 0;
+            currentInventory = currentInventory + production - demands[i];
             trialInventories.push(currentInventory);
         }
 
@@ -187,29 +188,29 @@ function ProductionPlanPageContent() {
             startOffset = Math.ceil(Math.abs(minInventory) / weeklyOutput);
         }
       
-        const finalStartWeekIndex = trialStartWeekIndex - startOffset;
+        const finalStartWeekIndex = tempStartWeekIndex - startOffset;
 
         if (finalStartWeekIndex < 0) {
           setPlanError(`Cannot meet demand. Production needs to start ${Math.abs(finalStartWeekIndex)} week(s) before ${snapshotForecastWeeks[0]}. Try increasing the number of lines.`);
-          setProductionPlan({});
+          updateProductionPlan(orderId, {});
           return;
         }
       
-        const newPlan: Record<string, number> = {};
-        cumulativeProduction = 0; // Reset for final plan
-        for (let i = 0; i < snapshotForecastWeeks.length; i++) {
-            const week = snapshotForecastWeeks[i];
-            let productionThisWeek = 0;
-            if (i >= finalStartWeekIndex && i < lastDemandWeekIndex) {
-                if (openingFgStock + cumulativeProduction < totalDemand) {
-                    productionThisWeek = weeklyOutput;
-                    cumulativeProduction += weeklyOutput;
-                }
+        const newPlanArray: number[] = Array(snapshotForecastWeeks.length).fill(0);
+        cumulativeProduction = 0;
+        for (let i = finalStartWeekIndex; i < lastDemandWeekIndex; i++) {
+            if (i >= 0 && (openingFgStock + cumulativeProduction) < totalDemand) {
+                newPlanArray[i] = weeklyOutput;
+                cumulativeProduction += weeklyOutput;
             }
-            newPlan[week] = productionThisWeek;
         }
+
+        const newPlan: Record<string, number> = {};
+        snapshotForecastWeeks.forEach((week, index) => {
+            newPlan[week] = newPlanArray[index] || 0;
+        });
       
-        setProductionPlan(newPlan);
+        updateProductionPlan(orderId, newPlan);
         toast({ title: 'Production Plan Generated', description: "The 'Plan' and 'Inv.' rows have been updated." });
     };
     

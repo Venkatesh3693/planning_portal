@@ -13,6 +13,7 @@ const STORE_KEY = 'stitchplan_schedule_v3';
 type SewingRampUpSchemes = Record<string, RampUpEntry[]>;
 type SewingLines = Record<string, number>;
 type StoredOrderOverrides = Record<string, Partial<Pick<Order, 'displayColor' | 'sewingRampUpScheme' | 'tna' | 'bom'>>>;
+type ProductionPlans = Record<string, Record<string, number>>;
 
 type ScheduleContextType = {
   orders: Order[];
@@ -26,6 +27,8 @@ type ScheduleContextType = {
   updateOrderBom: (orderId: string, componentName: string, field: keyof BomItem, value: any) => void;
   sewingLines: SewingLines;
   setSewingLines: (orderId: string, lines: number) => void;
+  productionPlans: ProductionPlans;
+  updateProductionPlan: (orderId: string, plan: Record<string, number>) => void;
   timelineEndDate: Date;
   setTimelineEndDate: Dispatch<SetStateAction<Date>>;
   isScheduleLoaded: boolean;
@@ -42,6 +45,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   const [scheduledProcesses, setScheduledProcesses] = useState<ScheduledProcess[]>([]);
   const [sewingLines, setSewingLinesState] = useState<SewingLines>({});
   const [orderOverrides, setOrderOverrides] = useState<StoredOrderOverrides>({});
+  const [productionPlans, setProductionPlans] = useState<ProductionPlans>({});
   const [splitOrderProcesses, setSplitOrderProcesses] = useState<Record<string, boolean>>({});
   const [timelineEndDate, setTimelineEndDate] = useState(() => addDays(startOfToday(), 90));
   const [isScheduleLoaded, setIsScheduleLoaded] = useState(false);
@@ -70,6 +74,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         
         setScheduledProcesses(loadedProcesses);
         setSewingLinesState(storedData.sewingLines || {});
+        setProductionPlans(storedData.productionPlans || {});
         loadedOverrides = storedData.orderOverrides || {};
         setOrderOverrides(loadedOverrides);
         setSplitOrderProcesses(storedData.splitOrderProcesses || {});
@@ -134,6 +139,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         scheduledProcesses,
         sewingLines,
         orderOverrides,
+        productionPlans,
         timelineEndDate,
         splitOrderProcesses,
       };
@@ -142,7 +148,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error("Could not save schedule to localStorage", err);
     }
-  }, [scheduledProcesses, sewingLines, orderOverrides, timelineEndDate, splitOrderProcesses, isScheduleLoaded]);
+  }, [scheduledProcesses, sewingLines, orderOverrides, productionPlans, timelineEndDate, splitOrderProcesses, isScheduleLoaded]);
 
   const updateOrderTna = (orderId: string, newTnaProcesses: TnaProcess[]) => {
       setOrderOverrides(prev => {
@@ -215,6 +221,10 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
 
   const setSewingLines = (orderId: string, lines: number) => {
     setSewingLinesState(prev => ({ ...prev, [orderId]: lines }));
+  };
+
+  const updateProductionPlan = (orderId: string, plan: Record<string, number>) => {
+    setProductionPlans(prev => ({ ...prev, [orderId]: plan }));
   };
 
   const toggleSplitProcess = (orderId: string, processId: string) => {
@@ -294,6 +304,8 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     updateOrderBom,
     sewingLines,
     setSewingLines,
+    productionPlans,
+    updateProductionPlan,
     timelineEndDate,
     setTimelineEndDate,
     isScheduleLoaded,
