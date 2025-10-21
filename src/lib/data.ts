@@ -1,8 +1,8 @@
 
 
-import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail, FcSnapshot, FcComposition, ProjectionDetail, BomItem, StatusDetail, SizeBreakdown } from '@/lib/types';
+import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail, FcSnapshot, FcComposition, ProjectionDetail, BomItem, ComponentStatusDetail, SizeBreakdown, FrcDetail } from '@/lib/types';
 import { Scissors, Printer, Fingerprint, ExternalLink, MoveHorizontal, PackageCheck } from 'lucide-react';
-import { addDays, subDays, startOfToday, getWeek } from 'date-fns';
+import { addDays, subDays, startOfToday, getWeek, isBefore } from 'date-fns';
 
 export const UNITS: Unit[] = [
   { id: 'u1', name: 'Unit 1' },
@@ -212,54 +212,124 @@ const generateFcSnapshots = (
 const dmiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots(CURRENT_WEEK - 5, CURRENT_WEEK, 20000, 1000);
 const dsiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots(CURRENT_WEEK - 5, CURRENT_WEEK, 50000, 2500);
 
-const createProjectionDetails = (bom: BomItem[]): ProjectionDetail[] => {
-    const projectionComponents = bom.filter(item => item.forecastType === 'Projection');
-    const totalComponents = projectionComponents.length;
-    if (totalComponents === 0) return [];
+const createComponentStatus = (
+  bomItems: BomItem[],
+  totalQty: number,
+  ckDate: Date,
+  forecastType: 'Projection' | 'FRC'
+): { grn: ComponentStatusDetail, openPo: ComponentStatusDetail, noPo: ComponentStatusDetail, totalComponents: number } => {
   
+  const relevantComponents = bomItems.filter(item => item.forecastType === forecastType);
+  const totalComponents = relevantComponents.length;
+  if (totalComponents === 0) {
+    return { grn: { quantities: { total: 0 }, componentCount: 0 }, openPo: { quantities: { total: 0 }, componentCount: 0 }, noPo: { quantities: { total: 0 }, componentCount: 0 }, totalComponents: 0 };
+  }
+
+  const grnItems: BomItem[] = [];
+  const openPoItems: BomItem[] = [];
+  const noPoItems: BomItem[] = [];
+
+  relevantComponents.forEach(item => {
+    const orderDeadline = subDays(ckDate, item.leadTime);
+    if (isBefore(today, orderDeadline)) {
+      noPoItems.push(item);
+    } else {
+      const arrivalDate = addDays(orderDeadline, item.leadTime);
+      if (isBefore(today, arrivalDate)) {
+        openPoItems.push(item);
+      } else {
+        grnItems.push(item);
+      }
+    }
+  });
+
+  const createStatusDetail = (items: BomItem[], count: number): ComponentStatusDetail => {
+    const qty = totalComponents > 0 ? Math.floor(totalQty * (count / totalComponents)) : 0;
+    const quantities: Partial<SizeBreakdown> = { total: qty };
+    // Simplified size breakdown for mock data
+    SIZES.forEach((size, index) => {
+      quantities[size] = Math.floor(qty / SIZES.length) + (index === 0 ? qty % SIZES.length : 0);
+    });
+    return { quantities: quantities as SizeBreakdown, componentCount: count };
+  };
+
+  const grnDetail = createStatusDetail(grnItems, grnItems.length);
+  const openPoDetail = createStatusDetail(openPoItems, openPoItems.length);
+  const noPoDetail = createStatusDetail(noPoItems, noPoItems.length);
+
+  // Adjust total quantity due to floor rounding
+  const assignedQty = grnDetail.quantities.total + openPoDetail.quantities.total + noPoDetail.quantities.total;
+  const remainder = totalQty - assignedQty;
+  if (grnItems.length > 0) grnDetail.quantities.total += remainder;
+  else if (openPoItems.length > 0) openPoDetail.quantities.total += remainder;
+  else noPoDetail.quantities.total += remainder;
+
+  return { grn: grnDetail, openPo: openPoDetail, noPo: noPoDetail, totalComponents };
+};
+
+const createFrcDetails = (projection: ProjectionDetail, frcBom: BomItem[]): FrcDetail[] => {
+  const frcDetails: FrcDetail[] = [];
+  if (!projection.frcQty || projection.frcQty <= 0) return [];
+  
+  // Create 2 FRCs for this projection
+  const frc1Qty = Math.floor(projection.frcQty * 0.6);
+  const frc2Qty = projection.frcQty - frc1Qty;
+
+  const frc1Date = addDays(projection.projectionDate, 10);
+  const frc1Receipt = addDays(frc1Date, 45); // Assuming 45 days coverage
+  const frc1_ckDate = subDays(frc1Receipt, 7);
+  const frc1_status = createComponentStatus(frcBom, frc1Qty, frc1_ckDate, 'FRC');
+  
+  const frc2Date = addDays(frc1Date, 15);
+  const frc2Receipt = addDays(frc2Date, 45);
+  const frc2_ckDate = subDays(frc2Receipt, 7);
+  const frc2_status = createComponentStatus(frcBom, frc2Qty, frc2_ckDate, 'FRC');
+
+  frcDetails.push({
+    frcNumber: `${projection.projectionNumber}-FRC-01`,
+    frcDate: frc1Date,
+    receiptDate: frc1Receipt,
+    quantities: { total: frc1Qty, ...generateFcBreakdown(frc1Qty) },
+    ...frc1_status
+  }, {
+    frcNumber: `${projection.projectionNumber}-FRC-02`,
+    frcDate: frc2Date,
+    receiptDate: frc2Receipt,
+    quantities: { total: frc2Qty, ...generateFcBreakdown(frc2Qty) },
+    ...frc2_status
+  });
+
+  return frcDetails;
+};
+
+
+const createProjectionDetails = (bom: BomItem[]): ProjectionDetail[] => {
+    if (!bom || bom.length === 0) return [];
     const details: ProjectionDetail[] = [];
   
-    // Static definition of component counts for each stage
-    const grnCount = 2;
-    const openPoCount = 1;
-    const noPoCount = 2;
-    const actualTotalComponents = grnCount + openPoCount + noPoCount;
-  
-    const createStatusDetail = (qty: number, count: number): StatusDetail => {
-        const quantities: Partial<SizeBreakdown> = { total: qty };
-        let distributedQty = 0;
-        SIZES.forEach(size => {
-            const sizeQty = Math.floor(qty / SIZES.length);
-            quantities[size] = sizeQty;
-            distributedQty += sizeQty;
-        });
-        const remainder = qty - distributedQty;
-        if (SIZES.length > 0) {
-          (quantities[SIZES[0]] as number) += remainder;
-        }
-        return { quantities: quantities as SizeBreakdown, componentCount: count };
-    };
-  
     for (let i = 1; i <= 4; i++) {
-      const totalQty = 40000 + i * 2000;
+      const totalQty = 40000 + i * 5000;
       const frcQty = Math.round(totalQty * (0.6 + i * 0.05));
-  
-      // Distribute total quantity based on component counts
-      const grnQty = Math.floor(totalQty * (grnCount / actualTotalComponents));
-      const openPoQty = Math.floor(totalQty * (openPoCount / actualTotalComponents));
-      const noPoQty = totalQty - grnQty - openPoQty;
-  
-      details.push({
+      const receiptDate = addDays(today, i * 20);
+      const ckDate = subDays(receiptDate, 7);
+      
+      const projStatus = createComponentStatus(bom, totalQty, ckDate, 'Projection');
+
+      const projection: ProjectionDetail = {
         projectionNumber: `PRJ-DMI-0${i}`,
-        projectionDate: subDays(today, (4 - i) * 15),
-        receiptDate: addDays(today, i * 15),
+        projectionDate: subDays(today, (4 - i) * 20),
+        receiptDate: receiptDate,
         frcQty: frcQty,
-        grn: createStatusDetail(grnQty, grnCount),
-        openPo: createStatusDetail(openPoQty, openPoCount),
-        noPo: createStatusDetail(noPoQty, noPoCount),
-        total: createStatusDetail(totalQty, actualTotalComponents),
-        totalComponents: actualTotalComponents,
-      });
+        total: {
+          quantities: { total: totalQty, ...generateFcBreakdown(totalQty) },
+          componentCount: projStatus.totalComponents
+        },
+        ...projStatus,
+        frcDetails: [],
+      };
+      
+      projection.frcDetails = createFrcDetails(projection, bom);
+      details.push(projection);
     }
     return details;
 };

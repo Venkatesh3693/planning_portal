@@ -2,7 +2,7 @@
 
 'use client';
 
-import { Suspense, useMemo } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useSchedule } from '@/context/schedule-provider';
 import { Header } from '@/components/layout/header';
@@ -23,22 +23,31 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { format, getWeek, subDays } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import type { ProjectionDetail } from '@/lib/types';
+import type { ProjectionDetail, FrcDetail, ComponentStatusDetail } from '@/lib/types';
+import { SIZES } from '@/lib/data';
 import { cn } from '@/lib/utils';
 
-const QuantityBreakdownBar = ({ projection }: { projection: ProjectionDetail }) => {
-  if (!projection.totalComponents || projection.totalComponents === 0) {
+type ComponentBreakdown = {
+  grn: ComponentStatusDetail;
+  openPo: ComponentStatusDetail;
+  noPo: ComponentStatusDetail;
+  totalComponents: number;
+}
+
+const QuantityBreakdownBar = ({ breakdown }: { breakdown: ComponentBreakdown }) => {
+  const { grn, openPo, noPo, totalComponents } = breakdown;
+  if (!totalComponents || totalComponents === 0) {
     return <div className="h-6 w-full bg-muted rounded-md" />;
   }
   
-  const grnPercentage = (projection.grn.componentCount / projection.totalComponents) * 100;
-  const openPoPercentage = (projection.openPo.componentCount / projection.totalComponents) * 100;
-  const noPoPercentage = (projection.noPo.componentCount / projection.totalComponents) * 100;
+  const grnPercentage = (grn.componentCount / totalComponents) * 100;
+  const openPoPercentage = (openPo.componentCount / totalComponents) * 100;
+  const noPoPercentage = (noPo.componentCount / totalComponents) * 100;
 
   return (
     <TooltipProvider>
@@ -46,8 +55,8 @@ const QuantityBreakdownBar = ({ projection }: { projection: ProjectionDetail }) 
         <TooltipTrigger className="w-full">
           <div className="flex h-6 w-full rounded-md overflow-hidden border">
             <div className="bg-slate-400" style={{ width: `${noPoPercentage}%` }} />
-            <div className="bg-blue-800" style={{ width: `${grnPercentage}%` }} />
             <div className="bg-blue-500" style={{ width: `${openPoPercentage}%` }} />
+            <div className="bg-blue-800" style={{ width: `${grnPercentage}%` }} />
           </div>
         </TooltipTrigger>
         <TooltipContent>
@@ -55,22 +64,73 @@ const QuantityBreakdownBar = ({ projection }: { projection: ProjectionDetail }) 
             <div className="font-bold">Component Status Breakdown:</div>
              <div className="flex items-center gap-2">
               <span className="h-3 w-3 rounded-full bg-slate-400" />
-              <span>No PO: {projection.noPo.componentCount} component(s)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full bg-blue-800" />
-              <span>GRN: {projection.grn.componentCount} component(s)</span>
+              <span>No PO: {noPo.componentCount} component(s)</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="h-3 w-3 rounded-full bg-blue-500" />
-              <span>Open PO: {projection.openPo.componentCount} component(s)</span>
+              <span>Open PO: {openPo.componentCount} component(s)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full bg-blue-800" />
+              <span>GRN: {grn.componentCount} component(s)</span>
             </div>
             <hr className="my-1"/>
-            <div className="font-semibold">Total: {projection.totalComponents} component(s)</div>
+            <div className="font-semibold">Total: {totalComponents} component(s)</div>
           </div>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
+  );
+};
+
+const FrcDetailsTable = ({ frcDetails }: { frcDetails: FrcDetail[] }) => {
+  if (!frcDetails || frcDetails.length === 0) return null;
+
+  return (
+    <Card className="mt-6">
+      <CardHeader>
+        <CardTitle>FRC Details</CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>FRC Number</TableHead>
+              <TableHead>FRC Date</TableHead>
+              <TableHead>FRC Week</TableHead>
+              <TableHead>Coverage</TableHead>
+              <TableHead>CK Date</TableHead>
+              <TableHead>CK Week</TableHead>
+              {SIZES.map(s => <TableHead key={s} className="text-right">{s}</TableHead>)}
+              <TableHead className="text-right font-bold">Total Qty</TableHead>
+              <TableHead className="w-[200px]">BOM Component Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {frcDetails.map(frc => {
+              const frcDate = new Date(frc.frcDate);
+              const receiptDate = new Date(frc.receiptDate);
+              const ckDate = subDays(receiptDate, 7);
+              const componentBreakdown = { grn: frc.grn, openPo: frc.openPo, noPo: frc.noPo, totalComponents: frc.totalComponents };
+
+              return (
+                <TableRow key={frc.frcNumber}>
+                  <TableCell className="font-medium">{frc.frcNumber}</TableCell>
+                  <TableCell>{format(frcDate, 'dd/MM/yy')}</TableCell>
+                  <TableCell>W{getWeek(frcDate)}</TableCell>
+                  <TableCell>W{getWeek(frcDate)} - W{getWeek(receiptDate)}</TableCell>
+                  <TableCell>{format(ckDate, 'dd/MM/yy')}</TableCell>
+                  <TableCell>W{getWeek(ckDate)}</TableCell>
+                  {SIZES.map(s => <TableCell key={s} className="text-right">{(frc.quantities[s] || 0).toLocaleString()}</TableCell>)}
+                  <TableCell className="text-right font-bold">{frc.quantities.total.toLocaleString()}</TableCell>
+                  <TableCell><QuantityBreakdownBar breakdown={componentBreakdown} /></TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   );
 };
 
@@ -79,6 +139,7 @@ function ProjectionAnalysisPageContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get('orderId');
     const { orders, isScheduleLoaded } = useSchedule();
+    const [selectedProjection, setSelectedProjection] = useState<ProjectionDetail | null>(null);
 
     const order = useMemo(() => {
         if (!isScheduleLoaded || !orderId) return null;
@@ -89,6 +150,10 @@ function ProjectionAnalysisPageContent() {
         if (!order || !order.bom) return 0;
         return order.bom.filter(item => item.forecastType === 'Projection').length;
     }, [order]);
+
+    const handleProjectionClick = (projection: ProjectionDetail) => {
+      setSelectedProjection(prev => prev?.projectionNumber === projection.projectionNumber ? null : projection);
+    };
 
 
     if (!isScheduleLoaded) {
@@ -151,7 +216,7 @@ function ProjectionAnalysisPageContent() {
                                 <TableHead className="text-right">Projection Qty</TableHead>
                                 <TableHead className="text-right">FRC Qty</TableHead>
                                 <TableHead className="text-right">FRC Pending</TableHead>
-                                <TableHead className="w-[200px]">BOM Components Status</TableHead>
+                                <TableHead className="w-[200px]">BOM Comp. Status (Proj.)</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -160,10 +225,16 @@ function ProjectionAnalysisPageContent() {
                                 const receiptDate = new Date(proj.receiptDate);
                                 const ckDate = subDays(receiptDate, 7);
                                 const frcPending = proj.total.quantities.total - proj.frcQty;
+                                const componentBreakdown = { grn: proj.grn, openPo: proj.openPo, noPo: proj.noPo, totalComponents: proj.totalComponents };
 
                                 return (
-                                    <TableRow key={proj.projectionNumber}>
-                                        <TableCell className="font-medium">{proj.projectionNumber}</TableCell>
+                                    <TableRow key={proj.projectionNumber} className={selectedProjection?.projectionNumber === proj.projectionNumber ? 'bg-accent/50' : ''}>
+                                        <TableCell 
+                                          className="font-medium text-primary cursor-pointer hover:underline"
+                                          onClick={() => handleProjectionClick(proj)}
+                                        >
+                                          {proj.projectionNumber}
+                                        </TableCell>
                                         <TableCell>{format(projDate, 'dd/MM/yy')}</TableCell>
                                         <TableCell>W{getWeek(projDate)}</TableCell>
                                         <TableCell>W{getWeek(projDate)} - W{getWeek(receiptDate)}</TableCell>
@@ -173,7 +244,7 @@ function ProjectionAnalysisPageContent() {
                                         <TableCell className="text-right">{proj.frcQty.toLocaleString()}</TableCell>
                                         <TableCell className="text-right font-semibold">{frcPending.toLocaleString()}</TableCell>
                                         <TableCell>
-                                            <QuantityBreakdownBar projection={proj} />
+                                            <QuantityBreakdownBar breakdown={componentBreakdown} />
                                         </TableCell>
                                     </TableRow>
                                 )
@@ -189,6 +260,8 @@ function ProjectionAnalysisPageContent() {
                         </Table>
                     </CardContent>
                 </Card>
+                
+                {selectedProjection && <FrcDetailsTable frcDetails={selectedProjection.frcDetails || []} />}
             </main>
         </div>
     );
