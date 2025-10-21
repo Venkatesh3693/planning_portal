@@ -125,58 +125,66 @@ function ProductionPlanPageContent() {
     }, [firstSnapshot]);
 
     const handlePlan = () => {
-      setPlanError(null);
-      if (!firstSnapshot || weeklyOutput <= 0) {
-        toast({
-          variant: "destructive",
-          title: "Planning Failed",
-          description: "Cannot generate plan. Ensure production stats are valid.",
+        setPlanError(null);
+        if (!firstSnapshot || weeklyOutput <= 0) {
+          toast({
+            variant: 'destructive',
+            title: 'Planning Failed',
+            description: 'Cannot generate plan. Ensure production stats are valid.',
+          });
+          return;
+        }
+      
+        // Step 1: Find the first week with demand.
+        const firstDemandWeekIndex = snapshotForecastWeeks.findIndex(week => {
+          const demand = firstSnapshot.forecasts[week]?.total.po + firstSnapshot.forecasts[week]?.total.fc || 0;
+          return demand > 0;
         });
-        return;
-      }
-
-      let requiredOpeningInventory = 0;
-      let startWeekIndex = -1;
-
-      // Backward pass to find the start week
-      for (let i = snapshotForecastWeeks.length - 1; i >= 0; i--) {
+      
+        if (firstDemandWeekIndex === -1) {
+          setProductionPlan({});
+          toast({ title: 'Plan Generated', description: 'No demand found, no production planned.' });
+          return;
+        }
+      
+        // Step 2: Calculate a "trial run" inventory assuming production starts at the first demand week.
+        const trialInventories: number[] = [];
+        let currentInventory = openingFgStock;
+        let minInventory = openingFgStock;
+      
+        for (let i = 0; i < snapshotForecastWeeks.length; i++) {
           const week = snapshotForecastWeeks[i];
           const demand = firstSnapshot.forecasts[week]?.total.po + firstSnapshot.forecasts[week]?.total.fc || 0;
-          
-          const inventoryNeededForThisWeek = requiredOpeningInventory + demand;
-          requiredOpeningInventory = Math.max(0, inventoryNeededForThisWeek - weeklyOutput);
-
-          if (demand > 0 || requiredOpeningInventory > 0) {
-            startWeekIndex = i;
+          const plan = i >= firstDemandWeekIndex ? weeklyOutput : 0;
+          currentInventory = currentInventory + plan - demand;
+          trialInventories.push(currentInventory);
+          if (currentInventory < minInventory) {
+            minInventory = currentInventory;
           }
-      }
-
-      if (startWeekIndex === -1) { // No demand found
-        setProductionPlan({});
-        toast({ title: "Plan Generated", description: "No demand found, no production planned."});
-        return;
-      }
-
-      // Check if start week is feasible
-      const minRequiredOpeningInventory = requiredOpeningInventory;
-      if (minRequiredOpeningInventory > openingFgStock) {
-        setPlanError(`Cannot meet demand. Production needs to start before ${snapshotForecastWeeks[0]}. Try increasing the number of lines.`);
-        setProductionPlan({});
-        return;
-      }
-
-      const newPlan: Record<string, number> = {};
-      for (let i = 0; i < snapshotForecastWeeks.length; i++) {
-        const week = snapshotForecastWeeks[i];
-        if (i >= startWeekIndex) {
-          newPlan[week] = weeklyOutput;
-        } else {
-          newPlan[week] = 0;
         }
-      }
       
-      setProductionPlan(newPlan);
-      toast({ title: "Production Plan Generated", description: "The 'Plan' and 'Inv.' rows have been updated." });
+        // Step 4 & 5: Check if the plan is valid and calculate offset if needed.
+        let finalStartWeekIndex = firstDemandWeekIndex;
+        if (minInventory < 0) {
+          const offset = 1 + Math.ceil(Math.abs(minInventory) / weeklyOutput);
+          finalStartWeekIndex = firstDemandWeekIndex - offset;
+        }
+      
+        // Error handling for impossible plan
+        if (finalStartWeekIndex < 0) {
+          setPlanError(`Cannot meet demand. Production needs to start ${Math.abs(finalStartWeekIndex)} week(s) before ${snapshotForecastWeeks[0]}. Try increasing the number of lines.`);
+          setProductionPlan({});
+          return;
+        }
+      
+        // Generate the final plan
+        const newPlan: Record<string, number> = {};
+        snapshotForecastWeeks.forEach((week, i) => {
+          newPlan[week] = i >= finalStartWeekIndex ? weeklyOutput : 0;
+        });
+      
+        setProductionPlan(newPlan);
+        toast({ title: 'Production Plan Generated', description: "The 'Plan' and 'Inv.' rows have been updated." });
     };
     
     const inventoryData = useMemo(() => {
