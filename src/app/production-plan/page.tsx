@@ -152,17 +152,19 @@ function ProductionPlanPageContent() {
         // --- Trial Run ---
         const trialStartWeekIndex = firstDemandWeekIndex - 1;
         const trialPlan: Record<string, number> = {};
-        let cumulativeProduction = 0;
         const totalDemand = snapshotForecastWeeks.reduce((sum, week) => {
             return sum + ((firstSnapshot.forecasts[week]?.total.po || 0) + (firstSnapshot.forecasts[week]?.total.fc || 0));
         }, 0);
 
+        let cumulativeProduction = 0;
         for (let i = 0; i < snapshotForecastWeeks.length; i++) {
             const week = snapshotForecastWeeks[i];
             let productionThisWeek = 0;
-            if (i >= trialStartWeekIndex && cumulativeProduction < totalDemand) {
-                productionThisWeek = weeklyOutput;
-                cumulativeProduction += weeklyOutput;
+            if (i >= trialStartWeekIndex && i < lastDemandWeekIndex) {
+                 if (openingFgStock + cumulativeProduction < totalDemand) {
+                    productionThisWeek = weeklyOutput;
+                    cumulativeProduction += weeklyOutput;
+                }
             }
             trialPlan[week] = productionThisWeek;
         }
@@ -198,9 +200,11 @@ function ProductionPlanPageContent() {
         for (let i = 0; i < snapshotForecastWeeks.length; i++) {
             const week = snapshotForecastWeeks[i];
             let productionThisWeek = 0;
-            if (i >= finalStartWeekIndex && cumulativeProduction < totalDemand) {
-                productionThisWeek = weeklyOutput;
-                cumulativeProduction += weeklyOutput;
+            if (i >= finalStartWeekIndex && i < lastDemandWeekIndex) {
+                if (openingFgStock + cumulativeProduction < totalDemand) {
+                    productionThisWeek = weeklyOutput;
+                    cumulativeProduction += weeklyOutput;
+                }
             }
             newPlan[week] = productionThisWeek;
         }
