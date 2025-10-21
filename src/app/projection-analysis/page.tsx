@@ -146,7 +146,7 @@ function ProjectionAnalysisPageContent() {
         return orders.find(o => o.id === orderId);
     }, [orderId, orders, isScheduleLoaded]);
 
-    const dynamicProjection = useMemo((): ProjectionDetail | null => {
+    const dynamicProjection = useMemo((): (ProjectionDetail & { coverageStartWeek: number, coverageEndWeek: number }) | null => {
         if (!order || !order.bom || !productionPlans[order.id]) {
             return null;
         }
@@ -178,13 +178,16 @@ function ProjectionAnalysisPageContent() {
         const projectionDate = subDays(firstProductionDate, maxLeadTimeDays);
 
         // Calculate projection quantity (sum of first 4 weeks)
-        const projectionQuantity = productionWeeks
-            .slice(0, 4)
-            .reduce((sum, week) => sum + (plan[week] || 0), 0);
+        const coveredProductionWeeks = productionWeeks.slice(0, 4);
+        const projectionQuantity = coveredProductionWeeks.reduce((sum, week) => sum + (plan[week] || 0), 0);
             
         // Calculate receipt date (end of 4-week production window)
         const receiptDate = addWeeks(firstProductionDate, 3);
         const ckDate = subDays(receiptDate, 7);
+
+        const coverageStartWeek = firstProductionWeekNum;
+        const coverageEndWeek = parseInt(coveredProductionWeeks[coveredProductionWeeks.length - 1].replace('W', ''));
+
 
         // Mock component status (can be improved later)
         const createComponentStatus = (items: BomItem[], totalQty: number): ComponentStatusDetail => ({
@@ -210,6 +213,8 @@ function ProjectionAnalysisPageContent() {
             noPo: projStatus,
             totalComponents: projComponents.length,
             frcDetails: [],
+            coverageStartWeek,
+            coverageEndWeek,
         };
     }, [order, productionPlans]);
     
@@ -308,7 +313,7 @@ function ProjectionAnalysisPageContent() {
                                         </TableCell>
                                         <TableCell>{format(projDate, 'dd/MM/yy')}</TableCell>
                                         <TableCell>W{getWeek(projDate)}</TableCell>
-                                        <TableCell>W{getWeek(projDate)} - W{getWeek(receiptDate)}</TableCell>
+                                        <TableCell>W{proj.coverageStartWeek} - W{proj.coverageEndWeek}</TableCell>
                                         <TableCell>{format(ckDate, 'dd/MM/yy')}</TableCell>
                                         <TableCell>W{getWeek(ckDate)}</TableCell>
                                         <TableCell className="text-right font-semibold">{proj.total.quantities.total.toLocaleString()}</TableCell>
