@@ -221,16 +221,6 @@ const createProjectionDetails = (bom: BomItem[]): ProjectionDetail[] => {
 
   for (let i = 1; i <= 4; i++) {
     const totalQty = 40000 + i * 2000;
-    
-    // Simulate component counts transitioning over time
-    const grnCount = Math.floor(totalComponents * (0.15 + (i-1) * 0.1)); // 15% -> 45%
-    const openPoCount = Math.floor(totalComponents * (0.30 + (i-1) * 0.05)); // 30% -> 45%
-    const noPoCount = totalComponents - grnCount - openPoCount;
-    
-    // Simulate quantity distribution based on component counts
-    const grnQty = Math.floor(totalQty * (grnCount / totalComponents));
-    const openPoQty = Math.floor(totalQty * (openPoCount / totalComponents));
-    const noPoQty = totalQty - grnQty - openPoQty;
 
     const createStatusDetail = (qty: number, count: number): StatusDetail => {
         const quantities: Partial<SizeBreakdown> = { total: qty };
@@ -246,7 +236,18 @@ const createProjectionDetails = (bom: BomItem[]): ProjectionDetail[] => {
         }
         return { quantities: quantities as SizeBreakdown, componentCount: count };
     };
-    
+
+    // Static breakdown as requested: 2 GRN, 1 Open PO, 2 No PO
+    const grnCount = 2;
+    const openPoCount = 1;
+    const noPoCount = 2;
+    const actualTotalComponents = grnCount + openPoCount + noPoCount; // This should be 5
+
+    // Distribute total quantity based on component counts
+    const grnQty = Math.floor(totalQty * (grnCount / actualTotalComponents));
+    const openPoQty = Math.floor(totalQty * (openPoCount / actualTotalComponents));
+    const noPoQty = totalQty - grnQty - openPoQty;
+
     details.push({
       projectionNumber: `PRJ-DMI-0${i}`,
       projectionDate: subDays(today, (4 - i) * 15),
@@ -254,8 +255,8 @@ const createProjectionDetails = (bom: BomItem[]): ProjectionDetail[] => {
       grn: createStatusDetail(grnQty, grnCount),
       openPo: createStatusDetail(openPoQty, openPoCount),
       noPo: createStatusDetail(noPoQty, noPoCount),
-      total: createStatusDetail(totalQty, totalComponents),
-      totalComponents: totalComponents,
+      total: createStatusDetail(totalQty, actualTotalComponents),
+      totalComponents: actualTotalComponents,
     });
   }
   return details;
@@ -270,6 +271,7 @@ const paddedJacketBom: BomItem[] = [
   { componentName: 'Sewing Thread', sizeDependent: false, source: 'Local', leadTime: 7, supplier: 'Stitch Co.', forecastType: 'FRC' },
   { componentName: 'Cuff Elastic', sizeDependent: false, source: 'Local', leadTime: 20, supplier: 'Elasticorp', forecastType: 'FRC' },
   { componentName: 'Brand Label', sizeDependent: false, source: 'Import', leadTime: 45, supplier: 'LabelMakers Inc.', forecastType: 'Projection' },
+  { componentName: 'Care Label', sizeDependent: false, source: 'Import', leadTime: 45, supplier: 'LabelMakers Inc.', forecastType: 'Projection' },
 ];
 
 const pantsBom: BomItem[] = [
