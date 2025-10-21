@@ -108,9 +108,9 @@ const dsiPoDetails: PoDetail[] = [
 ];
 
 const dmiDemandDetails: DemandDetail[] = [
-    { destination: 'New York, USA', selectionQty: 30000, po: 25000, fc: 2000, poPlusFc: 27000 },
-    { destination: 'London, UK', selectionQty: 30000, po: 20000, fc: 8000, poPlusFc: 28000 },
-    { destination: 'Tokyo, Japan', selectionQty: 25000, po: 5000, fc: 20000, poPlusFc: 25000 },
+    { destination: 'New York, USA', selectionQty: 28333, po: 23333, fc: 1867, poPlusFc: 25200 },
+    { destination: 'London, UK', selectionQty: 28333, po: 18667, fc: 7467, poPlusFc: 26134 },
+    { destination: 'Tokyo, Japan', selectionQty: 28334, po: 4667, fc: 18666, poPlusFc: 23333 },
 ];
 
 const dsiDemandDetails: DemandDetail[] = [
@@ -255,7 +255,7 @@ const generateFcSnapshots = (
 };
 
 
-const dmiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots('AW', CURRENT_WEEK, 1200, 500);
+const dmiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots('AW', CURRENT_WEEK, 3077, 500);
 const dsiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots('SS', CURRENT_WEEK, 50000, 2500);
 
 const createComponentStatus = (
@@ -471,12 +471,12 @@ export const ORDERS: Order[] = [
         season: 'AW-25',
         quantity: 85000,
         poFcQty: 80000,
-        projection: { noPo: 25000, openPos: 20000, grn: 15000, total: 60000 },
-        frc: { noPo: 20000, openPos: 18000, grn: 12000, total: 50000 },
-        confirmedPoQty: 45000,
-        cutOrder: { '2XS': 4500, 'XS': 4500, 'S': 4500, 'M': 4500, 'L': 4500, 'XL': 4500, '2XL': 4500, '3XL': 4500, '4XL': 4500, '5XL': 4500, total: 45000 },
-        produced: { '2XS': 3750, 'XS': 3750, 'S': 3750, 'M': 3750, 'L': 3750, 'XL': 3750, '2XL': 3750, '3XL': 3750, '4XL': 3750, '5XL': 3750, total: 37500 },
-        shipped: { '2XS': 2500, 'XS': 2500, 'S': 2500, 'M': 2500, 'L': 2500, 'XL': 2500, '2XL': 2500, '3XL': 2500, '4XL': 2500, '5XL': 2500, total: 25000 },
+        projection: { noPo: 14706, openPos: 11765, grn: 8824, total: 35294 },
+        frc: { noPo: 11765, openPos: 10588, grn: 7059, total: 29412 },
+        confirmedPoQty: 26471,
+        cutOrder: { total: 26471 },
+        produced: { total: 22059 },
+        shipped: { total: 14706 },
         processIds: ['cutting', 'sewing', 'packing'],
         displayColor: ORDER_COLORS[5],
         leadTime: 21,
