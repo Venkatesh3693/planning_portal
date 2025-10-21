@@ -21,6 +21,7 @@ import { SEWING_OPERATIONS_BY_STYLE, WORK_DAY_MINUTES } from '@/lib/data';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { cn } from '@/lib/utils';
 
 
 function ProductionPlanPageContent() {
@@ -176,19 +177,19 @@ function ProductionPlanPageContent() {
                      {firstSnapshot && (
                         <Card>
                             <CardHeader>
-                                <CardTitle>First Forecast Snapshot (W{firstSnapshot.snapshotWeek})</CardTitle>
+                                <CardTitle>Tentative plan</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <Table>
                                     <TableBody>
                                         <TableRow>
-                                            <TableHead className="font-semibold sticky left-0 bg-background">Week</TableHead>
+                                            <TableHead className={cn("font-semibold sticky left-0 bg-background")}>Week</TableHead>
                                             {snapshotForecastWeeks.map(week => (
                                                 <TableCell key={week} className="text-right font-medium">{week}</TableCell>
                                             ))}
                                         </TableRow>
                                         <TableRow>
-                                            <TableHead className="font-semibold sticky left-0 bg-background">PO + FC</TableHead>
+                                            <TableHead className={cn("font-semibold sticky left-0 bg-background")}>PO + FC</TableHead>
                                             {snapshotForecastWeeks.map(week => {
                                                 const weekData = firstSnapshot.forecasts[week]?.total;
                                                 const totalValue = weekData ? weekData.po + weekData.fc : 0;
@@ -204,9 +205,16 @@ function ProductionPlanPageContent() {
                             </CardContent>
                         </Card>
                      )}
-                    <div className="flex-1 min-h-[40vh] border-2 border-dashed rounded-lg flex items-center justify-center">
-                        <p className="text-muted-foreground">This page is under construction.</p>
-                    </div>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Tentative Plan</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex-1 min-h-[40vh] border-2 border-dashed rounded-lg flex items-center justify-center">
+                                <p className="text-muted-foreground">This page is under construction.</p>
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
             </main>
         </div>
