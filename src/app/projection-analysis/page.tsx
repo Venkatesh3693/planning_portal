@@ -147,6 +147,7 @@ function ProjectionAnalysisPageContent() {
                                 <TableHead>Projection Week</TableHead>
                                 <TableHead>Coverage Weeks</TableHead>
                                 <TableHead>CK Date</TableHead>
+                                <TableHead>CK Week</TableHead>
                                 <TableHead className="text-right">Projection Qty</TableHead>
                                 <TableHead className="text-right">FRC Qty</TableHead>
                                 <TableHead className="text-right">FRC Pending</TableHead>
@@ -167,6 +168,7 @@ function ProjectionAnalysisPageContent() {
                                         <TableCell>W{getWeek(projDate)}</TableCell>
                                         <TableCell>W{getWeek(projDate)} - W{getWeek(receiptDate)}</TableCell>
                                         <TableCell>{format(ckDate, 'dd/MM/yy')}</TableCell>
+                                        <TableCell>W{getWeek(ckDate)}</TableCell>
                                         <TableCell className="text-right font-semibold">{proj.total.quantities.total.toLocaleString()}</TableCell>
                                         <TableCell className="text-right">{proj.frcQty.toLocaleString()}</TableCell>
                                         <TableCell className="text-right font-semibold">{frcPending.toLocaleString()}</TableCell>
@@ -178,7 +180,7 @@ function ProjectionAnalysisPageContent() {
                             })}
                                 {(!order.projectionDetails || order.projectionDetails.length === 0) && (
                                 <TableRow>
-                                    <TableCell colSpan={9} className="h-24 text-center">
+                                    <TableCell colSpan={10} className="h-24 text-center">
                                         No projection details available for this order.
                                     </TableCell>
                                 </TableRow>
