@@ -1,6 +1,6 @@
 
 
-import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail, FcSnapshot, FcComposition, ProjectionDetail, BomItem, ComponentStatusDetail, SizeBreakdown, FrcDetail } from '@/lib/types';
+import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail, FcSnapshot, FcComposition, ProjectionDetail, BomItem, ComponentStatusDetail, FrcDetail } from '@/lib/types';
 import { Scissors, Printer, Fingerprint, ExternalLink, MoveHorizontal, PackageCheck } from 'lucide-react';
 import { addDays, subDays, startOfToday, getWeek, isBefore } from 'date-fns';
 
@@ -153,10 +153,10 @@ const generateFcSnapshots = (
     const seasonWeeks: number[] = [];
 
     if (season === 'AW') {
-        snapshotStartWeek = 14;
+        snapshotStartWeek = 10;
         valueStartWeek = 27;
         valueEndWeek = 52;
-        for (let w = 14; w <= 52; w++) seasonWeeks.push(w);
+        for (let w = 10; w <= 52; w++) seasonWeeks.push(w);
     } else { // SS
         snapshotStartWeek = 40;
         valueStartWeek = 1;
