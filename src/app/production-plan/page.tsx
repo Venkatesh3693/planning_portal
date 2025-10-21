@@ -15,21 +15,27 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, XCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SEWING_OPERATIONS_BY_STYLE, WORK_DAY_MINUTES } from '@/lib/data';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useToast } from '@/hooks/use-toast';
 
 
 function ProductionPlanPageContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get('orderId');
     const { orders, isScheduleLoaded, sewingLines, setSewingLines } = useSchedule();
+    const { toast } = useToast();
+
     const [openingFgStock, setOpeningFgStock] = useState(0);
     const [displayOpeningFgStock, setDisplayOpeningFgStock] = useState(String(openingFgStock));
+    const [productionPlan, setProductionPlan] = useState<Record<string, number>>({});
+    const [planError, setPlanError] = useState<string | null>(null);
 
     const order = useMemo(() => {
         if (!isScheduleLoaded || !orderId) return null;
@@ -70,6 +76,8 @@ function ProductionPlanPageContent() {
         return (((totalTailors * numLines) * WORK_DAY_MINUTES) / totalSam) * efficiency;
     }, [order, totalSam, totalTailors, numLines]);
 
+    const weeklyOutput = outputPerDay * 6; // 6 working days
+
     const handleNumLinesChange = (value: string) => {
         setDisplayNumLines(value);
     };
@@ -80,23 +88,23 @@ function ProductionPlanPageContent() {
             if (!isNaN(lines) && lines > 0) {
                 setSewingLines(orderId, lines);
             } else {
-                setSewingLines(orderId, 1);
+                // If input is invalid or empty, revert to the last valid number
+                setDisplayNumLines(String(numLines));
             }
         }
     };
 
     const handleOpeningStockChange = (value: string) => {
         setDisplayOpeningFgStock(value);
-        const newStock = parseInt(value, 10);
-        if (!isNaN(newStock)) {
-            setOpeningFgStock(newStock);
-        }
     };
 
     const handleOpeningStockBlur = (e: React.FocusEvent<HTMLInputElement>) => {
         const stock = parseInt(e.target.value, 10);
-        if (isNaN(stock) || stock < 0) {
-            setOpeningFgStock(0);
+        if (!isNaN(stock) && stock >= 0) {
+            setOpeningFgStock(stock);
+        } else {
+             // If input is invalid or empty, revert to the last valid number
+            setDisplayOpeningFgStock(String(openingFgStock));
         }
     };
 
@@ -115,22 +123,76 @@ function ProductionPlanPageContent() {
             return weekA - weekB;
         });
     }, [firstSnapshot]);
+
+    const handlePlan = () => {
+      setPlanError(null);
+      if (!firstSnapshot || weeklyOutput <= 0) {
+        toast({
+          variant: "destructive",
+          title: "Planning Failed",
+          description: "Cannot generate plan. Ensure production stats are valid.",
+        });
+        return;
+      }
+
+      let requiredOpeningInventory = 0;
+      let startWeekIndex = -1;
+
+      // Backward pass to find the start week
+      for (let i = snapshotForecastWeeks.length - 1; i >= 0; i--) {
+          const week = snapshotForecastWeeks[i];
+          const demand = firstSnapshot.forecasts[week]?.total.po + firstSnapshot.forecasts[week]?.total.fc || 0;
+          
+          const inventoryNeededForThisWeek = requiredOpeningInventory + demand;
+          requiredOpeningInventory = Math.max(0, inventoryNeededForThisWeek - weeklyOutput);
+
+          if (demand > 0 || requiredOpeningInventory > 0) {
+            startWeekIndex = i;
+          }
+      }
+
+      if (startWeekIndex === -1) { // No demand found
+        setProductionPlan({});
+        toast({ title: "Plan Generated", description: "No demand found, no production planned."});
+        return;
+      }
+
+      // Check if start week is feasible
+      const minRequiredOpeningInventory = requiredOpeningInventory;
+      if (minRequiredOpeningInventory > openingFgStock) {
+        setPlanError(`Cannot meet demand. Production needs to start before ${snapshotForecastWeeks[0]}. Try increasing the number of lines.`);
+        setProductionPlan({});
+        return;
+      }
+
+      const newPlan: Record<string, number> = {};
+      for (let i = 0; i < snapshotForecastWeeks.length; i++) {
+        const week = snapshotForecastWeeks[i];
+        if (i >= startWeekIndex) {
+          newPlan[week] = weeklyOutput;
+        } else {
+          newPlan[week] = 0;
+        }
+      }
+      
+      setProductionPlan(newPlan);
+      toast({ title: "Production Plan Generated", description: "The 'Plan' and 'Inv.' rows have been updated." });
+    };
     
     const inventoryData = useMemo(() => {
         const weeklyInventory: Record<string, number> = {};
         let previousInventory = openingFgStock;
 
         snapshotForecastWeeks.forEach(week => {
-            const weekData = firstSnapshot?.forecasts[week]?.total;
-            const poPlusFc = weekData ? weekData.po + weekData.fc : 0;
-            const plan = 0; // Placeholder for now
-            const closingInventory = previousInventory + plan - poPlusFc;
+            const demand = firstSnapshot?.forecasts[week]?.total.po + firstSnapshot?.forecasts[week]?.total.fc || 0;
+            const plan = productionPlan[week] || 0;
+            const closingInventory = previousInventory + plan - demand;
             weeklyInventory[week] = closingInventory;
             previousInventory = closingInventory;
         });
 
         return weeklyInventory;
-    }, [firstSnapshot, snapshotForecastWeeks, openingFgStock]);
+    }, [firstSnapshot, snapshotForecastWeeks, openingFgStock, productionPlan]);
 
 
     if (!isScheduleLoaded) {
@@ -229,47 +291,64 @@ function ProductionPlanPageContent() {
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between">
                                 <CardTitle>Tentative plan</CardTitle>
-                                <Button>Plan</Button>
+                                <Button onClick={handlePlan}>Plan</Button>
                             </CardHeader>
                             <CardContent>
-                                <Table>
-                                    <TableBody>
-                                        <TableRow>
-                                            <TableHead className={cn("font-semibold sticky left-0 bg-background")}>Week</TableHead>
-                                            {snapshotForecastWeeks.map(week => (
-                                                <TableCell key={week} className="text-right font-medium">{week}</TableCell>
-                                            ))}
-                                        </TableRow>
-                                        <TableRow>
-                                            <TableHead className={cn("font-semibold sticky left-0 bg-background")}>PO + FC</TableHead>
-                                            {snapshotForecastWeeks.map(week => {
-                                                const weekData = firstSnapshot.forecasts[week]?.total;
-                                                const totalValue = weekData ? weekData.po + weekData.fc : 0;
-                                                return (
-                                                    <TableCell key={week} className="text-right tabular-nums">
-                                                        {totalValue > 0 ? totalValue.toLocaleString() : '-'}
+                                {planError && (
+                                  <Alert variant="destructive" className="mb-4">
+                                    <XCircle className="h-4 w-4" />
+                                    <AlertTitle>Error</AlertTitle>
+                                    <AlertDescription>
+                                      {planError}
+                                    </AlertDescription>
+                                  </Alert>
+                                )}
+                                <div className="overflow-x-auto">
+                                    <Table className="min-w-full">
+                                        <TableBody>
+                                            <TableRow>
+                                                <TableHead className={cn("font-semibold sticky left-0 bg-background w-[100px]")}>Week</TableHead>
+                                                {snapshotForecastWeeks.map(week => (
+                                                    <TableCell key={week} className="text-right font-medium min-w-[80px]">{week}</TableCell>
+                                                ))}
+                                            </TableRow>
+                                            <TableRow>
+                                                <TableHead className={cn("font-semibold sticky left-0 bg-background w-[100px]")}>PO + FC</TableHead>
+                                                {snapshotForecastWeeks.map(week => {
+                                                    const weekData = firstSnapshot.forecasts[week]?.total;
+                                                    const totalValue = weekData ? weekData.po + weekData.fc : 0;
+                                                    return (
+                                                        <TableCell key={week} className="text-right tabular-nums min-w-[80px]">
+                                                            {totalValue > 0 ? totalValue.toLocaleString() : '-'}
+                                                        </TableCell>
+                                                    )
+                                                })}
+                                            </TableRow>
+                                            <TableRow>
+                                                <TableHead className={cn("font-semibold sticky left-0 bg-background w-[100px]")}>Plan</TableHead>
+                                                {snapshotForecastWeeks.map(week => (
+                                                    <TableCell key={`plan-${week}`} className="text-right tabular-nums min-w-[80px]">
+                                                        {productionPlan[week] ? Math.round(productionPlan[week]).toLocaleString() : '-'}
                                                     </TableCell>
-                                                )
-                                            })}
-                                        </TableRow>
-                                        <TableRow>
-                                            <TableHead className={cn("font-semibold sticky left-0 bg-background")}>Plan</TableHead>
-                                            {snapshotForecastWeeks.map(week => (
-                                                <TableCell key={`plan-${week}`} className="text-right tabular-nums">
-                                                    -
-                                                </TableCell>
-                                            ))}
-                                        </TableRow>
-                                         <TableRow>
-                                            <TableHead className={cn("font-semibold sticky left-0 bg-background")}>Inv.</TableHead>
-                                            {snapshotForecastWeeks.map(week => (
-                                                <TableCell key={`inv-${week}`} className="text-right tabular-nums">
-                                                    {inventoryData[week] ? Math.round(inventoryData[week]).toLocaleString() : '-'}
-                                                </TableCell>
-                                            ))}
-                                        </TableRow>
-                                    </TableBody>
-                                </Table>
+                                                ))}
+                                            </TableRow>
+                                             <TableRow>
+                                                <TableHead className={cn("font-semibold sticky left-0 bg-background w-[100px]")}>Inv.</TableHead>
+                                                {snapshotForecastWeeks.map(week => (
+                                                    <TableCell 
+                                                        key={`inv-${week}`} 
+                                                        className={cn(
+                                                            "text-right tabular-nums min-w-[80px]",
+                                                            inventoryData[week] < 0 && "text-destructive font-bold"
+                                                        )}
+                                                    >
+                                                        {inventoryData[week] ? Math.round(inventoryData[week]).toLocaleString() : '-'}
+                                                    </TableCell>
+                                                ))}
+                                            </TableRow>
+                                        </TableBody>
+                                    </Table>
+                                </div>
                             </CardContent>
                         </Card>
                      )}
@@ -286,3 +365,5 @@ export default function ProductionPlanPage() {
         </Suspense>
     );
 }
+
+    
