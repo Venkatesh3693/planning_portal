@@ -24,6 +24,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
+import type { FcSnapshot } from '@/lib/types';
 
 
 function ProductionPlanPageContent() {
@@ -39,7 +40,13 @@ function ProductionPlanPageContent() {
     } = useSchedule();
     const { toast } = useToast();
 
-    const [openingFgStock, setOpeningFgStock] = useState(0);
+    
+    const order = useMemo(() => {
+        if (!isScheduleLoaded || !orderId) return null;
+        return orders.find(o => o.id === orderId);
+    }, [orderId, orders, isScheduleLoaded]);
+
+    const [openingFgStock, setOpeningFgStock] = useState(order?.projection?.grn || 0);
     const [displayOpeningFgStock, setDisplayOpeningFgStock] = useState(String(openingFgStock));
     const [planError, setPlanError] = useState<string | null>(null);
 
@@ -48,10 +55,6 @@ function ProductionPlanPageContent() {
         return productionPlans[orderId] || {};
     }, [orderId, productionPlans]);
 
-    const order = useMemo(() => {
-        if (!isScheduleLoaded || !orderId) return null;
-        return orders.find(o => o.id === orderId);
-    }, [orderId, orders, isScheduleLoaded]);
 
     const numLines = useMemo(() => {
         if (!orderId) return 1;
@@ -65,8 +68,12 @@ function ProductionPlanPageContent() {
     }, [numLines]);
 
     useEffect(() => {
-        setDisplayOpeningFgStock(String(openingFgStock));
-    }, [openingFgStock]);
+        if (order) {
+            const initialStock = order.projection?.grn || 0;
+            setOpeningFgStock(initialStock);
+            setDisplayOpeningFgStock(String(initialStock));
+        }
+    }, [order]);
 
     const { totalSam, totalTailors } = useMemo(() => {
         if (!order) return { totalSam: 0, totalTailors: 0 };
@@ -121,7 +128,10 @@ function ProductionPlanPageContent() {
         if (!order || !order.fcVsFcDetails || order.fcVsFcDetails.length === 0) {
             return null;
         }
-        return order.fcVsFcDetails[0];
+        // Find the earliest snapshot available
+        return order.fcVsFcDetails.reduce((earliest, current) => 
+            current.snapshotWeek < earliest.snapshotWeek ? current : earliest
+        );
     }, [order]);
 
     const snapshotForecastWeeks = useMemo(() => {
@@ -134,7 +144,7 @@ function ProductionPlanPageContent() {
     }, [firstSnapshot]);
 
     const handlePlan = () => {
-        if (!orderId) return;
+        if (!orderId || !order) return;
         setPlanError(null);
         if (!firstSnapshot || weeklyOutput <= 0) {
           toast({
@@ -157,18 +167,20 @@ function ProductionPlanPageContent() {
             return;
         }
         
-        const lastDemandWeekIndex = demands.findLastIndex(d => d > 0);
+        const lastDemandWeekIndex = demands.map(d => d > 0).lastIndexOf(true);
+        const totalDemand = demands.reduce((sum, d) => sum + d, 0);
 
         // --- Trial Run ---
         const tempStartWeekIndex = firstDemandWeekIndex - 1;
         const trialPlan: number[] = Array(snapshotForecastWeeks.length).fill(0);
-        const totalDemand = demands.reduce((sum, d) => sum + d, 0);
         
-        let cumulativeProduction = 0;
-        for (let i = tempStartWeekIndex; i < lastDemandWeekIndex; i++) {
-            if (i >= 0 && (openingFgStock + cumulativeProduction) < totalDemand) {
+        let cumulativeTrialProduction = 0;
+        for (let i = tempStartWeekIndex; i < snapshotForecastWeeks.length; i++) {
+             if (i >= 0 && (openingFgStock + cumulativeTrialProduction) < totalDemand) {
                 trialPlan[i] = weeklyOutput;
-                cumulativeProduction += weeklyOutput;
+                cumulativeTrialProduction += weeklyOutput;
+            } else {
+                break; 
             }
         }
         
@@ -197,11 +209,13 @@ function ProductionPlanPageContent() {
         }
       
         const newPlanArray: number[] = Array(snapshotForecastWeeks.length).fill(0);
-        cumulativeProduction = 0;
-        for (let i = finalStartWeekIndex; i < lastDemandWeekIndex; i++) {
+        let cumulativeProduction = 0;
+        for (let i = finalStartWeekIndex; i < snapshotForecastWeeks.length; i++) {
             if (i >= 0 && (openingFgStock + cumulativeProduction) < totalDemand) {
                 newPlanArray[i] = weeklyOutput;
                 cumulativeProduction += weeklyOutput;
+            } else {
+                break; 
             }
         }
 
@@ -402,3 +416,5 @@ export default function ProductionPlanPage() {
         </Suspense>
     );
 }
+
+    
