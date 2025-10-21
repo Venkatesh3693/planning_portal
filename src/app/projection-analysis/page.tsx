@@ -148,52 +148,30 @@ function ProjectionAnalysisPageContent() {
         return orders.find(o => o.id === orderId);
     }, [orderId, orders, isScheduleLoaded]);
 
-    const dynamicProjection = useMemo((): (ProjectionDetail & { coverageStartWeek: number, coverageEndWeek: number }) | null => {
-        if (!order || !order.bom || !productionPlans[order.id]) {
-            return null;
+    const projectionDetails = useMemo((): (ProjectionDetail & { coverageStartWeek: number, coverageEndWeek: number })[] => {
+        if (!order || !order.bom || !order.poFcQty || !productionPlans[order.id]) {
+            return [];
         }
 
         const plan = productionPlans[order.id];
         const bom = order.bom;
+        const totalPoFcQty = order.poFcQty;
         const coverageWeeks = 6;
-
-        // Find the first week of production
-        const productionWeeks = Object.keys(plan)
-            .filter(week => plan[week] > 0)
-            .sort((a, b) => parseInt(a.replace('W', '')) - parseInt(b.replace('W', '')));
-
-        if (productionWeeks.length === 0) {
-            return null;
-        }
-
-        const firstProductionWeekNum = parseInt(productionWeeks[0].replace('W', ''));
+        const projectionCadenceWeeks = 4;
         const year = new Date().getFullYear(); 
-        const firstProductionDate = addWeeks(new Date(year, 0, 1), firstProductionWeekNum - 1);
 
-
+        const allProductionWeeks = Object.keys(plan)
+            .map(weekStr => ({ weekNum: parseInt(weekStr.replace('W', '')), quantity: plan[weekStr] || 0 }))
+            .sort((a, b) => a.weekNum - b.weekNum);
+        
+        if (allProductionWeeks.length === 0) return [];
+        
         // Find max lead time for projection components
         const maxLeadTimeDays = Math.max(0, ...bom
             .filter(item => item.forecastType === 'Projection')
             .map(item => item.leadTime)
         );
-
-        // Calculate projection date
-        const projectionDate = subDays(firstProductionDate, maxLeadTimeDays);
-
-        // Calculate projection quantity (sum of first N weeks)
-        const coveredProductionWeeks = productionWeeks.slice(0, coverageWeeks);
-        const projectionQuantity = coveredProductionWeeks.reduce((sum, week) => sum + (plan[week] || 0), 0);
-            
-        // Calculate receipt date (end of coverage window)
-        const lastCoveredWeekNum = coveredProductionWeeks.length > 0
-          ? parseInt(coveredProductionWeeks[coveredProductionWeeks.length - 1].replace('W', ''))
-          : firstProductionWeekNum;
-        const receiptDate = addWeeks(new Date(year, 0, 1), lastCoveredWeekNum - 1);
-        const ckDate = subDays(receiptDate, 7);
-
-        const coverageStartWeek = firstProductionWeekNum;
-        const coverageEndWeek = lastCoveredWeekNum;
-
+        const maxLeadTimeWeeks = Math.ceil(maxLeadTimeDays / 7);
 
         // Mock component status (can be improved later)
         const createComponentStatus = (items: BomItem[], totalQty: number): ComponentStatusDetail => ({
@@ -202,31 +180,72 @@ function ProjectionAnalysisPageContent() {
         });
 
         const projComponents = bom.filter(b => b.forecastType === 'Projection');
-        const projStatus = createComponentStatus(projComponents, projectionQuantity);
+        
+        const generatedProjections: (ProjectionDetail & { coverageStartWeek: number, coverageEndWeek: number })[] = [];
+        let cumulativeProjectedQty = 0;
+        let projectionIndex = 0;
+        let lastProjectionWeek = 0;
 
+        while (cumulativeProjectedQty < totalPoFcQty) {
+            let currentProjectionWeek: number;
+            
+            if (projectionIndex === 0) {
+                const firstProdWeekEntry = allProductionWeeks.find(p => p.quantity > 0);
+                if (!firstProdWeekEntry) break; // No production planned
+                currentProjectionWeek = firstProdWeekEntry.weekNum - maxLeadTimeWeeks;
+            } else {
+                currentProjectionWeek = lastProjectionWeek + projectionCadenceWeeks;
+            }
 
-        return {
-            projectionNumber: 'PROJ-DYN-01',
-            projectionDate: projectionDate,
-            receiptDate: receiptDate,
-            frcQty: 0, // Not calculated for now
-            total: {
-              quantities: { total: Math.round(projectionQuantity) } as SizeBreakdown,
-              componentCount: projComponents.length,
-            },
-            grn: createComponentStatus([], 0),
-            openPo: createComponentStatus([], 0),
-            noPo: projStatus,
-            totalComponents: projComponents.length,
-            frcDetails: [],
-            coverageStartWeek,
-            coverageEndWeek,
-        };
+            if (currentProjectionWeek <= 0) currentProjectionWeek = 1; // Basic safety for very long lead times
+
+            const productionStartWeekForThisProj = currentProjectionWeek + maxLeadTimeWeeks;
+            
+            const relevantProductionEntries = allProductionWeeks.filter(p => p.weekNum >= productionStartWeekForThisProj && p.quantity > 0);
+            
+            const productionWindow = relevantProductionEntries.slice(0, coverageWeeks);
+            
+            if (productionWindow.length === 0) break; // No more production to cover
+
+            const projectionQuantity = productionWindow.reduce((sum, week) => sum + week.quantity, 0);
+
+            if (projectionQuantity <= 0) break;
+
+            const coverageStartWeek = productionWindow[0].weekNum;
+            const coverageEndWeek = productionWindow[productionWindow.length - 1].weekNum;
+            const projectionDate = addWeeks(new Date(year, 0, 1), currentProjectionWeek - 1);
+            const receiptDate = addWeeks(new Date(year, 0, 1), coverageEndWeek - 1);
+            const ckDate = subDays(receiptDate, 7);
+
+            const projStatus = createComponentStatus(projComponents, Math.round(projectionQuantity));
+
+            generatedProjections.push({
+                projectionNumber: `PROJ-DYN-${String(projectionIndex + 1).padStart(2, '0')}`,
+                projectionDate: projectionDate,
+                receiptDate: receiptDate,
+                frcQty: 0,
+                total: {
+                  quantities: { total: Math.round(projectionQuantity) } as SizeBreakdown,
+                  componentCount: projComponents.length,
+                },
+                grn: createComponentStatus([], 0),
+                openPo: createComponentStatus([], 0),
+                noPo: projStatus,
+                totalComponents: projComponents.length,
+                frcDetails: [],
+                coverageStartWeek,
+                coverageEndWeek,
+            });
+
+            cumulativeProjectedQty += projectionQuantity;
+            lastProjectionWeek = currentProjectionWeek;
+            projectionIndex++;
+
+            if(projectionIndex > 50) break; // Safety break
+        }
+
+        return generatedProjections;
     }, [order, productionPlans]);
-    
-    const projectionDetails = useMemo(() => {
-       return dynamicProjection ? [dynamicProjection] : [];
-    }, [dynamicProjection]);
 
 
     const handleProjectionClick = (projection: ProjectionDetail) => {
