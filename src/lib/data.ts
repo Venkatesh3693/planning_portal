@@ -148,35 +148,25 @@ const generateFcSnapshots = (
 ): FcSnapshot[] => {
     const snapshots: FcSnapshot[] = [];
     
-    let seasonStartWeek: number, seasonEndWeek: number;
     let valueStartWeek: number, valueEndWeek: number;
     let snapshotStartWeek: number;
+    const seasonWeeks: number[] = [];
 
     if (season === 'AW') {
         snapshotStartWeek = 14;
-        seasonStartWeek = 14;
-        seasonEndWeek = 52;
         valueStartWeek = 27;
         valueEndWeek = 52;
+        for (let w = 14; w <= 52; w++) seasonWeeks.push(w);
     } else { // SS
         snapshotStartWeek = 40;
-        seasonStartWeek = 40; // Spanning previous year
-        seasonEndWeek = 26; // Into current year
         valueStartWeek = 1;
         valueEndWeek = 26;
+        for (let w = 40; w <= 52; w++) seasonWeeks.push(w);
+        for (let w = 1; w <= 26; w++) seasonWeeks.push(w);
     }
 
     let weeklyForecasts: Record<string, number> = {};
-    const relevantWeeks: number[] = [];
-
-    if (season === 'AW') {
-        for (let w = seasonStartWeek; w <= seasonEndWeek; w++) relevantWeeks.push(w);
-    } else {
-        for (let w = seasonStartWeek; w <= 52; w++) relevantWeeks.push(w);
-        for (let w = 1; w <= seasonEndWeek; w++) relevantWeeks.push(w);
-    }
-
-    relevantWeeks.forEach(w => {
+    seasonWeeks.forEach(w => {
         const isValueWeek = season === 'AW'
             ? (w >= valueStartWeek && w <= valueEndWeek)
             : (w >= valueStartWeek && w <= valueEndWeek);
@@ -187,11 +177,17 @@ const generateFcSnapshots = (
     const lockedPoValues: Record<string, Record<Size | 'total', FcComposition>> = {};
     const snapshotWeeksToGenerate: number[] = [];
     
-    if(currentWeek >= snapshotStartWeek) {
-        for(let s = snapshotStartWeek; s <= currentWeek; s++) snapshotWeeksToGenerate.push(s);
-    } else if (season === 'SS') { // Handle case where current week is early in the year for SS season
-        for(let s = snapshotStartWeek; s <= 52; s++) snapshotWeeksToGenerate.push(s);
-        for(let s = 1; s <= currentWeek; s++) snapshotWeeksToGenerate.push(s);
+    if (season === 'AW') {
+        if(currentWeek >= snapshotStartWeek) {
+            for(let s = snapshotStartWeek; s <= currentWeek; s++) snapshotWeeksToGenerate.push(s);
+        }
+    } else { // SS
+         if (currentWeek >= snapshotStartWeek) { // e.g. current week 42, snapshot start 40
+            for(let s = snapshotStartWeek; s <= currentWeek; s++) snapshotWeeksToGenerate.push(s);
+        } else if (currentWeek < valueEndWeek) { // e.g. current week 5, snapshot start 40
+            for(let s = snapshotStartWeek; s <= 52; s++) snapshotWeeksToGenerate.push(s);
+            for(let s = 1; s <= currentWeek; s++) snapshotWeeksToGenerate.push(s);
+        }
     }
 
 
@@ -200,7 +196,7 @@ const generateFcSnapshots = (
         const snapshot: FcSnapshot = { snapshotWeek, forecasts: {} };
 
         // Apply volatility to future forecasts
-        relevantWeeks.forEach(w => {
+        seasonWeeks.forEach(w => {
              const weekKey = `W${w}`;
             if (!lockedPoValues[weekKey]) {
                 const isValueWeek = season === 'AW'
@@ -214,7 +210,7 @@ const generateFcSnapshots = (
             }
         });
 
-        relevantWeeks.forEach(d => {
+        seasonWeeks.forEach(d => {
             const demandWeek = d;
             const weekKey = `W${demandWeek}`;
             
@@ -230,13 +226,10 @@ const generateFcSnapshots = (
             if (season === 'AW') {
                 isFirmPo = demandWeek <= snapshotWeek + FIRM_PO_WINDOW;
             } else { // SS
-                // Handle year wrap-around for firm PO logic
                 if (snapshotWeek >= 40) { // Snapshot is in previous year
-                    isFirmPo = demandWeek >= 40 && demandWeek <= snapshotWeek + FIRM_PO_WINDOW;
+                    isFirmPo = (demandWeek >= 40 && demandWeek <= snapshotWeek + FIRM_PO_WINDOW) || (demandWeek <= (snapshotWeek + FIRM_PO_WINDOW) % 52);
                 } else { // Snapshot is in current year
-                    const wrappedSnapshotWeek = snapshotWeek + 52;
-                    isFirmPo = (demandWeek >= 1 && demandWeek <= snapshotWeek + FIRM_PO_WINDOW) || 
-                               (demandWeek >= 40 && demandWeek + 52 <= wrappedSnapshotWeek + FIRM_PO_WINDOW);
+                    isFirmPo = demandWeek <= snapshotWeek + FIRM_PO_WINDOW;
                 }
             }
 
@@ -579,14 +572,14 @@ export const SEWING_OPERATIONS_BY_STYLE: Record<string, SewingOperation[]> = {
       { operation: 'Sleeve & Bottom Hemming', machine: 'Flat Lock Machine', operators: 1, sam: 3.0, grade: 'B' },
     ],
     'Padded Jacket': [
-      { operation: 'Shell & Lining Cutting', machine: 'Cutting Machine Alpha', operators: 1, sam: 5.0, grade: 'B' },
-      { operation: 'Padding Cutting & Quilting', machine: 'Chain Stitch Machine', operators: 1, sam: 8.0, grade: 'A' },
-      { operation: 'Front Pocket Setting', machine: 'Single Needle Lock Stitch', operators: 1, sam: 4.5, grade: 'B' },
-      { operation: 'Front Zipper Attachment', machine: 'Single Needle Lock Stitch', operators: 1, sam: 5.0, grade: 'A' },
-      { operation: 'Sleeve Assembly', machine: 'Over Lock Machine', operators: 1, sam: 6.0, grade: 'C' },
-      { operation: 'Sleeve Attachment to Body', machine: 'Over Lock Machine', operators: 1, sam: 5.5, grade: 'B' },
-      { operation: 'Joining Shell and Lining', machine: 'Single Needle Lock Stitch', operators: 1, sam: 7.0, grade: 'A' },
-      { operation: 'Cuff & Hem Finishing', machine: 'Flat Lock Machine', operators: 1, sam: 4.0, grade: 'C' },
+      { operation: 'Shell & Lining Cutting', machine: 'Cutting Machine Alpha', operators: 2, sam: 5.0, grade: 'B' },
+      { operation: 'Padding Cutting & Quilting', machine: 'Chain Stitch Machine', operators: 4, sam: 8.0, grade: 'A' },
+      { operation: 'Front Pocket Setting', machine: 'Single Needle Lock Stitch', operators: 3, sam: 4.5, grade: 'B' },
+      { operation: 'Front Zipper Attachment', machine: 'Single Needle Lock Stitch', operators: 3, sam: 5.0, grade: 'A' },
+      { operation: 'Sleeve Assembly', machine: 'Over Lock Machine', operators: 4, sam: 6.0, grade: 'C' },
+      { operation: 'Sleeve Attachment to Body', machine: 'Over Lock Machine', operators: 4, sam: 5.5, grade: 'B' },
+      { operation: 'Joining Shell and Lining', machine: 'Single Needle Lock Stitch', operators: 3, sam: 7.0, grade: 'A' },
+      { operation: 'Cuff & Hem Finishing', machine: 'Flat Lock Machine', operators: 2, sam: 4.0, grade: 'C' },
     ],
   };
 
