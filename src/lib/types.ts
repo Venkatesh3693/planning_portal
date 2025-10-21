@@ -103,9 +103,8 @@ export type ProjectionDetail = {
   receiptDate: Date;
   total: StatusDetail;
   grn: StatusDetail;
-  poReleased: StatusDetail;
-  notReleasedLate: StatusDetail;
-  notReleasedEarly: StatusDetail;
+  openPo: StatusDetail;
+  noPo: StatusDetail;
   totalComponents: number;
 };
 

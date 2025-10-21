@@ -1,6 +1,6 @@
 
 
-import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail, FcSnapshot, FcComposition, ProjectionDetail, BomItem, StatusDetail } from '@/lib/types';
+import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail, FcSnapshot, FcComposition, ProjectionDetail, BomItem, StatusDetail, SizeBreakdown } from '@/lib/types';
 import { Scissors, Printer, Fingerprint, ExternalLink, MoveHorizontal, PackageCheck } from 'lucide-react';
 import { addDays, subDays, startOfToday, getWeek } from 'date-fns';
 
@@ -213,23 +213,24 @@ const dmiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots(CURRENT_WEEK - 5, CUR
 const dsiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots(CURRENT_WEEK - 5, CURRENT_WEEK, 50000, 2500);
 
 const createProjectionDetails = (bom: BomItem[]): ProjectionDetail[] => {
+  const projectionComponents = bom.filter(item => item.forecastType === 'Projection');
+  const totalComponents = projectionComponents.length;
+  if (totalComponents === 0) return [];
+
   const details: ProjectionDetail[] = [];
-  const totalComponents = bom.length;
 
   for (let i = 1; i <= 4; i++) {
     const totalQty = 40000 + i * 2000;
     
-    // Simulate component counts
-    const grnCount = Math.floor(totalComponents * (0.15 + i * 0.05)); // 20% -> 35%
-    const poReleasedCount = Math.floor(totalComponents * (0.30 + i * 0.05)); // 35% -> 50%
-    const lateCount = Math.max(0, Math.floor(totalComponents * 0.1) - i); // 10% -> 0%
-    const earlyCount = totalComponents - grnCount - poReleasedCount - lateCount;
+    // Simulate component counts transitioning over time
+    const grnCount = Math.floor(totalComponents * (0.15 + (i-1) * 0.1)); // 15% -> 45%
+    const openPoCount = Math.floor(totalComponents * (0.30 + (i-1) * 0.05)); // 30% -> 45%
+    const noPoCount = totalComponents - grnCount - openPoCount;
     
     // Simulate quantity distribution based on component counts
     const grnQty = Math.floor(totalQty * (grnCount / totalComponents));
-    const poReleasedQty = Math.floor(totalQty * (poReleasedCount / totalComponents));
-    const lateQty = Math.floor(totalQty * (lateCount / totalComponents));
-    const earlyQty = totalQty - grnQty - poReleasedQty - lateQty;
+    const openPoQty = Math.floor(totalQty * (openPoCount / totalComponents));
+    const noPoQty = totalQty - grnQty - openPoQty;
 
     const createStatusDetail = (qty: number, count: number): StatusDetail => {
         const quantities: Partial<SizeBreakdown> = { total: qty };
@@ -251,9 +252,8 @@ const createProjectionDetails = (bom: BomItem[]): ProjectionDetail[] => {
       projectionDate: subDays(today, (4 - i) * 15),
       receiptDate: addDays(today, i * 15),
       grn: createStatusDetail(grnQty, grnCount),
-      poReleased: createStatusDetail(poReleasedQty, poReleasedCount),
-      notReleasedLate: createStatusDetail(lateQty, lateCount),
-      notReleasedEarly: createStatusDetail(earlyQty, earlyCount),
+      openPo: createStatusDetail(openPoQty, openPoCount),
+      noPo: createStatusDetail(noPoQty, noPoCount),
       total: createStatusDetail(totalQty, totalComponents),
       totalComponents: totalComponents,
     });
