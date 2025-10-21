@@ -83,13 +83,13 @@ const QuantityBreakdownBar = ({ breakdown }: { breakdown: ComponentBreakdown }) 
   );
 };
 
-const FrcDetailsTable = ({ frcDetails }: { frcDetails: FrcDetail[] }) => {
+const FrcDetailsTable = ({ frcDetails, projectionNumber }: { frcDetails: FrcDetail[], projectionNumber: string }) => {
   if (!frcDetails || frcDetails.length === 0) return null;
 
   return (
     <Card className="mt-6">
       <CardHeader>
-        <CardTitle>FRC Details</CardTitle>
+        <CardTitle>FRC Details for {projectionNumber}</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         <Table>
@@ -115,7 +115,7 @@ const FrcDetailsTable = ({ frcDetails }: { frcDetails: FrcDetail[] }) => {
 
               return (
                 <TableRow key={frc.frcNumber}>
-                  <TableCell className="font-medium">{frc.frcNumber}</TableCell>
+                  <TableCell className="font-medium">{frc.frcNumber.replace(`${projectionNumber}-`, '')}</TableCell>
                   <TableCell>{format(frcDate, 'dd/MM/yy')}</TableCell>
                   <TableCell>W{getWeek(frcDate)}</TableCell>
                   <TableCell>W{getWeek(frcDate)} - W{getWeek(receiptDate)}</TableCell>
@@ -261,7 +261,7 @@ function ProjectionAnalysisPageContent() {
                     </CardContent>
                 </Card>
                 
-                {selectedProjection && <FrcDetailsTable frcDetails={selectedProjection.frcDetails || []} />}
+                {selectedProjection && <FrcDetailsTable frcDetails={selectedProjection.frcDetails || []} projectionNumber={selectedProjection.projectionNumber} />}
             </main>
         </div>
     );
