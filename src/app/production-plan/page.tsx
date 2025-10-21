@@ -88,7 +88,6 @@ function ProductionPlanPageContent() {
             if (!isNaN(lines) && lines > 0) {
                 setSewingLines(orderId, lines);
             } else {
-                // If input is invalid or empty, revert to the last valid number
                 setDisplayNumLines(String(numLines));
             }
         }
@@ -103,7 +102,6 @@ function ProductionPlanPageContent() {
         if (!isNaN(stock) && stock >= 0) {
             setOpeningFgStock(stock);
         } else {
-             // If input is invalid or empty, revert to the last valid number
             setDisplayOpeningFgStock(String(openingFgStock));
         }
     };
@@ -135,7 +133,6 @@ function ProductionPlanPageContent() {
           return;
         }
       
-        // Step 1: Find the first week with demand.
         const firstDemandWeekIndex = snapshotForecastWeeks.findIndex(week => {
           const demand = firstSnapshot.forecasts[week]?.total.po + firstSnapshot.forecasts[week]?.total.fc || 0;
           return demand > 0;
@@ -146,8 +143,12 @@ function ProductionPlanPageContent() {
           toast({ title: 'Plan Generated', description: 'No demand found, no production planned.' });
           return;
         }
+
+        const lastDemandWeekIndex = snapshotForecastWeeks.findLastIndex(week => {
+            const demand = firstSnapshot.forecasts[week]?.total.po + firstSnapshot.forecasts[week]?.total.fc || 0;
+            return demand > 0;
+        });
       
-        // Step 2: Calculate a "trial run" inventory assuming production starts at the first demand week.
         const trialInventories: number[] = [];
         let currentInventory = openingFgStock;
         let minInventory = openingFgStock;
@@ -155,7 +156,9 @@ function ProductionPlanPageContent() {
         for (let i = 0; i < snapshotForecastWeeks.length; i++) {
           const week = snapshotForecastWeeks[i];
           const demand = firstSnapshot.forecasts[week]?.total.po + firstSnapshot.forecasts[week]?.total.fc || 0;
-          const plan = i >= firstDemandWeekIndex ? weeklyOutput : 0;
+          const isProdWeek = i >= firstDemandWeekIndex && i < lastDemandWeekIndex;
+          const plan = isProdWeek ? weeklyOutput : 0;
+          
           currentInventory = currentInventory + plan - demand;
           trialInventories.push(currentInventory);
           if (currentInventory < minInventory) {
@@ -163,24 +166,22 @@ function ProductionPlanPageContent() {
           }
         }
       
-        // Step 4 & 5: Check if the plan is valid and calculate offset if needed.
         let finalStartWeekIndex = firstDemandWeekIndex;
         if (minInventory < 0) {
           const offset = 1 + Math.ceil(Math.abs(minInventory) / weeklyOutput);
           finalStartWeekIndex = firstDemandWeekIndex - offset;
         }
       
-        // Error handling for impossible plan
         if (finalStartWeekIndex < 0) {
           setPlanError(`Cannot meet demand. Production needs to start ${Math.abs(finalStartWeekIndex)} week(s) before ${snapshotForecastWeeks[0]}. Try increasing the number of lines.`);
           setProductionPlan({});
           return;
         }
       
-        // Generate the final plan
         const newPlan: Record<string, number> = {};
         snapshotForecastWeeks.forEach((week, i) => {
-          newPlan[week] = i >= finalStartWeekIndex ? weeklyOutput : 0;
+          const isProdWeek = i >= finalStartWeekIndex && i < lastDemandWeekIndex;
+          newPlan[week] = isProdWeek ? weeklyOutput : 0;
         });
       
         setProductionPlan(newPlan);
@@ -373,5 +374,7 @@ export default function ProductionPlanPage() {
         </Suspense>
     );
 }
+
+    
 
     
