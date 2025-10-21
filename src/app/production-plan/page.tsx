@@ -149,27 +149,32 @@ function ProductionPlanPageContent() {
             return demand > 0;
         });
       
+        // --- Trial Run ---
+        const trialStartWeekIndex = firstDemandWeekIndex - 1;
+        const trialPlan: Record<string, number> = {};
+        snapshotForecastWeeks.forEach((week, i) => {
+            trialPlan[week] = (i >= trialStartWeekIndex && i < lastDemandWeekIndex) ? weeklyOutput : 0;
+        });
+
         const trialInventories: number[] = [];
         let currentInventory = openingFgStock;
-        let minInventory = openingFgStock;
       
         for (let i = 0; i < snapshotForecastWeeks.length; i++) {
-          const week = snapshotForecastWeeks[i];
-          const demand = firstSnapshot.forecasts[week]?.total.po + firstSnapshot.forecasts[week]?.total.fc || 0;
-          const isProdWeek = i >= firstDemandWeekIndex && i < lastDemandWeekIndex;
-          const plan = isProdWeek ? weeklyOutput : 0;
-          
-          currentInventory = currentInventory + plan - demand;
-          trialInventories.push(currentInventory);
-          if (currentInventory < minInventory) {
-            minInventory = currentInventory;
-          }
+            const week = snapshotForecastWeeks[i];
+            const demand = firstSnapshot.forecasts[week]?.total.po + firstSnapshot.forecasts[week]?.total.fc || 0;
+            const production = i > 0 ? trialPlan[snapshotForecastWeeks[i-1]] : 0;
+
+            currentInventory = currentInventory + production - demand;
+            trialInventories.push(currentInventory);
         }
-      
-        let finalStartWeekIndex = firstDemandWeekIndex;
+
+        const minInventory = Math.min(...trialInventories);
+        
+        let finalStartWeekIndex = trialStartWeekIndex;
+
         if (minInventory < 0) {
-          const offset = 1 + Math.ceil(Math.abs(minInventory) / weeklyOutput);
-          finalStartWeekIndex = firstDemandWeekIndex - offset;
+            const offset = 1 + Math.ceil(Math.abs(minInventory) / weeklyOutput);
+            finalStartWeekIndex = trialStartWeekIndex - offset;
         }
       
         if (finalStartWeekIndex < 0) {
@@ -192,13 +197,14 @@ function ProductionPlanPageContent() {
         const weeklyInventory: Record<string, number> = {};
         let previousInventory = openingFgStock;
 
-        snapshotForecastWeeks.forEach(week => {
+        for (let i = 0; i < snapshotForecastWeeks.length; i++) {
+            const week = snapshotForecastWeeks[i];
             const demand = firstSnapshot?.forecasts[week]?.total.po + firstSnapshot?.forecasts[week]?.total.fc || 0;
-            const plan = productionPlan[week] || 0;
-            const closingInventory = previousInventory + plan - demand;
+            const production = i > 0 ? (productionPlan[snapshotForecastWeeks[i-1]] || 0) : 0;
+            const closingInventory = previousInventory + production - demand;
             weeklyInventory[week] = closingInventory;
             previousInventory = closingInventory;
-        });
+        }
 
         return weeklyInventory;
     }, [firstSnapshot, snapshotForecastWeeks, openingFgStock, productionPlan]);
