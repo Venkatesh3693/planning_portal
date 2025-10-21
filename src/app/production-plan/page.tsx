@@ -182,13 +182,13 @@ function ProductionPlanPageContent() {
                                 <Table>
                                     <TableBody>
                                         <TableRow>
-                                            <TableHead className="font-semibold">Week</TableHead>
+                                            <TableHead className="font-semibold sticky left-0 bg-background">Week</TableHead>
                                             {snapshotForecastWeeks.map(week => (
                                                 <TableCell key={week} className="text-right font-medium">{week}</TableCell>
                                             ))}
                                         </TableRow>
                                         <TableRow>
-                                            <TableHead className="font-semibold">PO + FC</TableHead>
+                                            <TableHead className="font-semibold sticky left-0 bg-background">PO + FC</TableHead>
                                             {snapshotForecastWeeks.map(week => {
                                                 const weekData = firstSnapshot.forecasts[week]?.total;
                                                 const totalValue = weekData ? weekData.po + weekData.fc : 0;
