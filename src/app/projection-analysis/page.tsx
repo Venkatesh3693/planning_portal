@@ -24,11 +24,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { format, getWeek, subDays } from 'date-fns';
+import { format, getWeek, subDays, addWeeks } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import type { ProjectionDetail, FrcDetail, ComponentStatusDetail } from '@/lib/types';
+import type { ProjectionDetail, FrcDetail, ComponentStatusDetail, BomItem, SizeBreakdown } from '@/lib/types';
 import { SIZES } from '@/lib/data';
 import { cn } from '@/lib/utils';
 
@@ -138,7 +138,7 @@ const FrcDetailsTable = ({ frcDetails, projectionNumber }: { frcDetails: FrcDeta
 function ProjectionAnalysisPageContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get('orderId');
-    const { orders, isScheduleLoaded } = useSchedule();
+    const { orders, isScheduleLoaded, productionPlans } = useSchedule();
     const [selectedProjection, setSelectedProjection] = useState<ProjectionDetail | null>(null);
 
     const order = useMemo(() => {
@@ -146,10 +146,77 @@ function ProjectionAnalysisPageContent() {
         return orders.find(o => o.id === orderId);
     }, [orderId, orders, isScheduleLoaded]);
 
-    const projectionComponentsCount = useMemo(() => {
-        if (!order || !order.bom) return 0;
-        return order.bom.filter(item => item.forecastType === 'Projection').length;
-    }, [order]);
+    const dynamicProjection = useMemo((): ProjectionDetail | null => {
+        if (!order || !order.bom || !productionPlans[order.id]) {
+            return null;
+        }
+
+        const plan = productionPlans[order.id];
+        const bom = order.bom;
+
+        // Find the first week of production
+        const productionWeeks = Object.keys(plan)
+            .filter(week => plan[week] > 0)
+            .sort((a, b) => parseInt(a.replace('W', '')) - parseInt(b.replace('W', '')));
+
+        if (productionWeeks.length === 0) {
+            return null;
+        }
+
+        const firstProductionWeekNum = parseInt(productionWeeks[0].replace('W', ''));
+        const year = new Date().getFullYear(); 
+        const firstProductionDate = addWeeks(new Date(year, 0, 1), firstProductionWeekNum - 1);
+
+
+        // Find max lead time for projection components
+        const maxLeadTimeDays = Math.max(0, ...bom
+            .filter(item => item.forecastType === 'Projection')
+            .map(item => item.leadTime)
+        );
+
+        // Calculate projection date
+        const projectionDate = subDays(firstProductionDate, maxLeadTimeDays);
+
+        // Calculate projection quantity (sum of first 4 weeks)
+        const projectionQuantity = productionWeeks
+            .slice(0, 4)
+            .reduce((sum, week) => sum + (plan[week] || 0), 0);
+            
+        // Calculate receipt date (end of 4-week production window)
+        const receiptDate = addWeeks(firstProductionDate, 3);
+        const ckDate = subDays(receiptDate, 7);
+
+        // Mock component status (can be improved later)
+        const createComponentStatus = (items: BomItem[], totalQty: number): ComponentStatusDetail => ({
+            quantities: { total: totalQty } as SizeBreakdown,
+            componentCount: items.length,
+        });
+
+        const projComponents = bom.filter(b => b.forecastType === 'Projection');
+        const projStatus = createComponentStatus(projComponents, projectionQuantity);
+
+
+        return {
+            projectionNumber: 'PROJ-DYN-01',
+            projectionDate: projectionDate,
+            receiptDate: receiptDate,
+            frcQty: 0, // Not calculated for now
+            total: {
+              quantities: { total: Math.round(projectionQuantity) } as SizeBreakdown,
+              componentCount: projComponents.length,
+            },
+            grn: createComponentStatus([], 0),
+            openPo: createComponentStatus([], 0),
+            noPo: projStatus,
+            totalComponents: projComponents.length,
+            frcDetails: [],
+        };
+    }, [order, productionPlans]);
+    
+    const projectionDetails = useMemo(() => {
+       return dynamicProjection ? [dynamicProjection] : [];
+    }, [dynamicProjection]);
+
 
     const handleProjectionClick = (projection: ProjectionDetail) => {
       setSelectedProjection(prev => prev?.projectionNumber === projection.projectionNumber ? null : projection);
@@ -220,7 +287,7 @@ function ProjectionAnalysisPageContent() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {(order.projectionDetails || []).map((proj) => {
+                            {projectionDetails.map((proj) => {
                                 const projDate = new Date(proj.projectionDate);
                                 const receiptDate = new Date(proj.receiptDate);
                                 const ckDate = subDays(receiptDate, 7);
@@ -253,10 +320,10 @@ function ProjectionAnalysisPageContent() {
                                     </TableRow>
                                 )
                             })}
-                                {(!order.projectionDetails || order.projectionDetails.length === 0) && (
+                                {(!projectionDetails || projectionDetails.length === 0) && (
                                 <TableRow>
                                     <TableCell colSpan={10} className="h-24 text-center">
-                                        No projection details available for this order.
+                                        No production plan found for this order. Please generate a plan on the Production Plan page first.
                                     </TableCell>
                                 </TableRow>
                             )}
@@ -278,5 +345,3 @@ export default function ProjectionAnalysisPage() {
         </Suspense>
     );
 }
-
-    
