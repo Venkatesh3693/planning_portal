@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Suspense, useMemo } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useSchedule } from '@/context/schedule-provider';
 import { Header } from '@/components/layout/header';
@@ -56,11 +56,23 @@ function ProductionPlanPageContent() {
         return (((totalTailors * numLines) * WORK_DAY_MINUTES) / totalSam) * efficiency;
     }, [order, totalSam, totalTailors, numLines]);
 
-    const handleNumLinesChange = (lines: number) => {
+    const handleNumLinesChange = (value: string) => {
         if (orderId) {
-            setSewingLines(orderId, lines);
+            const lines = parseInt(value, 10);
+            if (!isNaN(lines) && lines > 0) {
+                setSewingLines(orderId, lines);
+            } else if (value === '') {
+                // Allow clearing the input, maybe default to 1 if blurred while empty
+                setSewingLines(orderId, 0); 
+            }
         }
     };
+    
+    const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+        if (e.target.value === '' && orderId) {
+            setSewingLines(orderId, 1);
+        }
+    }
 
     if (!isScheduleLoaded) {
         return <div className="flex items-center justify-center h-full">Loading data...</div>;
@@ -134,8 +146,9 @@ function ProductionPlanPageContent() {
                                             id="num-lines-input"
                                             type="number"
                                             min="1"
-                                            value={numLines}
-                                            onChange={(e) => handleNumLinesChange(parseInt(e.target.value, 10) || 1)}
+                                            value={numLines === 0 ? '' : numLines}
+                                            onChange={(e) => handleNumLinesChange(e.target.value)}
+                                            onBlur={handleBlur}
                                             className="w-full h-8 text-2xl font-bold bg-transparent border-0 shadow-none focus-visible:ring-0 p-0"
                                         />
                                     </div>
