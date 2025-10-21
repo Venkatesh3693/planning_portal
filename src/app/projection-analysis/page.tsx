@@ -24,7 +24,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { format, getWeek, subDays, addWeeks } from 'date-fns';
+import { format, getWeek, subDays, addWeeks, addDays } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -166,14 +166,12 @@ function ProjectionAnalysisPageContent() {
         
         if (allProductionWeeks.length === 0) return [];
         
-        // Find max lead time for projection components
         const maxLeadTimeDays = Math.max(0, ...bom
             .filter(item => item.forecastType === 'Projection')
             .map(item => item.leadTime)
         );
         const maxLeadTimeWeeks = Math.ceil(maxLeadTimeDays / 7);
 
-        // Mock component status (can be improved later)
         const createComponentStatus = (items: BomItem[], totalQty: number): ComponentStatusDetail => ({
             quantities: { total: totalQty } as SizeBreakdown,
             componentCount: items.length,
@@ -185,19 +183,20 @@ function ProjectionAnalysisPageContent() {
         let cumulativeProjectedQty = 0;
         let projectionIndex = 0;
         let lastProjectionWeek = 0;
+        let lastCoveredProductionWeek = 0;
 
         while (cumulativeProjectedQty < totalPoFcQty) {
             let currentProjectionWeek: number;
             
             if (projectionIndex === 0) {
                 const firstProdWeekEntry = allProductionWeeks.find(p => p.quantity > 0);
-                if (!firstProdWeekEntry) break; // No production planned
+                if (!firstProdWeekEntry) break;
                 currentProjectionWeek = firstProdWeekEntry.weekNum - maxLeadTimeWeeks;
             } else {
                 currentProjectionWeek = lastProjectionWeek + projectionCadenceWeeks;
             }
 
-            if (currentProjectionWeek <= 0) currentProjectionWeek = 1; // Basic safety for very long lead times
+            if (currentProjectionWeek <= 0) currentProjectionWeek = 1;
 
             const productionStartWeekForThisProj = currentProjectionWeek + maxLeadTimeWeeks;
             
@@ -205,7 +204,7 @@ function ProjectionAnalysisPageContent() {
             
             const productionWindow = relevantProductionEntries.slice(0, coverageWeeks);
             
-            if (productionWindow.length === 0) break; // No more production to cover
+            if (productionWindow.length === 0) break;
 
             const projectionQuantity = productionWindow.reduce((sum, week) => sum + week.quantity, 0);
 
@@ -214,15 +213,15 @@ function ProjectionAnalysisPageContent() {
             const coverageStartWeek = productionWindow[0].weekNum;
             const coverageEndWeek = productionWindow[productionWindow.length - 1].weekNum;
             const projectionDate = addWeeks(new Date(year, 0, 1), currentProjectionWeek - 1);
-            const receiptDate = addWeeks(new Date(year, 0, 1), coverageEndWeek - 1);
-            const ckDate = subDays(receiptDate, 7);
+            
+            const ckDate = addDays(projectionDate, maxLeadTimeDays);
 
             const projStatus = createComponentStatus(projComponents, Math.round(projectionQuantity));
 
             generatedProjections.push({
                 projectionNumber: `PROJ-DYN-${String(projectionIndex + 1).padStart(2, '0')}`,
                 projectionDate: projectionDate,
-                receiptDate: receiptDate,
+                receiptDate: ckDate, // Using ckDate as receipt date for consistency
                 frcQty: 0,
                 total: {
                   quantities: { total: Math.round(projectionQuantity) } as SizeBreakdown,
@@ -239,9 +238,10 @@ function ProjectionAnalysisPageContent() {
 
             cumulativeProjectedQty += projectionQuantity;
             lastProjectionWeek = currentProjectionWeek;
+            lastCoveredProductionWeek = coverageEndWeek;
             projectionIndex++;
 
-            if(projectionIndex > 50) break; // Safety break
+            if(projectionIndex > 50) break;
         }
 
         return generatedProjections;
@@ -319,8 +319,7 @@ function ProjectionAnalysisPageContent() {
                         <TableBody>
                             {projectionDetails.map((proj) => {
                                 const projDate = new Date(proj.projectionDate);
-                                const receiptDate = new Date(proj.receiptDate);
-                                const ckDate = subDays(receiptDate, 7);
+                                const ckDate = new Date(proj.receiptDate);
                                 const frcPending = proj.total.quantities.total - proj.frcQty;
                                 const componentBreakdown = { grn: proj.grn, openPo: proj.openPo, noPo: proj.noPo, totalComponents: proj.totalComponents };
 
@@ -375,3 +374,5 @@ export default function ProjectionAnalysisPage() {
         </Suspense>
     );
 }
+
+    
