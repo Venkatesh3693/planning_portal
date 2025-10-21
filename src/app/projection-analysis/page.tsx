@@ -66,10 +66,6 @@ function ProjectionAnalysisPageContent() {
                         </p>
                     </div>
                 </div>
-                
-                <div className="flex-1 min-h-0 border rounded-lg">
-                    {/* The table has been removed. We can now build a new one here. */}
-                </div>
             </main>
         </div>
     );
