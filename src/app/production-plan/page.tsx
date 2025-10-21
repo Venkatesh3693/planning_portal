@@ -28,6 +28,7 @@ function ProductionPlanPageContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get('orderId');
     const { orders, isScheduleLoaded, sewingLines, setSewingLines } = useSchedule();
+    const [openingFgStock, setOpeningFgStock] = useState(0);
 
     const order = useMemo(() => {
         if (!isScheduleLoaded || !orderId) return null;
@@ -90,6 +91,22 @@ function ProductionPlanPageContent() {
             return weekA - weekB;
         });
     }, [firstSnapshot]);
+    
+    const inventoryData = useMemo(() => {
+        const weeklyInventory: Record<string, number> = {};
+        let previousInventory = openingFgStock;
+
+        snapshotForecastWeeks.forEach(week => {
+            const weekData = firstSnapshot?.forecasts[week]?.total;
+            const poPlusFc = weekData ? weekData.po + weekData.fc : 0;
+            const plan = 0; // Placeholder for now
+            const closingInventory = previousInventory + plan - poPlusFc;
+            weeklyInventory[week] = closingInventory;
+            previousInventory = closingInventory;
+        });
+
+        return weeklyInventory;
+    }, [firstSnapshot, snapshotForecastWeeks, openingFgStock]);
 
 
     if (!isScheduleLoaded) {
@@ -144,7 +161,7 @@ function ProductionPlanPageContent() {
                                 <CardTitle>Production Stats</CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                                     <div className="p-4 bg-muted rounded-lg">
                                         <div className="text-sm text-muted-foreground">Output per Day</div>
                                         <div className="text-2xl font-bold">{Math.round(outputPerDay).toLocaleString()} units</div>
@@ -167,6 +184,16 @@ function ProductionPlanPageContent() {
                                             value={numLines === 0 ? '' : String(numLines)}
                                             onChange={(e) => handleNumLinesChange(e.target.value)}
                                             onBlur={handleBlur}
+                                            className="w-full h-8 text-2xl font-bold bg-transparent border-0 shadow-none focus-visible:ring-0 p-0"
+                                        />
+                                    </div>
+                                     <div className="p-4 bg-muted rounded-lg flex flex-col justify-center">
+                                        <Label htmlFor="opening-fg-stock" className="text-sm text-muted-foreground">Opening FG Stock</Label>
+                                        <Input
+                                            id="opening-fg-stock"
+                                            type="number"
+                                            value={openingFgStock}
+                                            onChange={(e) => setOpeningFgStock(parseInt(e.target.value, 10) || 0)}
                                             className="w-full h-8 text-2xl font-bold bg-transparent border-0 shadow-none focus-visible:ring-0 p-0"
                                         />
                                     </div>
@@ -206,6 +233,14 @@ function ProductionPlanPageContent() {
                                             {snapshotForecastWeeks.map(week => (
                                                 <TableCell key={`plan-${week}`} className="text-right tabular-nums">
                                                     -
+                                                </TableCell>
+                                            ))}
+                                        </TableRow>
+                                         <TableRow>
+                                            <TableHead className={cn("font-semibold sticky left-0 bg-background")}>Inv.</TableHead>
+                                            {snapshotForecastWeeks.map(week => (
+                                                <TableCell key={`inv-${week}`} className="text-right tabular-nums">
+                                                    {inventoryData[week] ? inventoryData[week].toLocaleString() : '-'}
                                                 </TableCell>
                                             ))}
                                         </TableRow>
