@@ -176,8 +176,9 @@ function ProductionPlanPageContent() {
                      )}
                      {firstSnapshot && (
                         <Card>
-                            <CardHeader>
+                            <CardHeader className="flex flex-row items-center justify-between">
                                 <CardTitle>Tentative plan</CardTitle>
+                                <Button>Plan</Button>
                             </CardHeader>
                             <CardContent>
                                 <Table>
@@ -199,6 +200,14 @@ function ProductionPlanPageContent() {
                                                     </TableCell>
                                                 )
                                             })}
+                                        </TableRow>
+                                        <TableRow>
+                                            <TableHead className={cn("font-semibold sticky left-0 bg-background")}>Plan</TableHead>
+                                            {snapshotForecastWeeks.map(week => (
+                                                <TableCell key={`plan-${week}`} className="text-right tabular-nums">
+                                                    -
+                                                </TableCell>
+                                            ))}
                                         </TableRow>
                                     </TableBody>
                                 </Table>
