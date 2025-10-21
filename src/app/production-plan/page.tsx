@@ -205,16 +205,6 @@ function ProductionPlanPageContent() {
                             </CardContent>
                         </Card>
                      )}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Tentative Plan</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="flex-1 min-h-[40vh] border-2 border-dashed rounded-lg flex items-center justify-center">
-                                <p className="text-muted-foreground">This page is under construction.</p>
-                            </div>
-                        </CardContent>
-                    </Card>
                 </div>
             </main>
         </div>
