@@ -1173,19 +1173,8 @@ export default function OrdersPage() {
     processBatchSizes,
   } = useSchedule();
 
-  const [expandedColumns, setExpandedColumns] = useState({
-    projection: false,
-    frc: false,
-    cutOrder: false,
-    produced: false,
-    shipped: false,
-  });
   const [poDetailsOrder, setPoDetailsOrder] = useState<Order | null>(null);
   const [demandDetailsOrder, setDemandDetailsOrder] = useState<Order | null>(null);
-
-  const handleToggleColumn = (column: keyof typeof expandedColumns) => {
-    setExpandedColumns(prev => ({ ...prev, [column]: !prev[column] }));
-  };
 
   const handleGenerateTna = (order: Order) => {
     const numLines = sewingLines[order.id] || 1;
@@ -1196,8 +1185,6 @@ export default function OrdersPage() {
   
   const firmOrders = useMemo(() => orders.filter(o => o.orderType === 'Firm PO'), [orders]);
   const forecastedOrders = useMemo(() => orders.filter(o => o.orderType === 'Forecasted'), [orders]);
-
-  const isAnyForecastColumnExpanded = Object.values(expandedColumns).some(v => v);
 
   return (
     <div className="flex h-screen flex-col">
@@ -1270,114 +1257,20 @@ export default function OrdersPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Order ID</TableHead>
-                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Season</TableHead>
-                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Style</TableHead>
-                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Model no.</TableHead>
-                        <TableHead className="text-right" rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Selection Quantity</TableHead>
-                        <TableHead className="text-right" rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>PO + FC</TableHead>
-                        
-                        <TableHead
-                          colSpan={expandedColumns.projection ? 4 : 1}
-                          rowSpan={expandedColumns.projection ? 1 : (isAnyForecastColumnExpanded ? 2 : 1)}
-                          className="text-center"
-                        >
-                           <Button variant="ghost" size="sm" onClick={() => handleToggleColumn('projection')} className="w-full">
-                              Projection
-                              {expandedColumns.projection ? <ChevronDown className="h-4 w-4 ml-2" /> : <ChevronsRight className="h-4 w-4 ml-2" />}
-                           </Button>
-                        </TableHead>
-
-                        <TableHead
-                          colSpan={expandedColumns.frc ? 4 : 1}
-                          rowSpan={expandedColumns.frc ? 1 : (isAnyForecastColumnExpanded ? 2 : 1)}
-                          className="text-center"
-                        >
-                           <Button variant="ghost" size="sm" onClick={() => handleToggleColumn('frc')} className="w-full">
-                              FRC
-                              {expandedColumns.frc ? <ChevronDown className="h-4 w-4 ml-2" /> : <ChevronsRight className="h-4 w-4 ml-2" />}
-                           </Button>
-                        </TableHead>
-
-                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Confirmed PO</TableHead>
-                        
-                        <TableHead
-                          colSpan={expandedColumns.cutOrder ? SIZES.length + 1 : 1}
-                          rowSpan={expandedColumns.cutOrder ? 1 : (isAnyForecastColumnExpanded ? 2 : 1)}
-                          className="text-center"
-                        >
-                           <Button variant="ghost" size="sm" onClick={() => handleToggleColumn('cutOrder')} className="w-full">
-                              Cut Order
-                              {expandedColumns.cutOrder ? <ChevronDown className="h-4 w-4 ml-2" /> : <ChevronsRight className="h-4 w-4 ml-2" />}
-                           </Button>
-                        </TableHead>
-                        
-                        <TableHead
-                          colSpan={expandedColumns.produced ? SIZES.length + 1 : 1}
-                          rowSpan={expandedColumns.produced ? 1 : (isAnyForecastColumnExpanded ? 2 : 1)}
-                          className="text-center"
-                        >
-                           <Button variant="ghost" size="sm" onClick={() => handleToggleColumn('produced')} className="w-full">
-                              Produced
-                              {expandedColumns.produced ? <ChevronDown className="h-4 w-4 ml-2" /> : <ChevronsRight className="h-4 w-4 ml-2" />}
-                           </Button>
-                        </TableHead>
-
-                        <TableHead
-                          colSpan={expandedColumns.shipped ? SIZES.length + 1 : 1}
-                          rowSpan={expandedColumns.shipped ? 1 : (isAnyForecastColumnExpanded ? 2 : 1)}
-                          className="text-center"
-                        >
-                           <Button variant="ghost" size="sm" onClick={() => handleToggleColumn('shipped')} className="w-full">
-                              Shipped
-                              {expandedColumns.shipped ? <ChevronDown className="h-4 w-4 ml-2" /> : <ChevronsRight className="h-4 w-4 ml-2" />}
-                           </Button>
-                        </TableHead>
-
-                        <TableHead rowSpan={isAnyForecastColumnExpanded ? 2 : 1}>Lead Time</TableHead>
+                        <TableHead>Order ID</TableHead>
+                        <TableHead>Season</TableHead>
+                        <TableHead>Style</TableHead>
+                        <TableHead>Model no.</TableHead>
+                        <TableHead className="text-right">Selection Quantity</TableHead>
+                        <TableHead className="text-right">PO + FC</TableHead>
+                        <TableHead className="text-right">Projection</TableHead>
+                        <TableHead className="text-right">FRC</TableHead>
+                        <TableHead className="text-right">Confirmed PO</TableHead>
+                        <TableHead className="text-right">Cut Order</TableHead>
+                        <TableHead className="text-right">Produced</TableHead>
+                        <TableHead className="text-right">Shipped</TableHead>
+                        <TableHead>Lead Time</TableHead>
                       </TableRow>
-                      {isAnyForecastColumnExpanded && (
-                        <TableRow>
-                          {expandedColumns.projection && (
-                            <>
-                              <TableHead className="text-right">No PO</TableHead>
-                              <TableHead className="text-right">Open POs</TableHead>
-                              <TableHead className="text-right">GRN</TableHead>
-                              <TableHead className="text-right font-bold">Total</TableHead>
-                            </>
-                          )}
-                          
-                          {expandedColumns.frc && (
-                             <>
-                              <TableHead className="text-right">No PO</TableHead>
-                              <TableHead className="text-right">Open POs</TableHead>
-                              <TableHead className="text-right">GRN</TableHead>
-                              <TableHead className="text-right font-bold">Total</TableHead>
-                             </>
-                          )}
-                          
-                          {expandedColumns.cutOrder && (
-                            <>
-                              {SIZES.map(size => <TableHead key={`cut-${size}`} className="text-right">{size}</TableHead>)}
-                              <TableHead className="text-right font-bold">Total</TableHead>
-                            </>
-                          )}
-                          
-                          {expandedColumns.produced && (
-                            <>
-                              {SIZES.map(size => <TableHead key={`prod-${size}`} className="text-right">{size}</TableHead>)}
-                              <TableHead className="text-right font-bold">Total</TableHead>
-                            </>
-                          )}
-
-                          {expandedColumns.shipped && (
-                            <>
-                              {SIZES.map(size => <TableHead key={`ship-${size}`} className="text-right">{size}</TableHead>)}
-                              <TableHead className="text-right font-bold">Total</TableHead>
-                            </>
-                          )}
-                        </TableRow>
-                      )}
                     </TableHeader>
                     <TableBody>
                       {forecastedOrders.map((order) => (
@@ -1388,43 +1281,17 @@ export default function OrdersPage() {
                           onBomChange={updateOrderBom}
                           onSetSewingLines={setSewingLines}
                         >
-                          {expandedColumns.projection ? (
-                            <>
-                              <TableCell className="text-right">{order.projection?.noPo.toLocaleString() || '-'}</TableCell>
-                              <TableCell className="text-right">{order.projection?.openPos.toLocaleString() || '-'}</TableCell>
-                              <TableCell className="text-right">{order.projection?.grn.toLocaleString() || '-'}</TableCell>
-                              <TableCell className="text-right font-bold">
-                                {order.projectionDetails ? (
-                                  <Link href={`/projection-analysis?orderId=${order.id}`} className="text-primary hover:underline">
-                                    {order.projection?.total.toLocaleString() || '-'}
-                                  </Link>
-                                ) : (
-                                  <span>{order.projection?.total.toLocaleString() || '-'}</span>
-                                )}
-                              </TableCell>
-                            </>
-                          ) : (
-                             <TableCell className="text-right font-bold">
-                                {order.projection?.total && order.projectionDetails ? (
-                                   <Link href={`/projection-analysis?orderId=${order.id}`} className="text-primary hover:underline">
-                                    {order.projection.total.toLocaleString()}
-                                  </Link>
-                                ) : (
-                                  <span>{order.projection?.total?.toLocaleString() || '-'}</span>
-                                )}
-                              </TableCell>
-                          )}
+                          <TableCell className="text-right font-bold">
+                            {order.projection?.total ? (
+                                <Link href={`/projection-analysis?orderId=${order.id}`} className="text-primary hover:underline">
+                                {order.projection.total.toLocaleString()}
+                              </Link>
+                            ) : (
+                              <span>-</span>
+                            )}
+                          </TableCell>
                           
-                          {expandedColumns.frc ? (
-                             <>
-                              <TableCell className="text-right">{order.frc?.noPo.toLocaleString() || '-'}</TableCell>
-                              <TableCell className="text-right">{order.frc?.openPos.toLocaleString() || '-'}</TableCell>
-                              <TableCell className="text-right">{order.frc?.grn.toLocaleString() || '-'}</TableCell>
-                              <TableCell className="text-right font-bold">{order.frc?.total.toLocaleString() || '-'}</TableCell>
-                             </>
-                          ) : (
-                              <TableCell className="text-right font-bold">{order.frc?.total.toLocaleString() || '-'}</TableCell>
-                          )}
+                          <TableCell className="text-right font-bold">{order.frc?.total.toLocaleString() || '-'}</TableCell>
 
                           <TableCell className="text-right font-bold">
                             {(order.poDetails && order.confirmedPoQty) ? (
@@ -1440,31 +1307,11 @@ export default function OrdersPage() {
                             )}
                           </TableCell>
                           
-                          {expandedColumns.cutOrder ? (
-                            <>
-                              {SIZES.map(size => <TableCell key={`cut-val-${size}`} className="text-right">{order.cutOrder?.[size]?.toLocaleString() || '-'}</TableCell>)}
-                              <TableCell className="text-right font-bold">{order.cutOrder?.total.toLocaleString() || '-'}</TableCell>
-                            </>
-                          ) : (
-                             <TableCell className="text-right font-bold">{order.cutOrder?.total.toLocaleString() || '-'}</TableCell>
-                          )}
+                          <TableCell className="text-right font-bold">{order.cutOrder?.total.toLocaleString() || '-'}</TableCell>
 
-                          {expandedColumns.produced ? (
-                            <>
-                              {SIZES.map(size => <TableCell key={`prod-val-${size}`} className="text-right">{order.produced?.[size]?.toLocaleString() || '-'}</TableCell>)}
-                              <TableCell className="text-right font-bold">{order.produced?.total.toLocaleString() || '-'}</TableCell>
-                            </>
-                          ) : (
-                             <TableCell className="text-right font-bold">{order.produced?.total.toLocaleString() || '-'}</TableCell>
-                          )}
+                          <TableCell className="text-right font-bold">{order.produced?.total.toLocaleString() || '-'}</TableCell>
 
-                          {expandedColumns.shipped ? (
-                            <>
-                              {SIZES.map(size => <TableCell key={`ship-val-${size}`} className="text-right">{order.shipped?.[size]?.toLocaleString() || '-'}</TableCell>)}
-                              <TableCell className="text-right font-bold">{order.shipped?.total.toLocaleString() || '-'}</TableCell>
-                            </>
-                          ) : (
-                             <TableCell className="text-right font-bold">{order.shipped?.total.toLocaleString() || '-'}</TableCell>                          )}
+                          <TableCell className="text-right font-bold">{order.shipped?.total.toLocaleString() || '-'}</TableCell>                          
                           
                           <TableCell>{order.leadTime ? `${order.leadTime} days` : '-'}</TableCell>
                         </ForecastedOrderRow>
