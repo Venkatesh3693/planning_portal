@@ -1144,7 +1144,41 @@ const ForecastedOrderRow = forwardRef<
         )}
       </TableCell>
       
-      {children}
+      <TableCell className="text-right font-bold">
+        {order.projection?.total ? (
+            <Link href={`/projection-analysis?orderId=${order.id}`} passHref>
+                <span className="text-primary cursor-pointer hover:underline">
+                    {order.projection.total.toLocaleString()}
+                </span>
+            </Link>
+        ) : (
+          <span>-</span>
+        )}
+      </TableCell>
+      
+      <TableCell className="text-right font-bold">{order.frc?.total.toLocaleString() || '-'}</TableCell>
+
+      <TableCell className="text-right font-bold">
+        {(order.poDetails && order.confirmedPoQty) ? (
+          <Dialog onOpenChange={(isOpen) => !isOpen && setPoDetailsOrder(null)}>
+            <DialogTrigger asChild>
+              <span className="cursor-pointer text-primary hover:underline whitespace-nowrap" onClick={() => setPoDetailsOrder(order)}>
+                {(order.confirmedPoQty || 0).toLocaleString()}
+              </span>
+            </DialogTrigger>
+          </Dialog>
+        ) : (
+          <span>{(order.confirmedPoQty || 0).toLocaleString()}</span>
+        )}
+      </TableCell>
+      
+      <TableCell className="text-right font-bold">{order.cutOrder?.total.toLocaleString() || '-'}</TableCell>
+
+      <TableCell className="text-right font-bold">{order.produced?.total.toLocaleString() || '-'}</TableCell>
+
+      <TableCell className="text-right font-bold">{order.shipped?.total.toLocaleString() || '-'}</TableCell>                          
+      
+      <TableCell>{order.leadTime ? `${order.leadTime} days` : '-'}</TableCell>
       
       {demandDetailsOrder && (
           <DemandDetailsDialog
@@ -1280,41 +1314,7 @@ export default function OrdersPage() {
                           onRampUpSave={updateSewingRampUpScheme}
                           onBomChange={updateOrderBom}
                           onSetSewingLines={setSewingLines}
-                        >
-                          <TableCell className="text-right font-bold">
-                            {order.projection?.total ? (
-                                <span className="text-primary">
-                                {order.projection.total.toLocaleString()}
-                              </span>
-                            ) : (
-                              <span>-</span>
-                            )}
-                          </TableCell>
-                          
-                          <TableCell className="text-right font-bold">{order.frc?.total.toLocaleString() || '-'}</TableCell>
-
-                          <TableCell className="text-right font-bold">
-                            {(order.poDetails && order.confirmedPoQty) ? (
-                              <Dialog onOpenChange={(isOpen) => !isOpen && setPoDetailsOrder(null)}>
-                                <DialogTrigger asChild>
-                                  <span className="cursor-pointer text-primary hover:underline whitespace-nowrap" onClick={() => setPoDetailsOrder(order)}>
-                                    {(order.confirmedPoQty || 0).toLocaleString()}
-                                  </span>
-                                </DialogTrigger>
-                              </Dialog>
-                            ) : (
-                              <span>{(order.confirmedPoQty || 0).toLocaleString()}</span>
-                            )}
-                          </TableCell>
-                          
-                          <TableCell className="text-right font-bold">{order.cutOrder?.total.toLocaleString() || '-'}</TableCell>
-
-                          <TableCell className="text-right font-bold">{order.produced?.total.toLocaleString() || '-'}</TableCell>
-
-                          <TableCell className="text-right font-bold">{order.shipped?.total.toLocaleString() || '-'}</TableCell>                          
-                          
-                          <TableCell>{order.leadTime ? `${order.leadTime} days` : '-'}</TableCell>
-                        </ForecastedOrderRow>
+                        />
                       ))}
                     </TableBody>
                   </Table>
