@@ -173,7 +173,7 @@ function ProductionPlanPageContent() {
         let finalStartWeekIndex = trialStartWeekIndex;
 
         if (minInventory < 0) {
-            const offset = 1 + Math.ceil(Math.abs(minInventory) / weeklyOutput);
+            const offset = Math.ceil(Math.abs(minInventory) / weeklyOutput);
             finalStartWeekIndex = trialStartWeekIndex - offset;
         }
       
@@ -380,7 +380,3 @@ export default function ProductionPlanPage() {
         </Suspense>
     );
 }
-
-    
-
-    
