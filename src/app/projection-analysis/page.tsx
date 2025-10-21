@@ -142,7 +142,6 @@ function ProjectionAnalysisPageContent() {
     const orderId = searchParams.get('orderId');
     const { orders, isScheduleLoaded, productionPlans } = useSchedule();
     const [selectedProjection, setSelectedProjection] = useState<ProjectionDetail | null>(null);
-    const [coverageWeeks, setCoverageWeeks] = useState(4);
 
     const order = useMemo(() => {
         if (!isScheduleLoaded || !orderId) return null;
@@ -156,6 +155,7 @@ function ProjectionAnalysisPageContent() {
 
         const plan = productionPlans[order.id];
         const bom = order.bom;
+        const coverageWeeks = 4;
 
         // Find the first week of production
         const productionWeeks = Object.keys(plan)
@@ -222,7 +222,7 @@ function ProjectionAnalysisPageContent() {
             coverageStartWeek,
             coverageEndWeek,
         };
-    }, [order, productionPlans, coverageWeeks]);
+    }, [order, productionPlans]);
     
     const projectionDetails = useMemo(() => {
        return dynamicProjection ? [dynamicProjection] : [];
@@ -280,25 +280,6 @@ function ProjectionAnalysisPageContent() {
                     </Button>
                 </div>
                 
-                <Card className="mb-6">
-                    <CardHeader>
-                        <CardTitle>Configuration</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="flex items-center gap-4">
-                            <Label htmlFor="coverage-weeks">Demand Coverage (Weeks)</Label>
-                            <Input
-                                id="coverage-weeks"
-                                type="number"
-                                min="1"
-                                value={coverageWeeks}
-                                onChange={(e) => setCoverageWeeks(parseInt(e.target.value, 10) || 1)}
-                                className="w-24"
-                            />
-                        </div>
-                    </CardContent>
-                </Card>
-
                 <Card>
                     <CardContent className="p-0">
                         <Table>
