@@ -228,7 +228,7 @@ function ProjectionAnalysisPageContent() {
                                 const componentBreakdown = { grn: proj.grn, openPo: proj.openPo, noPo: proj.noPo, totalComponents: proj.totalComponents };
 
                                 return (
-                                    <TableRow key={proj.projectionNumber} className={selectedProjection?.projectionNumber === proj.projectionNumber ? 'bg-accent/50' : ''}>
+                                    <TableRow key={proj.projectionNumber} data-state={selectedProjection?.projectionNumber === proj.projectionNumber ? 'selected' : 'unselected'}>
                                         <TableCell 
                                           className="font-medium text-primary cursor-pointer hover:underline"
                                           onClick={() => handleProjectionClick(proj)}
@@ -274,3 +274,5 @@ export default function ProjectionAnalysisPage() {
         </Suspense>
     );
 }
+
+    
