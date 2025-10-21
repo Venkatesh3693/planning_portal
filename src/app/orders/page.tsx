@@ -1283,9 +1283,9 @@ export default function OrdersPage() {
                         >
                           <TableCell className="text-right font-bold">
                             {order.projection?.total ? (
-                                <Link href={`/projection-analysis?orderId=${order.id}`} className="text-primary hover:underline">
+                                <span className="text-primary">
                                 {order.projection.total.toLocaleString()}
-                              </Link>
+                              </span>
                             ) : (
                               <span>-</span>
                             )}
