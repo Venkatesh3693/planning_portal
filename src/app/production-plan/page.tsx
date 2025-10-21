@@ -134,49 +134,59 @@ function ProductionPlanPageContent() {
         }
       
         const firstDemandWeekIndex = snapshotForecastWeeks.findIndex(week => {
-          const demand = firstSnapshot.forecasts[week]?.total.po + firstSnapshot.forecasts[week]?.total.fc || 0;
-          return demand > 0;
-        });
-      
-        if (firstDemandWeekIndex === -1) {
-          setProductionPlan({});
-          toast({ title: 'Plan Generated', description: 'No demand found, no production planned.' });
-          return;
-        }
-
-        const lastDemandWeekIndex = snapshotForecastWeeks.findLastIndex(week => {
-            const demand = firstSnapshot.forecasts[week]?.total.po + firstSnapshot.forecasts[week]?.total.fc || 0;
+            const demand = (firstSnapshot.forecasts[week]?.total.po || 0) + (firstSnapshot.forecasts[week]?.total.fc || 0);
             return demand > 0;
         });
       
+        if (firstDemandWeekIndex === -1) {
+            setProductionPlan({});
+            toast({ title: 'Plan Generated', description: 'No demand found, no production planned.' });
+            return;
+        }
+        
+        const lastDemandWeekIndex = snapshotForecastWeeks.findLastIndex(week => {
+            const demand = (firstSnapshot.forecasts[week]?.total.po || 0) + (firstSnapshot.forecasts[week]?.total.fc || 0);
+            return demand > 0;
+        });
+
         // --- Trial Run ---
         const trialStartWeekIndex = firstDemandWeekIndex - 1;
         const trialPlan: Record<string, number> = {};
-        snapshotForecastWeeks.forEach((week, i) => {
-            trialPlan[week] = (i >= trialStartWeekIndex && i < lastDemandWeekIndex) ? weeklyOutput : 0;
-        });
+        let cumulativeProduction = 0;
+        const totalDemand = snapshotForecastWeeks.reduce((sum, week) => {
+            return sum + ((firstSnapshot.forecasts[week]?.total.po || 0) + (firstSnapshot.forecasts[week]?.total.fc || 0));
+        }, 0);
+
+        for (let i = 0; i < snapshotForecastWeeks.length; i++) {
+            const week = snapshotForecastWeeks[i];
+            let productionThisWeek = 0;
+            if (i >= trialStartWeekIndex && cumulativeProduction < totalDemand) {
+                productionThisWeek = weeklyOutput;
+                cumulativeProduction += weeklyOutput;
+            }
+            trialPlan[week] = productionThisWeek;
+        }
 
         const trialInventories: number[] = [];
         let currentInventory = openingFgStock;
       
         for (let i = 0; i < snapshotForecastWeeks.length; i++) {
             const week = snapshotForecastWeeks[i];
-            const demand = firstSnapshot.forecasts[week]?.total.po + firstSnapshot.forecasts[week]?.total.fc || 0;
-            const production = i > 0 ? trialPlan[snapshotForecastWeeks[i-1]] : 0;
-
+            const demand = (firstSnapshot.forecasts[week]?.total.po || 0) + (firstSnapshot.forecasts[week]?.total.fc || 0);
+            const production = i > 0 ? (trialPlan[snapshotForecastWeeks[i-1]] || 0) : 0;
             currentInventory = currentInventory + production - demand;
             trialInventories.push(currentInventory);
         }
 
         const minInventory = Math.min(...trialInventories);
         
-        let finalStartWeekIndex = trialStartWeekIndex;
-
+        let startOffset = 0;
         if (minInventory < 0) {
-            const offset = Math.ceil(Math.abs(minInventory) / weeklyOutput);
-            finalStartWeekIndex = trialStartWeekIndex - offset;
+            startOffset = Math.ceil(Math.abs(minInventory) / weeklyOutput);
         }
       
+        const finalStartWeekIndex = trialStartWeekIndex - startOffset;
+
         if (finalStartWeekIndex < 0) {
           setPlanError(`Cannot meet demand. Production needs to start ${Math.abs(finalStartWeekIndex)} week(s) before ${snapshotForecastWeeks[0]}. Try increasing the number of lines.`);
           setProductionPlan({});
@@ -184,22 +194,29 @@ function ProductionPlanPageContent() {
         }
       
         const newPlan: Record<string, number> = {};
-        snapshotForecastWeeks.forEach((week, i) => {
-          const isProdWeek = i >= finalStartWeekIndex && i < lastDemandWeekIndex;
-          newPlan[week] = isProdWeek ? weeklyOutput : 0;
-        });
+        cumulativeProduction = 0; // Reset for final plan
+        for (let i = 0; i < snapshotForecastWeeks.length; i++) {
+            const week = snapshotForecastWeeks[i];
+            let productionThisWeek = 0;
+            if (i >= finalStartWeekIndex && cumulativeProduction < totalDemand) {
+                productionThisWeek = weeklyOutput;
+                cumulativeProduction += weeklyOutput;
+            }
+            newPlan[week] = productionThisWeek;
+        }
       
         setProductionPlan(newPlan);
         toast({ title: 'Production Plan Generated', description: "The 'Plan' and 'Inv.' rows have been updated." });
     };
     
     const inventoryData = useMemo(() => {
+        if (!firstSnapshot) return {};
         const weeklyInventory: Record<string, number> = {};
         let previousInventory = openingFgStock;
 
         for (let i = 0; i < snapshotForecastWeeks.length; i++) {
             const week = snapshotForecastWeeks[i];
-            const demand = firstSnapshot?.forecasts[week]?.total.po + firstSnapshot?.forecasts[week]?.total.fc || 0;
+            const demand = (firstSnapshot.forecasts[week]?.total.po || 0) + (firstSnapshot.forecasts[week]?.total.fc || 0);
             const production = i > 0 ? (productionPlan[snapshotForecastWeeks[i-1]] || 0) : 0;
             const closingInventory = previousInventory + production - demand;
             weeklyInventory[week] = closingInventory;
@@ -357,7 +374,7 @@ function ProductionPlanPageContent() {
                                                             inventoryData[week] < 0 && "text-destructive font-bold"
                                                         )}
                                                     >
-                                                        {inventoryData[week] ? Math.round(inventoryData[week]).toLocaleString() : '-'}
+                                                        {inventoryData[week] !== undefined ? Math.round(inventoryData[week]).toLocaleString() : '-'}
                                                     </TableCell>
                                                 ))}
                                             </TableRow>
