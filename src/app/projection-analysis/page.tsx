@@ -155,7 +155,7 @@ function ProjectionAnalysisPageContent() {
 
         const plan = productionPlans[order.id];
         const bom = order.bom;
-        const coverageWeeks = 4;
+        const coverageWeeks = 6;
 
         // Find the first week of production
         const productionWeeks = Object.keys(plan)
