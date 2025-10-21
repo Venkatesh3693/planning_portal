@@ -45,25 +45,25 @@ const QuantityBreakdownBar = ({ projection }: { projection: ProjectionDetail }) 
       <Tooltip>
         <TooltipTrigger className="w-full">
           <div className="flex h-6 w-full rounded-md overflow-hidden border">
-            <div className="bg-green-500" style={{ width: `${grnPercentage}%` }} />
-            <div className="bg-blue-500" style={{ width: `${openPoPercentage}%` }} />
-            <div className="bg-gray-300 dark:bg-gray-700" style={{ width: `${noPoPercentage}%` }} />
+            <div className="bg-yellow-500" style={{ width: `${noPoPercentage}%` }} />
+            <div className="bg-teal-500" style={{ width: `${grnPercentage}%` }} />
+            <div className="bg-blue-700" style={{ width: `${openPoPercentage}%` }} />
           </div>
         </TooltipTrigger>
         <TooltipContent>
           <div className="space-y-1 text-sm">
             <div className="font-bold">Component Status Breakdown:</div>
+             <div className="flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full bg-yellow-500" />
+              <span>No PO: {projection.noPo.componentCount} component(s)</span>
+            </div>
             <div className="flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full bg-green-500" />
+              <span className="h-3 w-3 rounded-full bg-teal-500" />
               <span>GRN: {projection.grn.componentCount} component(s)</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full bg-blue-500" />
+              <span className="h-3 w-3 rounded-full bg-blue-700" />
               <span>Open PO: {projection.openPo.componentCount} component(s)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full bg-gray-300 dark:bg-gray-700" />
-              <span>No PO: {projection.noPo.componentCount} component(s)</span>
             </div>
             <hr className="my-1"/>
             <div className="font-semibold">Total: {projection.totalComponents} component(s)</div>
