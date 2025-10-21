@@ -939,6 +939,9 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
                             <Button size="sm" variant={activeView === 'tna' ? 'default' : 'ghost'} onClick={() => setActiveView('tna')}>T&A Plan</Button>
                             <Button size="sm" variant={activeView === 'ob' ? 'default' : 'ghost'} onClick={() => setActiveView('ob')}>OB</Button>
                             <Button size="sm" variant={activeView === 'ramp-up' ? 'default' : 'ghost'} onClick={() => setActiveView('ramp-up')}>Ramp-up</Button>
+                             <Button size="sm" variant="ghost" asChild>
+                                <Link href={`/production-plan?orderId=${order.id}`}>Production Plan</Link>
+                            </Button>
                         </div>
                         {activeView === 'tna' && (
                             <Button size="sm" variant="outline" onClick={handleRecalculate}>
@@ -1089,6 +1092,9 @@ const ForecastedOrderRow = forwardRef<
                   <Button size="sm" variant={activeView === 'ob' ? 'default' : 'ghost'} onClick={() => setActiveView('ob')}>OB</Button>
                   <Button size="sm" variant={activeView === 'bom' ? 'default' : 'ghost'} onClick={() => setActiveView('bom')}>BOM</Button>
                   <Button size="sm" variant={activeView === 'ramp-up' ? 'default' : 'ghost'} onClick={() => setActiveView('ramp-up')}>Ramp-up</Button>
+                   <Button size="sm" variant="ghost" asChild>
+                      <Link href={`/production-plan?orderId=${order.id}`}>Production Plan</Link>
+                  </Button>
                 </div>
                 <DialogClose asChild>
                   <Button variant="ghost" size="icon" className="rounded-full">
