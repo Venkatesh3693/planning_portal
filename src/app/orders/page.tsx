@@ -1148,7 +1148,7 @@ const ForecastedOrderRow = forwardRef<
         {order.projection?.total ? (
             <Link href={`/projection-analysis?orderId=${order.id}`} passHref>
                 <span className="text-primary cursor-pointer hover:underline">
-                    {order.projection.total.toLocaleString()}
+                    {(order.projection.total || 0).toLocaleString()}
                 </span>
             </Link>
         ) : (
@@ -1156,7 +1156,7 @@ const ForecastedOrderRow = forwardRef<
         )}
       </TableCell>
       
-      <TableCell className="text-right font-bold">{order.frc?.total.toLocaleString() || '-'}</TableCell>
+      <TableCell className="text-right font-bold">{(order.frc?.total || 0).toLocaleString()}</TableCell>
 
       <TableCell className="text-right font-bold">
         {(order.poDetails && order.confirmedPoQty) ? (
