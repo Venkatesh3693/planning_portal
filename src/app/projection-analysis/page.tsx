@@ -100,8 +100,10 @@ function ProjectionAnalysisPageContent() {
                                         <TableHead>Projection Date</TableHead>
                                         <TableHead>Projection Week</TableHead>
                                         <TableHead>Coverage Weeks</TableHead>
-                                        <TableHead className="text-right">Projection Qty</TableHead>
                                         <TableHead>CK Date</TableHead>
+                                        <TableHead className="text-right">Projection Qty</TableHead>
+                                        <TableHead className="text-right">FRC Qty</TableHead>
+                                        <TableHead className="text-right">FRC Pending</TableHead>
                                         <TableHead className="text-right">BOM Components</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -110,6 +112,7 @@ function ProjectionAnalysisPageContent() {
                                         const projDate = new Date(proj.projectionDate);
                                         const receiptDate = new Date(proj.receiptDate);
                                         const ckDate = subDays(receiptDate, 7);
+                                        const frcPending = proj.total.quantities.total - proj.frcQty;
 
                                         return (
                                             <TableRow key={proj.projectionNumber}>
@@ -117,15 +120,17 @@ function ProjectionAnalysisPageContent() {
                                                 <TableCell>{format(projDate, 'dd/MM/yy')}</TableCell>
                                                 <TableCell>W{getWeek(projDate)}</TableCell>
                                                 <TableCell>W{getWeek(projDate)} - W{getWeek(receiptDate)}</TableCell>
-                                                <TableCell className="text-right">{proj.total.quantities.total.toLocaleString()}</TableCell>
                                                 <TableCell>{format(ckDate, 'dd/MM/yy')}</TableCell>
+                                                <TableCell className="text-right font-semibold">{proj.total.quantities.total.toLocaleString()}</TableCell>
+                                                <TableCell className="text-right">{proj.frcQty.toLocaleString()}</TableCell>
+                                                <TableCell className="text-right font-semibold">{frcPending.toLocaleString()}</TableCell>
                                                 <TableCell className="text-right">{projectionComponentsCount}</TableCell>
                                             </TableRow>
                                         )
                                     })}
                                      {(!order.projectionDetails || order.projectionDetails.length === 0) && (
                                         <TableRow>
-                                            <TableCell colSpan={7} className="h-24 text-center">
+                                            <TableCell colSpan={9} className="h-24 text-center">
                                                 No projection details available for this order.
                                             </TableCell>
                                         </TableRow>

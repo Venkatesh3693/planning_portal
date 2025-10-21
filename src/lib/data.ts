@@ -221,6 +221,8 @@ const createProjectionDetails = (bom: BomItem[]): ProjectionDetail[] => {
 
   for (let i = 1; i <= 4; i++) {
     const totalQty = 40000 + i * 2000;
+    // FRC is a percentage of the projection
+    const frcQty = Math.round(totalQty * (0.6 + i * 0.05)); 
 
     const createStatusDetail = (qty: number, count: number): StatusDetail => {
         const quantities: Partial<SizeBreakdown> = { total: qty };
@@ -237,11 +239,11 @@ const createProjectionDetails = (bom: BomItem[]): ProjectionDetail[] => {
         return { quantities: quantities as SizeBreakdown, componentCount: count };
     };
 
-    // Static breakdown as requested: 2 GRN, 1 Open PO, 2 No PO
+    // Static breakdown: 2 GRN, 1 Open PO, 2 No PO (total 5)
     const grnCount = 2;
     const openPoCount = 1;
     const noPoCount = 2;
-    const actualTotalComponents = grnCount + openPoCount + noPoCount; // This should be 5
+    const actualTotalComponents = grnCount + openPoCount + noPoCount;
 
     // Distribute total quantity based on component counts
     const grnQty = Math.floor(totalQty * (grnCount / actualTotalComponents));
@@ -252,6 +254,7 @@ const createProjectionDetails = (bom: BomItem[]): ProjectionDetail[] => {
       projectionNumber: `PRJ-DMI-0${i}`,
       projectionDate: subDays(today, (4 - i) * 15),
       receiptDate: addDays(today, i * 15),
+      frcQty: frcQty,
       grn: createStatusDetail(grnQty, grnCount),
       openPo: createStatusDetail(openPoQty, openPoCount),
       noPo: createStatusDetail(noPoQty, noPoCount),

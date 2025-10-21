@@ -101,6 +101,7 @@ export type ProjectionDetail = {
   projectionNumber: string;
   projectionDate: Date;
   receiptDate: Date;
+  frcQty: number;
   total: StatusDetail;
   grn: StatusDetail;
   openPo: StatusDetail;
