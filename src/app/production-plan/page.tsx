@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SEWING_OPERATIONS_BY_STYLE, WORK_DAY_MINUTES } from '@/lib/data';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 
 function ProductionPlanPageContent() {
@@ -62,7 +63,6 @@ function ProductionPlanPageContent() {
             if (!isNaN(lines) && lines > 0) {
                 setSewingLines(orderId, lines);
             } else if (value === '') {
-                // Allow clearing the input, maybe default to 1 if blurred while empty
                 setSewingLines(orderId, 0); 
             }
         }
@@ -73,6 +73,23 @@ function ProductionPlanPageContent() {
             setSewingLines(orderId, 1);
         }
     }
+
+    const firstSnapshot = useMemo(() => {
+        if (!order || !order.fcVsFcDetails || order.fcVsFcDetails.length === 0) {
+            return null;
+        }
+        return order.fcVsFcDetails[0];
+    }, [order]);
+
+    const snapshotForecastWeeks = useMemo(() => {
+        if (!firstSnapshot) return [];
+        return Object.keys(firstSnapshot.forecasts).sort((a, b) => {
+            const weekA = parseInt(a.replace('W', ''));
+            const weekB = parseInt(b.replace('W', ''));
+            return weekA - weekB;
+        });
+    }, [firstSnapshot]);
+
 
     if (!isScheduleLoaded) {
         return <div className="flex items-center justify-center h-full">Loading data...</div>;
@@ -144,15 +161,46 @@ function ProductionPlanPageContent() {
                                         <Label htmlFor="num-lines-input" className="text-sm text-muted-foreground">Number of Lines</Label>
                                         <Input
                                             id="num-lines-input"
-                                            type="number"
+                                            type="text"
                                             min="1"
-                                            value={numLines === 0 ? '' : numLines}
+                                            value={numLines === 0 ? '' : String(numLines)}
                                             onChange={(e) => handleNumLinesChange(e.target.value)}
                                             onBlur={handleBlur}
                                             className="w-full h-8 text-2xl font-bold bg-transparent border-0 shadow-none focus-visible:ring-0 p-0"
                                         />
                                     </div>
                                 </div>
+                            </CardContent>
+                        </Card>
+                     )}
+                     {firstSnapshot && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>First Forecast Snapshot (W{firstSnapshot.snapshotWeek})</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            {snapshotForecastWeeks.map(week => (
+                                                <TableHead key={week} className="text-right">{week}</TableHead>
+                                            ))}
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        <TableRow>
+                                            {snapshotForecastWeeks.map(week => {
+                                                const weekData = firstSnapshot.forecasts[week]?.total;
+                                                const totalValue = weekData ? weekData.po + weekData.fc : 0;
+                                                return (
+                                                    <TableCell key={week} className="text-right tabular-nums">
+                                                        {totalValue > 0 ? totalValue.toLocaleString() : '-'}
+                                                    </TableCell>
+                                                )
+                                            })}
+                                        </TableRow>
+                                    </TableBody>
+                                </Table>
                             </CardContent>
                         </Card>
                      )}
