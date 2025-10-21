@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useMemo, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useSchedule } from '@/context/schedule-provider';
 import { Header } from '@/components/layout/header';
@@ -29,6 +29,7 @@ function ProductionPlanPageContent() {
     const orderId = searchParams.get('orderId');
     const { orders, isScheduleLoaded, sewingLines, setSewingLines } = useSchedule();
     const [openingFgStock, setOpeningFgStock] = useState(0);
+    const [displayOpeningFgStock, setDisplayOpeningFgStock] = useState(String(openingFgStock));
 
     const order = useMemo(() => {
         if (!isScheduleLoaded || !orderId) return null;
@@ -39,6 +40,16 @@ function ProductionPlanPageContent() {
         if (!orderId) return 1;
         return sewingLines[orderId] || 1;
     }, [orderId, sewingLines]);
+
+    const [displayNumLines, setDisplayNumLines] = useState(String(numLines));
+
+    useEffect(() => {
+        setDisplayNumLines(String(numLines || 1));
+    }, [numLines]);
+
+    useEffect(() => {
+        setDisplayOpeningFgStock(String(openingFgStock));
+    }, [openingFgStock]);
 
     const { totalSam, totalTailors } = useMemo(() => {
         if (!order) return { totalSam: 0, totalTailors: 0 };
@@ -60,21 +71,34 @@ function ProductionPlanPageContent() {
     }, [order, totalSam, totalTailors, numLines]);
 
     const handleNumLinesChange = (value: string) => {
+        setDisplayNumLines(value);
+    };
+    
+    const handleNumLinesBlur = (e: React.FocusEvent<HTMLInputElement>) => {
         if (orderId) {
-            const lines = parseInt(value, 10);
+            const lines = parseInt(e.target.value, 10);
             if (!isNaN(lines) && lines > 0) {
                 setSewingLines(orderId, lines);
-            } else if (value === '') {
-                setSewingLines(orderId, 0); 
+            } else {
+                setSewingLines(orderId, 1);
             }
         }
     };
-    
-    const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-        if (e.target.value === '' && orderId) {
-            setSewingLines(orderId, 1);
+
+    const handleOpeningStockChange = (value: string) => {
+        setDisplayOpeningFgStock(value);
+        const newStock = parseInt(value, 10);
+        if (!isNaN(newStock)) {
+            setOpeningFgStock(newStock);
         }
-    }
+    };
+
+    const handleOpeningStockBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+        const stock = parseInt(e.target.value, 10);
+        if (isNaN(stock) || stock < 0) {
+            setOpeningFgStock(0);
+        }
+    };
 
     const firstSnapshot = useMemo(() => {
         if (!order || !order.fcVsFcDetails || order.fcVsFcDetails.length === 0) {
@@ -180,10 +204,9 @@ function ProductionPlanPageContent() {
                                         <Input
                                             id="num-lines-input"
                                             type="text"
-                                            min="1"
-                                            value={numLines === 0 ? '' : String(numLines)}
+                                            value={displayNumLines}
                                             onChange={(e) => handleNumLinesChange(e.target.value)}
-                                            onBlur={handleBlur}
+                                            onBlur={handleNumLinesBlur}
                                             className="w-full h-8 text-2xl font-bold bg-transparent border-0 shadow-none focus-visible:ring-0 p-0"
                                         />
                                     </div>
@@ -191,9 +214,10 @@ function ProductionPlanPageContent() {
                                         <Label htmlFor="opening-fg-stock" className="text-sm text-muted-foreground">Opening FG Stock</Label>
                                         <Input
                                             id="opening-fg-stock"
-                                            type="number"
-                                            value={openingFgStock}
-                                            onChange={(e) => setOpeningFgStock(parseInt(e.target.value, 10) || 0)}
+                                            type="text"
+                                            value={displayOpeningFgStock}
+                                            onChange={(e) => handleOpeningStockChange(e.target.value)}
+                                            onBlur={handleOpeningStockBlur}
                                             className="w-full h-8 text-2xl font-bold bg-transparent border-0 shadow-none focus-visible:ring-0 p-0"
                                         />
                                     </div>
@@ -240,7 +264,7 @@ function ProductionPlanPageContent() {
                                             <TableHead className={cn("font-semibold sticky left-0 bg-background")}>Inv.</TableHead>
                                             {snapshotForecastWeeks.map(week => (
                                                 <TableCell key={`inv-${week}`} className="text-right tabular-nums">
-                                                    {inventoryData[week] ? inventoryData[week].toLocaleString() : '-'}
+                                                    {inventoryData[week] ? Math.round(inventoryData[week]).toLocaleString() : '-'}
                                                 </TableCell>
                                             ))}
                                         </TableRow>
