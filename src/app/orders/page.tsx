@@ -1195,6 +1195,7 @@ ForecastedOrderRow.displayName = 'ForecastedOrderRow';
 
 export default function OrdersPage() {
   const { 
+    appMode,
     orders, 
     scheduledProcesses, 
     updateSewingRampUpScheme, 
@@ -1240,16 +1241,14 @@ export default function OrdersPage() {
         <div className="space-y-4">
           <h1 className="text-2xl font-bold">Order Management</h1>
           <p className="text-muted-foreground">
-            View all your orders in one place. Click on an Order ID to see details.
+            View all your {appMode === 'firm' ? 'firm' : 'forecasted'} orders. Click on an Order ID to see details.
           </p>
 
-          <Tabs defaultValue="firm">
-            <TabsList>
-              <TabsTrigger value="firm">Firm POs ({firmOrders.length})</TabsTrigger>
-              <TabsTrigger value="forecasted">Forecasted ({forecastedOrders.length})</TabsTrigger>
-            </TabsList>
-            <TabsContent value="firm">
+          {appMode === 'firm' ? (
               <Card>
+                <CardHeader>
+                    <CardTitle>Firm POs ({firmOrders.length})</CardTitle>
+                </CardHeader>
                 <CardContent className="p-0">
                   <Table>
                     <TableHeader>
@@ -1284,9 +1283,11 @@ export default function OrdersPage() {
                   </Table>
                 </CardContent>
               </Card>
-            </TabsContent>
-            <TabsContent value="forecasted">
+          ) : (
               <Card>
+                 <CardHeader>
+                    <CardTitle>Forecasted Orders ({forecastedOrders.length})</CardTitle>
+                </CardHeader>
                  <CardContent className="p-0">
                   <Table>
                     <TableHeader>
@@ -1320,8 +1321,7 @@ export default function OrdersPage() {
                   </Table>
                 </CardContent>
               </Card>
-            </TabsContent>
-          </Tabs>
+          )}
         </div>
       </main>
       

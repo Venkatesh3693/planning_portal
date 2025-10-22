@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Suspense } from 'react';
@@ -275,7 +276,7 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
 function DemandAnalysisPageContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get('orderId');
-    const { orders, isScheduleLoaded } = useSchedule();
+    const { orders, isScheduleLoaded, appMode } = useSchedule();
 
     const order = useMemo(() => {
         if (!isScheduleLoaded || !orderId) return null;
@@ -284,6 +285,10 @@ function DemandAnalysisPageContent() {
 
     if (!isScheduleLoaded) {
         return <div className="flex items-center justify-center h-full">Loading analysis data...</div>;
+    }
+
+    if (appMode === 'forecasted') {
+        return <div className="flex items-center justify-center h-full">This view is not applicable for Forecasted mode.</div>;
     }
 
     if (!order) {

@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { Factory, PanelLeftOpen, PanelRightOpen, Settings } from 'lucide-react';
@@ -7,6 +8,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Button } from '@/components/ui/button';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { useSchedule } from '@/context/schedule-provider';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
 
 type HeaderProps = {
   isOrdersPanelVisible?: boolean;
@@ -19,6 +23,7 @@ export function Header({
 }: HeaderProps) {
   const pathname = usePathname();
   const isHomePage = pathname === '/';
+  const { appMode, setAppMode } = useSchedule();
 
   const handleToggle = () => {
     if (setIsOrdersPanelVisible) {
@@ -31,7 +36,7 @@ export function Header({
       <div className="container mx-auto max-w-full px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-3">
-            {isHomePage && setIsOrdersPanelVisible && (
+            {isHomePage && appMode === 'firm' && setIsOrdersPanelVisible && (
               <Button variant="ghost" size="icon" onClick={handleToggle}>
                 {isOrdersPanelVisible ? <PanelLeftOpen className="h-5 w-5" /> : <PanelRightOpen className="h-5 w-5" />}
                  <span className="sr-only">Toggle Orders Panel</span>
@@ -45,6 +50,12 @@ export function Header({
             </Link>
           </div>
           <div className="flex items-center gap-4">
+            <Tabs value={appMode} onValueChange={(value) => setAppMode(value as 'firm' | 'forecasted')}>
+              <TabsList>
+                <TabsTrigger value="firm">Firm POs</TabsTrigger>
+                <TabsTrigger value="forecasted">Forecasted</TabsTrigger>
+              </TabsList>
+            </Tabs>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="ring-offset-background focus-visible:ring-0 focus-visible:ring-offset-0">
@@ -53,12 +64,19 @@ export function Header({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <Link href="/capacity">
-                  <DropdownMenuItem>Capacity management</DropdownMenuItem>
-                </Link>
+                {appMode === 'firm' && (
+                  <Link href="/capacity">
+                    <DropdownMenuItem>Capacity management</DropdownMenuItem>
+                  </Link>
+                )}
                 <Link href="/orders">
                   <DropdownMenuItem>Order management</DropdownMenuItem>
                 </Link>
+                {appMode === 'firm' && (
+                    <Link href="/demand-analysis?orderId=DMI-114227-Purple">
+                        <DropdownMenuItem>Demand Analysis</DropdownMenuItem>
+                    </Link>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

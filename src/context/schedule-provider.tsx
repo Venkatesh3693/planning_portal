@@ -10,12 +10,15 @@ import { getProcessBatchSize, getPackingBatchSize } from '@/lib/tna-calculator';
 
 const STORE_KEY = 'stitchplan_schedule_v3';
 
+type AppMode = 'firm' | 'forecasted';
 type SewingRampUpSchemes = Record<string, RampUpEntry[]>;
 type SewingLines = Record<string, number>;
 type StoredOrderOverrides = Record<string, Partial<Pick<Order, 'displayColor' | 'sewingRampUpScheme' | 'tna' | 'bom'>>>;
 type ProductionPlans = Record<string, Record<string, number>>;
 
 type ScheduleContextType = {
+  appMode: AppMode;
+  setAppMode: (mode: AppMode) => void;
   orders: Order[];
   scheduledProcesses: ScheduledProcess[];
   setScheduledProcesses: Dispatch<SetStateAction<ScheduledProcess[]>>;
@@ -41,6 +44,7 @@ type ScheduleContextType = {
 const ScheduleContext = createContext<ScheduleContextType | undefined>(undefined);
 
 export function ScheduleProvider({ children }: { children: ReactNode }) {
+  const [appMode, setAppModeState] = useState<AppMode>('firm');
   const [orders, setOrders] = useState<Order[]>([]);
   const [scheduledProcesses, setScheduledProcesses] = useState<ScheduledProcess[]>([]);
   const [sewingLines, setSewingLinesState] = useState<SewingLines>({});
@@ -59,6 +63,10 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
       if (serializedState) {
         const storedData = JSON.parse(serializedState);
         
+        if (storedData.appMode) {
+          setAppModeState(storedData.appMode);
+        }
+
         const loadedProcesses = (storedData.scheduledProcesses || []).map((p: any) => {
           const endDateTime = new Date(p.endDateTime);
           if (isAfter(endDateTime, maxEndDate)) {
@@ -136,6 +144,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     if (!isScheduleLoaded) return;
     try {
       const stateToSave = {
+        appMode,
         scheduledProcesses,
         sewingLines,
         orderOverrides,
@@ -148,7 +157,11 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error("Could not save schedule to localStorage", err);
     }
-  }, [scheduledProcesses, sewingLines, orderOverrides, productionPlans, timelineEndDate, splitOrderProcesses, isScheduleLoaded]);
+  }, [appMode, scheduledProcesses, sewingLines, orderOverrides, productionPlans, timelineEndDate, splitOrderProcesses, isScheduleLoaded]);
+
+  const setAppMode = (mode: AppMode) => {
+    setAppModeState(mode);
+  };
 
   const updateOrderTna = (orderId: string, newTnaProcesses: TnaProcess[]) => {
       setOrderOverrides(prev => {
@@ -293,6 +306,8 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   }, [orders, sewingLines]);
 
   const value = { 
+    appMode,
+    setAppMode,
     orders,
     scheduledProcesses, 
     setScheduledProcesses, 
@@ -329,5 +344,3 @@ export function useSchedule(): ScheduleContextType {
   }
   return context;
 }
-
-    

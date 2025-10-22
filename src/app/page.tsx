@@ -10,7 +10,7 @@ import { MACHINES, PROCESSES, WORK_DAY_MINUTES } from '@/lib/data';
 import type { Order, ScheduledProcess, UnplannedBatch } from '@/lib/types';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Trash2 } from 'lucide-react';
+import { Trash2, ShoppingCart } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
 import { useSchedule } from '@/context/schedule-provider';
 import MachinePanel from '@/components/gantt-chart/machine-panel';
@@ -18,6 +18,7 @@ import SplitProcessDialog from '@/components/gantt-chart/split-process-dialog';
 import PabView from '@/components/pab/pab-view';
 import { getSewingDaysForQuantity, calculateDailySewingOutput, calculateLatestSewingStartDate, calculateSewingDurationMinutes, getPackingBatchSize } from '@/lib/tna-calculator';
 import { subBusinessDays, addBusinessDays, calculateEndDateTime, calculateStartDateTime } from '@/lib/utils';
+import Link from 'next/link';
 
 
 const SEWING_PROCESS_ID = 'sewing';
@@ -60,6 +61,7 @@ const calculateSewingDuration = (order: Order, quantity: number, numLines: numbe
 
 function GanttPageContent() {
   const { 
+    appMode,
     orders, 
     scheduledProcesses, 
     setScheduledProcesses, 
@@ -802,6 +804,26 @@ function GanttPageContent() {
   };
 
   const isPabView = selectedProcessId === 'pab';
+
+  if (appMode === 'forecasted') {
+    return (
+      <div className="flex h-screen flex-col">
+        <Header />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+              <ShoppingCart className="mx-auto h-12 w-12 text-muted-foreground" />
+              <h2 className="mt-4 text-xl font-semibold">Gantt Chart Not Available for Forecasted Mode</h2>
+              <p className="mt-2 text-muted-foreground">
+                  The planning and scheduling view is only applicable to Firm POs.
+              </p>
+              <Button asChild className="mt-6">
+                <Link href="/orders">View Forecasted Orders</Link>
+              </Button>
+          </div>
+        </main>
+      </div>
+    )
+  }
   
   if (!isScheduleLoaded) {
     return (

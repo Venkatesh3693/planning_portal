@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -47,6 +48,7 @@ import { Button } from '@/components/ui/button';
 import { X, PlusCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useSchedule } from '@/context/schedule-provider';
 
 type MachineGroup = {
   process: Process;
@@ -70,6 +72,7 @@ type ReallocationState = {
 
 
 export default function CapacityPage() {
+  const { appMode } = useSchedule();
   const [machines, setMachines] = useState<Machine[]>(MACHINES);
   const [reallocationState, setReallocationState] = useState<ReallocationState | null>(null);
 
@@ -272,6 +275,25 @@ export default function CapacityPage() {
   };
 
 
+  if (appMode === 'forecasted') {
+    return (
+        <div className="flex h-screen flex-col">
+          <Header />
+          <main className="flex-1 p-4 sm:p-6 lg:p-8 flex items-center justify-center">
+            <div className="text-center">
+              <h2 className="text-xl font-semibold">Capacity Management Not Available</h2>
+              <p className="mt-2 text-muted-foreground">
+                This view is only applicable for Firm PO mode.
+              </p>
+              <Button asChild className="mt-6">
+                <Link href="/orders">View Forecasted Orders</Link>
+              </Button>
+            </div>
+          </main>
+        </div>
+    )
+  }
+
   return (
     <div className="flex h-screen flex-col">
       <Header />
@@ -455,5 +477,3 @@ export default function CapacityPage() {
     </div>
   );
 }
-
-    
