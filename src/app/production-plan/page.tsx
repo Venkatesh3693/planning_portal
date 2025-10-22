@@ -109,20 +109,41 @@ function ProductionPlanPageContent() {
 
     // Effect to set the initial production start week if not already set
     useEffect(() => {
-        if (orderId && !initialProductionStartWeek && order && order.fcVsFcDetails && weeklyOutput > 0) {
-            const earliestSnapshot = order.fcVsFcDetails.sort((a,b) => a.snapshotWeek - b.snapshotWeek)[0];
-            if (!earliestSnapshot) return;
+      if (orderId && !initialProductionStartWeek && order && order.fcVsFcDetails && weeklyOutput > 0) {
+          const earliestSnapshot = order.fcVsFcDetails.sort((a,b) => a.snapshotWeek - b.snapshotWeek)[0];
+          if (!earliestSnapshot) return;
 
-            const snapshotForecastWeeks = Object.keys(earliestSnapshot.forecasts).sort((a, b) => parseInt(a.replace('W','')) - parseInt(b.replace('W','')));
-            const demands = snapshotForecastWeeks.map(week => (earliestSnapshot.forecasts[week]?.total.po || 0) + (earliestSnapshot.forecasts[week]?.total.fc || 0));
-            const firstDemandWeekIndex = demands.findIndex(d => d > 0);
+          const snapshotForecastWeeks = Object.keys(earliestSnapshot.forecasts).sort((a, b) => parseInt(a.replace('W','')) - parseInt(b.replace('W','')));
+          const demands = snapshotForecastWeeks.map(week => (earliestSnapshot.forecasts[week]?.total.po || 0) + (earliestSnapshot.forecasts[week]?.total.fc || 0));
+          const firstDemandWeekIndex = demands.findIndex(d => d > 0);
 
-            if (firstDemandWeekIndex !== -1) {
-                const productionStartWeekNum = parseInt(snapshotForecastWeeks[firstDemandWeekIndex].replace('W',''));
-                setInitialProductionStartWeek(orderId, productionStartWeekNum); // Store it
-            }
-        }
+          if (firstDemandWeekIndex !== -1) {
+              const naiveStartWeek = parseInt(snapshotForecastWeeks[firstDemandWeekIndex].replace('W',''));
+              
+              // --- Run simulation to find greatest deficit ---
+              let lowestInventory = 0;
+              let currentInventory = 0;
+              for(let i = firstDemandWeekIndex; i < snapshotForecastWeeks.length; i++) {
+                  const weekDemand = demands[i];
+                  // In the naive plan, production equals demand for the week.
+                  currentInventory = currentInventory + weeklyOutput - weekDemand;
+                  if(currentInventory < lowestInventory) {
+                      lowestInventory = currentInventory;
+                  }
+              }
+
+              // --- Calculate head start needed ---
+              let headStartWeeks = 0;
+              if (lowestInventory < 0) {
+                  headStartWeeks = Math.ceil(Math.abs(lowestInventory) / weeklyOutput);
+              }
+              
+              const idealStartWeek = naiveStartWeek - headStartWeeks;
+              setInitialProductionStartWeek(orderId, idealStartWeek);
+          }
+      }
     }, [orderId, initialProductionStartWeek, order, weeklyOutput, setInitialProductionStartWeek]);
+
 
     // Effect to dynamically calculate opening stock when selected snapshot changes
     useEffect(() => {
@@ -443,10 +464,10 @@ function ProductionPlanPageContent() {
                                                     <TableCell 
                                                         className={cn(
                                                             "text-right tabular-nums min-w-[90px] font-bold",
-                                                            totals.inv < 0 && "text-destructive"
+                                                            typeof totals.inv === 'number' && totals.inv < 0 && "text-destructive"
                                                         )}
                                                     >
-                                                        {totals.inv !== undefined ? Math.round(totals.inv).toLocaleString() : '-'}
+                                                        {typeof totals.inv === 'number' ? Math.round(totals.inv).toLocaleString() : '-'}
                                                     </TableCell>
                                                 </TableRow>
                                             </TableBody>
