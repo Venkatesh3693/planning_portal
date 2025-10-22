@@ -1285,9 +1285,6 @@ export default function OrdersPage() {
               </Card>
           ) : (
               <Card>
-                 <CardHeader>
-                    <CardTitle>Forecasted Orders ({forecastedOrders.length})</CardTitle>
-                </CardHeader>
                  <CardContent className="p-0">
                   <Table>
                     <TableHeader>
