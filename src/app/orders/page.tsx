@@ -1036,10 +1036,9 @@ const ForecastedOrderRow = forwardRef<
     onRampUpSave: (orderId: string, scheme: RampUpEntry[]) => void;
     onBomChange: (orderId: string, componentName: string, field: keyof BomItem, value: any) => void;
     onSetSewingLines: (orderId: string, lines: number) => void;
-    onPoDetailsOpen: (order: Order) => void;
     children?: React.ReactNode;
   }
->(({ order, onRampUpSave, onBomChange, onSetSewingLines, onPoDetailsOpen, children, ...props }, ref) => {
+>(({ order, onRampUpSave, onBomChange, onSetSewingLines, children, ...props }, ref) => {
   const [isTnaOpen, setIsTnaOpen] = useState(false);
   const [activeView, setActiveView] = useState<'tna' | 'ob' | 'bom' | 'ramp-up'>('tna');
   const [demandDetailsOrder, setDemandDetailsOrder] = useState<Order | null>(null);
@@ -1159,13 +1158,7 @@ const ForecastedOrderRow = forwardRef<
       <TableCell className="text-right font-bold">{(order.frc?.total || 0).toLocaleString()}</TableCell>
 
       <TableCell className="text-right font-bold">
-        {(order.poDetails && order.confirmedPoQty) ? (
-          <span className="cursor-pointer text-primary hover:underline whitespace-nowrap" onClick={() => onPoDetailsOpen(order)}>
-            {(order.confirmedPoQty || 0).toLocaleString()}
-          </span>
-        ) : (
           <span>{(order.confirmedPoQty || 0).toLocaleString()}</span>
-        )}
       </TableCell>
       
       <TableCell className="text-right font-bold">{order.cutOrder?.total.toLocaleString() || '-'}</TableCell>
@@ -1204,7 +1197,6 @@ export default function OrdersPage() {
     processBatchSizes,
   } = useSchedule();
 
-  const [poDetailsOrder, setPoDetailsOrder] = useState<Order | null>(null);
   const [demandDetailsOrder, setDemandDetailsOrder] = useState<Order | null>(null);
 
   const handleGenerateTna = (order: Order) => {
@@ -1242,6 +1234,9 @@ export default function OrdersPage() {
 
           {appMode === 'gup' ? (
               <Card>
+                <CardHeader>
+                    <CardTitle>GUP ({firmOrders.length})</CardTitle>
+                </CardHeader>
                 <CardContent className="p-0">
                   <Table>
                     <TableHeader>
@@ -1278,6 +1273,9 @@ export default function OrdersPage() {
               </Card>
           ) : (
               <Card>
+                 <CardHeader>
+                    <CardTitle>GUT ({forecastedOrders.length})</CardTitle>
+                 </CardHeader>
                  <CardContent className="p-0">
                   <Table>
                     <TableHeader>
@@ -1305,7 +1303,6 @@ export default function OrdersPage() {
                           onRampUpSave={updateSewingRampUpScheme}
                           onBomChange={updateOrderBom}
                           onSetSewingLines={setSewingLines}
-                          onPoDetailsOpen={setPoDetailsOrder}
                         />
                       ))}
                     </TableBody>
@@ -1316,14 +1313,6 @@ export default function OrdersPage() {
         </div>
       </main>
       
-      {poDetailsOrder && (
-        <PoDetailsDialog 
-          order={poDetailsOrder}
-          isOpen={!!poDetailsOrder}
-          onOpenChange={(isOpen) => !isOpen && setPoDetailsOrder(null)}
-        />
-      )}
-
       {demandDetailsOrder && (
         <DemandDetailsDialog
           order={demandDetailsOrder}
