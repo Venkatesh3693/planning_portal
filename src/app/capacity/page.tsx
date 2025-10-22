@@ -275,7 +275,7 @@ export default function CapacityPage() {
   };
 
 
-  if (appMode === 'forecasted') {
+  if (appMode === 'gut') {
     return (
         <div className="flex h-screen flex-col">
           <Header />
@@ -283,10 +283,10 @@ export default function CapacityPage() {
             <div className="text-center">
               <h2 className="text-xl font-semibold">Capacity Management Not Available</h2>
               <p className="mt-2 text-muted-foreground">
-                This view is only applicable for Firm PO mode.
+                This view is only applicable for GUP mode.
               </p>
               <Button asChild className="mt-6">
-                <Link href="/orders">View Forecasted Orders</Link>
+                <Link href="/orders">View GUT Orders</Link>
               </Button>
             </div>
           </main>

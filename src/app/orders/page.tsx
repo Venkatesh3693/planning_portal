@@ -1145,7 +1145,7 @@ const ForecastedOrderRow = forwardRef<
       </TableCell>
       
       <TableCell className="text-right font-bold">
-        {order.projection?.total ? (
+        {(order.projection?.total) ? (
             <Link href={`/projection-analysis?orderId=${order.id}`} passHref>
                 <span className="text-primary cursor-pointer hover:underline">
                     {(order.projection.total || 0).toLocaleString()}
@@ -1241,13 +1241,13 @@ export default function OrdersPage() {
         <div className="space-y-4">
           <h1 className="text-2xl font-bold">Order Management</h1>
           <p className="text-muted-foreground">
-            View all your {appMode === 'firm' ? 'firm' : 'forecasted'} orders. Click on an Order ID to see details.
+            View all your {appMode === 'gup' ? 'GUP' : 'GUT'} orders. Click on an Order ID to see details.
           </p>
 
-          {appMode === 'firm' ? (
+          {appMode === 'gup' ? (
               <Card>
                 <CardHeader>
-                    <CardTitle>Firm POs ({firmOrders.length})</CardTitle>
+                    <CardTitle>GUP ({firmOrders.length})</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
                   <Table>

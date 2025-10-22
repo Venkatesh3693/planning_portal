@@ -287,8 +287,8 @@ function DemandAnalysisPageContent() {
         return <div className="flex items-center justify-center h-full">Loading analysis data...</div>;
     }
 
-    if (appMode === 'forecasted') {
-        return <div className="flex items-center justify-center h-full">This view is not applicable for Forecasted mode.</div>;
+    if (appMode === 'gut') {
+        return <div className="flex items-center justify-center h-full">This view is not applicable for GUT mode.</div>;
     }
 
     if (!order) {

@@ -10,7 +10,7 @@ import { getProcessBatchSize, getPackingBatchSize } from '@/lib/tna-calculator';
 
 const STORE_KEY = 'stitchplan_schedule_v3';
 
-type AppMode = 'firm' | 'forecasted';
+type AppMode = 'gup' | 'gut';
 type SewingRampUpSchemes = Record<string, RampUpEntry[]>;
 type SewingLines = Record<string, number>;
 type StoredOrderOverrides = Record<string, Partial<Pick<Order, 'displayColor' | 'sewingRampUpScheme' | 'tna' | 'bom'>>>;
@@ -44,7 +44,7 @@ type ScheduleContextType = {
 const ScheduleContext = createContext<ScheduleContextType | undefined>(undefined);
 
 export function ScheduleProvider({ children }: { children: ReactNode }) {
-  const [appMode, setAppModeState] = useState<AppMode>('firm');
+  const [appMode, setAppModeState] = useState<AppMode>('gup');
   const [orders, setOrders] = useState<Order[]>([]);
   const [scheduledProcesses, setScheduledProcesses] = useState<ScheduledProcess[]>([]);
   const [sewingLines, setSewingLinesState] = useState<SewingLines>({});

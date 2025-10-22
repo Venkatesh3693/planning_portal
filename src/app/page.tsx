@@ -805,19 +805,19 @@ function GanttPageContent() {
 
   const isPabView = selectedProcessId === 'pab';
 
-  if (appMode === 'forecasted') {
+  if (appMode === 'gut') {
     return (
       <div className="flex h-screen flex-col">
         <Header />
         <main className="flex-1 flex items-center justify-center">
           <div className="text-center">
               <ShoppingCart className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h2 className="mt-4 text-xl font-semibold">Gantt Chart Not Available for Forecasted Mode</h2>
+              <h2 className="mt-4 text-xl font-semibold">Gantt Chart Not Available for GUT Mode</h2>
               <p className="mt-2 text-muted-foreground">
-                  The planning and scheduling view is only applicable to Firm POs.
+                  The planning and scheduling view is only applicable to GUP.
               </p>
               <Button asChild className="mt-6">
-                <Link href="/orders">View Forecasted Orders</Link>
+                <Link href="/orders">View GUT Orders</Link>
               </Button>
           </div>
         </main>

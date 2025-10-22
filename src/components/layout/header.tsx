@@ -36,7 +36,7 @@ export function Header({
       <div className="container mx-auto max-w-full px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-3">
-            {isHomePage && appMode === 'firm' && setIsOrdersPanelVisible && (
+            {isHomePage && appMode === 'gup' && setIsOrdersPanelVisible && (
               <Button variant="ghost" size="icon" onClick={handleToggle}>
                 {isOrdersPanelVisible ? <PanelLeftOpen className="h-5 w-5" /> : <PanelRightOpen className="h-5 w-5" />}
                  <span className="sr-only">Toggle Orders Panel</span>
@@ -50,10 +50,10 @@ export function Header({
             </Link>
           </div>
           <div className="flex items-center gap-4">
-            <Tabs value={appMode} onValueChange={(value) => setAppMode(value as 'firm' | 'forecasted')}>
+            <Tabs value={appMode} onValueChange={(value) => setAppMode(value as 'gup' | 'gut')}>
               <TabsList>
-                <TabsTrigger value="firm">Firm POs</TabsTrigger>
-                <TabsTrigger value="forecasted">Forecasted</TabsTrigger>
+                <TabsTrigger value="gup">GUP</TabsTrigger>
+                <TabsTrigger value="gut">GUT</TabsTrigger>
               </TabsList>
             </Tabs>
             <DropdownMenu>
@@ -64,7 +64,7 @@ export function Header({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {appMode === 'firm' && (
+                {appMode === 'gup' && (
                   <Link href="/capacity">
                     <DropdownMenuItem>Capacity management</DropdownMenuItem>
                   </Link>
@@ -72,7 +72,7 @@ export function Header({
                 <Link href="/orders">
                   <DropdownMenuItem>Order management</DropdownMenuItem>
                 </Link>
-                {appMode === 'firm' && (
+                {appMode === 'gup' && (
                     <Link href="/demand-analysis?orderId=DMI-114227-Purple">
                         <DropdownMenuItem>Demand Analysis</DropdownMenuItem>
                     </Link>
