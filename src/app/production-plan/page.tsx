@@ -118,9 +118,8 @@ function ProductionPlanPageContent() {
             const firstDemandWeekIndex = demands.findIndex(d => d > 0);
 
             if (firstDemandWeekIndex !== -1) {
-                const tempStartWeekIndex = firstDemandWeekIndex - 1;
-                const productionStartWeekNum = parseInt(snapshotForecastWeeks[tempStartWeekIndex].replace('W',''));
-                setInitialProductionStartWeek(orderId, productionStartWeekNum + 1); // Store it
+                const productionStartWeekNum = parseInt(snapshotForecastWeeks[firstDemandWeekIndex].replace('W',''));
+                setInitialProductionStartWeek(orderId, productionStartWeekNum); // Store it
             }
         }
     }, [orderId, initialProductionStartWeek, order, weeklyOutput, setInitialProductionStartWeek]);
@@ -195,7 +194,9 @@ function ProductionPlanPageContent() {
         }
     
         const currentSnapshotWeekNum = parseInt(selectedSnapshotWeek);
-        const futureForecastWeeks = snapshotForecastWeeks.filter(week => parseInt(week.replace('W', '')) >= currentSnapshotWeekNum);
+        const effectiveStartWeek = Math.max(initialProductionStartWeek || 0, currentSnapshotWeekNum);
+        
+        const futureForecastWeeks = snapshotForecastWeeks.filter(week => parseInt(week.replace('W', '')) >= effectiveStartWeek);
     
         if (futureForecastWeeks.length === 0) {
             updateProductionPlan(orderId, {});
@@ -213,21 +214,14 @@ function ProductionPlanPageContent() {
         let cumulativeProduction = 0;
         const newPlan: Record<string, number> = {};
     
-        // Production starts from the selected snapshot week if needed
         for (let i = 0; i < futureForecastWeeks.length; i++) {
             const week = futureForecastWeeks[i];
-            const weekNum = parseInt(week.replace('W', ''));
     
-            // Only start planning production from the snapshot week
-            if (weekNum >= currentSnapshotWeekNum) {
-                if ((openingFgStock + cumulativeProduction) < totalDemand) {
-                    newPlan[week] = weeklyOutput;
-                    cumulativeProduction += weeklyOutput;
-                } else {
-                    newPlan[week] = 0;
-                }
+            if ((openingFgStock + cumulativeProduction) < totalDemand) {
+                newPlan[week] = weeklyOutput;
+                cumulativeProduction += weeklyOutput;
             } else {
-                 newPlan[week] = 0;
+                newPlan[week] = 0;
             }
         }
     
@@ -235,32 +229,41 @@ function ProductionPlanPageContent() {
         toast({ title: 'Production Plan Generated', description: "The 'Plan' and 'Inv.' rows have been updated." });
     };
     
-    const inventoryData = useMemo(() => {
-        if (!selectedSnapshot) return {};
+    const { inventoryData, totals } = useMemo(() => {
+        if (!selectedSnapshot) return { inventoryData: {}, totals: {} };
         const weeklyInventory: Record<string, number> = {};
         let previousInventory = openingFgStock;
 
-        for (let i = 0; i < snapshotForecastWeeks.length; i++) {
-            const week = snapshotForecastWeeks[i];
+        const currentSnapshotWeekNum = selectedSnapshotWeek ? parseInt(selectedSnapshotWeek) : 0;
+        const effectiveStartWeek = Math.max(initialProductionStartWeek || 0, currentSnapshotWeekNum);
+        const futureForecastWeeks = snapshotForecastWeeks.filter(week => parseInt(week.replace('W', '')) >= effectiveStartWeek);
+
+        let totalPoFc = 0;
+        let totalPlan = 0;
+
+        for (const week of futureForecastWeeks) {
             const demand = (selectedSnapshot.forecasts[week]?.total.po || 0) + (selectedSnapshot.forecasts[week]?.total.fc || 0);
-            const production = productionPlan[week] || 0; // Use the generated plan
+            const production = productionPlan[week] || 0;
+
+            totalPoFc += demand;
+            totalPlan += production;
             
-            // Only consider demand and production from the snapshot week onwards
-            const currentSnapshotWeekNum = selectedSnapshotWeek ? parseInt(selectedSnapshotWeek) : 0;
-            const weekNum = parseInt(week.replace('W',''));
-
-            if (weekNum < currentSnapshotWeekNum) {
-                 weeklyInventory[week] = 0; // Or some other placeholder for past inventory
-                 continue;
-            }
-
             const closingInventory = previousInventory + production - demand;
             weeklyInventory[week] = closingInventory;
             previousInventory = closingInventory;
         }
+        
+        const lastInvWeek = futureForecastWeeks[futureForecastWeeks.length -1];
 
-        return weeklyInventory;
-    }, [selectedSnapshot, snapshotForecastWeeks, openingFgStock, productionPlan, selectedSnapshotWeek]);
+        return { 
+            inventoryData: weeklyInventory, 
+            totals: {
+                poFc: totalPoFc,
+                plan: totalPlan,
+                inv: weeklyInventory[lastInvWeek]
+            }
+        };
+    }, [selectedSnapshot, snapshotForecastWeeks, openingFgStock, productionPlan, selectedSnapshotWeek, initialProductionStartWeek]);
 
 
     if (!isScheduleLoaded) {
@@ -394,6 +397,7 @@ function ProductionPlanPageContent() {
                                                     {snapshotForecastWeeks.map(week => (
                                                         <TableCell key={week} className="text-right font-medium min-w-[80px]">{week}</TableCell>
                                                     ))}
+                                                    <TableHead className="text-right font-bold min-w-[90px]">Total</TableHead>
                                                 </TableRow>
                                                 <TableRow>
                                                     <TableHead className={cn("font-semibold sticky left-0 bg-background w-[100px]")}>PO + FC</TableHead>
@@ -406,6 +410,9 @@ function ProductionPlanPageContent() {
                                                             </TableCell>
                                                         )
                                                     })}
+                                                     <TableCell className="text-right tabular-nums min-w-[90px] font-bold">
+                                                        {totals.poFc > 0 ? totals.poFc.toLocaleString() : '-'}
+                                                    </TableCell>
                                                 </TableRow>
                                                 <TableRow>
                                                     <TableHead className={cn("font-semibold sticky left-0 bg-background w-[100px]")}>Plan</TableHead>
@@ -414,6 +421,9 @@ function ProductionPlanPageContent() {
                                                             {productionPlan[week] ? Math.round(productionPlan[week]).toLocaleString() : '-'}
                                                         </TableCell>
                                                     ))}
+                                                    <TableCell className="text-right tabular-nums min-w-[90px] font-bold">
+                                                        {totals.plan > 0 ? Math.round(totals.plan).toLocaleString() : '-'}
+                                                    </TableCell>
                                                 </TableRow>
                                                  <TableRow>
                                                     <TableHead className={cn("font-semibold sticky left-0 bg-background w-[100px]")}>Inv.</TableHead>
@@ -428,6 +438,14 @@ function ProductionPlanPageContent() {
                                                             {inventoryData[week] !== undefined ? Math.round(inventoryData[week]).toLocaleString() : '-'}
                                                         </TableCell>
                                                     ))}
+                                                    <TableCell 
+                                                        className={cn(
+                                                            "text-right tabular-nums min-w-[90px] font-bold",
+                                                            totals.inv < 0 && "text-destructive"
+                                                        )}
+                                                    >
+                                                        {totals.inv !== undefined ? Math.round(totals.inv).toLocaleString() : '-'}
+                                                    </TableCell>
                                                 </TableRow>
                                             </TableBody>
                                         </Table>
