@@ -16,6 +16,15 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { SIZES } from '@/lib/data';
 
 function PoStatusPageContent() {
     const searchParams = useSearchParams();
@@ -75,7 +84,27 @@ function PoStatusPageContent() {
                 </div>
                 
                 <div className="border rounded-lg overflow-auto flex-1">
-                    {/* The table has been removed as requested. */}
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>PO Number</TableHead>
+                                <TableHead>Issue date</TableHead>
+                                <TableHead>Destination</TableHead>
+                                {SIZES.map(size => (
+                                    <TableHead key={size} className="text-right">{size}</TableHead>
+                                ))}
+                                <TableHead>Original EHD</TableHead>
+                                <TableHead>Actual EHD</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            <TableRow>
+                                <TableCell colSpan={10 + 3} className="h-24 text-center">
+                                    No PO data to display.
+                                </TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
                 </div>
             </main>
         </div>
