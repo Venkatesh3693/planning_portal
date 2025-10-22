@@ -14,7 +14,6 @@ type SewingRampUpSchemes = Record<string, RampUpEntry[]>;
 type SewingLines = Record<string, number>;
 type StoredOrderOverrides = Record<string, Partial<Pick<Order, 'displayColor' | 'sewingRampUpScheme' | 'tna' | 'bom'>>>;
 type ProductionPlans = Record<string, Record<string, number>>;
-type InitialProductionStartWeeks = Record<string, number>;
 
 type ScheduleContextType = {
   orders: Order[];
@@ -37,8 +36,6 @@ type ScheduleContextType = {
   toggleSplitProcess: (orderId: string, processId: string) => void;
   processBatchSizes: Record<string, number>;
   packingBatchSizes: Record<string, number>;
-  initialProductionStartWeeks: InitialProductionStartWeeks;
-  setInitialProductionStartWeek: (orderId: string, week: number) => void;
 };
 
 const ScheduleContext = createContext<ScheduleContextType | undefined>(undefined);
@@ -49,7 +46,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   const [sewingLines, setSewingLinesState] = useState<SewingLines>({});
   const [orderOverrides, setOrderOverrides] = useState<StoredOrderOverrides>({});
   const [productionPlans, setProductionPlans] = useState<ProductionPlans>({});
-  const [initialProductionStartWeeks, setInitialProductionStartWeeksState] = useState<InitialProductionStartWeeks>({});
   const [splitOrderProcesses, setSplitOrderProcesses] = useState<Record<string, boolean>>({});
   const [timelineEndDate, setTimelineEndDate] = useState(() => addDays(startOfToday(), 90));
   const [isScheduleLoaded, setIsScheduleLoaded] = useState(false);
@@ -79,7 +75,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         setScheduledProcesses(loadedProcesses);
         setSewingLinesState(storedData.sewingLines || {});
         setProductionPlans(storedData.productionPlans || {});
-        setInitialProductionStartWeeksState(storedData.initialProductionStartWeeks || {});
         loadedOverrides = storedData.orderOverrides || {};
         setOrderOverrides(loadedOverrides);
         setSplitOrderProcesses(storedData.splitOrderProcesses || {});
@@ -147,14 +142,13 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         productionPlans,
         timelineEndDate,
         splitOrderProcesses,
-        initialProductionStartWeeks,
       };
       const serializedState = JSON.stringify(stateToSave);
       localStorage.setItem(STORE_KEY, serializedState);
     } catch (err) {
       console.error("Could not save schedule to localStorage", err);
     }
-  }, [scheduledProcesses, sewingLines, orderOverrides, productionPlans, timelineEndDate, splitOrderProcesses, initialProductionStartWeeks, isScheduleLoaded]);
+  }, [scheduledProcesses, sewingLines, orderOverrides, productionPlans, timelineEndDate, splitOrderProcesses, isScheduleLoaded]);
 
   const updateOrderTna = (orderId: string, newTnaProcesses: TnaProcess[]) => {
       setOrderOverrides(prev => {
@@ -231,10 +225,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
 
   const updateProductionPlan = (orderId: string, plan: Record<string, number>) => {
     setProductionPlans(prev => ({ ...prev, [orderId]: plan }));
-  };
-  
-  const setInitialProductionStartWeek = (orderId: string, week: number) => {
-    setInitialProductionStartWeeksState(prev => ({...prev, [orderId]: week }));
   };
 
   const toggleSplitProcess = (orderId: string, processId: string) => {
@@ -323,8 +313,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     toggleSplitProcess,
     processBatchSizes,
     packingBatchSizes,
-    initialProductionStartWeeks,
-    setInitialProductionStartWeek,
   };
 
   return (
@@ -341,3 +329,5 @@ export function useSchedule(): ScheduleContextType {
   }
   return context;
 }
+
+    
