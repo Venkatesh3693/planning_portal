@@ -25,6 +25,7 @@ type TrackerRun = {
   runNumber: number;
   startWeek: string;
   endWeek: string;
+  quantity: number;
 };
 
 
@@ -171,12 +172,12 @@ function TentativePlanPageContent() {
             weeklyTotals[week] = (total?.po || 0) + (total?.fc || 0);
         });
 
-        const poFcStartWeekNum = allWeeks.length > 0 ? parseInt(allWeeks[0].slice(1)) : selectedSnapshotWeek;
+        const poFcStartWeekNum = allWeeks.length > 0 ? parseInt(allWeeks.find(w => (weeklyTotals[w] || 0) > 0)?.slice(1) || '0') : selectedSnapshotWeek;
         
         const scanStartWeekNum = Math.max(poFcStartWeekNum - 1, selectedSnapshotWeek);
 
         const runs: TrackerRun[] = [];
-        let currentRun: Partial<TrackerRun> = {};
+        let currentRun: Partial<TrackerRun> & { quantity: number } = { quantity: 0 };
         let zeroDemandStreak = 0;
         let runCounter = 1;
 
@@ -188,8 +189,10 @@ function TentativePlanPageContent() {
             if (demand > 0) {
                 if (!currentRun.startWeek) {
                     currentRun.startWeek = week;
+                    currentRun.quantity = 0;
                 }
                 currentRun.endWeek = week;
+                currentRun.quantity! += demand;
                 zeroDemandStreak = 0;
             } else {
                 if (currentRun.startWeek) { // Only count streak if we are in a run
@@ -202,8 +205,9 @@ function TentativePlanPageContent() {
                     runNumber: runCounter++,
                     startWeek: currentRun.startWeek,
                     endWeek: currentRun.endWeek!,
+                    quantity: Math.round(currentRun.quantity!),
                 });
-                currentRun = {};
+                currentRun = { quantity: 0 };
                 zeroDemandStreak = 0;
             }
         }
@@ -213,6 +217,7 @@ function TentativePlanPageContent() {
                 runNumber: runCounter++,
                 startWeek: currentRun.startWeek,
                 endWeek: currentRun.endWeek!,
+                quantity: Math.round(currentRun.quantity!),
             });
         }
         
@@ -328,6 +333,7 @@ function TentativePlanPageContent() {
                                             <TableHead>Run Number</TableHead>
                                             <TableHead>Plan start</TableHead>
                                             <TableHead>Plan end</TableHead>
+                                            <TableHead className="text-right">Quantity</TableHead>
                                             <TableHead>Number of lines</TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -338,12 +344,13 @@ function TentativePlanPageContent() {
                                                     <TableCell>{run.runNumber}</TableCell>
                                                     <TableCell>{run.startWeek}</TableCell>
                                                     <TableCell>{run.endWeek}</TableCell>
+                                                    <TableCell className="text-right font-medium">{run.quantity.toLocaleString()}</TableCell>
                                                     <TableCell>-</TableCell>
                                                 </TableRow>
                                             ))
                                         ) : (
                                             <TableRow>
-                                                <TableCell colSpan={4} className="h-24 text-center">
+                                                <TableCell colSpan={5} className="h-24 text-center">
                                                     Click "Plan" to generate production runs.
                                                 </TableCell>
                                             </TableRow>
