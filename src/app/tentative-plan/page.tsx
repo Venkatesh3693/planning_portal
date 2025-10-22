@@ -22,23 +22,8 @@ import { getWeek } from 'date-fns';
 import type { FcComposition, Size } from '@/lib/types';
 
 
-const TentativePlanTable = ({ order }: { order: any }) => {
-    const [selectedSnapshotWeek, setSelectedSnapshotWeek] = useState<number | null>(null);
-
-    const snapshotOptions = useMemo(() => {
-        if (!order?.fcVsFcDetails) return [];
-        return [...order.fcVsFcDetails]
-            .map(s => s.snapshotWeek)
-            .sort((a, b) => b - a);
-    }, [order]);
+const TentativePlanTable = ({ order, selectedSnapshotWeek }: { order: any, selectedSnapshotWeek: number | null }) => {
     
-    useEffect(() => {
-        // Set default snapshot week when options are available
-        if (snapshotOptions.length > 0 && selectedSnapshotWeek === null) {
-            setSelectedSnapshotWeek(snapshotOptions[0]);
-        }
-    }, [snapshotOptions, selectedSnapshotWeek]);
-
     const latestSnapshot = useMemo(() => {
         if (!order?.fcVsFcDetails || order.fcVsFcDetails.length === 0 || selectedSnapshotWeek === null) return null;
 
@@ -87,23 +72,6 @@ const TentativePlanTable = ({ order }: { order: any }) => {
     return (
         <Card className="mt-6">
             <CardContent className="p-0">
-                 <div className="p-4 border-b">
-                    <div className="max-w-xs space-y-2">
-                        <Label htmlFor="snapshot-select">Select Snapshot Week</Label>
-                        <Select value={String(selectedSnapshotWeek)} onValueChange={(val) => setSelectedSnapshotWeek(Number(val))}>
-                            <SelectTrigger id="snapshot-select">
-                                <SelectValue placeholder="Select a snapshot..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {snapshotOptions.map(week => (
-                                    <SelectItem key={week} value={String(week)}>
-                                        Snapshot Week {week}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -153,6 +121,8 @@ const TentativePlanTable = ({ order }: { order: any }) => {
 function TentativePlanPageContent() {
     const { appMode, orders, isScheduleLoaded } = useSchedule();
     const [selectedOrderId, setSelectedOrderId] = useState<string>('');
+    const [selectedSnapshotWeek, setSelectedSnapshotWeek] = useState<number | null>(null);
+
 
     const gutOrders = useMemo(() => {
         if (!isScheduleLoaded) return [];
@@ -164,6 +134,22 @@ function TentativePlanPageContent() {
         return gutOrders.find(o => o.id === selectedOrderId);
     }, [selectedOrderId, gutOrders]);
 
+    const snapshotOptions = useMemo(() => {
+        if (!selectedOrder?.fcVsFcDetails) return [];
+        return [...selectedOrder.fcVsFcDetails]
+            .map(s => s.snapshotWeek)
+            .sort((a, b) => b - a);
+    }, [selectedOrder]);
+
+    useEffect(() => {
+        // When order changes, reset snapshot week
+        if (selectedOrder && snapshotOptions.length > 0) {
+            setSelectedSnapshotWeek(snapshotOptions[0]);
+        } else {
+            setSelectedSnapshotWeek(null);
+        }
+    }, [selectedOrder, snapshotOptions]);
+
     if (appMode === 'gup') {
         return (
             <div className="flex h-screen flex-col">
@@ -172,7 +158,7 @@ function TentativePlanPageContent() {
                 <div className="text-center">
                   <h2 className="text-xl font-semibold">Tentative Plan Not Available</h2>
                   <p className="mt-2 text-muted-foreground">
-                    This view is only applicable for GUP mode.
+                    This view is only applicable for GUT mode.
                   </p>
                   <Button asChild className="mt-6">
                     <Link href="/orders">View GUP Orders</Link>
@@ -217,23 +203,42 @@ function TentativePlanPageContent() {
                 </div>
                 
                 <div className="space-y-4">
-                    <div className="max-w-xs space-y-2">
-                        <Label htmlFor="order-select">Select Order ID</Label>
-                        <Select value={selectedOrderId} onValueChange={setSelectedOrderId}>
-                            <SelectTrigger id="order-select">
-                                <SelectValue placeholder="Select an order..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {gutOrders.map(order => (
-                                    <SelectItem key={order.id} value={order.id}>
-                                        {order.id} ({order.style})
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                    <div className="flex gap-4">
+                        <div className="w-full max-w-xs space-y-2">
+                            <Label htmlFor="order-select">Select Order ID</Label>
+                            <Select value={selectedOrderId} onValueChange={setSelectedOrderId}>
+                                <SelectTrigger id="order-select">
+                                    <SelectValue placeholder="Select an order..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {gutOrders.map(order => (
+                                        <SelectItem key={order.id} value={order.id}>
+                                            {order.id} ({order.style})
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                         {selectedOrder && snapshotOptions.length > 0 && (
+                            <div className="w-full max-w-xs space-y-2">
+                                <Label htmlFor="snapshot-select">Select Snapshot Week</Label>
+                                <Select value={String(selectedSnapshotWeek)} onValueChange={(val) => setSelectedSnapshotWeek(Number(val))}>
+                                    <SelectTrigger id="snapshot-select">
+                                        <SelectValue placeholder="Select a snapshot..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {snapshotOptions.map(week => (
+                                            <SelectItem key={week} value={String(week)}>
+                                                Snapshot Week {week}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
                     </div>
                     
-                    {selectedOrder && <TentativePlanTable order={selectedOrder} />}
+                    {selectedOrder && <TentativePlanTable order={selectedOrder} selectedSnapshotWeek={selectedSnapshotWeek} />}
                 </div>
             </main>
         </div>
