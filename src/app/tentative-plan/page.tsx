@@ -16,7 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getWeek } from 'date-fns';
 import type { FcComposition, Size } from '@/lib/types';
@@ -70,7 +70,7 @@ const TentativePlanTable = ({ order, selectedSnapshotWeek }: { order: any, selec
     }
 
     return (
-        <Card className="mt-6">
+        <Card>
             <CardContent className="p-0">
                 <Table>
                     <TableHeader>
@@ -202,7 +202,7 @@ function TentativePlanPageContent() {
                     </div>
                 </div>
                 
-                <div className="space-y-4">
+                <div className="space-y-6">
                     <div className="flex gap-4">
                         <div className="w-full max-w-xs space-y-2">
                             <Label htmlFor="order-select">Select Order ID</Label>
@@ -238,7 +238,38 @@ function TentativePlanPageContent() {
                         )}
                     </div>
                     
-                    {selectedOrder && <TentativePlanTable order={selectedOrder} selectedSnapshotWeek={selectedSnapshotWeek} />}
+                    {selectedOrder ? (
+                        <TentativePlanTable order={selectedOrder} selectedSnapshotWeek={selectedSnapshotWeek} />
+                    ) : (
+                        <div className="text-center text-muted-foreground pt-10">Please select an order to view the tentative plan.</div>
+                    )}
+
+                    {selectedOrder && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Tracker</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Run Number</TableHead>
+                                            <TableHead>Plan start</TableHead>
+                                            <TableHead>Plan end</TableHead>
+                                            <TableHead>Number of lines</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        <TableRow>
+                                            <TableCell colSpan={4} className="h-24 text-center">
+                                                No tracker data available.
+                                            </TableCell>
+                                        </TableRow>
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
+                    )}
                 </div>
             </main>
         </div>
