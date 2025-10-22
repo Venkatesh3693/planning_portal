@@ -220,20 +220,23 @@ function TentativePlanPageContent() {
                             </Select>
                         </div>
                          {selectedOrder && snapshotOptions.length > 0 && (
-                            <div className="w-full max-w-xs space-y-2">
-                                <Label htmlFor="snapshot-select">Select Snapshot Week</Label>
-                                <Select value={String(selectedSnapshotWeek)} onValueChange={(val) => setSelectedSnapshotWeek(Number(val))}>
-                                    <SelectTrigger id="snapshot-select">
-                                        <SelectValue placeholder="Select a snapshot..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {snapshotOptions.map(week => (
-                                            <SelectItem key={week} value={String(week)}>
-                                                Snapshot Week {week}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                            <div className="flex items-end gap-2">
+                                <div className="w-full max-w-xs space-y-2">
+                                    <Label htmlFor="snapshot-select">Select Snapshot Week</Label>
+                                    <Select value={String(selectedSnapshotWeek)} onValueChange={(val) => setSelectedSnapshotWeek(Number(val))}>
+                                        <SelectTrigger id="snapshot-select">
+                                            <SelectValue placeholder="Select a snapshot..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {snapshotOptions.map(week => (
+                                                <SelectItem key={week} value={String(week)}>
+                                                    Snapshot Week {week}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <Button>Plan</Button>
                             </div>
                         )}
                     </div>
