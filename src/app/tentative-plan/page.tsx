@@ -19,17 +19,19 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getWeek } from 'date-fns';
-import type { FcComposition, Size } from '@/lib/types';
+import type { FcComposition, Size, SewingOperation } from '@/lib/types';
+import { SEWING_OPERATIONS_BY_STYLE } from '@/lib/data';
 
 type TrackerRun = {
   runNumber: number;
   startWeek: string;
   endWeek: string;
   quantity: number;
+  lines: number;
 };
 
 
-const TentativePlanTable = ({ order, selectedSnapshotWeek }: { order: any, selectedSnapshotWeek: number | null }) => {
+const TentativePlanTable = ({ order, selectedSnapshotWeek, planData }: { order: any, selectedSnapshotWeek: number | null, planData: Record<string, number>}) => {
     
     const latestSnapshot = useMemo(() => {
         if (!order?.fcVsFcDetails || order.fcVsFcDetails.length === 0 || selectedSnapshotWeek === null) return null;
@@ -62,15 +64,30 @@ const TentativePlanTable = ({ order, selectedSnapshotWeek }: { order: any, selec
     const pciData = useMemo(() => {
         let pci = 0;
         const data: Record<string, number> = {};
-        weeks.forEach(week => {
+        const sortedWeeks = [...weeks].sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
+
+        // Find the first week with either demand or a plan to start calculations
+        const firstRelevantWeekIndex = sortedWeeks.findIndex(w => (weeklyData[w]?.poFc || 0) > 0 || (planData[w] || 0) > 0);
+        if (firstRelevantWeekIndex === -1) return {};
+
+        const relevantWeeks = sortedWeeks.slice(firstRelevantWeekIndex);
+
+        let lastWeekPci = 0;
+
+        for (let i = 0; i < relevantWeeks.length; i++) {
+            const week = relevantWeeks[i];
+            const lastWeek = i > 0 ? relevantWeeks[i - 1] : null;
+
             const poFc = weeklyData[week]?.poFc || 0;
-            // PCI[w] = PCI[w-1] + Plan[w-1] + Produced[w-1] - PO+FC[w]
-            // For now, Plan and Produced are 0, so PCI[w] = PCI[w-1] - PO+FC[w].
-            pci = pci - poFc;
-            data[week] = pci;
-        });
+            const plan = lastWeek ? (planData[lastWeek] || 0) : 0;
+            
+            const currentPci = lastWeekPci + plan - poFc;
+            data[week] = currentPci;
+            lastWeekPci = currentPci;
+        }
+
         return data;
-    }, [weeks, weeklyData]);
+    }, [weeks, weeklyData, planData]);
 
     if (!latestSnapshot) {
         return <div className="p-4 text-muted-foreground">No forecast snapshot data available for the selected week.</div>;
@@ -106,14 +123,16 @@ const TentativePlanTable = ({ order, selectedSnapshotWeek }: { order: any, selec
                         <TableRow>
                             <TableCell className="font-medium">Plan</TableCell>
                             {weeks.map(week => (
-                                <TableCell key={week} className="text-right text-muted-foreground">-</TableCell>
+                                <TableCell key={week} className="text-right font-semibold">
+                                    {(planData[week] || 0) > 0 ? (planData[week] || 0).toLocaleString() : '-'}
+                                </TableCell>
                             ))}
                         </TableRow>
                          <TableRow>
                             <TableCell className="font-medium">FG CI</TableCell>
                             {weeks.map(week => (
                                 <TableCell key={week} className="text-right">
-                                    {pciData[week]?.toLocaleString() || '0'}
+                                    {pciData[week] !== undefined ? pciData[week].toLocaleString() : '-'}
                                 </TableCell>
                             ))}
                         </TableRow>
@@ -130,7 +149,7 @@ function TentativePlanPageContent() {
     const [selectedOrderId, setSelectedOrderId] = useState<string>('');
     const [selectedSnapshotWeek, setSelectedSnapshotWeek] = useState<number | null>(null);
     const [trackerData, setTrackerData] = useState<TrackerRun[]>([]);
-
+    const [planData, setPlanData] = useState<Record<string, number>>({});
 
     const gutOrders = useMemo(() => {
         if (!isScheduleLoaded) return [];
@@ -150,13 +169,13 @@ function TentativePlanPageContent() {
     }, [selectedOrder]);
 
     useEffect(() => {
-        // When order changes, reset snapshot week and tracker
         if (selectedOrder && snapshotOptions.length > 0) {
             setSelectedSnapshotWeek(snapshotOptions[0]);
         } else {
             setSelectedSnapshotWeek(null);
         }
         setTrackerData([]);
+        setPlanData({});
     }, [selectedOrder, snapshotOptions]);
 
     const handlePlan = () => {
@@ -172,12 +191,17 @@ function TentativePlanPageContent() {
             weeklyTotals[week] = (total?.po || 0) + (total?.fc || 0);
         });
 
-        const poFcStartWeekNum = allWeeks.length > 0 ? parseInt(allWeeks.find(w => (weeklyTotals[w] || 0) > 0)?.slice(1) || '0') : selectedSnapshotWeek;
-        
+        const firstPoFcWeekStr = allWeeks.find(w => (weeklyTotals[w] || 0) > 0);
+        if (!firstPoFcWeekStr) {
+            setTrackerData([]);
+            setPlanData({});
+            return;
+        }
+        const poFcStartWeekNum = parseInt(firstPoFcWeekStr.slice(1));
         const scanStartWeekNum = Math.max(poFcStartWeekNum - 1, selectedSnapshotWeek);
 
-        const runs: TrackerRun[] = [];
-        let currentRun: Partial<TrackerRun> & { quantity: number } = { quantity: 0 };
+        const runs: Omit<TrackerRun, 'lines'>[] = [];
+        let currentRun: Partial<Omit<TrackerRun, 'lines'>> & { quantity: number } = { quantity: 0 };
         let zeroDemandStreak = 0;
         let runCounter = 1;
 
@@ -195,7 +219,7 @@ function TentativePlanPageContent() {
                 currentRun.quantity! += demand;
                 zeroDemandStreak = 0;
             } else {
-                if (currentRun.startWeek) { // Only count streak if we are in a run
+                if (currentRun.startWeek) {
                     zeroDemandStreak++;
                 }
             }
@@ -220,8 +244,76 @@ function TentativePlanPageContent() {
                 quantity: Math.round(currentRun.quantity!),
             });
         }
+
+        const obData = SEWING_OPERATIONS_BY_STYLE[selectedOrder.style];
+        if (!obData) return;
+
+        const totalSam = obData.reduce((sum, op) => sum + op.sam, 0);
+        const totalTailors = obData.reduce((sum, op) => sum + op.operators, 0);
+        const budgetedEfficiency = selectedOrder.budgetedEfficiency || 85;
+
+        const finalRuns: TrackerRun[] = [];
+        const finalPlan: Record<string, number> = {};
+
+        for (const run of runs) {
+            let numberOfLines = 1;
+            let offset = 5; 
+
+            let finalRunDetails: TrackerRun;
+
+            while (offset > 4) {
+                const maxWeeklyOutput = (6 * 480 * totalTailors * numberOfLines * (budgetedEfficiency / 100)) / totalSam;
+                
+                let closingInventory = 0;
+                let minClosingInventory = 0;
+                
+                const runStartWeekNum = parseInt(run.startWeek.slice(1));
+                const runEndWeekNum = parseInt(run.endWeek.slice(1));
+                
+                const simulationStartWeek = runStartWeekNum - 1;
+
+                for (let w = simulationStartWeek; w <= runEndWeekNum; w++) {
+                    const weekKey = `W${w}`;
+                    const poFc = weeklyTotals[weekKey] || 0;
+                    
+                    closingInventory = closingInventory + maxWeeklyOutput - poFc;
+                    if (closingInventory < minClosingInventory) {
+                        minClosingInventory = closingInventory;
+                    }
+                }
+                
+                offset = Math.ceil(Math.abs(minClosingInventory) / maxWeeklyOutput);
+                
+                if (offset <= 4) {
+                    const finalStartWeekNum = runStartWeekNum - offset;
+                    const weeksToProduce = Math.ceil(run.quantity / maxWeeklyOutput);
+                    const finalEndWeekNum = finalStartWeekNum + weeksToProduce -1;
+
+                    finalRunDetails = {
+                        ...run,
+                        startWeek: `W${finalStartWeekNum}`,
+                        endWeek: `W${finalEndWeekNum}`,
+                        lines: numberOfLines,
+                    };
+                    finalRuns.push(finalRunDetails);
+
+                    let remainingQty = run.quantity;
+                    for (let w = finalStartWeekNum; w <= finalEndWeekNum; w++) {
+                        const weekKey = `W${w}`;
+                        const planQty = Math.min(remainingQty, maxWeeklyOutput);
+                        finalPlan[weekKey] = (finalPlan[weekKey] || 0) + Math.round(planQty);
+                        remainingQty -= planQty;
+                    }
+
+                } else {
+                    numberOfLines++;
+                }
+                if(numberOfLines > 100) break; // Safety break
+            }
+        }
         
-        setTrackerData(runs);
+        setTrackerData(finalRuns);
+        setPlanData(finalPlan);
     };
 
     if (appMode === 'gup') {
@@ -297,7 +389,7 @@ function TentativePlanPageContent() {
                             <div className="flex items-end gap-2">
                                 <div className="w-full max-w-xs space-y-2">
                                     <Label htmlFor="snapshot-select">Select Snapshot Week</Label>
-                                    <Select value={String(selectedSnapshotWeek)} onValueChange={(val) => setSelectedSnapshotWeek(Number(val))}>
+                                    <Select value={selectedSnapshotWeek !== null ? String(selectedSnapshotWeek) : ''} onValueChange={(val) => setSelectedSnapshotWeek(Number(val))}>
                                         <SelectTrigger id="snapshot-select">
                                             <SelectValue placeholder="Select a snapshot..." />
                                         </SelectTrigger>
@@ -316,7 +408,7 @@ function TentativePlanPageContent() {
                     </div>
                     
                     {selectedOrder ? (
-                        <TentativePlanTable order={selectedOrder} selectedSnapshotWeek={selectedSnapshotWeek} />
+                        <TentativePlanTable order={selectedOrder} selectedSnapshotWeek={selectedSnapshotWeek} planData={planData}/>
                     ) : (
                         <div className="text-center text-muted-foreground pt-10">Please select an order to view the tentative plan.</div>
                     )}
@@ -345,7 +437,7 @@ function TentativePlanPageContent() {
                                                     <TableCell>{run.startWeek}</TableCell>
                                                     <TableCell>{run.endWeek}</TableCell>
                                                     <TableCell className="text-right font-medium">{run.quantity.toLocaleString()}</TableCell>
-                                                    <TableCell>-</TableCell>
+                                                    <TableCell>{run.lines}</TableCell>
                                                 </TableRow>
                                             ))
                                         ) : (
