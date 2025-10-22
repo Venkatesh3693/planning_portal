@@ -1234,9 +1234,6 @@ export default function OrdersPage() {
 
           {appMode === 'gup' ? (
               <Card>
-                <CardHeader>
-                    <CardTitle>GUP ({firmOrders.length})</CardTitle>
-                </CardHeader>
                 <CardContent className="p-0">
                   <Table>
                     <TableHeader>
@@ -1273,9 +1270,6 @@ export default function OrdersPage() {
               </Card>
           ) : (
               <Card>
-                 <CardHeader>
-                    <CardTitle>GUT ({forecastedOrders.length})</CardTitle>
-                 </CardHeader>
                  <CardContent className="p-0">
                   <Table>
                     <TableHeader>
