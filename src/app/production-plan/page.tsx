@@ -196,6 +196,7 @@ function ProductionPlanPageContent() {
         const currentSnapshotWeekNum = parseInt(selectedSnapshotWeek);
         const effectiveStartWeek = Math.max(initialProductionStartWeek || 0, currentSnapshotWeekNum);
         
+        // Plan should consider demand from the effective start week onwards
         const futureForecastWeeks = snapshotForecastWeeks.filter(week => parseInt(week.replace('W', '')) >= effectiveStartWeek);
     
         if (futureForecastWeeks.length === 0) {
@@ -203,20 +204,21 @@ function ProductionPlanPageContent() {
             toast({ title: 'Plan Generated', description: 'No future demand to plan.' });
             return;
         }
-    
-        const demands = futureForecastWeeks.map(week => {
-            const weekData = selectedSnapshot.forecasts[week]?.total;
-            return weekData ? weekData.po + weekData.fc : 0;
-        });
-    
-        const totalDemand = demands.reduce((sum, d) => sum + d, 0);
         
+        // Calculate total demand from the *original* start week to the end
+        const allDemandWeeks = snapshotForecastWeeks.filter(week => parseInt(week.replace('W', '')) >= (initialProductionStartWeek || 0));
+        const totalDemand = allDemandWeeks.reduce((sum, week) => {
+            const weekData = selectedSnapshot.forecasts[week]?.total;
+            return sum + (weekData ? weekData.po + weekData.fc : 0);
+        }, 0);
+    
         let cumulativeProduction = 0;
         const newPlan: Record<string, number> = {};
     
         for (let i = 0; i < futureForecastWeeks.length; i++) {
             const week = futureForecastWeeks[i];
     
+            // Check if we still need to produce more to meet the *total* demand
             if ((openingFgStock + cumulativeProduction) < totalDemand) {
                 newPlan[week] = weeklyOutput;
                 cumulativeProduction += weeklyOutput;
