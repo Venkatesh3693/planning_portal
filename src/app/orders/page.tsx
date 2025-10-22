@@ -1246,9 +1246,6 @@ export default function OrdersPage() {
 
           {appMode === 'gup' ? (
               <Card>
-                <CardHeader>
-                    <CardTitle>GUP ({firmOrders.length})</CardTitle>
-                </CardHeader>
                 <CardContent className="p-0">
                   <Table>
                     <TableHeader>
