@@ -187,3 +187,11 @@ export type UnplannedBatch = {
   totalBatches: number;
   latestStartDate: Date;
 };
+
+export type SyntheticPoRecord = {
+    poNumber: string;
+    ehdWeek: string;
+    destination: string;
+    quantities: Record<Size, number>;
+    total: number;
+};

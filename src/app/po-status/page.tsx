@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Suspense, useMemo, useState, useEffect } from 'react';
@@ -26,22 +27,15 @@ import {
   TableFooter,
 } from '@/components/ui/table';
 import { SIZES } from '@/lib/data';
-import type { Size } from '@/lib/types';
+import type { Size, SyntheticPoRecord } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
-type SyntheticPoRecord = {
-    poNumber: string;
-    ehdWeek: string;
-    destination: string;
-    quantities: Record<Size, number>;
-    total: number;
-};
 
 function PoStatusPageContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get('orderId');
-    const { orders, isScheduleLoaded } = useSchedule();
+    const { orders, isScheduleLoaded, updatePoQuantities } = useSchedule();
     
     const [actualEhds, setActualEhds] = useState<Record<string, string>>({});
 
@@ -62,20 +56,15 @@ function PoStatusPageContent() {
         if (totalSelectionQty === 0) return { poRecords: [], allWeeks: [] };
         
         const generatedRecords: SyntheticPoRecord[] = [];
-        const currentWeekNum = new Date().getFullYear(); // Simplified for logic, should be proper week number
         
         const weeksInSnapshot = Object.keys(latestSnapshot.forecasts).sort((a, b) => {
             return parseInt(a.replace('W','')) - parseInt(b.replace('W',''));
         });
 
         weeksInSnapshot.forEach((weekKey) => {
-            const weekNumber = parseInt(weekKey.replace('W', ''));
-            // Simplified logic: Assume past weeks are POs
-            const isHistoricalWeek = true; // For this mock, assume all weeks with POs are historical
-
             const totalPoInWeek = latestSnapshot.forecasts[weekKey].total?.po || 0;
 
-            if (totalPoInWeek > 0 && isHistoricalWeek) {
+            if (totalPoInWeek > 0) {
                 order.demandDetails?.forEach(destDetail => {
                     const destinationFactor = destDetail.selectionQty / totalSelectionQty;
                     if (destinationFactor === 0) return;
@@ -90,15 +79,19 @@ function PoStatusPageContent() {
                     };
                     
                     let recordTotal = 0;
+                    let hasPartialData = false;
                     SIZES.forEach(size => {
                         const sizePoQty = latestSnapshot.forecasts[weekKey][size]?.po || 0;
                         const destSizeQty = Math.round(sizePoQty * destinationFactor);
+                        if(destSizeQty < 0) { // Should not happen but as a safeguard
+                            hasPartialData = true;
+                        }
                         record.quantities[size] = destSizeQty;
                         recordTotal += destSizeQty;
                     });
                     
                     record.total = recordTotal;
-                    if(record.total > 0) {
+                    if(record.total > 0 && !hasPartialData) {
                         generatedRecords.push(record);
                     }
                 });
@@ -132,8 +125,14 @@ function PoStatusPageContent() {
         return { sizeTotals, grandTotal };
     }, [poRecords]);
 
-    const handleActualEhdChange = (poNumber: string, week: string) => {
-        setActualEhds(prev => ({ ...prev, [poNumber]: week }));
+    const handleActualEhdChange = (po: SyntheticPoRecord, newWeek: string) => {
+        if (!order) return;
+        const oldWeek = actualEhds[po.poNumber] || po.ehdWeek;
+        if (oldWeek === newWeek) return;
+
+        updatePoQuantities(order.id, oldWeek, newWeek, po.quantities);
+
+        setActualEhds(prev => ({ ...prev, [po.poNumber]: newWeek }));
     };
 
     if (!isScheduleLoaded) {
@@ -211,7 +210,7 @@ function PoStatusPageContent() {
                                         <TableCell>
                                             <Select 
                                                 value={actualEhds[po.poNumber] || po.ehdWeek}
-                                                onValueChange={(value) => handleActualEhdChange(po.poNumber, value)}
+                                                onValueChange={(value) => handleActualEhdChange(po, value)}
                                             >
                                                 <SelectTrigger className="w-[120px]">
                                                     <SelectValue />

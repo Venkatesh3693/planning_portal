@@ -3,8 +3,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, Dispatch, SetStateAction, useMemo } from 'react';
-import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem } from '@/lib/types';
-import { ORDERS as staticOrders, PROCESSES, ORDER_COLORS } from '@/lib/data';
+import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem, Size, FcComposition, FcSnapshot } from '@/lib/types';
+import { ORDERS as staticOrders, PROCESSES, ORDER_COLORS, SIZES } from '@/lib/data';
 import { addDays, startOfToday, isAfter } from 'date-fns';
 import { getProcessBatchSize, getPackingBatchSize } from '@/lib/tna-calculator';
 
@@ -13,7 +13,7 @@ const STORE_KEY = 'stitchplan_schedule_v3';
 type AppMode = 'gup' | 'gut';
 type SewingRampUpSchemes = Record<string, RampUpEntry[]>;
 type SewingLines = Record<string, number>;
-type StoredOrderOverrides = Record<string, Partial<Pick<Order, 'displayColor' | 'sewingRampUpScheme' | 'tna' | 'bom'>>>;
+type StoredOrderOverrides = Record<string, Partial<Pick<Order, 'displayColor' | 'sewingRampUpScheme' | 'tna' | 'bom' | 'fcVsFcDetails'>>>;
 type ProductionPlans = Record<string, Record<string, number>>;
 
 type ScheduleContextType = {
@@ -28,6 +28,7 @@ type ScheduleContextType = {
   updateOrderColor: (orderId: string, color: string) => void;
   updateOrderMinRunDays: (orderId: string, minRunDays: Record<string, number>) => void;
   updateOrderBom: (orderId: string, componentName: string, field: keyof BomItem, value: any) => void;
+  updatePoQuantities: (orderId: string, fromWeek: string, toWeek: string, movedQuantities: Record<Size, number>) => void;
   sewingLines: SewingLines;
   setSewingLines: (orderId: string, lines: number) => void;
   productionPlans: ProductionPlans;
@@ -128,6 +129,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
           sewingRampUpScheme: override?.sewingRampUpScheme || [{ day: 1, efficiency: baseOrder.budgetedEfficiency || 85 }],
           tna: hydratedTna,
           bom: override?.bom || baseOrder.bom,
+          fcVsFcDetails: override?.fcVsFcDetails || baseOrder.fcVsFcDetails,
         };
       });
       setOrders(hydratedOrders);
@@ -232,6 +234,61 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const updatePoQuantities = (orderId: string, fromWeek: string, toWeek: string, movedQuantities: Record<Size, number>) => {
+    setOrderOverrides(prev => {
+      const order = orders.find(o => o.id === orderId);
+      const currentFcDetails = prev[orderId]?.fcVsFcDetails || order?.fcVsFcDetails;
+      if (!currentFcDetails) return prev;
+
+      // Deep clone to avoid direct state mutation
+      const newFcDetails: FcSnapshot[] = JSON.parse(JSON.stringify(currentFcDetails));
+      const latestSnapshot = newFcDetails.sort((a,b) => b.snapshotWeek - a.snapshotWeek)[0];
+      if (!latestSnapshot) return prev;
+
+      // Ensure week keys exist
+      if (!latestSnapshot.forecasts[fromWeek]) latestSnapshot.forecasts[fromWeek] = { total: { po: 0, fc: 0 } };
+      if (!latestSnapshot.forecasts[toWeek]) latestSnapshot.forecasts[toWeek] = { total: { po: 0, fc: 0 } };
+
+      const allSizes: Size[] = [...SIZES];
+      allSizes.forEach(size => {
+        const qty = movedQuantities[size] || 0;
+        if (qty > 0) {
+          // Ensure size objects exist
+          if (!latestSnapshot.forecasts[fromWeek][size]) latestSnapshot.forecasts[fromWeek][size] = { po: 0, fc: 0 };
+          if (!latestSnapshot.forecasts[toWeek][size]) latestSnapshot.forecasts[toWeek][size] = { po: 0, fc: 0 };
+
+          // Subtract from 'fromWeek'
+          latestSnapshot.forecasts[fromWeek][size]!.po = Math.max(0, (latestSnapshot.forecasts[fromWeek][size]!.po || 0) - qty);
+          
+          // Add to 'toWeek'
+          latestSnapshot.forecasts[toWeek][size]!.po += qty;
+        }
+      });
+      
+      // Recalculate totals for both weeks
+      [fromWeek, toWeek].forEach(week => {
+          let totalPo = 0;
+          let totalFc = 0;
+          allSizes.forEach(size => {
+              totalPo += latestSnapshot.forecasts[week][size]?.po || 0;
+              totalFc += latestSnapshot.forecasts[week][size]?.fc || 0;
+          });
+          if (!latestSnapshot.forecasts[week].total) latestSnapshot.forecasts[week].total = { po: 0, fc: 0 };
+          latestSnapshot.forecasts[week].total.po = totalPo;
+          latestSnapshot.forecasts[week].total.fc = totalFc;
+      });
+
+
+      return {
+        ...prev,
+        [orderId]: {
+          ...prev[orderId],
+          fcVsFcDetails: newFcDetails,
+        }
+      };
+    });
+  };
+
   const setSewingLines = (orderId: string, lines: number) => {
     setSewingLinesState(prev => ({ ...prev, [orderId]: lines }));
   };
@@ -258,6 +315,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         if (override.displayColor) updatedOrder.displayColor = override.displayColor;
         if (override.sewingRampUpScheme) updatedOrder.sewingRampUpScheme = override.sewingRampUpScheme;
         if (override.bom) updatedOrder.bom = override.bom;
+        if (override.fcVsFcDetails) updatedOrder.fcVsFcDetails = override.fcVsFcDetails;
         
         if (override.tna) {
            const newTna = { ...(updatedOrder.tna || { processes: [] }) } as Tna;
@@ -317,6 +375,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     updateOrderColor,
     updateOrderMinRunDays,
     updateOrderBom,
+    updatePoQuantities,
     sewingLines,
     setSewingLines,
     productionPlans,
