@@ -156,7 +156,7 @@ function ProjectionAnalysisPageContent() {
         const plan = productionPlans[order.id];
         const bom = order.bom;
         const totalPoFcQty = order.poFcQty;
-        const coverageWeeks = 6;
+        const coverageWeeks = 4;
         const projectionCadenceWeeks = 4;
         const year = new Date().getFullYear(); 
 
@@ -221,7 +221,7 @@ function ProjectionAnalysisPageContent() {
             generatedProjections.push({
                 projectionNumber: `PROJ-DYN-${String(projectionIndex + 1).padStart(2, '0')}`,
                 projectionDate: projectionDate,
-                receiptDate: ckDate, // Using ckDate as receipt date for consistency
+                receiptDate: ckDate,
                 frcQty: 0,
                 total: {
                   quantities: { total: Math.round(projectionQuantity) } as SizeBreakdown,
@@ -241,7 +241,7 @@ function ProjectionAnalysisPageContent() {
             lastCoveredProductionWeek = coverageEndWeek;
             projectionIndex++;
 
-            if(projectionIndex > 50) break;
+            if(projectionIndex > 50) break; // Safety break
         }
 
         return generatedProjections;
