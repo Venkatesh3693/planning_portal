@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Suspense, useMemo } from 'react';
+import { Suspense, useMemo, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useSchedule } from '@/context/schedule-provider';
 import { Header } from '@/components/layout/header';
@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/table';
 import { SIZES } from '@/lib/data';
 import type { Size } from '@/lib/types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
 type SyntheticPoRecord = {
@@ -42,39 +43,46 @@ function PoStatusPageContent() {
     const orderId = searchParams.get('orderId');
     const { orders, isScheduleLoaded } = useSchedule();
     
+    const [actualEhds, setActualEhds] = useState<Record<string, string>>({});
+
     const order = useMemo(() => {
         if (!isScheduleLoaded || !orderId) return null;
         return orders.find(o => o.id === orderId);
     }, [orderId, orders, isScheduleLoaded]);
 
-    const poRecords: SyntheticPoRecord[] = useMemo(() => {
+    const { poRecords, allWeeks } = useMemo(() => {
         if (!order || !order.fcVsFcDetails || order.fcVsFcDetails.length === 0 || !order.demandDetails) {
-            return [];
+            return { poRecords: [], allWeeks: [] };
         }
 
         const latestSnapshot = [...order.fcVsFcDetails].sort((a, b) => b.snapshotWeek - a.snapshotWeek)[0];
-        if (!latestSnapshot) return [];
+        if (!latestSnapshot) return { poRecords: [], allWeeks: [] };
 
         const totalSelectionQty = order.demandDetails.reduce((sum, d) => sum + d.selectionQty, 0);
-        if (totalSelectionQty === 0) return [];
+        if (totalSelectionQty === 0) return { poRecords: [], allWeeks: [] };
         
         const generatedRecords: SyntheticPoRecord[] = [];
+        const currentWeekNum = new Date().getFullYear(); // Simplified for logic, should be proper week number
+        
+        const weeksInSnapshot = Object.keys(latestSnapshot.forecasts).sort((a, b) => {
+            return parseInt(a.replace('W','')) - parseInt(b.replace('W',''));
+        });
 
-        const currentWeek = new Date().getFullYear();
-
-        Object.entries(latestSnapshot.forecasts).forEach(([weekKey, sizeBreakdown]) => {
+        weeksInSnapshot.forEach((weekKey) => {
             const weekNumber = parseInt(weekKey.replace('W', ''));
-            if(weekNumber > currentWeek) return;
+            // Simplified logic: Assume past weeks are POs
+            const isHistoricalWeek = true; // For this mock, assume all weeks with POs are historical
 
-            const totalPoInWeek = sizeBreakdown.total?.po || 0;
+            const totalPoInWeek = latestSnapshot.forecasts[weekKey].total?.po || 0;
 
-            if (totalPoInWeek > 0) {
+            if (totalPoInWeek > 0 && isHistoricalWeek) {
                 order.demandDetails?.forEach(destDetail => {
                     const destinationFactor = destDetail.selectionQty / totalSelectionQty;
                     if (destinationFactor === 0) return;
 
+                    const poNumber = `PO-${destDetail.destination.substring(0,3).toUpperCase()}-${weekKey}`;
                     const record: SyntheticPoRecord = {
-                        poNumber: `PO-${destDetail.destination.substring(0,3).toUpperCase()}-${weekKey}`,
+                        poNumber: poNumber,
                         ehdWeek: weekKey,
                         destination: destDetail.destination,
                         quantities: {} as Record<Size, number>,
@@ -83,7 +91,7 @@ function PoStatusPageContent() {
                     
                     let recordTotal = 0;
                     SIZES.forEach(size => {
-                        const sizePoQty = sizeBreakdown[size]?.po || 0;
+                        const sizePoQty = latestSnapshot.forecasts[weekKey][size]?.po || 0;
                         const destSizeQty = Math.round(sizePoQty * destinationFactor);
                         record.quantities[size] = destSizeQty;
                         recordTotal += destSizeQty;
@@ -97,9 +105,18 @@ function PoStatusPageContent() {
             }
         });
         
-        return generatedRecords;
+        return { poRecords: generatedRecords, allWeeks: weeksInSnapshot };
 
     }, [order]);
+
+    useEffect(() => {
+      const initialEhds: Record<string, string> = {};
+      poRecords.forEach(po => {
+        initialEhds[po.poNumber] = po.ehdWeek;
+      });
+      setActualEhds(initialEhds);
+    }, [poRecords]);
+
     
     const totals = useMemo(() => {
         const sizeTotals: Record<Size, number> = SIZES.reduce((acc, size) => ({...acc, [size]: 0}), {} as Record<Size, number>);
@@ -115,6 +132,9 @@ function PoStatusPageContent() {
         return { sizeTotals, grandTotal };
     }, [poRecords]);
 
+    const handleActualEhdChange = (poNumber: string, week: string) => {
+        setActualEhds(prev => ({ ...prev, [poNumber]: week }));
+    };
 
     if (!isScheduleLoaded) {
         return <div className="flex items-center justify-center h-full">Loading data...</div>;
@@ -169,32 +189,54 @@ function PoStatusPageContent() {
                             <TableHeader className="sticky top-0 bg-background">
                                 <TableRow>
                                     <TableHead>PO Number</TableHead>
-                                    <TableHead>Destination</TableHead>
-                                    <TableHead>EHD Week</TableHead>
                                     {SIZES.map(s => <TableHead key={s} className="text-right">{s}</TableHead>)}
                                     <TableHead className="text-right font-bold">Total Qty</TableHead>
+                                    <TableHead>Destination</TableHead>
+                                    <TableHead>EHD Week</TableHead>
+                                    <TableHead>Actual EHD</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {poRecords.map(po => (
+                                {poRecords.map(po => {
+                                  const ehdWeekNum = parseInt(po.ehdWeek.replace('W',''));
+                                  const futureWeeks = allWeeks.filter(w => parseInt(w.replace('W','')) >= ehdWeekNum);
+
+                                  return (
                                     <TableRow key={po.poNumber}>
                                         <TableCell className="font-medium">{po.poNumber}</TableCell>
-                                        <TableCell>{po.destination}</TableCell>
-                                        <TableCell>{po.ehdWeek}</TableCell>
                                         {SIZES.map(s => <TableCell key={s} className="text-right">{(po.quantities[s] || 0).toLocaleString()}</TableCell>)}
                                         <TableCell className="text-right font-bold">{po.total.toLocaleString()}</TableCell>
+                                        <TableCell>{po.destination}</TableCell>
+                                        <TableCell>{po.ehdWeek}</TableCell>
+                                        <TableCell>
+                                            <Select 
+                                                value={actualEhds[po.poNumber] || po.ehdWeek}
+                                                onValueChange={(value) => handleActualEhdChange(po.poNumber, value)}
+                                            >
+                                                <SelectTrigger className="w-[120px]">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {futureWeeks.map(week => (
+                                                        <SelectItem key={week} value={week}>{week}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </TableCell>
                                     </TableRow>
-                                ))}
+                                  )
+                                })}
                             </TableBody>
                             <TableFooter className="sticky bottom-0 bg-background">
                                 <TableRow>
-                                    <TableCell colSpan={3} className="font-bold">Total</TableCell>
+                                    <TableCell colSpan={1} className="font-bold">Total</TableCell>
                                     {SIZES.map(s => (
                                         <TableCell key={`total-${s}`} className="text-right font-bold">
                                             {(totals.sizeTotals[s] || 0).toLocaleString()}
                                         </TableCell>
                                     ))}
                                     <TableCell className="text-right font-bold">{totals.grandTotal.toLocaleString()}</TableCell>
+                                    <TableCell colSpan={3}></TableCell>
                                 </TableRow>
                             </TableFooter>
                         </Table>
