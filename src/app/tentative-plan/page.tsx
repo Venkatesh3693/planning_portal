@@ -20,7 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getWeek } from 'date-fns';
 import type { FcComposition, Size, SewingOperation } from '@/lib/types';
-import { SEWING_OPERATIONS_BY_STYLE } from '@/lib/data';
+import { SEWING_OPERATIONS_BY_STYLE, WORK_DAY_MINUTES } from '@/lib/data';
 
 type TrackerRun = {
   runNumber: number;
@@ -199,7 +199,7 @@ function TentativePlanPageContent() {
             return;
         }
         const poFcStartWeekNum = parseInt(firstPoFcWeekStr.slice(1));
-        const scanStartWeekNum = Math.max(poFcStartWeekNum - 1, selectedSnapshotWeek);
+        const scanStartWeekNum = Math.max(poFcStartWeekNum, selectedSnapshotWeek);
 
         const runs: Omit<TrackerRun, 'lines' | 'offset'>[] = [];
         let currentRun: Partial<Omit<TrackerRun, 'lines' | 'offset'>> & { quantity: number } = { quantity: 0 };
@@ -262,7 +262,7 @@ function TentativePlanPageContent() {
             let keepLooping = true;
 
             while (keepLooping) {
-                const maxWeeklyOutput = (6 * 480 * totalTailors * numberOfLines * (budgetedEfficiency / 100)) / totalSam;
+                const maxWeeklyOutput = (WORK_DAY_MINUTES * 6 * totalTailors * numberOfLines * (budgetedEfficiency / 100)) / totalSam;
                 
                 let closingInventory = 0;
                 let minClosingInventory = 0;
@@ -270,13 +270,17 @@ function TentativePlanPageContent() {
                 const runStartWeekNum = parseInt(run.startWeek.slice(1));
                 const runEndWeekNum = parseInt(run.endWeek.slice(1));
                 
-                const simulationStartWeek = runStartWeekNum - 1;
+                const simulationStartWeek = runStartWeekNum;
 
                 for (let w = simulationStartWeek; w <= runEndWeekNum; w++) {
                     const weekKey = `W${w}`;
                     const poFc = weeklyTotals[weekKey] || 0;
+                    const planForPrevWeek = `W${w-1}`;
+
+                    const prevWeekPlan = (w === simulationStartWeek) ? 0 : maxWeeklyOutput;
                     
-                    closingInventory = closingInventory + maxWeeklyOutput - poFc;
+                    closingInventory = closingInventory + prevWeekPlan - poFc;
+
                     if (closingInventory < minClosingInventory) {
                         minClosingInventory = closingInventory;
                     }
@@ -288,7 +292,7 @@ function TentativePlanPageContent() {
                     finalOffset = calculatedOffset;
                     const finalStartWeekNum = runStartWeekNum - finalOffset;
                     const weeksToProduce = Math.ceil(run.quantity / maxWeeklyOutput);
-                    const finalEndWeekNum = finalStartWeekNum + weeksToProduce -1;
+                    const finalEndWeekNum = finalStartWeekNum + weeksToProduce - 1;
 
                     finalRuns.push({
                         ...run,
