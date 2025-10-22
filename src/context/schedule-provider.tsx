@@ -28,7 +28,7 @@ type ScheduleContextType = {
   updateOrderColor: (orderId: string, color: string) => void;
   updateOrderMinRunDays: (orderId: string, minRunDays: Record<string, number>) => void;
   updateOrderBom: (orderId: string, componentName: string, field: keyof BomItem, value: any) => void;
-  updatePoQuantities: (orderId: string, fromWeek: string, toWeek: string, movedQuantities: Record<Size, number>) => void;
+  updatePoQuantities: (orderId: string, fromWeek: string, toWeek: string, movedQuantities: Record<Size, number>, destination: string) => void;
   sewingLines: SewingLines;
   setSewingLines: (orderId: string, lines: number) => void;
   productionPlans: ProductionPlans;
@@ -234,51 +234,54 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const updatePoQuantities = (orderId: string, fromWeek: string, toWeek: string, movedQuantities: Record<Size, number>) => {
+  const updatePoQuantities = (orderId: string, fromWeek: string, toWeek: string, movedQuantities: Record<Size, number>, destination: string) => {
     setOrderOverrides(prev => {
       const order = orders.find(o => o.id === orderId);
+      if (!order || !order.demandDetails) return prev;
+      
       const currentFcDetails = prev[orderId]?.fcVsFcDetails || order?.fcVsFcDetails;
       if (!currentFcDetails) return prev;
-
-      // Deep clone to avoid direct state mutation
+  
       const newFcDetails: FcSnapshot[] = JSON.parse(JSON.stringify(currentFcDetails));
-      const latestSnapshot = newFcDetails.sort((a,b) => b.snapshotWeek - a.snapshotWeek)[0];
+      const latestSnapshot = newFcDetails.sort((a, b) => b.snapshotWeek - a.snapshotWeek)[0];
       if (!latestSnapshot) return prev;
+  
+      const totalSelectionQty = order.demandDetails.reduce((sum, d) => sum + d.selectionQty, 0);
+      const destDetail = order.demandDetails.find(d => d.destination === destination);
+      if (!destDetail || totalSelectionQty === 0) return prev;
+      
+      const destinationFactor = destDetail.selectionQty / totalSelectionQty;
+      if (destinationFactor === 0) return prev;
 
-      // Ensure week keys exist
       if (!latestSnapshot.forecasts[fromWeek]) latestSnapshot.forecasts[fromWeek] = { total: { po: 0, fc: 0 } };
       if (!latestSnapshot.forecasts[toWeek]) latestSnapshot.forecasts[toWeek] = { total: { po: 0, fc: 0 } };
-
+  
       const allSizes: Size[] = [...SIZES];
       allSizes.forEach(size => {
-        const qty = movedQuantities[size] || 0;
-        if (qty > 0) {
-          // Ensure size objects exist
+        const destQtyToMove = movedQuantities[size] || 0;
+        if (destQtyToMove > 0) {
+          const totalQtyToMoveForSize = Math.round(destQtyToMove / destinationFactor);
+
           if (!latestSnapshot.forecasts[fromWeek][size]) latestSnapshot.forecasts[fromWeek][size] = { po: 0, fc: 0 };
           if (!latestSnapshot.forecasts[toWeek][size]) latestSnapshot.forecasts[toWeek][size] = { po: 0, fc: 0 };
 
-          // Subtract from 'fromWeek'
-          latestSnapshot.forecasts[fromWeek][size]!.po = Math.max(0, (latestSnapshot.forecasts[fromWeek][size]!.po || 0) - qty);
-          
-          // Add to 'toWeek'
-          latestSnapshot.forecasts[toWeek][size]!.po += qty;
+          latestSnapshot.forecasts[fromWeek][size]!.po = Math.max(0, (latestSnapshot.forecasts[fromWeek][size]!.po || 0) - totalQtyToMoveForSize);
+          latestSnapshot.forecasts[toWeek][size]!.po += totalQtyToMoveForSize;
         }
       });
-      
-      // Recalculate totals for both weeks
+  
       [fromWeek, toWeek].forEach(week => {
-          let totalPo = 0;
-          let totalFc = 0;
-          allSizes.forEach(size => {
-              totalPo += latestSnapshot.forecasts[week][size]?.po || 0;
-              totalFc += latestSnapshot.forecasts[week][size]?.fc || 0;
-          });
-          if (!latestSnapshot.forecasts[week].total) latestSnapshot.forecasts[week].total = { po: 0, fc: 0 };
-          latestSnapshot.forecasts[week].total.po = totalPo;
-          latestSnapshot.forecasts[week].total.fc = totalFc;
+        let totalPo = 0;
+        let totalFc = 0;
+        allSizes.forEach(size => {
+          totalPo += latestSnapshot.forecasts[week][size]?.po || 0;
+          totalFc += latestSnapshot.forecasts[week][size]?.fc || 0;
+        });
+        if (!latestSnapshot.forecasts[week].total) latestSnapshot.forecasts[week].total = { po: 0, fc: 0 };
+        latestSnapshot.forecasts[week].total.po = totalPo;
+        latestSnapshot.forecasts[week].total.fc = totalFc;
       });
-
-
+  
       return {
         ...prev,
         [orderId]: {

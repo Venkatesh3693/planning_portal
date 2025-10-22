@@ -89,7 +89,7 @@ export type FcComposition = {
 
 export type FcSnapshot = {
   snapshotWeek: number;
-  forecasts: Record<string, Record<Size | 'total', FcComposition>>;
+  forecasts: Record<string, Partial<Record<Size | 'total', FcComposition>>>;
 };
 
 export type ComponentStatusDetail = {

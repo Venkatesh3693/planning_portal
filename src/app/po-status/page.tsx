@@ -37,8 +37,6 @@ function PoStatusPageContent() {
     const orderId = searchParams.get('orderId');
     const { orders, isScheduleLoaded, updatePoQuantities } = useSchedule();
     
-    const [actualEhds, setActualEhds] = useState<Record<string, string>>({});
-
     const order = useMemo(() => {
         if (!isScheduleLoaded || !orderId) return null;
         return orders.find(o => o.id === orderId);
@@ -79,37 +77,24 @@ function PoStatusPageContent() {
                     };
                     
                     let recordTotal = 0;
-                    let hasPartialData = false;
                     SIZES.forEach(size => {
                         const sizePoQty = latestSnapshot.forecasts[weekKey][size]?.po || 0;
                         const destSizeQty = Math.round(sizePoQty * destinationFactor);
-                        if(destSizeQty < 0) { // Should not happen but as a safeguard
-                            hasPartialData = true;
-                        }
                         record.quantities[size] = destSizeQty;
                         recordTotal += destSizeQty;
                     });
                     
                     record.total = recordTotal;
-                    if(record.total > 0 && !hasPartialData) {
+                    if(record.total > 0) {
                         generatedRecords.push(record);
                     }
                 });
             }
         });
         
-        return { poRecords: generatedRecords, allWeeks: weeksInSnapshot };
+        return { poRecords: generatedRecords.sort((a,b) => a.poNumber.localeCompare(b.poNumber)), allWeeks: weeksInSnapshot };
 
     }, [order]);
-
-    useEffect(() => {
-      const initialEhds: Record<string, string> = {};
-      poRecords.forEach(po => {
-        initialEhds[po.poNumber] = po.ehdWeek;
-      });
-      setActualEhds(initialEhds);
-    }, [poRecords]);
-
     
     const totals = useMemo(() => {
         const sizeTotals: Record<Size, number> = SIZES.reduce((acc, size) => ({...acc, [size]: 0}), {} as Record<Size, number>);
@@ -126,13 +111,14 @@ function PoStatusPageContent() {
     }, [poRecords]);
 
     const handleActualEhdChange = (po: SyntheticPoRecord, newWeek: string) => {
-        if (!order) return;
-        const oldWeek = actualEhds[po.poNumber] || po.ehdWeek;
-        if (oldWeek === newWeek) return;
+        if (!order || !po.ehdWeek || po.ehdWeek === newWeek) return;
 
-        updatePoQuantities(order.id, oldWeek, newWeek, po.quantities);
+        const movedQuantities: Record<Size, number> = SIZES.reduce((acc, size) => {
+          acc[size] = po.quantities[size] || 0;
+          return acc;
+        }, {} as Record<Size, number>);
 
-        setActualEhds(prev => ({ ...prev, [po.poNumber]: newWeek }));
+        updatePoQuantities(order.id, po.ehdWeek, newWeek, movedQuantities, po.destination);
     };
 
     if (!isScheduleLoaded) {
@@ -209,7 +195,7 @@ function PoStatusPageContent() {
                                         <TableCell>{po.ehdWeek}</TableCell>
                                         <TableCell>
                                             <Select 
-                                                value={actualEhds[po.poNumber] || po.ehdWeek}
+                                                value={po.ehdWeek}
                                                 onValueChange={(value) => handleActualEhdChange(po, value)}
                                             >
                                                 <SelectTrigger className="w-[120px]">
