@@ -287,8 +287,8 @@ function DemandAnalysisPageContent() {
         }
     }, [orderIdFromUrl]);
 
-    const gupOrders = useMemo(() => {
-        return orders.filter(o => o.orderType === 'Firm PO');
+    const gutOrders = useMemo(() => {
+        return orders.filter(o => o.orderType === 'Forecasted');
     }, [orders]);
 
     const handleOrderChange = (orderId: string) => {
@@ -305,8 +305,8 @@ function DemandAnalysisPageContent() {
         return <div className="flex items-center justify-center h-full">Loading analysis data...</div>;
     }
 
-    if (appMode === 'gut') {
-        return <div className="flex items-center justify-center h-full">This view is not applicable for GUT mode.</div>;
+    if (appMode === 'gup') {
+        return <div className="flex items-center justify-center h-full">This view is not applicable for GUP mode.</div>;
     }
 
     return (
@@ -343,7 +343,7 @@ function DemandAnalysisPageContent() {
                                     <SelectValue placeholder="Select an order" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {gupOrders.map(o => (
+                                    {gutOrders.map(o => (
                                         <SelectItem key={o.id} value={o.id}>{o.id}</SelectItem>
                                     ))}
                                 </SelectContent>

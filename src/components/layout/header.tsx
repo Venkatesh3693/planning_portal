@@ -72,8 +72,8 @@ export function Header({
                 <Link href="/orders">
                   <DropdownMenuItem>Order management</DropdownMenuItem>
                 </Link>
-                {appMode === 'gup' && (
-                    <Link href="/demand-analysis?orderId=DMI-114227-Purple">
+                {appMode === 'gut' && (
+                    <Link href="/demand-analysis">
                         <DropdownMenuItem>Demand Analysis</DropdownMenuItem>
                     </Link>
                 )}
