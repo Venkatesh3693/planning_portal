@@ -28,6 +28,7 @@ type TrackerRun = {
   endWeek: string;
   quantity: number;
   lines: number;
+  offset: number;
 };
 
 
@@ -200,8 +201,8 @@ function TentativePlanPageContent() {
         const poFcStartWeekNum = parseInt(firstPoFcWeekStr.slice(1));
         const scanStartWeekNum = Math.max(poFcStartWeekNum - 1, selectedSnapshotWeek);
 
-        const runs: Omit<TrackerRun, 'lines'>[] = [];
-        let currentRun: Partial<Omit<TrackerRun, 'lines'>> & { quantity: number } = { quantity: 0 };
+        const runs: Omit<TrackerRun, 'lines' | 'offset'>[] = [];
+        let currentRun: Partial<Omit<TrackerRun, 'lines' | 'offset'>> & { quantity: number } = { quantity: 0 };
         let zeroDemandStreak = 0;
         let runCounter = 1;
 
@@ -257,11 +258,10 @@ function TentativePlanPageContent() {
 
         for (const run of runs) {
             let numberOfLines = 1;
-            let offset = 5; 
+            let finalOffset = 0;
+            let keepLooping = true;
 
-            let finalRunDetails: TrackerRun;
-
-            while (offset > 4) {
+            while (keepLooping) {
                 const maxWeeklyOutput = (6 * 480 * totalTailors * numberOfLines * (budgetedEfficiency / 100)) / totalSam;
                 
                 let closingInventory = 0;
@@ -282,20 +282,21 @@ function TentativePlanPageContent() {
                     }
                 }
                 
-                offset = Math.ceil(Math.abs(minClosingInventory) / maxWeeklyOutput);
+                const calculatedOffset = Math.ceil(Math.abs(minClosingInventory) / maxWeeklyOutput);
                 
-                if (offset <= 4) {
-                    const finalStartWeekNum = runStartWeekNum - offset;
+                if (calculatedOffset <= 4) {
+                    finalOffset = calculatedOffset;
+                    const finalStartWeekNum = runStartWeekNum - finalOffset;
                     const weeksToProduce = Math.ceil(run.quantity / maxWeeklyOutput);
                     const finalEndWeekNum = finalStartWeekNum + weeksToProduce -1;
 
-                    finalRunDetails = {
+                    finalRuns.push({
                         ...run,
                         startWeek: `W${finalStartWeekNum}`,
                         endWeek: `W${finalEndWeekNum}`,
                         lines: numberOfLines,
-                    };
-                    finalRuns.push(finalRunDetails);
+                        offset: finalOffset,
+                    });
 
                     let remainingQty = run.quantity;
                     for (let w = finalStartWeekNum; w <= finalEndWeekNum; w++) {
@@ -304,11 +305,11 @@ function TentativePlanPageContent() {
                         finalPlan[weekKey] = (finalPlan[weekKey] || 0) + Math.round(planQty);
                         remainingQty -= planQty;
                     }
-
+                    keepLooping = false;
                 } else {
                     numberOfLines++;
                 }
-                if(numberOfLines > 100) break; // Safety break
+                if(numberOfLines > 100) keepLooping = false; // Safety break
             }
         }
         
@@ -425,6 +426,7 @@ function TentativePlanPageContent() {
                                             <TableHead>Run Number</TableHead>
                                             <TableHead>Plan start</TableHead>
                                             <TableHead>Plan end</TableHead>
+                                            <TableHead>Offset</TableHead>
                                             <TableHead className="text-right">Quantity</TableHead>
                                             <TableHead>Number of lines</TableHead>
                                         </TableRow>
@@ -436,13 +438,14 @@ function TentativePlanPageContent() {
                                                     <TableCell>{run.runNumber}</TableCell>
                                                     <TableCell>{run.startWeek}</TableCell>
                                                     <TableCell>{run.endWeek}</TableCell>
+                                                    <TableCell>{run.offset}</TableCell>
                                                     <TableCell className="text-right font-medium">{run.quantity.toLocaleString()}</TableCell>
                                                     <TableCell>{run.lines}</TableCell>
                                                 </TableRow>
                                             ))
                                         ) : (
                                             <TableRow>
-                                                <TableCell colSpan={5} className="h-24 text-center">
+                                                <TableCell colSpan={6} className="h-24 text-center">
                                                     Click "Plan" to generate production runs.
                                                 </TableCell>
                                             </TableRow>
