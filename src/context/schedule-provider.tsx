@@ -13,7 +13,7 @@ const STORE_KEY = 'stitchplan_schedule_v4';
 type AppMode = 'gup' | 'gut';
 type SewingRampUpSchemes = Record<string, RampUpEntry[]>;
 type SewingLines = Record<string, number>;
-type StoredOrderOverrides = Record<string, Partial<Pick<Order, 'displayColor' | 'sewingRampUpScheme' | 'tna' | 'bom' | 'fcVsFcDetails' | 'syntheticPoRecords'>>>;
+type StoredOrderOverrides = Record<string, Partial<Pick<Order, 'displayColor' | 'sewingRampUpScheme' | 'tna' | 'bom' | 'fcVsFcDetails'>>>;
 type ProductionPlans = Record<string, Record<string, number>>;
 
 type ScheduleContextType = {
@@ -49,61 +49,70 @@ const ScheduleContext = createContext<ScheduleContextType | undefined>(undefined
 // New function to generate synthetic POs
 const generateSyntheticPos = (orders: Order[]): SyntheticPoRecord[] => {
     const allPos: SyntheticPoRecord[] = [];
-    const currentWeek = getWeek(new Date());
-
+    
     orders.forEach(order => {
-        if (order.orderType !== 'Forecasted' || !order.demandDetails) return;
+        if (order.orderType !== 'Forecasted' || !order.demandDetails || !order.fcVsFcDetails) return;
 
         const selectionQty = order.quantity;
         const targetTotalPoQty = selectionQty * (0.8 + Math.random() * 0.5); // 80% to 130% of selection
+
+        const latestSnapshot = order.fcVsFcDetails.reduce((latest, current) => {
+            return !latest || current.snapshotWeek > latest.snapshotWeek ? current : latest;
+        }, null as FcSnapshot | null);
+
+        if (!latestSnapshot) return;
+
+        const poWeeks = Object.entries(latestSnapshot.forecasts)
+            .filter(([_, weekData]) => (weekData.total?.po || 0) > 0)
+            .map(([weekKey, weekData]) => ({
+                week: weekKey,
+                totalPo: weekData.total!.po,
+                sizeBreakdown: SIZES.reduce((acc, size) => {
+                    acc[size] = weekData[size]?.po || 0;
+                    return acc;
+                }, {} as Record<Size, number>)
+            }));
         
+        if (poWeeks.length === 0) return;
+
         let allocatedQty = 0;
         let poCounter = 1;
 
-        const weeksToGenerate = Array.from({ length: 15 }, (_, i) => currentWeek + i - 5);
-
-        for (const week of weeksToGenerate) {
-            if (allocatedQty >= targetTotalPoQty) break;
+        for (const weekInfo of poWeeks) {
+             if (allocatedQty >= targetTotalPoQty) break;
 
             for (const destDetail of order.demandDetails) {
-                if (allocatedQty >= targetTotalPoQty) break;
+                 if (allocatedQty >= targetTotalPoQty) break;
 
-                // Randomly decide if a PO is created for this dest/week combination
-                if (Math.random() > 0.6) continue;
-
-                const remainingToAllocate = targetTotalPoQty - allocatedQty;
-                const poQtyForThisRecord = Math.min(remainingToAllocate, destDetail.selectionQty * (0.1 + Math.random() * 0.3));
-
-                if (poQtyForThisRecord < 100) continue; // Minimum PO size
+                const destProportion = destDetail.selectionQty / selectionQty;
+                const poQtyForDest = Math.round(weekInfo.totalPo * destProportion);
+                
+                if (poQtyForDest < 100) continue; // Minimum PO size
 
                 const quantities: Partial<SizeBreakdown> = {};
                 let currentPoTotal = 0;
                 SIZES.forEach(size => {
-                    // Distribute quantity across sizes with some randomness
-                    const sizeQty = Math.round(poQtyForThisRecord * (Math.random() * 0.2 + 0.05));
+                    const sizeQty = Math.round((weekInfo.sizeBreakdown[size] || 0) * destProportion);
                     quantities[size] = sizeQty;
                     currentPoTotal += sizeQty;
                 });
+                quantities.total = currentPoTotal;
                 
-                // Adjust total to match
-                const adjustment = Math.round(poQtyForThisRecord) - currentPoTotal;
-                quantities['M'] = (quantities['M'] || 0) + adjustment;
-                quantities.total = Math.round(poQtyForThisRecord);
+                if (quantities.total <= 0) continue;
 
-                const ehdWeek = week;
-                const issueDateWeek = ehdWeek - 4;
-                const weekStartDate = startOfWeek(new Date(), { weekStartsOn: 1 });
+                const ehdWeekNum = parseInt(weekInfo.week.replace('W', ''), 10);
+                const issueWeekNum = ehdWeekNum - 4;
 
                 allPos.push({
                     orderId: order.id,
                     poNumber: `PO-${order.ocn}-${destDetail.destination.substring(0,2).toUpperCase()}-${poCounter++}`,
-                    issueDate: addWeeks(weekStartDate, issueDateWeek),
-                    originalEhdWeek: `W${ehdWeek}`,
-                    actualEhdWeek: `W${ehdWeek}`,
+                    issueWeek: `W${issueWeekNum}`,
+                    originalEhdWeek: weekInfo.week,
+                    actualEhdWeek: weekInfo.week,
                     destination: destDetail.destination,
                     quantities: quantities as SizeBreakdown,
                 });
-
+                
                 allocatedQty += quantities.total;
             }
         }
@@ -223,13 +232,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         splitOrderProcesses,
         syntheticPoRecords,
       };
-      const serializedState = JSON.stringify(stateToSave, (key, value) => {
-        // Deep copy quantities to prevent reference issues in storage
-        if (key === 'quantities' && typeof value === 'object' && value !== null) {
-          return JSON.parse(JSON.stringify(value));
-        }
-        return value;
-      });
+      const serializedState = JSON.stringify(stateToSave);
       localStorage.setItem(STORE_KEY, serializedState);
     } catch (err) {
       console.error("Could not save schedule to localStorage", err);
@@ -310,18 +313,15 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   };
   
   const updatePoEhd = (orderId: string, poNumber: string, newWeek: string) => {
-    // Find the original record to know what to move
     const originalPoRecord = syntheticPoRecords.find(p => p.poNumber === poNumber);
     if (!originalPoRecord) return;
   
-    // Update the local, persistent PO record state
     setSyntheticPoRecords(prevRecords =>
       prevRecords.map(p =>
         p.poNumber === poNumber ? { ...p, actualEhdWeek: newWeek } : p
       )
     );
     
-    // Update the forecast data for analytics
     setOrderOverrides(prevOverrides => {
         const newOverrides = JSON.parse(JSON.stringify(prevOverrides));
         const orderFcDetails = newOverrides[orderId]?.fcVsFcDetails || orders.find(o => o.id === orderId)?.fcVsFcDetails || [];
@@ -337,25 +337,20 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         const toWeek = newWeek;
         const movedQuantities = originalPoRecord.quantities;
 
-        // Ensure week entries exist
         if (!latestSnapshot.forecasts[fromWeek]) latestSnapshot.forecasts[fromWeek] = {};
         if (!latestSnapshot.forecasts[toWeek]) latestSnapshot.forecasts[toWeek] = {};
 
-        // Subtract from old week and add to new week for each size
         (Object.keys(movedQuantities) as (keyof typeof movedQuantities)[]).forEach(size => {
             if (size === 'total') return;
             const qtyToMove = movedQuantities[size] || 0;
             
-            // Subtract
             if (!latestSnapshot.forecasts[fromWeek][size]) latestSnapshot.forecasts[fromWeek][size] = { po: 0, fc: 0 };
             latestSnapshot.forecasts[fromWeek][size]!.po = Math.max(0, (latestSnapshot.forecasts[fromWeek][size]!.po || 0) - qtyToMove);
 
-            // Add
             if (!latestSnapshot.forecasts[toWeek][size]) latestSnapshot.forecasts[toWeek][size] = { po: 0, fc: 0 };
             latestSnapshot.forecasts[toWeek][size]!.po = (latestSnapshot.forecasts[toWeek][size]!.po || 0) + qtyToMove;
         });
 
-        // Recalculate totals for affected weeks
         [fromWeek, toWeek].forEach(weekKey => {
             let totalPo = 0;
             let totalFc = 0;
@@ -403,7 +398,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         if (override.sewingRampUpScheme) updatedOrder.sewingRampUpScheme = override.sewingRampUpScheme;
         if (override.bom) updatedOrder.bom = override.bom;
         if (override.fcVsFcDetails) updatedOrder.fcVsFcDetails = override.fcVsFcDetails;
-        if (override.syntheticPoRecords) updatedOrder.syntheticPoRecords = override.syntheticPoRecords;
         
         if (override.tna) {
            const newTna = { ...(updatedOrder.tna || { processes: [] }) } as Tna;

@@ -159,7 +159,6 @@ export type Order = {
   fcVsFcDetails?: FcSnapshot[];
   projectionDetails?: ProjectionDetail[];
   bom?: BomItem[];
-  syntheticPoRecords?: SyntheticPoRecord[];
 };
 
 export type ScheduledProcess = {
@@ -191,7 +190,7 @@ export type UnplannedBatch = {
 
 export type SyntheticPoRecord = {
     poNumber: string;
-    issueDate: Date;
+    issueWeek: string;
     originalEhdWeek: string;
     actualEhdWeek: string;
     destination: string;
