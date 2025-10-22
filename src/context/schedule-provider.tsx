@@ -3,7 +3,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, Dispatch, SetStateAction, useMemo } from 'react';
-import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem, Size, FcComposition, FcSnapshot } from '@/lib/types';
+import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem, Size, FcComposition, FcSnapshot, SyntheticPoRecord } from '@/lib/types';
 import { ORDERS as staticOrders, PROCESSES, ORDER_COLORS, SIZES } from '@/lib/data';
 import { addDays, startOfToday, isAfter } from 'date-fns';
 import { getProcessBatchSize, getPackingBatchSize } from '@/lib/tna-calculator';
@@ -13,7 +13,7 @@ const STORE_KEY = 'stitchplan_schedule_v3';
 type AppMode = 'gup' | 'gut';
 type SewingRampUpSchemes = Record<string, RampUpEntry[]>;
 type SewingLines = Record<string, number>;
-type StoredOrderOverrides = Record<string, Partial<Pick<Order, 'displayColor' | 'sewingRampUpScheme' | 'tna' | 'bom' | 'fcVsFcDetails'>>>;
+type StoredOrderOverrides = Record<string, Partial<Pick<Order, 'displayColor' | 'sewingRampUpScheme' | 'tna' | 'bom' | 'fcVsFcDetails' | 'syntheticPoRecords'>>>;
 type ProductionPlans = Record<string, Record<string, number>>;
 
 type ScheduleContextType = {
@@ -28,7 +28,7 @@ type ScheduleContextType = {
   updateOrderColor: (orderId: string, color: string) => void;
   updateOrderMinRunDays: (orderId: string, minRunDays: Record<string, number>) => void;
   updateOrderBom: (orderId: string, componentName: string, field: keyof BomItem, value: any) => void;
-  updatePoQuantities: (orderId: string, fromWeek: string, toWeek: string, movedQuantities: Record<Size, number>, destination: string) => void;
+  updatePoEhd: (orderId: string, poNumber: string, newWeek: string) => void;
   sewingLines: SewingLines;
   setSewingLines: (orderId: string, lines: number) => void;
   productionPlans: ProductionPlans;
@@ -40,6 +40,8 @@ type ScheduleContextType = {
   toggleSplitProcess: (orderId: string, processId: string) => void;
   processBatchSizes: Record<string, number>;
   packingBatchSizes: Record<string, number>;
+  syntheticPoRecords: SyntheticPoRecord[];
+  setSyntheticPoRecords: Dispatch<SetStateAction<SyntheticPoRecord[]>>;
 };
 
 const ScheduleContext = createContext<ScheduleContextType | undefined>(undefined);
@@ -54,6 +56,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   const [splitOrderProcesses, setSplitOrderProcesses] = useState<Record<string, boolean>>({});
   const [timelineEndDate, setTimelineEndDate] = useState(() => addDays(startOfToday(), 90));
   const [isScheduleLoaded, setIsScheduleLoaded] = useState(false);
+  const [syntheticPoRecords, setSyntheticPoRecords] = useState<SyntheticPoRecord[]>([]);
 
   useEffect(() => {
     try {
@@ -130,6 +133,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
           tna: hydratedTna,
           bom: override?.bom || baseOrder.bom,
           fcVsFcDetails: override?.fcVsFcDetails || baseOrder.fcVsFcDetails,
+          syntheticPoRecords: override?.syntheticPoRecords || undefined,
         };
       });
       setOrders(hydratedOrders);
@@ -234,39 +238,44 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const updatePoQuantities = (orderId: string, fromWeek: string, toWeek: string, movedQuantities: Record<Size, number>, destination: string) => {
+  const updatePoEhd = (orderId: string, poNumber: string, newWeek: string) => {
+    const poRecord = syntheticPoRecords.find(p => p.poNumber === poNumber);
+    if (!poRecord) return;
+  
+    setSyntheticPoRecords(prevRecords =>
+      prevRecords.map(p =>
+        p.poNumber === poNumber ? { ...p, actualEhdWeek: newWeek } : p
+      )
+    );
+  
     setOrderOverrides(prev => {
       const order = orders.find(o => o.id === orderId);
-      if (!order || !order.demandDetails) return prev;
+      if (!order || !order.fcVsFcDetails) return prev;
       
-      const currentFcDetails = prev[orderId]?.fcVsFcDetails || order?.fcVsFcDetails;
-      if (!currentFcDetails) return prev;
-  
-      const newFcDetails: FcSnapshot[] = JSON.parse(JSON.stringify(currentFcDetails));
-      const latestSnapshot = newFcDetails.sort((a, b) => b.snapshotWeek - a.snapshotWeek)[0];
+      const newFcDetails: FcSnapshot[] = JSON.parse(JSON.stringify(order.fcVsFcDetails));
+      const latestSnapshot = newFcDetails.find(s => s.snapshotWeek === Math.max(...newFcDetails.map(snap => snap.snapshotWeek)));
       if (!latestSnapshot) return prev;
-  
-      const totalSelectionQty = order.demandDetails.reduce((sum, d) => sum + d.selectionQty, 0);
-      const destDetail = order.demandDetails.find(d => d.destination === destination);
-      if (!destDetail || totalSelectionQty === 0) return prev;
-      
-      const destinationFactor = destDetail.selectionQty / totalSelectionQty;
-      if (destinationFactor === 0) return prev;
 
-      if (!latestSnapshot.forecasts[fromWeek]) latestSnapshot.forecasts[fromWeek] = { total: { po: 0, fc: 0 } };
-      if (!latestSnapshot.forecasts[toWeek]) latestSnapshot.forecasts[toWeek] = { total: { po: 0, fc: 0 } };
-  
-      const allSizes: Size[] = [...SIZES];
+      const fromWeek = poRecord.originalEhdWeek;
+      const toWeek = newWeek;
+      const movedQuantities = poRecord.quantities;
+
+      const allSizes: Size[] = SIZES;
+
       allSizes.forEach(size => {
-        const destQtyToMove = movedQuantities[size] || 0;
-        if (destQtyToMove > 0) {
-          const totalQtyToMoveForSize = Math.round(destQtyToMove / destinationFactor);
+        const qtyToMove = movedQuantities[size] || 0;
+        if (qtyToMove > 0) {
+          // Ensure forecast weeks exist
+          if (!latestSnapshot.forecasts[fromWeek]) latestSnapshot.forecasts[fromWeek] = {};
+          if (!latestSnapshot.forecasts[toWeek]) latestSnapshot.forecasts[toWeek] = {};
 
+          // Ensure size breakdown exists
           if (!latestSnapshot.forecasts[fromWeek][size]) latestSnapshot.forecasts[fromWeek][size] = { po: 0, fc: 0 };
           if (!latestSnapshot.forecasts[toWeek][size]) latestSnapshot.forecasts[toWeek][size] = { po: 0, fc: 0 };
 
-          latestSnapshot.forecasts[fromWeek][size]!.po = Math.max(0, (latestSnapshot.forecasts[fromWeek][size]!.po || 0) - totalQtyToMoveForSize);
-          latestSnapshot.forecasts[toWeek][size]!.po += totalQtyToMoveForSize;
+          // Move PO quantity
+          latestSnapshot.forecasts[fromWeek][size]!.po = Math.max(0, (latestSnapshot.forecasts[fromWeek][size]!.po || 0) - qtyToMove);
+          latestSnapshot.forecasts[toWeek][size]!.po = (latestSnapshot.forecasts[toWeek][size]!.po || 0) + qtyToMove;
         }
       });
   
@@ -274,12 +283,13 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         let totalPo = 0;
         let totalFc = 0;
         allSizes.forEach(size => {
-          totalPo += latestSnapshot.forecasts[week][size]?.po || 0;
-          totalFc += latestSnapshot.forecasts[week][size]?.fc || 0;
+          totalPo += latestSnapshot.forecasts[week]?.[size]?.po || 0;
+          totalFc += latestSnapshot.forecasts[week]?.[size]?.fc || 0;
         });
+        if (!latestSnapshot.forecasts[week]) latestSnapshot.forecasts[week] = {};
         if (!latestSnapshot.forecasts[week].total) latestSnapshot.forecasts[week].total = { po: 0, fc: 0 };
-        latestSnapshot.forecasts[week].total.po = totalPo;
-        latestSnapshot.forecasts[week].total.fc = totalFc;
+        latestSnapshot.forecasts[week].total!.po = totalPo;
+        latestSnapshot.forecasts[week].total!.fc = totalFc;
       });
   
       return {
@@ -319,6 +329,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         if (override.sewingRampUpScheme) updatedOrder.sewingRampUpScheme = override.sewingRampUpScheme;
         if (override.bom) updatedOrder.bom = override.bom;
         if (override.fcVsFcDetails) updatedOrder.fcVsFcDetails = override.fcVsFcDetails;
+        if (override.syntheticPoRecords) updatedOrder.syntheticPoRecords = override.syntheticPoRecords;
         
         if (override.tna) {
            const newTna = { ...(updatedOrder.tna || { processes: [] }) } as Tna;
@@ -378,7 +389,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     updateOrderColor,
     updateOrderMinRunDays,
     updateOrderBom,
-    updatePoQuantities,
+    updatePoEhd,
     sewingLines,
     setSewingLines,
     productionPlans,
@@ -390,6 +401,8 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     toggleSplitProcess,
     processBatchSizes,
     packingBatchSizes,
+    syntheticPoRecords,
+    setSyntheticPoRecords,
   };
 
   return (

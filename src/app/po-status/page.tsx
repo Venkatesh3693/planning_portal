@@ -35,22 +35,39 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 function PoStatusPageContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get('orderId');
-    const { orders, isScheduleLoaded, updatePoQuantities } = useSchedule();
+    const { 
+        orders, 
+        isScheduleLoaded, 
+        syntheticPoRecords, 
+        setSyntheticPoRecords,
+        updatePoEhd 
+    } = useSchedule();
     
     const order = useMemo(() => {
         if (!isScheduleLoaded || !orderId) return null;
         return orders.find(o => o.id === orderId);
     }, [orderId, orders, isScheduleLoaded]);
 
-    const { poRecords, allWeeks } = useMemo(() => {
+    useEffect(() => {
+        if (order) {
+            const { poRecords: initialPoRecords } = generatePoRecords(order);
+            setSyntheticPoRecords(initialPoRecords);
+        } else {
+            setSyntheticPoRecords([]);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [order]); // Run only when order changes
+
+
+    const generatePoRecords = (order: any) => {
         if (!order || !order.fcVsFcDetails || order.fcVsFcDetails.length === 0 || !order.demandDetails) {
             return { poRecords: [], allWeeks: [] };
         }
 
-        const latestSnapshot = [...order.fcVsFcDetails].sort((a, b) => b.snapshotWeek - a.snapshotWeek)[0];
+        const latestSnapshot = [...order.fcVsFcDetails].sort((a: any, b: any) => b.snapshotWeek - a.snapshotWeek)[0];
         if (!latestSnapshot) return { poRecords: [], allWeeks: [] };
 
-        const totalSelectionQty = order.demandDetails.reduce((sum, d) => sum + d.selectionQty, 0);
+        const totalSelectionQty = order.demandDetails.reduce((sum: number, d: any) => sum + d.selectionQty, 0);
         if (totalSelectionQty === 0) return { poRecords: [], allWeeks: [] };
         
         const generatedRecords: SyntheticPoRecord[] = [];
@@ -63,14 +80,15 @@ function PoStatusPageContent() {
             const totalPoInWeek = latestSnapshot.forecasts[weekKey].total?.po || 0;
 
             if (totalPoInWeek > 0) {
-                order.demandDetails?.forEach(destDetail => {
+                order.demandDetails?.forEach((destDetail: any) => {
                     const destinationFactor = destDetail.selectionQty / totalSelectionQty;
                     if (destinationFactor === 0) return;
 
                     const poNumber = `PO-${destDetail.destination.substring(0,3).toUpperCase()}-${weekKey}`;
                     const record: SyntheticPoRecord = {
                         poNumber: poNumber,
-                        ehdWeek: weekKey,
+                        originalEhdWeek: weekKey,
+                        actualEhdWeek: weekKey,
                         destination: destDetail.destination,
                         quantities: {} as Record<Size, number>,
                         total: 0,
@@ -93,14 +111,22 @@ function PoStatusPageContent() {
         });
         
         return { poRecords: generatedRecords.sort((a,b) => a.poNumber.localeCompare(b.poNumber)), allWeeks: weeksInSnapshot };
+    };
 
+    const allWeeks = useMemo(() => {
+        if (!order || !order.fcVsFcDetails || order.fcVsFcDetails.length === 0) return [];
+        const latestSnapshot = [...order.fcVsFcDetails].sort((a, b) => b.snapshotWeek - a.snapshotWeek)[0];
+        if (!latestSnapshot) return [];
+        return Object.keys(latestSnapshot.forecasts).sort((a, b) => {
+            return parseInt(a.replace('W','')) - parseInt(b.replace('W',''));
+        });
     }, [order]);
     
     const totals = useMemo(() => {
         const sizeTotals: Record<Size, number> = SIZES.reduce((acc, size) => ({...acc, [size]: 0}), {} as Record<Size, number>);
         let grandTotal = 0;
         
-        poRecords.forEach(record => {
+        syntheticPoRecords.forEach(record => {
             grandTotal += record.total;
             SIZES.forEach(size => {
                 sizeTotals[size] += record.quantities[size] || 0;
@@ -108,17 +134,15 @@ function PoStatusPageContent() {
         });
         
         return { sizeTotals, grandTotal };
-    }, [poRecords]);
+    }, [syntheticPoRecords]);
 
-    const handleActualEhdChange = (po: SyntheticPoRecord, newWeek: string) => {
-        if (!order || !po.ehdWeek || po.ehdWeek === newWeek) return;
+    const handleActualEhdChange = (poNumber: string, newWeek: string) => {
+        if (!order) return;
+        const recordToUpdate = syntheticPoRecords.find(po => po.poNumber === poNumber);
+        if (!recordToUpdate || recordToUpdate.actualEhdWeek === newWeek) return;
 
-        const movedQuantities: Record<Size, number> = SIZES.reduce((acc, size) => {
-          acc[size] = po.quantities[size] || 0;
-          return acc;
-        }, {} as Record<Size, number>);
-
-        updatePoQuantities(order.id, po.ehdWeek, newWeek, movedQuantities, po.destination);
+        // Call the central update function
+        updatePoEhd(order.id, poNumber, newWeek);
     };
 
     if (!isScheduleLoaded) {
@@ -169,7 +193,7 @@ function PoStatusPageContent() {
                 </div>
                 
                 <div className="border rounded-lg overflow-auto flex-1">
-                    {poRecords.length > 0 ? (
+                    {syntheticPoRecords.length > 0 ? (
                         <Table>
                             <TableHeader className="sticky top-0 bg-background">
                                 <TableRow>
@@ -182,8 +206,8 @@ function PoStatusPageContent() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {poRecords.map(po => {
-                                  const ehdWeekNum = parseInt(po.ehdWeek.replace('W',''));
+                                {syntheticPoRecords.map(po => {
+                                  const ehdWeekNum = parseInt(po.originalEhdWeek.replace('W',''));
                                   const futureWeeks = allWeeks.filter(w => parseInt(w.replace('W','')) >= ehdWeekNum);
 
                                   return (
@@ -192,11 +216,11 @@ function PoStatusPageContent() {
                                         {SIZES.map(s => <TableCell key={s} className="text-right">{(po.quantities[s] || 0).toLocaleString()}</TableCell>)}
                                         <TableCell className="text-right font-bold">{po.total.toLocaleString()}</TableCell>
                                         <TableCell>{po.destination}</TableCell>
-                                        <TableCell>{po.ehdWeek}</TableCell>
+                                        <TableCell>{po.originalEhdWeek}</TableCell>
                                         <TableCell>
                                             <Select 
-                                                value={po.ehdWeek}
-                                                onValueChange={(value) => handleActualEhdChange(po, value)}
+                                                value={po.actualEhdWeek}
+                                                onValueChange={(value) => handleActualEhdChange(po.poNumber, value)}
                                             >
                                                 <SelectTrigger className="w-[120px]">
                                                     <SelectValue />
