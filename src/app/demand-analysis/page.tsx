@@ -2,10 +2,9 @@
 
 'use client';
 
-import { Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { Suspense, useState, useMemo, useEffect } from 'react';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useSchedule } from '@/context/schedule-provider';
-import { useState, useMemo, useEffect } from 'react';
 import type { Order, Size, FcComposition, DemandDetail } from '@/lib/types';
 import { SIZES } from '@/lib/data';
 import { getWeek } from 'date-fns';
@@ -275,13 +274,32 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
 
 function DemandAnalysisPageContent() {
     const searchParams = useSearchParams();
-    const orderId = searchParams.get('orderId');
+    const router = useRouter();
+    const pathname = usePathname();
+    const orderIdFromUrl = searchParams.get('orderId');
+
     const { orders, isScheduleLoaded, appMode } = useSchedule();
+    const [selectedOrderId, setSelectedOrderId] = useState<string | null>(orderIdFromUrl);
+
+    useEffect(() => {
+        if (orderIdFromUrl) {
+            setSelectedOrderId(orderIdFromUrl);
+        }
+    }, [orderIdFromUrl]);
+
+    const gupOrders = useMemo(() => {
+        return orders.filter(o => o.orderType === 'Firm PO');
+    }, [orders]);
+
+    const handleOrderChange = (orderId: string) => {
+        setSelectedOrderId(orderId);
+        router.push(`${pathname}?orderId=${orderId}`);
+    };
 
     const order = useMemo(() => {
-        if (!isScheduleLoaded || !orderId) return null;
-        return orders.find(o => o.id === orderId);
-    }, [orderId, orders, isScheduleLoaded]);
+        if (!isScheduleLoaded || !selectedOrderId) return null;
+        return orders.find(o => o.id === selectedOrderId);
+    }, [selectedOrderId, orders, isScheduleLoaded]);
 
     if (!isScheduleLoaded) {
         return <div className="flex items-center justify-center h-full">Loading analysis data...</div>;
@@ -289,10 +307,6 @@ function DemandAnalysisPageContent() {
 
     if (appMode === 'gut') {
         return <div className="flex items-center justify-center h-full">This view is not applicable for GUT mode.</div>;
-    }
-
-    if (!order) {
-        return <div className="flex items-center justify-center h-full">Order not found. Please go back and select an order.</div>;
     }
 
     return (
@@ -322,9 +336,19 @@ function DemandAnalysisPageContent() {
                 <div className="flex justify-between items-center mb-4 flex-shrink-0">
                     <div>
                         <h1 className="text-2xl font-bold">Demand Trend Analysis</h1>
-                        <p className="text-muted-foreground">
-                            Order ID: {order.id}
-                        </p>
+                         <div className="flex items-center gap-2 mt-2">
+                            <Label htmlFor="order-select" className="text-muted-foreground">Order ID:</Label>
+                            <Select value={selectedOrderId || ''} onValueChange={handleOrderChange}>
+                                <SelectTrigger className="w-[250px]" id="order-select">
+                                    <SelectValue placeholder="Select an order" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {gupOrders.map(o => (
+                                        <SelectItem key={o.id} value={o.id}>{o.id}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
                      <Button variant="outline" asChild>
                         <Link href="/orders">
@@ -335,7 +359,13 @@ function DemandAnalysisPageContent() {
                 </div>
                 
                 <div className="flex-1 min-h-0">
-                    <DemandTrendAnalysis order={order} />
+                    {order ? (
+                        <DemandTrendAnalysis order={order} />
+                    ) : (
+                        <div className="flex items-center justify-center h-full text-muted-foreground">
+                            Please select an order to view the analysis.
+                        </div>
+                    )}
                 </div>
             </main>
         </div>
