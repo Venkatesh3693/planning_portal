@@ -16,6 +16,111 @@ import {
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Card, CardContent } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { getWeek } from 'date-fns';
+import type { FcComposition, Size } from '@/lib/types';
+
+
+const TentativePlanTable = ({ order }: { order: any }) => {
+    const currentSnapshotWeek = useMemo(() => getWeek(new Date()), []);
+    
+    const latestSnapshot = useMemo(() => {
+        if (!order?.fcVsFcDetails || order.fcVsFcDetails.length === 0) return null;
+
+        // Find the snapshot for the current week, or the latest one before it.
+        return [...order.fcVsFcDetails]
+            .filter(s => s.snapshotWeek <= currentSnapshotWeek)
+            .sort((a, b) => b.snapshotWeek - a.snapshotWeek)[0];
+    }, [order, currentSnapshotWeek]);
+
+    const { weeks, weeklyData } = useMemo(() => {
+        if (!latestSnapshot) return { weeks: [], weeklyData: {} };
+
+        const allWeeks = Object.keys(latestSnapshot.forecasts).sort((a, b) => {
+            const weekA = parseInt(a.replace('W', ''));
+            const weekB = parseInt(b.replace('W', ''));
+            return weekA - weekB;
+        });
+        
+        const data: Record<string, { poFc: number }> = {};
+        allWeeks.forEach(week => {
+            const forecast = latestSnapshot.forecasts[week]?.total;
+            if (forecast) {
+                data[week] = {
+                    poFc: (forecast.po || 0) + (forecast.fc || 0),
+                };
+            }
+        });
+
+        return { weeks: allWeeks, weeklyData: data };
+    }, [latestSnapshot]);
+
+    const pciData = useMemo(() => {
+        let pci = 0;
+        const data: Record<string, number> = {};
+        weeks.forEach(week => {
+            const poFc = weeklyData[week]?.poFc || 0;
+            // Since Plan and Produced are 0 for now:
+            // PCI[w] = PCI[w-1] + Plan[w] + Produced[w] - PO+FC[w]
+            pci = pci - poFc;
+            data[week] = pci;
+        });
+        return data;
+    }, [weeks, weeklyData]);
+
+    if (!latestSnapshot) {
+        return <div className="p-4 text-muted-foreground">No forecast snapshot data available for the current week.</div>;
+    }
+
+    return (
+        <Card className="mt-6">
+            <CardContent className="p-0">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead className="w-[200px] font-bold">Dimension</TableHead>
+                            {weeks.map(week => (
+                                <TableHead key={week} className="text-right">{week}</TableHead>
+                            ))}
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        <TableRow>
+                            <TableCell className="font-medium">PO + FC</TableCell>
+                            {weeks.map(week => (
+                                <TableCell key={week} className="text-right">
+                                    {(weeklyData[week]?.poFc || 0).toLocaleString()}
+                                </TableCell>
+                            ))}
+                        </TableRow>
+                        <TableRow>
+                            <TableCell className="font-medium">Produced</TableCell>
+                            {weeks.map(week => (
+                                <TableCell key={week} className="text-right text-muted-foreground">-</TableCell>
+                            ))}
+                        </TableRow>
+                        <TableRow>
+                            <TableCell className="font-medium">Plan</TableCell>
+                            {weeks.map(week => (
+                                <TableCell key={week} className="text-right text-muted-foreground">-</TableCell>
+                            ))}
+                        </TableRow>
+                         <TableRow className="bg-muted/50">
+                            <TableCell className="font-bold">Projected Closing Inventory</TableCell>
+                            {weeks.map(week => (
+                                <TableCell key={week} className="text-right font-bold">
+                                    {pciData[week]?.toLocaleString() || '0'}
+                                </TableCell>
+                            ))}
+                        </TableRow>
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    );
+};
+
 
 function TentativePlanPageContent() {
     const { appMode, orders, isScheduleLoaded } = useSchedule();
@@ -39,7 +144,7 @@ function TentativePlanPageContent() {
                 <div className="text-center">
                   <h2 className="text-xl font-semibold">Tentative Plan Not Available</h2>
                   <p className="mt-2 text-muted-foreground">
-                    This view is only applicable for GUT mode.
+                    This view is only applicable for GUP mode.
                   </p>
                   <Button asChild className="mt-6">
                     <Link href="/orders">View GUP Orders</Link>
@@ -93,13 +198,14 @@ function TentativePlanPageContent() {
                             <SelectContent>
                                 {gutOrders.map(order => (
                                     <SelectItem key={order.id} value={order.id}>
-                                        {order.id}
+                                        {order.id} ({order.style})
                                     </SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                     </div>
-                    {/* Content will be added here based on selected order */}
+                    
+                    {selectedOrder && <TentativePlanTable order={selectedOrder} />}
                 </div>
             </main>
         </div>
@@ -113,3 +219,5 @@ export default function TentativePlanPage() {
         </Suspense>
     );
 }
+
+    
