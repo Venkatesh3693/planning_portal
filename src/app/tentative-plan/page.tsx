@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { useSchedule } from '@/context/schedule-provider';
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
@@ -14,9 +14,22 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 
 function TentativePlanPageContent() {
-    const { appMode } = useSchedule();
+    const { appMode, orders, isScheduleLoaded } = useSchedule();
+    const [selectedOrderId, setSelectedOrderId] = useState<string>('');
+
+    const gutOrders = useMemo(() => {
+        if (!isScheduleLoaded) return [];
+        return orders.filter(o => o.orderType === 'Forecasted');
+    }, [orders, isScheduleLoaded]);
+
+    const selectedOrder = useMemo(() => {
+        if (!selectedOrderId) return null;
+        return gutOrders.find(o => o.id === selectedOrderId);
+    }, [selectedOrderId, gutOrders]);
 
     if (appMode === 'gup') {
         return (
@@ -71,7 +84,22 @@ function TentativePlanPageContent() {
                 </div>
                 
                 <div className="space-y-4">
-                    {/* Content will be added here */}
+                    <div className="max-w-xs space-y-2">
+                        <Label htmlFor="order-select">Select Order ID</Label>
+                        <Select value={selectedOrderId} onValueChange={setSelectedOrderId}>
+                            <SelectTrigger id="order-select">
+                                <SelectValue placeholder="Select an order..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {gutOrders.map(order => (
+                                    <SelectItem key={order.id} value={order.id}>
+                                        {order.id}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    {/* Content will be added here based on selected order */}
                 </div>
             </main>
         </div>
