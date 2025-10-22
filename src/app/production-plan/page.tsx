@@ -183,86 +183,54 @@ function ProductionPlanPageContent() {
     }, [selectedSnapshot]);
 
     const handlePlan = () => {
-        if (!orderId || !order) return;
+        if (!orderId || !order || !selectedSnapshotWeek) return;
         setPlanError(null);
         if (!selectedSnapshot || weeklyOutput <= 0) {
-          toast({
-            variant: 'destructive',
-            title: 'Planning Failed',
-            description: 'Cannot generate plan. Ensure a snapshot is selected and production stats are valid.',
-          });
-          return;
+            toast({
+                variant: 'destructive',
+                title: 'Planning Failed',
+                description: 'Cannot generate plan. Ensure a snapshot is selected and production stats are valid.',
+            });
+            return;
         }
-
-        const demands = snapshotForecastWeeks.map(week => {
+    
+        const currentSnapshotWeekNum = parseInt(selectedSnapshotWeek);
+        const futureForecastWeeks = snapshotForecastWeeks.filter(week => parseInt(week.replace('W', '')) >= currentSnapshotWeekNum);
+    
+        if (futureForecastWeeks.length === 0) {
+            updateProductionPlan(orderId, {});
+            toast({ title: 'Plan Generated', description: 'No future demand to plan.' });
+            return;
+        }
+    
+        const demands = futureForecastWeeks.map(week => {
             const weekData = selectedSnapshot.forecasts[week]?.total;
             return weekData ? weekData.po + weekData.fc : 0;
         });
-      
-        const firstDemandWeekIndex = demands.findIndex(d => d > 0);
-        if (firstDemandWeekIndex === -1) {
-            updateProductionPlan(orderId, {});
-            toast({ title: 'Plan Generated', description: 'No demand found, no production planned.' });
-            return;
-        }
-        
-        const lastDemandWeekIndex = demands.map(d => d > 0).lastIndexOf(true);
+    
         const totalDemand = demands.reduce((sum, d) => sum + d, 0);
-
-        // --- Trial Run ---
-        const tempStartWeekIndex = firstDemandWeekIndex - 1;
-        const trialPlan: number[] = Array(snapshotForecastWeeks.length).fill(0);
         
-        let cumulativeTrialProduction = 0;
-        for (let i = tempStartWeekIndex; i < snapshotForecastWeeks.length; i++) {
-             if (i >= 0 && (openingFgStock + cumulativeTrialProduction) < totalDemand) {
-                trialPlan[i] = weeklyOutput;
-                cumulativeTrialProduction += weeklyOutput;
-            } else {
-                break; 
-            }
-        }
-        
-        const trialInventories: number[] = [];
-        let currentInventory = openingFgStock;
-      
-        for (let i = 0; i < snapshotForecastWeeks.length; i++) {
-            const production = i > 0 ? (trialPlan[i-1] || 0) : 0;
-            currentInventory = currentInventory + production - demands[i];
-            trialInventories.push(currentInventory);
-        }
-
-        const minInventory = Math.min(...trialInventories);
-        
-        let startOffset = 0;
-        if (minInventory < 0) {
-            startOffset = Math.ceil(Math.abs(minInventory) / weeklyOutput);
-        }
-      
-        const finalStartWeekIndex = tempStartWeekIndex - startOffset;
-
-        if (finalStartWeekIndex < 0) {
-          setPlanError(`Cannot meet demand. Production needs to start ${Math.abs(finalStartWeekIndex)} week(s) before ${snapshotForecastWeeks[0]}. Try increasing the number of lines.`);
-          updateProductionPlan(orderId, {});
-          return;
-        }
-      
-        const newPlanArray: number[] = Array(snapshotForecastWeeks.length).fill(0);
         let cumulativeProduction = 0;
-        for (let i = finalStartWeekIndex; i < snapshotForecastWeeks.length; i++) {
-            if (i >= 0 && (openingFgStock + cumulativeProduction) < totalDemand) {
-                newPlanArray[i] = weeklyOutput;
-                cumulativeProduction += weeklyOutput;
+        const newPlan: Record<string, number> = {};
+    
+        // Production starts from the selected snapshot week if needed
+        for (let i = 0; i < futureForecastWeeks.length; i++) {
+            const week = futureForecastWeeks[i];
+            const weekNum = parseInt(week.replace('W', ''));
+    
+            // Only start planning production from the snapshot week
+            if (weekNum >= currentSnapshotWeekNum) {
+                if ((openingFgStock + cumulativeProduction) < totalDemand) {
+                    newPlan[week] = weeklyOutput;
+                    cumulativeProduction += weeklyOutput;
+                } else {
+                    newPlan[week] = 0;
+                }
             } else {
-                break; 
+                 newPlan[week] = 0;
             }
         }
-
-        const newPlan: Record<string, number> = {};
-        snapshotForecastWeeks.forEach((week, index) => {
-            newPlan[week] = newPlanArray[index] || 0;
-        });
-      
+    
         updateProductionPlan(orderId, newPlan);
         toast({ title: 'Production Plan Generated', description: "The 'Plan' and 'Inv.' rows have been updated." });
     };
@@ -275,14 +243,24 @@ function ProductionPlanPageContent() {
         for (let i = 0; i < snapshotForecastWeeks.length; i++) {
             const week = snapshotForecastWeeks[i];
             const demand = (selectedSnapshot.forecasts[week]?.total.po || 0) + (selectedSnapshot.forecasts[week]?.total.fc || 0);
-            const production = i > 0 ? (productionPlan[snapshotForecastWeeks[i-1]] || 0) : 0;
+            const production = productionPlan[week] || 0; // Use the generated plan
+            
+            // Only consider demand and production from the snapshot week onwards
+            const currentSnapshotWeekNum = selectedSnapshotWeek ? parseInt(selectedSnapshotWeek) : 0;
+            const weekNum = parseInt(week.replace('W',''));
+
+            if (weekNum < currentSnapshotWeekNum) {
+                 weeklyInventory[week] = 0; // Or some other placeholder for past inventory
+                 continue;
+            }
+
             const closingInventory = previousInventory + production - demand;
             weeklyInventory[week] = closingInventory;
             previousInventory = closingInventory;
         }
 
         return weeklyInventory;
-    }, [selectedSnapshot, snapshotForecastWeeks, openingFgStock, productionPlan]);
+    }, [selectedSnapshot, snapshotForecastWeeks, openingFgStock, productionPlan, selectedSnapshotWeek]);
 
 
     if (!isScheduleLoaded) {
