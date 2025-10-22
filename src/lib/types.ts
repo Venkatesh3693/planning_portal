@@ -191,9 +191,10 @@ export type UnplannedBatch = {
 
 export type SyntheticPoRecord = {
     poNumber: string;
+    issueDate: Date;
     originalEhdWeek: string;
     actualEhdWeek: string;
     destination: string;
-    quantities: Record<Size, number>;
-    total: number;
+    quantities: SizeBreakdown;
+    orderId: string;
 };
