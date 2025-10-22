@@ -32,7 +32,7 @@ type TrackerRun = {
 };
 
 
-const TentativePlanTable = ({ order, selectedSnapshotWeek, planData }: { order: any, selectedSnapshotWeek: number | null, planData: Record<string, number>}) => {
+const TentativePlanTable = ({ order, selectedSnapshotWeek, planData, producedData }: { order: any, selectedSnapshotWeek: number | null, planData: Record<string, number>, producedData: Record<string, number>}) => {
     
     const latestSnapshot = useMemo(() => {
         if (!order?.fcVsFcDetails || order.fcVsFcDetails.length === 0 || selectedSnapshotWeek === null) return null;
@@ -68,7 +68,7 @@ const TentativePlanTable = ({ order, selectedSnapshotWeek, planData }: { order: 
         const sortedWeeks = [...weeks].sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
 
         // Find the first week with either demand or a plan to start calculations
-        const firstRelevantWeekIndex = sortedWeeks.findIndex(w => (weeklyData[w]?.poFc || 0) > 0 || (planData[w] || 0) > 0);
+        const firstRelevantWeekIndex = sortedWeeks.findIndex(w => (weeklyData[w]?.poFc || 0) > 0 || (planData[w] || 0) > 0 || (producedData[w] || 0) > 0);
         if (firstRelevantWeekIndex === -1) return {};
 
         const relevantWeeks = sortedWeeks.slice(firstRelevantWeekIndex);
@@ -77,18 +77,16 @@ const TentativePlanTable = ({ order, selectedSnapshotWeek, planData }: { order: 
 
         for (let i = 0; i < relevantWeeks.length; i++) {
             const week = relevantWeeks[i];
-            const lastWeek = i > 0 ? relevantWeeks[i - 1] : null;
-
             const poFc = weeklyData[week]?.poFc || 0;
-            const plan = lastWeek ? (planData[lastWeek] || 0) : 0;
+            const production = (planData[week] || 0) + (producedData[week] || 0);
             
-            const currentPci = lastWeekPci + plan - poFc;
+            const currentPci = lastWeekPci + ((planData[relevantWeeks[i-1]] || 0) + (producedData[relevantWeeks[i-1]] || 0)) - poFc;
             data[week] = currentPci;
             lastWeekPci = currentPci;
         }
 
         return data;
-    }, [weeks, weeklyData, planData]);
+    }, [weeks, weeklyData, planData, producedData]);
 
     if (!latestSnapshot) {
         return <div className="p-4 text-muted-foreground">No forecast snapshot data available for the selected week.</div>;
@@ -118,7 +116,9 @@ const TentativePlanTable = ({ order, selectedSnapshotWeek, planData }: { order: 
                         <TableRow>
                             <TableCell className="font-medium">Produced</TableCell>
                             {weeks.map(week => (
-                                <TableCell key={week} className="text-right text-muted-foreground">-</TableCell>
+                                <TableCell key={week} className="text-right text-green-600 font-semibold">
+                                    {(producedData[week] || 0) > 0 ? (producedData[week] || 0).toLocaleString() : '-'}
+                                </TableCell>
                             ))}
                         </TableRow>
                         <TableRow>
@@ -151,6 +151,7 @@ function TentativePlanPageContent() {
     const [selectedSnapshotWeek, setSelectedSnapshotWeek] = useState<number | null>(null);
     const [trackerData, setTrackerData] = useState<TrackerRun[]>([]);
     const [planData, setPlanData] = useState<Record<string, number>>({});
+    const [producedData, setProducedData] = useState<Record<string, number>>({});
 
     const gutOrders = useMemo(() => {
         if (!isScheduleLoaded) return [];
@@ -177,39 +178,32 @@ function TentativePlanPageContent() {
         }
         setTrackerData([]);
         setPlanData({});
-    }, [selectedOrder, snapshotOptions]);
+        setProducedData({});
+    }, [selectedOrder]);
 
-    const handlePlan = () => {
-        if (!selectedOrder || selectedSnapshotWeek === null) return;
 
-        const snapshot = selectedOrder.fcVsFcDetails?.find(s => s.snapshotWeek === selectedSnapshotWeek);
-        if (!snapshot) return;
-
-        const weeklyTotals: Record<string, number> = {};
-        const allWeeks = Object.keys(snapshot.forecasts).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
-        allWeeks.forEach(week => {
-            const total = snapshot.forecasts[week]?.total;
-            weeklyTotals[week] = (total?.po || 0) + (total?.fc || 0);
-        });
-
-        const firstPoFcWeekStr = allWeeks.find(w => (weeklyTotals[w] || 0) > 0);
-        if (!firstPoFcWeekStr) {
-            setTrackerData([]);
-            setPlanData({});
-            return;
-        }
-        const poFcStartWeekNum = parseInt(firstPoFcWeekStr.slice(1));
-        const scanStartWeekNum = Math.max(poFcStartWeekNum, selectedSnapshotWeek);
+    const calculatePlanForHorizon = (
+        startWeek: number, 
+        endWeek: number | null,
+        weeklyDemand: Record<string, number>,
+        order: any
+    ): { runs: TrackerRun[], plan: Record<string, number> } => {
+        const allDemandWeeks = Object.keys(weeklyDemand).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
 
         const runs: Omit<TrackerRun, 'lines' | 'offset'>[] = [];
         let currentRun: Partial<Omit<TrackerRun, 'lines' | 'offset'>> & { quantity: number } = { quantity: 0 };
         let zeroDemandStreak = 0;
         let runCounter = 1;
 
-        const weeksToScan = allWeeks.filter(w => parseInt(w.slice(1)) >= scanStartWeekNum);
+        const weeksToScan = allDemandWeeks.filter(w => {
+            const weekNum = parseInt(w.slice(1));
+            const isAfterStart = weekNum >= startWeek;
+            const isBeforeEnd = endWeek === null || weekNum <= endWeek;
+            return isAfterStart && isBeforeEnd;
+        });
 
         for (const week of weeksToScan) {
-            const demand = weeklyTotals[week] || 0;
+            const demand = weeklyDemand[week] || 0;
 
             if (demand > 0) {
                 if (!currentRun.startWeek) {
@@ -246,12 +240,12 @@ function TentativePlanPageContent() {
             });
         }
 
-        const obData = SEWING_OPERATIONS_BY_STYLE[selectedOrder.style];
-        if (!obData) return;
+        const obData = SEWING_OPERATIONS_BY_STYLE[order.style];
+        if (!obData) return { runs: [], plan: {} };
 
         const totalSam = obData.reduce((sum, op) => sum + op.sam, 0);
         const totalTailors = obData.reduce((sum, op) => sum + op.operators, 0);
-        const budgetedEfficiency = selectedOrder.budgetedEfficiency || 85;
+        const budgetedEfficiency = order.budgetedEfficiency || 85;
 
         const finalRuns: TrackerRun[] = [];
         const finalPlan: Record<string, number> = {};
@@ -274,9 +268,8 @@ function TentativePlanPageContent() {
 
                 for (let w = simulationStartWeek; w <= runEndWeekNum; w++) {
                     const weekKey = `W${w}`;
-                    const poFc = weeklyTotals[weekKey] || 0;
-                    const planForPrevWeek = `W${w-1}`;
-
+                    const poFc = weeklyDemand[weekKey] || 0;
+                    
                     const prevWeekPlan = (w === simulationStartWeek) ? 0 : maxWeeklyOutput;
                     
                     closingInventory = closingInventory + prevWeekPlan - poFc;
@@ -316,9 +309,66 @@ function TentativePlanPageContent() {
                 if(numberOfLines > 100) keepLooping = false; // Safety break
             }
         }
+        return { runs: finalRuns, plan: finalPlan };
+    };
+
+
+    const handlePlan = () => {
+        if (!selectedOrder || selectedSnapshotWeek === null) return;
+
+        const snapshot = selectedOrder.fcVsFcDetails?.find(s => s.snapshotWeek === selectedSnapshotWeek);
+        if (!snapshot) return;
+
+        const weeklyTotals: Record<string, number> = {};
+        const allWeeks = Object.keys(snapshot.forecasts).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
+        allWeeks.forEach(week => {
+            const total = snapshot.forecasts[week]?.total;
+            weeklyTotals[week] = (total?.po || 0) + (total?.fc || 0);
+        });
+
+        const firstPoFcWeekStr = allWeeks.find(w => (weeklyTotals[w] || 0) > 0);
+        if (!firstPoFcWeekStr) {
+            setTrackerData([]);
+            setPlanData({});
+            setProducedData({});
+            return;
+        }
+
+        const earliestProductionStartWeek = parseInt(firstPoFcWeekStr.slice(1)) - 4;
+        let finalProducedData: Record<string, number> = {};
+        let demandForCurrentPlan = { ...weeklyTotals };
+
+        if (selectedSnapshotWeek > earliestProductionStartWeek) {
+            const pastPlanResult = calculatePlanForHorizon(earliestProductionStartWeek, selectedSnapshotWeek - 1, weeklyTotals, selectedOrder);
+            finalProducedData = pastPlanResult.plan;
+            
+            let remainingDemand = { ...weeklyTotals };
+            Object.keys(finalProducedData).forEach(weekKey => {
+                const weekNum = parseInt(weekKey.slice(1));
+                if (weekNum < selectedSnapshotWeek) {
+                    let production = finalProducedData[weekKey] || 0;
+                    // Fulfill demand for this week
+                    let demand = remainingDemand[weekKey] || 0;
+                    const fulfilled = Math.min(production, demand);
+                    remainingDemand[weekKey] = demand - fulfilled;
+                    production -= fulfilled;
+                    
+                    // Carry over remaining production to next week's demand
+                    const nextWeekKey = `W${weekNum + 1}`;
+                    if (remainingDemand[nextWeekKey] && production > 0) {
+                        const carryOverFulfilled = Math.min(production, remainingDemand[nextWeekKey]);
+                        remainingDemand[nextWeekKey] -= carryOverFulfilled;
+                    }
+                }
+            });
+            demandForCurrentPlan = remainingDemand;
+        }
         
-        setTrackerData(finalRuns);
-        setPlanData(finalPlan);
+        const currentPlanResult = calculatePlanForHorizon(selectedSnapshotWeek, null, demandForCurrentPlan, selectedOrder);
+        
+        setProducedData(finalProducedData);
+        setPlanData(currentPlanResult.plan);
+        setTrackerData(currentPlanResult.runs);
     };
 
     if (appMode === 'gup') {
@@ -413,7 +463,7 @@ function TentativePlanPageContent() {
                     </div>
                     
                     {selectedOrder ? (
-                        <TentativePlanTable order={selectedOrder} selectedSnapshotWeek={selectedSnapshotWeek} planData={planData}/>
+                        <TentativePlanTable order={selectedOrder} selectedSnapshotWeek={selectedSnapshotWeek} planData={planData} producedData={producedData} />
                     ) : (
                         <div className="text-center text-muted-foreground pt-10">Please select an order to view the tentative plan.</div>
                     )}
