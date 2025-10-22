@@ -43,7 +43,9 @@ function ProductionPlanPageContent() {
         sewingLines, 
         setSewingLines,
         productionPlans,
-        updateProductionPlan
+        updateProductionPlan,
+        initialProductionStartWeeks,
+        setInitialProductionStartWeek,
     } = useSchedule();
     const { toast } = useToast();
 
@@ -53,10 +55,12 @@ function ProductionPlanPageContent() {
         return orders.find(o => o.id === orderId);
     }, [orderId, orders, isScheduleLoaded]);
 
-    const [openingFgStock, setOpeningFgStock] = useState(order?.projection?.grn || 0);
+    const [openingFgStock, setOpeningFgStock] = useState(0);
     const [displayOpeningFgStock, setDisplayOpeningFgStock] = useState(String(openingFgStock));
     const [planError, setPlanError] = useState<string | null>(null);
     const [selectedSnapshotWeek, setSelectedSnapshotWeek] = useState<string | undefined>(undefined);
+    
+    const initialProductionStartWeek = orderId ? initialProductionStartWeeks[orderId] : undefined;
 
     const productionPlan = useMemo(() => {
         if (!orderId) return {};
@@ -76,14 +80,9 @@ function ProductionPlanPageContent() {
     }, [numLines]);
 
     useEffect(() => {
-        if (order) {
-            const initialStock = order.projection?.grn || 0;
-            setOpeningFgStock(initialStock);
-            setDisplayOpeningFgStock(String(initialStock));
-            if (order.fcVsFcDetails && order.fcVsFcDetails.length > 0) {
-                const latestWeek = Math.max(...order.fcVsFcDetails.map(s => s.snapshotWeek));
-                setSelectedSnapshotWeek(String(latestWeek));
-            }
+        if (order && order.fcVsFcDetails && order.fcVsFcDetails.length > 0) {
+            const latestWeek = Math.max(...order.fcVsFcDetails.map(s => s.snapshotWeek));
+            setSelectedSnapshotWeek(String(latestWeek));
         }
     }, [order]);
 
@@ -108,6 +107,45 @@ function ProductionPlanPageContent() {
 
     const weeklyOutput = outputPerDay * 6; // 6 working days
 
+    // Effect to set the initial production start week if not already set
+    useEffect(() => {
+        if (orderId && !initialProductionStartWeek && order && order.fcVsFcDetails && weeklyOutput > 0) {
+            const earliestSnapshot = order.fcVsFcDetails.sort((a,b) => a.snapshotWeek - b.snapshotWeek)[0];
+            if (!earliestSnapshot) return;
+
+            const snapshotForecastWeeks = Object.keys(earliestSnapshot.forecasts).sort((a, b) => parseInt(a.replace('W','')) - parseInt(b.replace('W','')));
+            const demands = snapshotForecastWeeks.map(week => (earliestSnapshot.forecasts[week]?.total.po || 0) + (earliestSnapshot.forecasts[week]?.total.fc || 0));
+            const firstDemandWeekIndex = demands.findIndex(d => d > 0);
+
+            if (firstDemandWeekIndex !== -1) {
+                const tempStartWeekIndex = firstDemandWeekIndex - 1;
+                const productionStartWeekNum = parseInt(snapshotForecastWeeks[tempStartWeekIndex].replace('W',''));
+                setInitialProductionStartWeek(orderId, productionStartWeekNum + 1); // Store it
+            }
+        }
+    }, [orderId, initialProductionStartWeek, order, weeklyOutput, setInitialProductionStartWeek]);
+
+    // Effect to dynamically calculate opening stock when selected snapshot changes
+    useEffect(() => {
+        if (initialProductionStartWeek && selectedSnapshotWeek && weeklyOutput > 0) {
+            const currentSnapshotWeekNum = parseInt(selectedSnapshotWeek);
+            const weeksElapsed = currentSnapshotWeekNum - initialProductionStartWeek;
+
+            if (weeksElapsed > 0) {
+                const calculatedStock = weeksElapsed * weeklyOutput;
+                setOpeningFgStock(calculatedStock);
+                setDisplayOpeningFgStock(String(Math.round(calculatedStock)));
+            } else {
+                setOpeningFgStock(0);
+                setDisplayOpeningFgStock('0');
+            }
+        } else {
+             setOpeningFgStock(order?.projection?.grn || 0);
+             setDisplayOpeningFgStock(String(order?.projection?.grn || 0));
+        }
+    }, [selectedSnapshotWeek, initialProductionStartWeek, weeklyOutput, order]);
+
+
     const handleNumLinesChange = (value: string) => {
         setDisplayNumLines(value);
     };
@@ -120,19 +158,6 @@ function ProductionPlanPageContent() {
             } else {
                 setDisplayNumLines(String(numLines));
             }
-        }
-    };
-
-    const handleOpeningStockChange = (value: string) => {
-        setDisplayOpeningFgStock(value);
-    };
-
-    const handleOpeningStockBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-        const stock = parseInt(e.target.value, 10);
-        if (!isNaN(stock) && stock >= 0) {
-            setOpeningFgStock(stock);
-        } else {
-            setDisplayOpeningFgStock(String(openingFgStock));
         }
     };
     
@@ -342,9 +367,8 @@ function ProductionPlanPageContent() {
                                         <Input
                                             id="opening-fg-stock"
                                             type="text"
+                                            readOnly
                                             value={displayOpeningFgStock}
-                                            onChange={(e) => handleOpeningStockChange(e.target.value)}
-                                            onBlur={handleOpeningStockBlur}
                                             className="w-full h-8 text-2xl font-bold bg-transparent border-0 shadow-none focus-visible:ring-0 p-0"
                                         />
                                     </div>
