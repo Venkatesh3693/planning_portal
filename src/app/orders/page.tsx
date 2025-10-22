@@ -1036,12 +1036,12 @@ const ForecastedOrderRow = forwardRef<
     onRampUpSave: (orderId: string, scheme: RampUpEntry[]) => void;
     onBomChange: (orderId: string, componentName: string, field: keyof BomItem, value: any) => void;
     onSetSewingLines: (orderId: string, lines: number) => void;
+    onPoDetailsOpen: (order: Order) => void;
     children?: React.ReactNode;
   }
->(({ order, onRampUpSave, onBomChange, onSetSewingLines, children, ...props }, ref) => {
+>(({ order, onRampUpSave, onBomChange, onSetSewingLines, onPoDetailsOpen, children, ...props }, ref) => {
   const [isTnaOpen, setIsTnaOpen] = useState(false);
   const [activeView, setActiveView] = useState<'tna' | 'ob' | 'bom' | 'ramp-up'>('tna');
-  const [poDetailsOrder, setPoDetailsOrder] = useState<Order | null>(null);
   const [demandDetailsOrder, setDemandDetailsOrder] = useState<Order | null>(null);
   
   const { scheduledProcesses, processBatchSizes, updateOrderMinRunDays, sewingLines } = useSchedule();
@@ -1160,13 +1160,9 @@ const ForecastedOrderRow = forwardRef<
 
       <TableCell className="text-right font-bold">
         {(order.poDetails && order.confirmedPoQty) ? (
-          <Dialog onOpenChange={(isOpen) => !isOpen && setPoDetailsOrder(null)}>
-            <DialogTrigger asChild>
-              <span className="cursor-pointer text-primary hover:underline whitespace-nowrap" onClick={() => setPoDetailsOrder(order)}>
-                {(order.confirmedPoQty || 0).toLocaleString()}
-              </span>
-            </DialogTrigger>
-          </Dialog>
+          <span className="cursor-pointer text-primary hover:underline whitespace-nowrap" onClick={() => onPoDetailsOpen(order)}>
+            {(order.confirmedPoQty || 0).toLocaleString()}
+          </span>
         ) : (
           <span>{(order.confirmedPoQty || 0).toLocaleString()}</span>
         )}
@@ -1309,6 +1305,7 @@ export default function OrdersPage() {
                           onRampUpSave={updateSewingRampUpScheme}
                           onBomChange={updateOrderBom}
                           onSetSewingLines={setSewingLines}
+                          onPoDetailsOpen={setPoDetailsOrder}
                         />
                       ))}
                     </TableBody>
