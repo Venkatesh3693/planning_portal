@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useMemo, useState, useEffect } from 'react';
 import { useSchedule } from '@/context/schedule-provider';
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
@@ -23,16 +23,27 @@ import type { FcComposition, Size } from '@/lib/types';
 
 
 const TentativePlanTable = ({ order }: { order: any }) => {
-    const currentSnapshotWeek = useMemo(() => getWeek(new Date()), []);
-    
-    const latestSnapshot = useMemo(() => {
-        if (!order?.fcVsFcDetails || order.fcVsFcDetails.length === 0) return null;
+    const [selectedSnapshotWeek, setSelectedSnapshotWeek] = useState<number | null>(null);
 
-        // Find the snapshot for the current week, or the latest one before it.
+    const snapshotOptions = useMemo(() => {
+        if (!order?.fcVsFcDetails) return [];
         return [...order.fcVsFcDetails]
-            .filter(s => s.snapshotWeek <= currentSnapshotWeek)
-            .sort((a, b) => b.snapshotWeek - a.snapshotWeek)[0];
-    }, [order, currentSnapshotWeek]);
+            .map(s => s.snapshotWeek)
+            .sort((a, b) => b - a);
+    }, [order]);
+    
+    useEffect(() => {
+        // Set default snapshot week when options are available
+        if (snapshotOptions.length > 0 && selectedSnapshotWeek === null) {
+            setSelectedSnapshotWeek(snapshotOptions[0]);
+        }
+    }, [snapshotOptions, selectedSnapshotWeek]);
+
+    const latestSnapshot = useMemo(() => {
+        if (!order?.fcVsFcDetails || order.fcVsFcDetails.length === 0 || selectedSnapshotWeek === null) return null;
+
+        return order.fcVsFcDetails.find((s: any) => s.snapshotWeek === selectedSnapshotWeek);
+    }, [order, selectedSnapshotWeek]);
 
     const { weeks, weeklyData } = useMemo(() => {
         if (!latestSnapshot) return { weeks: [], weeklyData: {} };
@@ -61,8 +72,8 @@ const TentativePlanTable = ({ order }: { order: any }) => {
         const data: Record<string, number> = {};
         weeks.forEach(week => {
             const poFc = weeklyData[week]?.poFc || 0;
-            // Since Plan and Produced are 0 for now:
-            // PCI[w] = PCI[w-1] + Plan[w] + Produced[w] - PO+FC[w]
+            // PCI[w] = PCI[w-1] + Plan[w-1] + Produced[w-1] - PO+FC[w]
+            // For now, Plan and Produced are 0, so PCI[w] = PCI[w-1] - PO+FC[w].
             pci = pci - poFc;
             data[week] = pci;
         });
@@ -70,12 +81,29 @@ const TentativePlanTable = ({ order }: { order: any }) => {
     }, [weeks, weeklyData]);
 
     if (!latestSnapshot) {
-        return <div className="p-4 text-muted-foreground">No forecast snapshot data available for the current week.</div>;
+        return <div className="p-4 text-muted-foreground">No forecast snapshot data available for the selected week.</div>;
     }
 
     return (
         <Card className="mt-6">
             <CardContent className="p-0">
+                 <div className="p-4 border-b">
+                    <div className="max-w-xs space-y-2">
+                        <Label htmlFor="snapshot-select">Select Snapshot Week</Label>
+                        <Select value={String(selectedSnapshotWeek)} onValueChange={(val) => setSelectedSnapshotWeek(Number(val))}>
+                            <SelectTrigger id="snapshot-select">
+                                <SelectValue placeholder="Select a snapshot..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {snapshotOptions.map(week => (
+                                    <SelectItem key={week} value={String(week)}>
+                                        Snapshot Week {week}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -106,10 +134,10 @@ const TentativePlanTable = ({ order }: { order: any }) => {
                                 <TableCell key={week} className="text-right text-muted-foreground">-</TableCell>
                             ))}
                         </TableRow>
-                         <TableRow className="bg-muted/50">
-                            <TableCell className="font-bold">Projected Closing Inventory</TableCell>
+                         <TableRow>
+                            <TableCell className="font-medium">FG CI</TableCell>
                             {weeks.map(week => (
-                                <TableCell key={week} className="text-right font-bold">
+                                <TableCell key={week} className="text-right">
                                     {pciData[week]?.toLocaleString() || '0'}
                                 </TableCell>
                             ))}
@@ -219,5 +247,3 @@ export default function TentativePlanPage() {
         </Suspense>
     );
 }
-
-    
