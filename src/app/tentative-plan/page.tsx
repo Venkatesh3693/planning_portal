@@ -21,6 +21,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { getWeek } from 'date-fns';
 import type { FcComposition, Size } from '@/lib/types';
 
+type TrackerRun = {
+  runNumber: number;
+  startWeek: string;
+  endWeek: string;
+};
+
 
 const TentativePlanTable = ({ order, selectedSnapshotWeek }: { order: any, selectedSnapshotWeek: number | null }) => {
     
@@ -122,6 +128,7 @@ function TentativePlanPageContent() {
     const { appMode, orders, isScheduleLoaded } = useSchedule();
     const [selectedOrderId, setSelectedOrderId] = useState<string>('');
     const [selectedSnapshotWeek, setSelectedSnapshotWeek] = useState<number | null>(null);
+    const [trackerData, setTrackerData] = useState<TrackerRun[]>([]);
 
 
     const gutOrders = useMemo(() => {
@@ -142,13 +149,75 @@ function TentativePlanPageContent() {
     }, [selectedOrder]);
 
     useEffect(() => {
-        // When order changes, reset snapshot week
+        // When order changes, reset snapshot week and tracker
         if (selectedOrder && snapshotOptions.length > 0) {
             setSelectedSnapshotWeek(snapshotOptions[0]);
         } else {
             setSelectedSnapshotWeek(null);
         }
+        setTrackerData([]);
     }, [selectedOrder, snapshotOptions]);
+
+    const handlePlan = () => {
+        if (!selectedOrder || selectedSnapshotWeek === null) return;
+
+        const snapshot = selectedOrder.fcVsFcDetails?.find(s => s.snapshotWeek === selectedSnapshotWeek);
+        if (!snapshot) return;
+
+        const weeklyTotals: Record<string, number> = {};
+        const allWeeks = Object.keys(snapshot.forecasts).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
+        allWeeks.forEach(week => {
+            const total = snapshot.forecasts[week]?.total;
+            weeklyTotals[week] = (total?.po || 0) + (total?.fc || 0);
+        });
+
+        const poFcStartWeekNum = allWeeks.length > 0 ? parseInt(allWeeks[0].slice(1)) : selectedSnapshotWeek;
+        
+        const scanStartWeekNum = Math.max(poFcStartWeekNum - 1, selectedSnapshotWeek);
+
+        const runs: TrackerRun[] = [];
+        let currentRun: Partial<TrackerRun> = {};
+        let zeroDemandStreak = 0;
+        let runCounter = 1;
+
+        const weeksToScan = allWeeks.filter(w => parseInt(w.slice(1)) >= scanStartWeekNum);
+
+        for (const week of weeksToScan) {
+            const demand = weeklyTotals[week] || 0;
+
+            if (demand > 0) {
+                if (!currentRun.startWeek) {
+                    currentRun.startWeek = week;
+                }
+                currentRun.endWeek = week;
+                zeroDemandStreak = 0;
+            } else {
+                if (currentRun.startWeek) { // Only count streak if we are in a run
+                    zeroDemandStreak++;
+                }
+            }
+
+            if (zeroDemandStreak >= 4 && currentRun.startWeek) {
+                runs.push({
+                    runNumber: runCounter++,
+                    startWeek: currentRun.startWeek,
+                    endWeek: currentRun.endWeek!,
+                });
+                currentRun = {};
+                zeroDemandStreak = 0;
+            }
+        }
+        
+        if (currentRun.startWeek) {
+            runs.push({
+                runNumber: runCounter++,
+                startWeek: currentRun.startWeek,
+                endWeek: currentRun.endWeek!,
+            });
+        }
+        
+        setTrackerData(runs);
+    };
 
     if (appMode === 'gup') {
         return (
@@ -236,7 +305,7 @@ function TentativePlanPageContent() {
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <Button>Plan</Button>
+                                <Button onClick={handlePlan}>Plan</Button>
                             </div>
                         )}
                     </div>
@@ -263,11 +332,22 @@ function TentativePlanPageContent() {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        <TableRow>
-                                            <TableCell colSpan={4} className="h-24 text-center">
-                                                No tracker data available.
-                                            </TableCell>
-                                        </TableRow>
+                                        {trackerData.length > 0 ? (
+                                            trackerData.map(run => (
+                                                <TableRow key={run.runNumber}>
+                                                    <TableCell>{run.runNumber}</TableCell>
+                                                    <TableCell>{run.startWeek}</TableCell>
+                                                    <TableCell>{run.endWeek}</TableCell>
+                                                    <TableCell>-</TableCell>
+                                                </TableRow>
+                                            ))
+                                        ) : (
+                                            <TableRow>
+                                                <TableCell colSpan={4} className="h-24 text-center">
+                                                    Click "Plan" to generate production runs.
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
                                     </TableBody>
                                 </Table>
                             </CardContent>
