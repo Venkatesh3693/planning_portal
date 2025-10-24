@@ -184,15 +184,15 @@ function TentativePlanPageContent() {
 
 
     const calculatePlanForHorizon = (
-        startWeek: number, 
+        startWeek: number,
         endWeek: number | null,
         weeklyDemand: Record<string, number>,
         order: any,
         initialInventory: number = 0,
         simulationStartDate: number
-    ): { runs: TrackerRun[], plan: Record<string, number> } => {
+    ): { runs: TrackerRun[]; plan: Record<string, number> } => {
         const allDemandWeeks = Object.keys(weeklyDemand).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
-
+        
         const runs: Omit<TrackerRun, 'lines' | 'offset'>[] = [];
         let currentRun: Partial<Omit<TrackerRun, 'lines' | 'offset'>> & { quantity: number } = { quantity: 0 };
         let zeroDemandStreak = 0;
@@ -202,7 +202,7 @@ function TentativePlanPageContent() {
             const weekNum = parseInt(w.slice(1));
             const isAfterStart = weekNum >= startWeek;
             const isBeforeEnd = endWeek === null || weekNum <= endWeek;
-            return isAfterStart && isBeforeEnd && (weeklyDemand[w] || 0) > 0;
+            return isAfterStart && isBeforeEnd;
         });
 
         for (const week of weeksToScan) {
@@ -233,7 +233,7 @@ function TentativePlanPageContent() {
                 zeroDemandStreak = 0;
             }
         }
-        
+
         if (currentRun.startWeek) {
             runs.push({
                 runNumber: runCounter++,
@@ -242,14 +242,14 @@ function TentativePlanPageContent() {
                 quantity: Math.round(currentRun.quantity!),
             });
         }
-
+        
         const obData = SEWING_OPERATIONS_BY_STYLE[order.style];
         if (!obData) return { runs: [], plan: {} };
 
         const totalSam = obData.reduce((sum, op) => sum + op.sam, 0);
         const totalTailors = obData.reduce((sum, op) => sum + op.operators, 0);
         const budgetedEfficiency = order.budgetedEfficiency || 85;
-
+        
         const finalRuns: TrackerRun[] = [];
         const finalPlan: Record<string, number> = {};
         
@@ -258,12 +258,11 @@ function TentativePlanPageContent() {
         for (const run of runs) {
             let numberOfLines = 1;
             let keepLooping = true;
-            
             const runStartWeekNum = parseInt(run.startWeek.slice(1));
 
             while (keepLooping) {
                 const maxWeeklyOutput = (WORK_DAY_MINUTES * 6 * totalTailors * numberOfLines * (budgetedEfficiency / 100)) / totalSam;
-                
+
                 let openingInventory = inventoryCarryOver;
                 let minClosingInventory = openingInventory;
 
@@ -272,20 +271,21 @@ function TentativePlanPageContent() {
                     const poFc = weeklyDemand[weekKey] || 0;
                     
                     const supplyFromPreviousWeek = (w === runStartWeekNum) ? 0 : maxWeeklyOutput;
-                    
                     const closingInventory = openingInventory + supplyFromPreviousWeek - poFc;
+
                     if (closingInventory < minClosingInventory) {
                         minClosingInventory = closingInventory;
                     }
                     openingInventory = closingInventory;
                 }
-                
-                const calculatedOffset = Math.ceil(Math.abs(Math.min(0, minClosingInventory)) / maxWeeklyOutput);
-                const initialProposedStartWeek = runStartWeekNum - calculatedOffset;
-                const finalStartWeekNum = Math.max(initialProposedStartWeek, simulationStartDate);
-                const finalOffset = runStartWeekNum - finalStartWeekNum;
 
-                if (finalOffset <= 4) {
+                const trueRequiredOffset = Math.ceil(Math.abs(Math.min(0, minClosingInventory)) / maxWeeklyOutput);
+                
+                if (trueRequiredOffset <= 4) {
+                    const proposedStartWeek = runStartWeekNum - trueRequiredOffset;
+                    const finalStartWeekNum = Math.max(proposedStartWeek, simulationStartDate);
+                    const finalOffset = runStartWeekNum - finalStartWeekNum;
+                    
                     const weeksToProduce = Math.ceil(run.quantity / maxWeeklyOutput);
                     const finalEndWeekNum = finalStartWeekNum + weeksToProduce - 1;
 
@@ -298,7 +298,7 @@ function TentativePlanPageContent() {
                     };
                     finalRuns.push(currentRunData);
                     
-                    inventoryCarryOver = openingInventory; // Carry over for next run
+                    inventoryCarryOver = openingInventory;
 
                     let remainingQty = run.quantity;
                     for (let w = finalStartWeekNum; w <= finalEndWeekNum; w++) {
@@ -311,12 +311,12 @@ function TentativePlanPageContent() {
                 } else {
                     numberOfLines++;
                 }
-                if(numberOfLines > 100) keepLooping = false; // Safety break
+
+                if (numberOfLines > 100) keepLooping = false; // Safety break
             }
         }
         return { runs: finalRuns, plan: finalPlan };
     };
-
 
     const handlePlan = () => {
         if (!selectedOrder || selectedSnapshotWeek === null) return;
@@ -345,8 +345,10 @@ function TentativePlanPageContent() {
         let finalProducedData: Record<string, number> = {};
         let initialInventoryForPlan = 0;
         let simulationStartDateForCurrentPlan = earliestProductionStartWeek;
+
+        const isFutureSnapshot = selectedSnapshotWeek >= firstPoFcWeekNum;
         
-        if (selectedSnapshotWeek > earliestProductionStartWeek) {
+        if (isFutureSnapshot) {
             const pastPlanResult = calculatePlanForHorizon(earliestProductionStartWeek, 52, weeklyTotals, selectedOrder, 0, earliestProductionStartWeek);
             
             const producedPlan: Record<string, number> = {};
@@ -368,6 +370,8 @@ function TentativePlanPageContent() {
             }
             initialInventoryForPlan = inventory;
             simulationStartDateForCurrentPlan = selectedSnapshotWeek;
+        } else {
+             simulationStartDateForCurrentPlan = Math.min(firstPoFcWeekNum, selectedSnapshotWeek) - 4;
         }
 
         const currentPlanResult = calculatePlanForHorizon(selectedSnapshotWeek, null, weeklyTotals, selectedOrder, initialInventoryForPlan, simulationStartDateForCurrentPlan);
