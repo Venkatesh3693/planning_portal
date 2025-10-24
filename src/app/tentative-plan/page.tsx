@@ -205,8 +205,7 @@ function TentativePlanPageContent() {
         weeklyDemand: Record<string, number>,
         order: any,
         initialInventory: number = 0,
-        simulationStartDate: number,
-        producedDataForRun: Record<string, number> = {}
+        simulationStartDate: number
     ): { runs: TrackerRun[]; plan: Record<string, number> } => {
         const allDemandWeeks = Object.keys(weeklyDemand).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
         
@@ -276,13 +275,12 @@ function TentativePlanPageContent() {
             const runStartWeekNum = parseInt(run.startWeek.slice(1));
             const runEndWeekNum = parseInt(run.endWeek.slice(1));
 
-            // Calculate the net quantity for this specific run
-            const grossDemandForRun = run.quantity;
-            let netQuantityForRun = grossDemandForRun - inventoryFromPreviousRun;
+            let netQuantityForRun = run.quantity;
+            if(inventoryFromPreviousRun > 0) {
+              netQuantityForRun -= inventoryFromPreviousRun;
+              inventoryFromPreviousRun = 0; // Inventory is only applied to the first run
+            }
             netQuantityForRun = Math.max(0, netQuantityForRun);
-            
-            inventoryFromPreviousRun = 0; // Inventory is only applied to the first run
-
 
             if (netQuantityForRun <= 0) continue;
 
@@ -364,35 +362,33 @@ function TentativePlanPageContent() {
         const firstPoFcWeekStr = allWeeks.find(w => (weeklyTotals[w] || 0) > 0);
         
         let finalProducedData: Record<string, number> = {};
-        let initialInventoryForPlan = 0;
+        let closingInventoryOfPreviousWeek = 0;
         let simulationStartDateForCurrentPlan = selectedSnapshotWeek;
 
-        // If there's demand, and the snapshot is after that demand started, we need to calculate past production.
         if (firstPoFcWeekStr) {
             const firstPoFcWeekNum = parseInt(firstPoFcWeekStr.slice(1));
-            const earliestProductionStartWeek = firstPoFcWeekNum - 4;
+            const baselineStartWeek = Math.min(firstPoFcWeekNum, selectedSnapshotWeek);
+
+            const baselinePlanResult = calculatePlanForHorizon(baselineStartWeek, null, weeklyTotals, selectedOrder, 0, baselineStartWeek);
+            const baselinePlan = baselinePlanResult.plan;
             
-            if (selectedSnapshotWeek >= firstPoFcWeekNum) {
-                 const pastPlanResult = calculatePlanForHorizon(earliestProductionStartWeek, selectedSnapshotWeek - 1, weeklyTotals, selectedOrder, 0, earliestProductionStartWeek);
+            let inventory = 0;
+            const pastWeeks = allWeeks.filter(w => parseInt(w.slice(1)) < selectedSnapshotWeek);
+            
+            for (const weekKey of pastWeeks) {
+                const supplyThisWeek = baselinePlan[weekKey] || 0;
+                const demandThisWeek = weeklyTotals[weekKey] || 0;
+                inventory += supplyThisWeek - demandThisWeek;
                 
-                finalProducedData = pastPlanResult.plan;
-                
-                let inventory = 0;
-                const pastWeeks = allWeeks.filter(w => parseInt(w.slice(1)) < selectedSnapshotWeek);
-                
-                for (const weekKey of pastWeeks) {
-                    const supplyThisWeek = finalProducedData[weekKey] || 0;
-                    const demandThisWeek = weeklyTotals[weekKey] || 0;
-                    inventory += supplyThisWeek - demandThisWeek;
+                if (supplyThisWeek > 0) {
+                  finalProducedData[weekKey] = supplyThisWeek;
                 }
-                initialInventoryForPlan = inventory;
-                simulationStartDateForCurrentPlan = selectedSnapshotWeek;
-            } else {
-                 simulationStartDateForCurrentPlan = Math.min(firstPoFcWeekNum - 4, selectedSnapshotWeek);
             }
+            closingInventoryOfPreviousWeek = inventory;
+            simulationStartDateForCurrentPlan = selectedSnapshotWeek;
         }
 
-        const currentPlanResult = calculatePlanForHorizon(selectedSnapshotWeek, null, weeklyTotals, selectedOrder, initialInventoryForPlan, simulationStartDateForCurrentPlan, finalProducedData);
+        const currentPlanResult = calculatePlanForHorizon(selectedSnapshotWeek, null, weeklyTotals, selectedOrder, closingInventoryOfPreviousWeek, simulationStartDateForCurrentPlan);
         
         setProducedData(finalProducedData);
         setPlanData(currentPlanResult.plan);
