@@ -209,140 +209,124 @@ function TentativePlanPageContent() {
     ): { runs: TrackerRun[]; plan: Record<string, number> } => {
         const allDemandWeeks = Object.keys(weeklyDemand).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
         
-        const runs: Omit<TrackerRun, 'lines' | 'offset'>[] = [];
-        let currentRun: Partial<Omit<TrackerRun, 'lines' | 'offset'>> & { quantity: number } = { quantity: 0 };
-        let zeroDemandStreak = 0;
+        let inventory = initialInventory;
+        let finalRuns: TrackerRun[] = [];
+        let finalPlan: Record<string, number> = {};
         let runCounter = 1;
+        let lastRunEndWeek = startWeek - 1;
 
-        const weeksToScan = allDemandWeeks.filter(w => {
-            const weekNum = parseInt(w.slice(1));
-            const isAfterStart = weekNum >= startWeek;
-            const isBeforeEnd = endWeek === null || weekNum <= endWeek;
-            return isAfterStart && isBeforeEnd;
-        });
+        while (lastRunEndWeek < (endWeek || 52)) {
+            const nextDemandWeekStr = allDemandWeeks.find(w => {
+                const weekNum = parseInt(w.slice(1));
+                return weekNum > lastRunEndWeek && (weeklyDemand[w] || 0) > 0;
+            });
 
-        for (const week of weeksToScan) {
-            const demand = weeklyDemand[week] || 0;
+            if (!nextDemandWeekStr) break;
 
-            if (demand > 0) {
-                if (!currentRun.startWeek) {
-                    currentRun.startWeek = week;
-                    currentRun.quantity = 0;
-                }
-                currentRun.endWeek = week;
-                currentRun.quantity! += demand;
-                zeroDemandStreak = 0;
-            } else {
-                if (currentRun.startWeek) {
+            let currentRun = {
+                startWeek: nextDemandWeekStr,
+                endWeek: nextDemandWeekStr,
+                quantity: 0
+            };
+            
+            let zeroDemandStreak = 0;
+            const demandScanStartWeek = parseInt(nextDemandWeekStr.slice(1));
+
+            for (let w = demandScanStartWeek; w <= (endWeek || 52); w++) {
+                const weekKey = `W${w}`;
+                const demand = weeklyDemand[weekKey] || 0;
+
+                if (demand > 0) {
+                    currentRun.endWeek = weekKey;
+                    zeroDemandStreak = 0;
+                } else {
                     zeroDemandStreak++;
                 }
-            }
-
-            if (zeroDemandStreak >= 4 && currentRun.startWeek) {
-                runs.push({
-                    runNumber: runCounter++,
-                    startWeek: currentRun.startWeek,
-                    endWeek: currentRun.endWeek!,
-                    quantity: Math.round(currentRun.quantity!),
-                });
-                currentRun = { quantity: 0 };
-                zeroDemandStreak = 0;
-            }
-        }
-
-        if (currentRun.startWeek) {
-            runs.push({
-                runNumber: runCounter++,
-                startWeek: currentRun.startWeek,
-                endWeek: currentRun.endWeek!,
-                quantity: Math.round(currentRun.quantity!),
-            });
-        }
-        
-        const obData = SEWING_OPERATIONS_BY_STYLE[order.style];
-        if (!obData) return { runs: [], plan: {} };
-
-        const totalSam = obData.reduce((sum, op) => sum + op.sam, 0);
-        const totalTailors = obData.reduce((sum, op) => sum + op.operators, 0);
-        const budgetedEfficiency = order.budgetedEfficiency || 85;
-        
-        const finalRuns: TrackerRun[] = [];
-        const finalPlan: Record<string, number> = {};
-        
-        let inventoryFromPreviousRun = initialInventory;
-
-        for (const run of runs) {
-            const runStartWeekNum = parseInt(run.startWeek.slice(1));
-            const runEndWeekNum = parseInt(run.endWeek.slice(1));
-
-            let netQuantityForRun = run.quantity;
-            if(inventoryFromPreviousRun > 0) {
-              netQuantityForRun -= inventoryFromPreviousRun;
-              inventoryFromPreviousRun = 0; // Inventory is only applied to the first run
-            }
-            netQuantityForRun = Math.max(0, netQuantityForRun);
-
-            if (netQuantityForRun <= 0) continue;
-
-            let numberOfLines = 1;
-            let keepLooping = true;
-           
-
-            while (keepLooping) {
-                const maxWeeklyOutput = (WORK_DAY_MINUTES * 6 * totalTailors * numberOfLines * (budgetedEfficiency / 100)) / totalSam;
-
-                let openingInventory = 0;
-                let minClosingInventory = 0;
-
-                for (let w = runStartWeekNum; w <= runEndWeekNum; w++) {
-                    const weekKey = `W${w}`;
-                    const poFc = weeklyDemand[weekKey] || 0;
-                    
-                    const supplyFromPreviousWeek = (w === runStartWeekNum) ? 0 : maxWeeklyOutput;
-                    const closingInventory = openingInventory + supplyFromPreviousWeek - poFc;
-
-                    if (closingInventory < minClosingInventory) {
-                        minClosingInventory = closingInventory;
-                    }
-                    openingInventory = closingInventory;
+                if (zeroDemandStreak >= 4) {
+                    break;
                 }
-                
-                const trueRequiredOffset = Math.ceil(Math.abs(Math.min(0, minClosingInventory)) / maxWeeklyOutput);
-                
-                if (trueRequiredOffset <= 4) {
-                    const initialProposedStartWeek = runStartWeekNum - trueRequiredOffset;
-                    const finalStartWeekNum = Math.max(initialProposedStartWeek, simulationStartDate);
-                    const finalOffset = runStartWeekNum - finalStartWeekNum;
-                    
-                    const weeksToProduce = Math.ceil(netQuantityForRun / maxWeeklyOutput);
-                    const finalEndWeekNum = finalStartWeekNum + weeksToProduce - 1;
-
-                    const currentRunData: TrackerRun = {
-                        ...run,
-                        startWeek: `W${finalStartWeekNum}`,
-                        endWeek: `W${finalEndWeekNum}`,
-                        lines: numberOfLines,
-                        offset: finalOffset,
-                        quantity: Math.round(netQuantityForRun),
-                    };
-                    finalRuns.push(currentRunData);
-                    
-                    let remainingQty = netQuantityForRun;
-                    for (let w = finalStartWeekNum; w <= finalEndWeekNum; w++) {
-                        const weekKey = `W${w}`;
-                        const planQty = Math.min(remainingQty, maxWeeklyOutput);
-                        finalPlan[weekKey] = (finalPlan[weekKey] || 0) + Math.round(planQty);
-                        remainingQty -= planQty;
-                    }
-
-                    keepLooping = false;
-                } else {
-                    numberOfLines++;
-                }
-
-                if (numberOfLines > 100) keepLooping = false; // Safety break
             }
+
+            const runStartNum = parseInt(currentRun.startWeek.slice(1));
+            const runEndNum = parseInt(currentRun.endWeek.slice(1));
+            
+            let grossDemandForRun = 0;
+            for (let w = runStartNum; w <= runEndNum; w++) {
+                grossDemandForRun += weeklyDemand[`W${w}`] || 0;
+            }
+
+            const netQuantityForRun = Math.max(0, grossDemandForRun - inventory);
+            inventory = Math.max(0, inventory - grossDemandForRun);
+
+            if (netQuantityForRun > 0) {
+                 const obData = SEWING_OPERATIONS_BY_STYLE[order.style];
+                 if (!obData) continue;
+
+                 const totalSam = obData.reduce((sum, op) => sum + op.sam, 0);
+                 const totalTailors = obData.reduce((sum, op) => sum + op.operators, 0);
+                 const budgetedEfficiency = order.budgetedEfficiency || 85;
+
+                 let numberOfLines = 1;
+                 let keepLooping = true;
+
+                 while (keepLooping) {
+                     const maxWeeklyOutput = (WORK_DAY_MINUTES * 6 * totalTailors * numberOfLines * (budgetedEfficiency / 100)) / totalSam;
+
+                     let openingInventoryForSim = 0;
+                     let minClosingInventory = 0;
+
+                     for (let w = runStartNum; w <= runEndNum; w++) {
+                         const weekKey = `W${w}`;
+                         const poFc = weeklyDemand[weekKey] || 0;
+                         const supplyFromPreviousWeek = (w === runStartNum) ? 0 : maxWeeklyOutput;
+                         const closingInventory = openingInventoryForSim + supplyFromPreviousWeek - poFc;
+
+                         if (closingInventory < minClosingInventory) {
+                             minClosingInventory = closingInventory;
+                         }
+                         openingInventoryForSim = closingInventory;
+                     }
+                     
+                     const trueRequiredOffset = Math.ceil(Math.abs(Math.min(0, minClosingInventory)) / maxWeeklyOutput);
+                     
+                     if (trueRequiredOffset <= 4) {
+                         const initialProposedStartWeek = runStartNum - trueRequiredOffset;
+                         const finalStartWeekNum = Math.max(initialProposedStartWeek, simulationStartDate);
+                         const finalOffset = runStartNum - finalStartWeekNum;
+
+                         const weeksToProduce = Math.ceil(netQuantityForRun / maxWeeklyOutput);
+                         const finalEndWeekNum = finalStartWeekNum + weeksToProduce - 1;
+
+                         const currentRunData: TrackerRun = {
+                             runNumber: runCounter++,
+                             startWeek: `W${finalStartWeekNum}`,
+                             endWeek: `W${finalEndWeekNum}`,
+                             lines: numberOfLines,
+                             offset: finalOffset,
+                             quantity: Math.round(netQuantityForRun),
+                         };
+                         finalRuns.push(currentRunData);
+                         
+                         let remainingQty = netQuantityForRun;
+                         for (let w = finalStartWeekNum; w <= finalEndWeekNum; w++) {
+                             const weekKey = `W${w}`;
+                             const planQty = Math.min(remainingQty, maxWeeklyOutput);
+                             finalPlan[weekKey] = (finalPlan[weekKey] || 0) + Math.round(planQty);
+                             remainingQty -= planQty;
+                         }
+
+                         inventory += netQuantityForRun; //Replenish inventory with what was just planned
+                         keepLooping = false;
+                     } else {
+                         numberOfLines++;
+                     }
+
+                     if (numberOfLines > 100) keepLooping = false;
+                 }
+            }
+            lastRunEndWeek = runEndNum;
         }
+
         return { runs: finalRuns, plan: finalPlan };
     };
 
@@ -363,11 +347,10 @@ function TentativePlanPageContent() {
         
         let finalProducedData: Record<string, number> = {};
         let closingInventoryOfPreviousWeek = 0;
-        let simulationStartDateForCurrentPlan = selectedSnapshotWeek;
-
+        
         if (firstPoFcWeekStr) {
             const firstPoFcWeekNum = parseInt(firstPoFcWeekStr.slice(1));
-            const baselineStartWeek = Math.min(firstPoFcWeekNum, selectedSnapshotWeek);
+            const baselineStartWeek = Math.min(selectedSnapshotWeek, firstPoFcWeekNum - 4);
 
             const baselinePlanResult = calculatePlanForHorizon(baselineStartWeek, null, weeklyTotals, selectedOrder, 0, baselineStartWeek);
             const baselinePlan = baselinePlanResult.plan;
@@ -385,10 +368,9 @@ function TentativePlanPageContent() {
                 }
             }
             closingInventoryOfPreviousWeek = inventory;
-            simulationStartDateForCurrentPlan = selectedSnapshotWeek;
         }
-
-        const currentPlanResult = calculatePlanForHorizon(selectedSnapshotWeek, null, weeklyTotals, selectedOrder, closingInventoryOfPreviousWeek, simulationStartDateForCurrentPlan);
+        
+        const currentPlanResult = calculatePlanForHorizon(selectedSnapshotWeek, null, weeklyTotals, selectedOrder, closingInventoryOfPreviousWeek, selectedSnapshotWeek);
         
         setProducedData(finalProducedData);
         setPlanData(currentPlanResult.plan);
