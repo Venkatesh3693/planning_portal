@@ -148,7 +148,7 @@ function ProjectionAnalysisPageContent() {
         return orders.find(o => o.id === orderId);
     }, [orderId, orders, isScheduleLoaded]);
 
-    const projectionDetails = useMemo((): (ProjectionDetail & { coverageStartWeek: number, coverageEndWeek: number })[] => {
+    const projectionDetails = useMemo((): (ProjectionDetail & { coverageStartWeek: number, coverageEndWeek: number, projectionWeek: number, ckWeek: number })[] => {
         if (!order || !order.bom || !order.poFcQty || !productionPlans[order.id]) {
             return [];
         }
@@ -158,11 +158,11 @@ function ProjectionAnalysisPageContent() {
         const totalPoFcQty = order.poFcQty;
         const coverageWeeks = 4;
         const projectionCadenceWeeks = 4;
-        const year = new Date().getFullYear(); 
-
+        
         const allProductionWeeks = Object.keys(plan)
             .map(weekStr => ({ weekNum: parseInt(weekStr.replace('W', '')), quantity: plan[weekStr] || 0 }))
-            .sort((a, b) => a.weekNum - b.weekNum);
+            .sort((a, b) => a.weekNum - b.weekNum)
+            .filter(p => p.quantity > 0);
         
         if (allProductionWeeks.length === 0) return [];
         
@@ -179,18 +179,16 @@ function ProjectionAnalysisPageContent() {
 
         const projComponents = bom.filter(b => b.forecastType === 'Projection');
         
-        const generatedProjections: (ProjectionDetail & { coverageStartWeek: number, coverageEndWeek: number })[] = [];
-        let cumulativeProjectedQty = 0;
+        const generatedProjections: (ProjectionDetail & { coverageStartWeek: number, coverageEndWeek: number, projectionWeek: number, ckWeek: number })[] = [];
         let projectionIndex = 0;
         let lastProjectionWeek = 0;
-        let lastCoveredProductionWeek = 0;
+        let productionWeeksConsumed = 0;
 
-        while (cumulativeProjectedQty < totalPoFcQty) {
+        while (productionWeeksConsumed < allProductionWeeks.length) {
             let currentProjectionWeek: number;
             
             if (projectionIndex === 0) {
-                const firstProdWeekEntry = allProductionWeeks.find(p => p.quantity > 0);
-                if (!firstProdWeekEntry) break;
+                const firstProdWeekEntry = allProductionWeeks[0];
                 currentProjectionWeek = firstProdWeekEntry.weekNum - maxLeadTimeWeeks;
             } else {
                 currentProjectionWeek = lastProjectionWeek + projectionCadenceWeeks;
@@ -198,11 +196,7 @@ function ProjectionAnalysisPageContent() {
 
             if (currentProjectionWeek <= 0) currentProjectionWeek = 1;
 
-            const productionStartWeekForThisProj = currentProjectionWeek + maxLeadTimeWeeks;
-            
-            const relevantProductionEntries = allProductionWeeks.filter(p => p.weekNum >= productionStartWeekForThisProj && p.quantity > 0);
-            
-            const productionWindow = relevantProductionEntries.slice(0, coverageWeeks);
+            const productionWindow = allProductionWeeks.slice(productionWeeksConsumed, productionWeeksConsumed + coverageWeeks);
             
             if (productionWindow.length === 0) break;
 
@@ -212,17 +206,18 @@ function ProjectionAnalysisPageContent() {
 
             const coverageStartWeek = productionWindow[0].weekNum;
             const coverageEndWeek = productionWindow[productionWindow.length - 1].weekNum;
-            const projectionDate = addWeeks(new Date(year, 0, 1), currentProjectionWeek - 1);
             
-            const ckDate = addDays(projectionDate, maxLeadTimeDays);
+            const ckWeek = currentProjectionWeek + maxLeadTimeWeeks;
 
             const projStatus = createComponentStatus(projComponents, Math.round(projectionQuantity));
 
             generatedProjections.push({
                 projectionNumber: `PROJ-DYN-${String(projectionIndex + 1).padStart(2, '0')}`,
-                projectionDate: projectionDate,
-                receiptDate: ckDate,
-                frcQty: 0,
+                projectionDate: new Date(), // Placeholder, not used in UI
+                receiptDate: new Date(), // Placeholder, not used in UI
+                projectionWeek: currentProjectionWeek,
+                ckWeek: ckWeek,
+                frcQty: 0, // Placeholder
                 total: {
                   quantities: { total: Math.round(projectionQuantity) } as SizeBreakdown,
                   componentCount: projComponents.length,
@@ -236,9 +231,8 @@ function ProjectionAnalysisPageContent() {
                 coverageEndWeek,
             });
 
-            cumulativeProjectedQty += projectionQuantity;
+            productionWeeksConsumed += productionWindow.length;
             lastProjectionWeek = currentProjectionWeek;
-            lastCoveredProductionWeek = coverageEndWeek;
             projectionIndex++;
 
             if(projectionIndex > 50) break; // Safety break
@@ -305,10 +299,8 @@ function ProjectionAnalysisPageContent() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Projection No.</TableHead>
-                                <TableHead>Projection Date</TableHead>
                                 <TableHead>Projection Week</TableHead>
                                 <TableHead>Coverage Weeks</TableHead>
-                                <TableHead>CK Date</TableHead>
                                 <TableHead>CK Week</TableHead>
                                 <TableHead className="text-right">Projection Qty</TableHead>
                                 <TableHead className="text-right">FRC Qty</TableHead>
@@ -318,8 +310,6 @@ function ProjectionAnalysisPageContent() {
                         </TableHeader>
                         <TableBody>
                             {projectionDetails.map((proj) => {
-                                const projDate = new Date(proj.projectionDate);
-                                const ckDate = new Date(proj.receiptDate);
                                 const frcPending = proj.total.quantities.total - proj.frcQty;
                                 const componentBreakdown = { grn: proj.grn, openPo: proj.openPo, noPo: proj.noPo, totalComponents: proj.totalComponents };
 
@@ -335,11 +325,9 @@ function ProjectionAnalysisPageContent() {
                                         >
                                           {proj.projectionNumber}
                                         </TableCell>
-                                        <TableCell>{format(projDate, 'dd/MM/yy')}</TableCell>
-                                        <TableCell>W{getWeek(projDate)}</TableCell>
+                                        <TableCell>W{proj.projectionWeek}</TableCell>
                                         <TableCell>W{proj.coverageStartWeek} - W{proj.coverageEndWeek}</TableCell>
-                                        <TableCell>{format(ckDate, 'dd/MM/yy')}</TableCell>
-                                        <TableCell>W{getWeek(ckDate)}</TableCell>
+                                        <TableCell>W{proj.ckWeek}</TableCell>
                                         <TableCell className="text-right font-semibold">{proj.total.quantities.total.toLocaleString()}</TableCell>
                                         <TableCell className="text-right">{proj.frcQty.toLocaleString()}</TableCell>
                                         <TableCell className="text-right font-semibold">{frcPending.toLocaleString()}</TableCell>
@@ -351,7 +339,7 @@ function ProjectionAnalysisPageContent() {
                             })}
                                 {(!projectionDetails || projectionDetails.length === 0) && (
                                 <TableRow>
-                                    <TableCell colSpan={10} className="h-24 text-center">
+                                    <TableCell colSpan={8} className="h-24 text-center">
                                         No production plan found for this order. Please generate a plan on the Production Plan page first.
                                     </TableCell>
                                 </TableRow>
@@ -374,5 +362,3 @@ export default function ProjectionAnalysisPage() {
         </Suspense>
     );
 }
-
-    
