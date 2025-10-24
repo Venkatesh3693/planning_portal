@@ -63,11 +63,9 @@ const TentativePlanTable = ({ order, selectedSnapshotWeek, planData, producedDat
     }, [latestSnapshot]);
 
     const pciData = useMemo(() => {
-        let pci = 0;
         const data: Record<string, number> = {};
         const sortedWeeks = [...weeks].sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
 
-        // Find the first week with either demand or a plan to start calculations
         const firstRelevantWeekIndex = sortedWeeks.findIndex(w => (weeklyData[w]?.poFc || 0) > 0 || (planData[w] || 0) > 0 || (producedData[w] || 0) > 0);
         if (firstRelevantWeekIndex === -1) return {};
 
@@ -77,10 +75,12 @@ const TentativePlanTable = ({ order, selectedSnapshotWeek, planData, producedDat
 
         for (let i = 0; i < relevantWeeks.length; i++) {
             const week = relevantWeeks[i];
-            const poFc = weeklyData[week]?.poFc || 0;
-            const production = (planData[week] || 0) + (producedData[week] || 0);
+            const demand = weeklyData[week]?.poFc || 0;
+            const prevWeek = relevantWeeks[i - 1];
+
+            const supplyFromPreviousWeek = prevWeek ? (planData[prevWeek] || 0) + (producedData[prevWeek] || 0) : 0;
             
-            const currentPci = lastWeekPci + ((planData[relevantWeeks[i-1]] || 0) + (producedData[relevantWeeks[i-1]] || 0)) - poFc;
+            const currentPci = lastWeekPci + supplyFromPreviousWeek - demand;
             data[week] = currentPci;
             lastWeekPci = currentPci;
         }
@@ -251,9 +251,6 @@ function TentativePlanPageContent() {
         const finalRuns: TrackerRun[] = [];
         const finalPlan: Record<string, number> = {};
 
-        let remainingDemandForRuns = { ...weeklyDemand };
-        let availableInitialInventory = { ...initialInventory };
-
         for (const run of runs) {
             let numberOfLines = 1;
             let finalOffset = 0;
@@ -265,25 +262,22 @@ function TentativePlanPageContent() {
             while (keepLooping) {
                 const maxWeeklyOutput = (WORK_DAY_MINUTES * 6 * totalTailors * numberOfLines * (budgetedEfficiency / 100)) / totalSam;
                 
-                let closingInventory = 0;
-                let minClosingInventory = 0;
-                
-                const simulationStartWeek = runStartWeekNum;
-                
-                const firstWeekInventory = (availableInitialInventory[`W${simulationStartWeek - 1}`] || 0) - (remainingDemandForRuns[run.startWeek] || 0);
-                minClosingInventory = firstWeekInventory;
+                let openingInventory = initialInventory[`W${runStartWeekNum - 1}`] || 0;
+                let minClosingInventory = openingInventory - (weeklyDemand[run.startWeek] || 0);
 
-                for (let w = simulationStartWeek; w <= runEndWeekNum; w++) {
+                for (let w = runStartWeekNum; w <= runEndWeekNum; w++) {
                     const weekKey = `W${w}`;
-                    const poFc = remainingDemandForRuns[weekKey] || 0;
+                    const poFc = weeklyDemand[weekKey] || 0;
                     
-                    const prevWeekPlan = (w === simulationStartWeek) ? 0 : maxWeeklyOutput;
+                    const prevWeekKey = `W${w - 1}`;
+                    const supplyFromPreviousWeek = (w === runStartWeekNum) ? 0 : maxWeeklyOutput;
                     
-                    closingInventory = closingInventory + prevWeekPlan - poFc;
+                    const closingInventory = openingInventory + supplyFromPreviousWeek - poFc;
 
                     if (closingInventory < minClosingInventory) {
                         minClosingInventory = closingInventory;
                     }
+                    openingInventory = closingInventory;
                 }
                 
                 const calculatedOffset = Math.ceil(Math.abs(minClosingInventory) / maxWeeklyOutput);
@@ -308,11 +302,6 @@ function TentativePlanPageContent() {
                         const weekKey = `W${w}`;
                         const planQty = Math.min(remainingQty, maxWeeklyOutput);
                         finalPlan[weekKey] = (finalPlan[weekKey] || 0) + Math.round(planQty);
-                        
-                        let demandInWeek = remainingDemandForRuns[weekKey] || 0;
-                        const fulfilled = Math.min(planQty, demandInWeek);
-                        remainingDemandForRuns[weekKey] = demandInWeek - fulfilled;
-
                         remainingQty -= planQty;
                     }
                     keepLooping = false;
@@ -348,41 +337,34 @@ function TentativePlanPageContent() {
         }
 
         const earliestProductionStartWeek = parseInt(firstPoFcWeekStr.slice(1)) - 4;
-        let finalProducedData: Record<string, number> = {};
-        let demandForCurrentPlan = { ...weeklyTotals };
+        let producedPlan: Record<string, number> = {};
         let initialInventoryForPlan: Record<string, number> = {};
 
         if (selectedSnapshotWeek > earliestProductionStartWeek) {
-            const pastPlanResult = calculatePlanForHorizon(earliestProductionStartWeek, allWeeks[allWeeks.length -1], weeklyTotals, selectedOrder);
+            const pastPlanResult = calculatePlanForHorizon(earliestProductionStartWeek, 52, weeklyTotals, selectedOrder);
             
-            const producedPlan: Record<string, number> = {};
             Object.keys(pastPlanResult.plan).forEach(weekKey => {
                 const weekNum = parseInt(weekKey.slice(1));
                 if (weekNum < selectedSnapshotWeek) {
                     producedPlan[weekKey] = pastPlanResult.plan[weekKey];
                 }
             });
-            finalProducedData = producedPlan;
             
-            let remainingDemand = { ...weeklyTotals };
             let inventory = 0;
-            allWeeks.forEach(weekKey => {
-                const produced = finalProducedData[weekKey] || 0;
-                const demand = remainingDemand[weekKey] || 0;
-                const openingInventory = inventory;
-                const closingInventory = openingInventory + produced - demand;
-                inventory = closingInventory;
-                if(parseInt(weekKey.slice(1)) < selectedSnapshotWeek) {
-                   initialInventoryForPlan[weekKey] = closingInventory;
-                }
-            });
+            const pastWeeks = allWeeks.filter(w => parseInt(w.slice(1)) < selectedSnapshotWeek);
             
-            demandForCurrentPlan = remainingDemand;
+            pastWeeks.forEach(weekKey => {
+                const prevWeekKey = `W${parseInt(weekKey.slice(1)) - 1}`;
+                const supplyFromPreviousWeek = producedPlan[prevWeekKey] || 0;
+                const demand = weeklyTotals[weekKey] || 0;
+                inventory = inventory + supplyFromPreviousWeek - demand;
+                initialInventoryForPlan[weekKey] = inventory;
+            });
         }
         
-        const currentPlanResult = calculatePlanForHorizon(selectedSnapshotWeek, null, demandForCurrentPlan, selectedOrder, initialInventoryForPlan);
+        const currentPlanResult = calculatePlanForHorizon(selectedSnapshotWeek, null, weeklyTotals, selectedOrder, initialInventoryForPlan);
         
-        setProducedData(finalProducedData);
+        setProducedData(producedPlan);
         setPlanData(currentPlanResult.plan);
         setTrackerData(currentPlanResult.runs);
     };
@@ -538,5 +520,7 @@ export default function TentativePlanPage() {
         </Suspense>
     );
 }
+
+    
 
     
