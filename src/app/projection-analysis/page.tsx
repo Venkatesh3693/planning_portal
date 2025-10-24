@@ -24,15 +24,25 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { format, getWeek, subDays, addWeeks, addDays } from 'date-fns';
+import { getWeek } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import type { ProjectionDetail, FrcDetail, ComponentStatusDetail, BomItem, SizeBreakdown } from '@/lib/types';
+import type { FrcDetail, ComponentStatusDetail, BomItem, SizeBreakdown } from '@/lib/types';
 import { SIZES } from '@/lib/data';
 import { cn } from '@/lib/utils';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
+import { runTentativePlanForHorizon } from '@/lib/tna-calculator';
+
+
+type Projection = {
+  projectionNumber: string;
+  projectionWeek: number;
+  coverageStartWeek: number;
+  coverageEndWeek: number;
+  ckWeek: number;
+  projectionQty: number;
+  frcQty: number;
+};
 
 type ComponentBreakdown = {
   grn: ComponentStatusDetail;
@@ -110,19 +120,19 @@ const FrcDetailsTable = ({ frcDetails, projectionNumber }: { frcDetails: FrcDeta
           </TableHeader>
           <TableBody>
             {frcDetails.map(frc => {
-              const frcDate = new Date(frc.frcDate);
-              const receiptDate = new Date(frc.receiptDate);
-              const ckDate = subDays(receiptDate, 7);
+              const frcWeek = getWeek(frc.frcDate);
+              const receiptWeek = getWeek(frc.receiptDate);
+              const ckWeek = receiptWeek - 1;
               const componentBreakdown = { grn: frc.grn, openPo: frc.openPo, noPo: frc.noPo, totalComponents: frc.totalComponents };
 
               return (
                 <TableRow key={frc.frcNumber}>
                   <TableCell className="font-medium">{frc.frcNumber.replace(`${projectionNumber}-`, '')}</TableCell>
-                  <TableCell>{format(frcDate, 'dd/MM/yy')}</TableCell>
-                  <TableCell>W{getWeek(frcDate)}</TableCell>
-                  <TableCell>W{getWeek(frcDate)} - W{getWeek(receiptDate)}</TableCell>
-                  <TableCell>{format(ckDate, 'dd/MM/yy')}</TableCell>
-                  <TableCell>W{getWeek(ckDate)}</TableCell>
+                  <TableCell>W{frcWeek}</TableCell>
+                  <TableCell>W{frcWeek}</TableCell>
+                  <TableCell>W{frcWeek} - W{receiptWeek}</TableCell>
+                  <TableCell>W{ckWeek}</TableCell>
+                  <TableCell>W{ckWeek}</TableCell>
                   {SIZES.map(s => <TableCell key={s} className="text-right">{(frc.quantities[s] || 0).toLocaleString()}</TableCell>)}
                   <TableCell className="text-right font-bold">{frc.quantities.total.toLocaleString()}</TableCell>
                   <TableCell><QuantityBreakdownBar breakdown={componentBreakdown} /></TableCell>
@@ -140,109 +150,90 @@ const FrcDetailsTable = ({ frcDetails, projectionNumber }: { frcDetails: FrcDeta
 function ProjectionAnalysisPageContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get('orderId');
-    const { orders, isScheduleLoaded, productionPlans } = useSchedule();
-    const [selectedProjection, setSelectedProjection] = useState<ProjectionDetail | null>(null);
+    const { orders, isScheduleLoaded } = useSchedule();
+    const [selectedProjection, setSelectedProjection] = useState<Projection | null>(null);
 
     const order = useMemo(() => {
         if (!isScheduleLoaded || !orderId) return null;
         return orders.find(o => o.id === orderId);
     }, [orderId, orders, isScheduleLoaded]);
 
-    const projectionDetails = useMemo((): (ProjectionDetail & { coverageStartWeek: number, coverageEndWeek: number, projectionWeek: number, ckWeek: number })[] => {
-        if (!order || !order.bom || !order.poFcQty || !productionPlans[order.id]) {
-            return [];
-        }
+    const projectionDetails = useMemo((): Projection[] => {
+        if (!order) return [];
+        
+        const snapshotOptions = (order.fcVsFcDetails || []).map(s => s.snapshotWeek).sort((a,b) => a-b);
+        if (snapshotOptions.length === 0) return [];
+        const earliestSnapshotWeek = snapshotOptions[0];
 
-        const plan = productionPlans[order.id];
-        const bom = order.bom;
-        const totalPoFcQty = order.poFcQty;
-        const coverageWeeks = 4;
-        const projectionCadenceWeeks = 4;
+        const earliestSnapshot = order.fcVsFcDetails!.find(s => s.snapshotWeek === earliestSnapshotWeek)!;
+        const demand = Object.keys(earliestSnapshot.forecasts).reduce((acc, week) => {
+            acc[week] = (earliestSnapshot.forecasts[week]?.total?.po || 0) + (earliestSnapshot.forecasts[week]?.total?.fc || 0);
+            return acc;
+        }, {} as Record<string, number>);
+
+        const baselineResult = runTentativePlanForHorizon(earliestSnapshotWeek, null, demand, order, 0);
+        const baselinePlan = baselineResult.plan;
         
-        const allProductionWeeks = Object.keys(plan)
-            .map(weekStr => ({ weekNum: parseInt(weekStr.replace('W', '')), quantity: plan[weekStr] || 0 }))
-            .sort((a, b) => a.weekNum - b.weekNum)
-            .filter(p => p.quantity > 0);
-        
-        if (allProductionWeeks.length === 0) return [];
-        
-        const maxLeadTimeDays = Math.max(0, ...bom
+        const firstProdWeekNum = parseInt(Object.keys(baselinePlan).find(w => baselinePlan[w] > 0)?.slice(1) || '0');
+        const totalProductionTarget = Object.values(baselinePlan).reduce((sum, qty) => sum + qty, 0);
+
+        if (firstProdWeekNum === 0 || totalProductionTarget === 0) return [];
+
+        const maxLeadTimeDays = Math.max(0, ...(order.bom || [])
             .filter(item => item.forecastType === 'Projection')
             .map(item => item.leadTime)
         );
         const maxLeadTimeWeeks = Math.ceil(maxLeadTimeDays / 7);
-
-        const createComponentStatus = (items: BomItem[], totalQty: number): ComponentStatusDetail => ({
-            quantities: { total: totalQty } as SizeBreakdown,
-            componentCount: items.length,
-        });
-
-        const projComponents = bom.filter(b => b.forecastType === 'Projection');
+        const ckWeek = firstProdWeekNum - 1;
         
-        const generatedProjections: (ProjectionDetail & { coverageStartWeek: number, coverageEndWeek: number, projectionWeek: number, ckWeek: number })[] = [];
-        let projectionIndex = 0;
-        let lastProjectionWeek = 0;
-        let productionWeeksConsumed = 0;
+        let currentProjWeek = ckWeek - maxLeadTimeWeeks;
+        let cumulativeProjectedQty = 0;
+        let projIndex = 1;
+        const allProjections: Projection[] = [];
+        let weeksCovered = 0;
 
-        while (productionWeeksConsumed < allProductionWeeks.length) {
-            let currentProjectionWeek: number;
-            
-            if (projectionIndex === 0) {
-                const firstProdWeekEntry = allProductionWeeks[0];
-                currentProjectionWeek = firstProdWeekEntry.weekNum - maxLeadTimeWeeks;
-            } else {
-                currentProjectionWeek = lastProjectionWeek + projectionCadenceWeeks;
+        while(cumulativeProjectedQty < totalProductionTarget && projIndex < 50) {
+            const currentSnapshot = order.fcVsFcDetails!.find(s => s.snapshotWeek === currentProjWeek) || earliestSnapshot;
+            const currentDemand = Object.keys(currentSnapshot.forecasts).reduce((acc, week) => {
+                acc[week] = (currentSnapshot.forecasts[week]?.total?.po || 0) + (currentSnapshot.forecasts[week]?.total?.fc || 0);
+                return acc;
+            }, {} as Record<string, number>);
+            const { plan: currentPlan } = runTentativePlanForHorizon(currentProjWeek, null, currentDemand, order, 0);
+
+            const planWeeks = Object.keys(currentPlan).map(w => parseInt(w.slice(1))).sort((a,b) => a-b);
+            const coverageStartWeek = planWeeks.find(w => w >= firstProdWeekNum + weeksCovered);
+
+            if (!coverageStartWeek) break;
+
+            const coverageEndWeek = coverageStartWeek + 3;
+            let projectionQty = 0;
+            for (let w = coverageStartWeek; w <= coverageEndWeek; w++) {
+                projectionQty += currentPlan[`W${w}`] || 0;
             }
 
-            if (currentProjectionWeek <= 0) currentProjectionWeek = 1;
-
-            const productionWindow = allProductionWeeks.slice(productionWeeksConsumed, productionWeeksConsumed + coverageWeeks);
-            
-            if (productionWindow.length === 0) break;
-
-            const projectionQuantity = productionWindow.reduce((sum, week) => sum + week.quantity, 0);
-
-            if (projectionQuantity <= 0) break;
-
-            const coverageStartWeek = productionWindow[0].weekNum;
-            const coverageEndWeek = productionWindow[productionWindow.length - 1].weekNum;
-            
-            const ckWeek = currentProjectionWeek + maxLeadTimeWeeks;
-
-            const projStatus = createComponentStatus(projComponents, Math.round(projectionQuantity));
-
-            generatedProjections.push({
-                projectionNumber: `PROJ-DYN-${String(projectionIndex + 1).padStart(2, '0')}`,
-                projectionDate: new Date(), // Placeholder, not used in UI
-                receiptDate: new Date(), // Placeholder, not used in UI
-                projectionWeek: currentProjectionWeek,
-                ckWeek: ckWeek,
-                frcQty: 0, // Placeholder
-                total: {
-                  quantities: { total: Math.round(projectionQuantity) } as SizeBreakdown,
-                  componentCount: projComponents.length,
-                },
-                grn: createComponentStatus([], 0),
-                openPo: createComponentStatus([], 0),
-                noPo: projStatus,
-                totalComponents: projComponents.length,
-                frcDetails: [],
+            const projection: Projection = {
+                projectionNumber: `PROJ-DYN-${String(projIndex).padStart(2, '0')}`,
+                projectionWeek: currentProjWeek,
                 coverageStartWeek,
                 coverageEndWeek,
-            });
+                ckWeek: currentProjWeek + maxLeadTimeWeeks,
+                projectionQty,
+                frcQty: Math.round(projectionQty * (0.6 + Math.random() * 0.1)), // Mock FRC
+            };
 
-            productionWeeksConsumed += productionWindow.length;
-            lastProjectionWeek = currentProjectionWeek;
-            projectionIndex++;
+            allProjections.push(projection);
 
-            if(projectionIndex > 50) break; // Safety break
+            cumulativeProjectedQty += projectionQty;
+            weeksCovered += 4;
+            currentProjWeek += 4;
+            projIndex++;
         }
 
-        return generatedProjections;
-    }, [order, productionPlans]);
+        return allProjections;
+    }, [order]);
 
 
-    const handleProjectionClick = (projection: ProjectionDetail) => {
+    const handleProjectionClick = (projection: Projection) => {
       setSelectedProjection(prev => prev?.projectionNumber === projection.projectionNumber ? null : projection);
     };
 
@@ -305,14 +296,13 @@ function ProjectionAnalysisPageContent() {
                                 <TableHead className="text-right">Projection Qty</TableHead>
                                 <TableHead className="text-right">FRC Qty</TableHead>
                                 <TableHead className="text-right">FRC Pending</TableHead>
-                                <TableHead className="w-[200px]">BOM Comp. Status (Proj.)</TableHead>
+                                {/* <TableHead className="w-[200px]">BOM Comp. Status (Proj.)</TableHead> */}
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {projectionDetails.map((proj) => {
-                                const frcPending = proj.total.quantities.total - proj.frcQty;
-                                const componentBreakdown = { grn: proj.grn, openPo: proj.openPo, noPo: proj.noPo, totalComponents: proj.totalComponents };
-
+                                const frcPending = proj.projectionQty - proj.frcQty;
+                                
                                 return (
                                     <TableRow 
                                       key={proj.projectionNumber} 
@@ -328,19 +318,19 @@ function ProjectionAnalysisPageContent() {
                                         <TableCell>W{proj.projectionWeek}</TableCell>
                                         <TableCell>W{proj.coverageStartWeek} - W{proj.coverageEndWeek}</TableCell>
                                         <TableCell>W{proj.ckWeek}</TableCell>
-                                        <TableCell className="text-right font-semibold">{proj.total.quantities.total.toLocaleString()}</TableCell>
+                                        <TableCell className="text-right font-semibold">{proj.projectionQty.toLocaleString()}</TableCell>
                                         <TableCell className="text-right">{proj.frcQty.toLocaleString()}</TableCell>
                                         <TableCell className="text-right font-semibold">{frcPending.toLocaleString()}</TableCell>
-                                        <TableCell>
+                                        {/* <TableCell>
                                             <QuantityBreakdownBar breakdown={componentBreakdown} />
-                                        </TableCell>
+                                        </TableCell> */}
                                     </TableRow>
                                 )
                             })}
                                 {(!projectionDetails || projectionDetails.length === 0) && (
                                 <TableRow>
                                     <TableCell colSpan={8} className="h-24 text-center">
-                                        No production plan found for this order. Please generate a plan on the Production Plan page first.
+                                        No production plan found for this order. Please generate a plan on the Tentative Plan page first.
                                     </TableCell>
                                 </TableRow>
                             )}
@@ -349,7 +339,7 @@ function ProjectionAnalysisPageContent() {
                     </CardContent>
                 </Card>
                 
-                {selectedProjection && <FrcDetailsTable frcDetails={selectedProjection.frcDetails || []} projectionNumber={selectedProjection.projectionNumber} />}
+                {/* {selectedProjection && <FrcDetailsTable frcDetails={selectedProjection.frcDetails || []} projectionNumber={selectedProjection.projectionNumber} />} */}
             </main>
         </div>
     );
@@ -362,3 +352,4 @@ export default function ProjectionAnalysisPage() {
         </Suspense>
     );
 }
+
