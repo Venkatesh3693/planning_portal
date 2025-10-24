@@ -89,6 +89,11 @@ const TentativePlanTable = ({ order, selectedSnapshotWeek, planData, producedDat
         return data;
     }, [weeks, weeklyData, planData, producedData]);
 
+    const totalPoFc = useMemo(() => Object.values(weeklyData).reduce((sum, data) => sum + (data.poFc || 0), 0), [weeklyData]);
+    const totalProduced = useMemo(() => Object.values(producedData).reduce((sum, qty) => sum + qty, 0), [producedData]);
+    const totalPlan = useMemo(() => Object.values(planData).reduce((sum, qty) => sum + qty, 0), [planData]);
+
+
     if (!latestSnapshot) {
         return <div className="p-4 text-muted-foreground">No forecast snapshot data available for the selected week.</div>;
     }
@@ -103,6 +108,7 @@ const TentativePlanTable = ({ order, selectedSnapshotWeek, planData, producedDat
                             {weeks.map(week => (
                                 <TableHead key={week} className="text-right">{week}</TableHead>
                             ))}
+                            <TableHead className="text-right font-bold">Total</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -113,6 +119,9 @@ const TentativePlanTable = ({ order, selectedSnapshotWeek, planData, producedDat
                                     {(weeklyData[week]?.poFc || 0).toLocaleString()}
                                 </TableCell>
                             ))}
+                            <TableCell className="text-right font-bold">
+                                {totalPoFc.toLocaleString()}
+                            </TableCell>
                         </TableRow>
                         <TableRow>
                             <TableCell className="font-medium">Produced</TableCell>
@@ -121,6 +130,9 @@ const TentativePlanTable = ({ order, selectedSnapshotWeek, planData, producedDat
                                     {(producedData[week] || 0) > 0 ? (producedData[week] || 0).toLocaleString() : '-'}
                                 </TableCell>
                             ))}
+                            <TableCell className="text-right font-bold text-green-600">
+                                {totalProduced > 0 ? totalProduced.toLocaleString() : '-'}
+                            </TableCell>
                         </TableRow>
                         <TableRow>
                             <TableCell className="font-medium">Plan</TableCell>
@@ -129,6 +141,9 @@ const TentativePlanTable = ({ order, selectedSnapshotWeek, planData, producedDat
                                     {(planData[week] || 0) > 0 ? (planData[week] || 0).toLocaleString() : '-'}
                                 </TableCell>
                             ))}
+                             <TableCell className="text-right font-bold">
+                                {totalPlan > 0 ? totalPlan.toLocaleString() : '-'}
+                            </TableCell>
                         </TableRow>
                          <TableRow>
                             <TableCell className="font-medium">FG CI</TableCell>
@@ -137,6 +152,7 @@ const TentativePlanTable = ({ order, selectedSnapshotWeek, planData, producedDat
                                     {pciData[week] !== undefined ? pciData[week].toLocaleString() : '-'}
                                 </TableCell>
                             ))}
+                            <TableCell></TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
@@ -282,8 +298,8 @@ function TentativePlanPageContent() {
                 const trueRequiredOffset = Math.ceil(Math.abs(Math.min(0, minClosingInventory)) / maxWeeklyOutput);
                 
                 if (trueRequiredOffset <= 4) {
-                    const proposedStartWeek = runStartWeekNum - trueRequiredOffset;
-                    const finalStartWeekNum = Math.max(proposedStartWeek, simulationStartDate);
+                    const initialProposedStartWeek = runStartWeekNum - trueRequiredOffset;
+                    const finalStartWeekNum = Math.max(initialProposedStartWeek, simulationStartDate);
                     const finalOffset = runStartWeekNum - finalStartWeekNum;
                     
                     const weeksToProduce = Math.ceil(run.quantity / maxWeeklyOutput);
@@ -340,7 +356,8 @@ function TentativePlanPageContent() {
         }
 
         const firstPoFcWeekNum = parseInt(firstPoFcWeekStr.slice(1));
-        const earliestProductionStartWeek = firstPoFcWeekNum - 4;
+        const effectiveStartWeek = Math.min(firstPoFcWeekNum, selectedSnapshotWeek);
+        const earliestProductionStartWeek = effectiveStartWeek - 4;
         
         let finalProducedData: Record<string, number> = {};
         let initialInventoryForPlan = 0;
