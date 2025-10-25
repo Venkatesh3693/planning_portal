@@ -185,6 +185,7 @@ function MaterialPlanningPageContent() {
                     let runningTotal = 0;
                     let endCoverageWeek = '';
                     const newCumulativeBreakdown: Partial<Record<Size, number>> = {};
+                    let targetMet = false;
 
                     for (const week of poFcWeeks) {
                         if (parseInt(week.slice(1)) < parseInt(firstPoFcWeek.slice(1))) continue;
@@ -198,13 +199,16 @@ function MaterialPlanningPageContent() {
                                 newCumulativeBreakdown[size] = (newCumulativeBreakdown[size] || 0) + needed;
                                 runningTotal += needed;
                                 endCoverageWeek = week;
-                                break; 
+                                targetMet = true;
+                                break; // Exit size loop
                             } else {
                                 runningTotal += qty;
                                 newCumulativeBreakdown[size] = (newCumulativeBreakdown[size] || 0) + qty;
                             }
                         }
-                         if (endCoverageWeek) break;
+                        if (targetMet) {
+                            break; // Exit week loop
+                        }
                     }
                     
                     if (endCoverageWeek) {
