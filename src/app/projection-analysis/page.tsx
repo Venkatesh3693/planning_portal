@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Suspense, useMemo, useState } from 'react';
@@ -40,15 +39,19 @@ const dummyData = [
         prjQty: 40000,
         frcNumber: "FRC-001",
         frcWeek: "W14",
-        frcCoverage: "W30-W33", // 4 weeks
-        frcQty: 32000,
+        frcCoverage: "W30-W35", // Cumulative PO+FC from W30 to W35 is 44,000, which covers PRJ-001's 40,000
+        frcQty: 44000,
         cutOrderQty: 30000,
-        cutOrderPending: 2000,
+        cutOrderPending: 14000,
         breakdown: {
             'W30': { 'S': 500, 'M': 1000, 'L': 500, total: 2000 },
             'W31': { 'S': 1500, 'M': 4000, 'L': 2500, 'XL': 2000, total: 10000 },
             'W32': { 'S': 1500, 'M': 4000, 'L': 2500, 'XL': 2000, total: 10000 },
             'W33': { 'S': 1500, 'M': 4000, 'L': 2500, 'XL': 2000, total: 10000 },
+            'W34': { 'M': 1000, 'L': 2000, 'XL': 1000, total: 4000 },
+            'W35': { 'M': 4000, 'L': 6000, 'XL': 4000, total: 14000 },
+            'W36': { 'M': 4000, 'L': 6000, 'XL': 4000, total: 14000 },
+            'W37': { 'M': 2000, 'L': 3000, 'XL': 1000, total: 6000 },
         }
     },
     {
@@ -59,11 +62,15 @@ const dummyData = [
         prjQty: 45000,
         frcNumber: "FRC-002",
         frcWeek: "W18",
-        frcCoverage: "W34-W37", // 4 weeks
-        frcQty: 38000,
+        frcCoverage: "W30-W36", // Cumulative PRJ Qty = 40k + 45k = 85k. Cumulative PO+FC from W30 to W36 is 58k, which is the closest match
+        frcQty: 58000,
         cutOrderQty: 35000,
-        cutOrderPending: 3000,
+        cutOrderPending: 23000,
         breakdown: {
+            'W30': { 'S': 500, 'M': 1000, 'L': 500, total: 2000 },
+            'W31': { 'S': 1500, 'M': 4000, 'L': 2500, 'XL': 2000, total: 10000 },
+            'W32': { 'S': 1500, 'M': 4000, 'L': 2500, 'XL': 2000, total: 10000 },
+            'W33': { 'S': 1500, 'M': 4000, 'L': 2500, 'XL': 2000, total: 10000 },
             'W34': { 'M': 1000, 'L': 2000, 'XL': 1000, total: 4000 },
             'W35': { 'M': 4000, 'L': 6000, 'XL': 4000, total: 14000 },
             'W36': { 'M': 4000, 'L': 6000, 'XL': 4000, total: 14000 },
@@ -74,8 +81,17 @@ const dummyData = [
 
 type DummyDataType = typeof dummyData[0];
 
-const FrcBreakdownTable = ({ breakdown }: { breakdown: DummyDataType['breakdown'] }) => {
-    const weeks = Object.keys(breakdown);
+const FrcBreakdownTable = ({ breakdown, coverage }: { breakdown: DummyDataType['breakdown'], coverage: string }) => {
+    
+    const [startWeekStr, endWeekStr] = coverage.split('-');
+    const startWeek = parseInt(startWeekStr.replace('W', ''));
+    const endWeek = parseInt(endWeekStr.replace('W', ''));
+
+    const weeks = Object.keys(breakdown).filter(weekKey => {
+        const weekNum = parseInt(weekKey.replace('W', ''));
+        return weekNum >= startWeek && weekNum <= endWeek;
+    });
+
     const sizeTotals = SIZES.reduce((acc, size) => {
         acc[size] = 0;
         return acc;
@@ -248,7 +264,7 @@ function MaterialPlanningPageContent() {
                 </Card>
 
                 {selectedFrc && (
-                    <FrcBreakdownTable breakdown={selectedFrc.breakdown} />
+                    <FrcBreakdownTable breakdown={selectedFrc.breakdown} coverage={selectedFrc.frcCoverage} />
                 )}
             </main>
         </div>
