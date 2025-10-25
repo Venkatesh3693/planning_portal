@@ -50,7 +50,6 @@ type Projection = {
 const generateRollingProjections = (order: Order, currentWeek: number): Projection[] => {
     if (!order.fcVsFcDetails || order.fcVsFcDetails.length === 0) return [];
     
-    // Find the earliest forecast data to establish a baseline
     const snapshotOptions = order.fcVsFcDetails.map(s => s.snapshotWeek).sort((a, b) => a - b);
     if (snapshotOptions.length === 0) return [];
     
@@ -63,12 +62,7 @@ const generateRollingProjections = (order: Order, currentWeek: number): Projecti
         return acc;
     }, {} as Record<string, number>);
 
-    const firstDemandWeekStr = Object.keys(earliestDemand).find(w => (earliestDemand[w] || 0) > 0);
-    if (!firstDemandWeekStr) return [];
-    
-    // Run baseline to find when production actually starts
-    const firstTrueDemandWeekNum = parseInt(firstDemandWeekStr.slice(1));
-    const baselineResult = runTentativePlanForHorizon(firstTrueDemandWeekNum, null, earliestDemand, order, 0, firstTrueDemandWeekNum);
+    const baselineResult = runTentativePlanForHorizon(earliestSnapshotWeek, null, earliestDemand, order, 0, earliestSnapshotWeek);
     const firstProdWeekStr = Object.keys(baselineResult.plan).find(w => (baselineResult.plan[w] || 0) > 0);
     
     if (!firstProdWeekStr) return [];
@@ -81,25 +75,18 @@ const generateRollingProjections = (order: Order, currentWeek: number): Projecti
     let projIndex = 1;
     let keepGoing = true;
 
-    // Correctly determine the starting CK week and the first projection week.
-    const firstCkWeek = firstProdWeekNum - 1;
-    const firstProjWeek = firstCkWeek - maxLeadTimeWeeks;
-
-
     while(keepGoing) {
-        // Determine current projection's week
-        const projectionWeek = firstProjWeek + ((projIndex - 1) * 4);
+        const projectionWeek = 10 + ((projIndex - 1) * 4);
 
         if (projectionWeek >= currentWeek) {
             keepGoing = false;
             continue;
         }
         
-        const ckForThisProjection = projectionWeek + maxLeadTimeWeeks;
+        const ckForThisProjection = firstProdWeekNum + ((projIndex - 1) * 4) - 1;
         const coverageStartWeek = ckForThisProjection + 1;
         const coverageEndWeek = coverageStartWeek + 3;
 
-        // Get the demand data for the current projection's snapshot week
         const currentSnapshot = order.fcVsFcDetails.find(s => s.snapshotWeek === projectionWeek) || order.fcVsFcDetails[order.fcVsFcDetails.length - 1];
         const currentDemand = Object.keys(currentSnapshot.forecasts).reduce((acc, week) => {
              const weekData = currentSnapshot.forecasts[week]?.total;
@@ -257,16 +244,6 @@ function ProjectionAnalysisPageContent() {
         if (!isScheduleLoaded || !orderId) return null;
         return orders.find(o => o.id === orderId);
     }, [orderId, orders, isScheduleLoaded]);
-
-    useEffect(() => {
-        if (order && projectionDetails.length > 0) {
-            const firstProj = projectionDetails[0];
-            handleProjectionChange(firstProj.projectionNumber);
-        } else {
-            setSelectedProjection(null);
-            setPlanData({});
-        }
-    }, [order, projectionDetails]);
     
     const handleGenerateProjections = () => {
         if (!order || currentWeek === 0) return;
@@ -293,6 +270,16 @@ function ProjectionAnalysisPageContent() {
             setPlanData(result.plan);
         }
     };
+    
+    useEffect(() => {
+        if (order && projectionDetails.length > 0) {
+            const firstProj = projectionDetails[0];
+            handleProjectionChange(firstProj.projectionNumber);
+        } else {
+            setSelectedProjection(null);
+            setPlanData({});
+        }
+    }, [order, projectionDetails]);
 
 
     if (!isScheduleLoaded) {
@@ -440,3 +427,5 @@ export default function ProjectionAnalysisPage() {
         </Suspense>
     );
 }
+
+    
