@@ -16,6 +16,96 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
+import { Card, CardContent } from '@/components/ui/card';
+import { SIZES } from '@/lib/data';
+import type { Size } from '@/lib/types';
+
+
+const SizeWiseDemandTable = ({ snapshot, order }: { snapshot: any, order: any }) => {
+    const { forecastWeeks, demandData, columnTotals } = useMemo(() => {
+        if (!snapshot) return { forecastWeeks: [], demandData: {}, columnTotals: {} };
+
+        const weeks = Object.keys(snapshot.forecasts).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
+
+        const data: Record<string, Record<Size | 'total', number>> = {};
+        
+        const totals = SIZES.reduce((acc, size) => {
+            acc[size] = 0;
+            return acc;
+        }, {} as Record<Size, number>);
+        totals['total'] = 0;
+
+        weeks.forEach(week => {
+            const weekData = snapshot.forecasts[week];
+            if (!weekData) return;
+
+            data[week] = {} as Record<Size | 'total', number>;
+            let weekTotal = 0;
+            SIZES.forEach(size => {
+                const sizeDemand = (weekData[size]?.po || 0) + (weekData[size]?.fc || 0);
+                data[week][size] = sizeDemand;
+                weekTotal += sizeDemand;
+                totals[size] += sizeDemand;
+            });
+            data[week]['total'] = weekTotal;
+            totals['total'] += weekTotal;
+        });
+
+        return { forecastWeeks: weeks, demandData: data, columnTotals: totals };
+
+    }, [snapshot]);
+
+    if (forecastWeeks.length === 0) {
+        return <div className="text-center text-muted-foreground p-8">No size demand data available for this snapshot.</div>;
+    }
+
+    return (
+        <Card>
+            <CardContent className="p-0">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Week</TableHead>
+                            {SIZES.map(size => (
+                                <TableHead key={size} className="text-right">{size}</TableHead>
+                            ))}
+                            <TableHead className="text-right font-bold">Total</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {forecastWeeks.map(week => (
+                            <TableRow key={week}>
+                                <TableCell className="font-medium">{week}</TableCell>
+                                {SIZES.map(size => (
+                                    <TableCell key={size} className="text-right">
+                                        {(demandData[week]?.[size] || 0) > 0 ? (demandData[week][size] || 0).toLocaleString() : '-'}
+                                    </TableCell>
+                                ))}
+                                <TableCell className="text-right font-bold">
+                                    {(demandData[week]?.total || 0).toLocaleString()}
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                    <TableFooter>
+                        <TableRow>
+                            <TableCell className="font-bold">Total</TableCell>
+                             {SIZES.map(size => (
+                                <TableCell key={`total-${size}`} className="text-right font-bold">
+                                    {(columnTotals[size] || 0).toLocaleString()}
+                                </TableCell>
+                            ))}
+                             <TableCell className="text-right font-bold">
+                                {(columnTotals['total'] || 0).toLocaleString()}
+                            </TableCell>
+                        </TableRow>
+                    </TableFooter>
+                </Table>
+            </CardContent>
+        </Card>
+    )
+}
 
 export default function SizeWiseDemandPage() {
   const { orders, isScheduleLoaded, appMode } = useSchedule();
@@ -38,6 +128,11 @@ export default function SizeWiseDemandPage() {
         .map(s => s.snapshotWeek)
         .sort((a, b) => b - a);
   }, [selectedOrder]);
+
+  const selectedSnapshot = useMemo(() => {
+    if (!selectedOrder || selectedSnapshotWeek === null) return null;
+    return selectedOrder.fcVsFcDetails?.find(s => s.snapshotWeek === selectedSnapshotWeek) || null;
+  }, [selectedOrder, selectedSnapshotWeek]);
 
   useEffect(() => {
     if (selectedOrder && snapshotOptions.length > 0) {
@@ -126,7 +221,15 @@ export default function SizeWiseDemandPage() {
             )}
         </div>
 
-          {/* Content will go here */}
+          <div className="pt-4">
+            {selectedSnapshot ? (
+                <SizeWiseDemandTable snapshot={selectedSnapshot} order={selectedOrder} />
+            ) : (
+                <div className="text-center text-muted-foreground p-8 border rounded-lg">
+                    {selectedOrderId ? 'Loading data or no snapshots available...' : 'Please select an order to view size-wise demand.'}
+                </div>
+            )}
+          </div>
         </div>
       </main>
     </div>
