@@ -249,22 +249,20 @@ function ProjectionAnalysisPageContent() {
         return orders.find(o => o.id === orderId);
     }, [orderId, orders, isScheduleLoaded]);
 
-     const snapshotOptions = useMemo(() => {
-        if (!order?.fcVsFcDetails) return [];
-        return [...order.fcVsFcDetails]
-            .map(s => s.snapshotWeek)
-            .sort((a, b) => b - a);
-    }, [order]);
+    const projectionWeekOptions = useMemo(() => {
+        if (projectionDetails.length === 0) return [];
+        return [...new Set(projectionDetails.map(p => p.projectionWeek))].sort((a, b) => b - a);
+    }, [projectionDetails]);
 
     useEffect(() => {
-        if (order && snapshotOptions.length > 0) {
-            setSelectedSnapshotWeek(snapshotOptions[0]);
+        if (order && projectionWeekOptions.length > 0) {
+            setSelectedSnapshotWeek(projectionWeekOptions[0]);
         } else {
             setSelectedSnapshotWeek(null);
         }
         setPlanData({});
         setProducedData({});
-    }, [order, snapshotOptions]);
+    }, [order, projectionWeekOptions]);
     
     const handleGenerateProjections = () => {
         if (!order || currentWeek === 0) return;
@@ -374,7 +372,7 @@ function ProjectionAnalysisPageContent() {
                 <div className="space-y-6">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Rolling Projections & FRC</CardTitle>
+                            <CardTitle>Rolling Projections &amp; FRC</CardTitle>
                         </CardHeader>
                         <CardContent className="p-0">
                             <Table>
@@ -422,17 +420,17 @@ function ProjectionAnalysisPageContent() {
                     </Card>
 
                     <div className="flex items-end gap-2">
-                        {snapshotOptions.length > 0 && (
+                        {projectionWeekOptions.length > 0 && (
                             <div className="w-full max-w-xs space-y-2">
-                                <Label htmlFor="snapshot-select">Select Snapshot Week</Label>
+                                <Label htmlFor="snapshot-select">Select Projection Week</Label>
                                 <Select value={selectedSnapshotWeek !== null ? String(selectedSnapshotWeek) : ''} onValueChange={(val) => setSelectedSnapshotWeek(Number(val))}>
                                     <SelectTrigger id="snapshot-select">
-                                        <SelectValue placeholder="Select a snapshot..." />
+                                        <SelectValue placeholder="Select a projection week..." />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {snapshotOptions.map(week => (
+                                        {projectionWeekOptions.map(week => (
                                             <SelectItem key={week} value={String(week)}>
-                                                Snapshot Week {week}
+                                                Projection Week {week}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
