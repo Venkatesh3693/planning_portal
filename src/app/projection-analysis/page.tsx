@@ -1,8 +1,7 @@
 
-
 'use client';
 
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useMemo, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useSchedule } from '@/context/schedule-provider';
 import { Header } from '@/components/layout/header';
@@ -94,15 +93,16 @@ const generateRollingProjections = (order: Order, currentWeek: number): Projecti
         const coverageStartWeek = firstProdWeekNum + weeksCovered;
         const coverageEndWeek = coverageStartWeek + 3;
 
+        // The key fix: Pass inventory from what we've already projected
+        const inventoryForThisRun = projections.reduce((sum, p) => sum + p.projectionQty, 0);
+
         // Simulate plan for the current projection week
         const currentSnapshot = order.fcVsFcDetails.find(s => s.snapshotWeek === projectionWeek) || earliestSnapshot;
         const currentDemand = Object.keys(currentSnapshot.forecasts).reduce((acc, week) => {
             acc[week] = (currentSnapshot.forecasts[week]?.total?.po || 0) + (currentSnapshot.forecasts[week]?.total?.fc || 0);
             return acc;
         }, {} as Record<string, number>);
-
-        // The key fix: Pass inventory from what we've already projected
-        const inventoryForThisRun = projections.reduce((sum, p) => sum + p.projectionQty, 0);
+        
         const simResult = runTentativePlanForHorizon(projectionWeek, null, currentDemand, order, inventoryForThisRun);
         const simulatedPlan = simResult.plan;
 
@@ -287,4 +287,3 @@ export default function ProjectionAnalysisPage() {
         </Suspense>
     );
 }
-
