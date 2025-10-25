@@ -19,6 +19,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { Order } from '@/lib/types';
 import { runTentativePlanForHorizon } from '@/lib/tna-calculator';
+import { Button } from '@/components/ui/button';
 
 
 type PlanLogRow = {
@@ -93,7 +94,7 @@ function PlanLogPageContent() {
                     This view is only applicable for GUT mode.
                   </p>
                   <Button asChild className="mt-6">
-                    <Link href="/orders">View GUP Orders</Link>
+                    <Link href="/">View GUP Orders</Link>
                   </Button>
                 </div>
               </main>
