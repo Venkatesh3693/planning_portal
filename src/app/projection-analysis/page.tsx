@@ -63,8 +63,12 @@ const generateRollingProjections = (order: Order, currentWeek: number): Projecti
         return acc;
     }, {} as Record<string, number>);
 
+    const firstDemandWeekStr = Object.keys(earliestDemand).find(w => (earliestDemand[w] || 0) > 0);
+    if (!firstDemandWeekStr) return [];
+    const firstDemandWeekNum = parseInt(firstDemandWeekStr.slice(1));
+    
     // Run baseline to find when production actually starts
-    const baselineResult = runTentativePlanForHorizon(earliestSnapshotWeek, null, earliestDemand, order, 0);
+    const baselineResult = runTentativePlanForHorizon(firstDemandWeekNum, null, earliestDemand, order, 0);
     const firstProdWeekStr = Object.keys(baselineResult.plan).find(w => (baselineResult.plan[w] || 0) > 0);
     
     if (!firstProdWeekStr) return [];
@@ -101,9 +105,9 @@ const generateRollingProjections = (order: Order, currentWeek: number): Projecti
              return acc;
         }, {} as Record<string, number>);
         
-        // We run a fresh simulation from the projection week itself, with zero inventory.
-        // This isolates the calculation for this specific projection.
-        const simResult = runTentativePlanForHorizon(projectionWeek, null, currentDemand, order, 0);
+        const firstTrueDemandWeek = Object.keys(currentDemand).filter(w => currentDemand[w] > 0).map(w => parseInt(w.slice(1))).sort((a,b)=> a-b)[0] || projectionWeek;
+
+        const simResult = runTentativePlanForHorizon(firstTrueDemandWeek, null, currentDemand, order, 0);
         const simulatedPlan = simResult.plan;
 
         let projectionQty = 0;
@@ -112,8 +116,11 @@ const generateRollingProjections = (order: Order, currentWeek: number): Projecti
         }
 
         if (projectionQty <= 0 && projIndex > 1) {
-            keepGoing = false;
-            continue;
+             const anyFutureDemand = Object.keys(currentDemand).some(w => parseInt(w.slice(1)) > coverageEndWeek && currentDemand[w] > 0);
+             if(!anyFutureDemand) {
+                keepGoing = false;
+                continue;
+             }
         }
         
         const frcQty = Math.round(projectionQty * 0.8);
@@ -180,38 +187,8 @@ const TentativePlanTable = ({ order, selectedSnapshotWeek, planData, producedDat
         return { weeks: allWeeks, weeklyData: data };
     }, [latestSnapshot]);
 
-    const pciData = useMemo(() => {
-        const data: Record<string, number> = {};
-        const sortedWeeks = [...weeks].sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
-
-        const firstRelevantWeekIndex = sortedWeeks.findIndex(w => (weeklyData[w]?.poFc || 0) > 0 || (planData[w] || 0) > 0 || (producedData[w] || 0) > 0);
-        if (firstRelevantWeekIndex === -1) return {};
-
-        const relevantWeeks = sortedWeeks.slice(firstRelevantWeekIndex);
-
-        let lastWeekPci = 0;
-
-        for (let i = 0; i < relevantWeeks.length; i++) {
-            const week = relevantWeeks[i];
-            const demand = weeklyData[week]?.poFc || 0;
-            
-            const supplyThisWeek = (planData[week] || 0) + (producedData[week] || 0);
-
-            const openingInventory = lastWeekPci;
-            const currentPci = openingInventory + supplyThisWeek - demand;
-            
-            data[week] = currentPci;
-            lastWeekPci = currentPci;
-        }
-
-        return data;
-    }, [weeks, weeklyData, planData, producedData]);
-
-    const totalPoFc = useMemo(() => Object.values(weeklyData).reduce((sum, data) => sum + (data.poFc || 0), 0), [weeklyData]);
     const totalProduced = useMemo(() => Object.values(producedData).reduce((sum, qty) => sum + qty, 0), [producedData]);
-    const totalPlan = useMemo(() => Object.values(planData).reduce((sum, qty) => sum + qty, 0), [planData]);
-
-
+    
     if (!latestSnapshot) {
         return <div className="p-4 text-muted-foreground">No forecast snapshot data available for the selected week.</div>;
     }
@@ -234,17 +211,6 @@ const TentativePlanTable = ({ order, selectedSnapshotWeek, planData, producedDat
                     </TableHeader>
                     <TableBody>
                         <TableRow>
-                            <TableCell className="font-medium">PO + FC</TableCell>
-                            {weeks.map(week => (
-                                <TableCell key={week} className="text-right">
-                                    {(weeklyData[week]?.poFc || 0).toLocaleString()}
-                                </TableCell>
-                            ))}
-                            <TableCell className="text-right font-bold">
-                                {totalPoFc.toLocaleString()}
-                            </TableCell>
-                        </TableRow>
-                        <TableRow>
                             <TableCell className="font-medium">Produced</TableCell>
                             {weeks.map(week => (
                                 <TableCell key={week} className="text-right text-green-600 font-semibold">
@@ -254,26 +220,6 @@ const TentativePlanTable = ({ order, selectedSnapshotWeek, planData, producedDat
                             <TableCell className="text-right font-bold text-green-600">
                                 {totalProduced > 0 ? totalProduced.toLocaleString() : '-'}
                             </TableCell>
-                        </TableRow>
-                        <TableRow>
-                            <TableCell className="font-medium">Plan</TableCell>
-                            {weeks.map(week => (
-                                <TableCell key={week} className="text-right font-semibold">
-                                    {(planData[week] || 0) > 0 ? (planData[week] || 0).toLocaleString() : '-'}
-                                </TableCell>
-                            ))}
-                             <TableCell className="text-right font-bold">
-                                {totalPlan > 0 ? totalPlan.toLocaleString() : '-'}
-                            </TableCell>
-                        </TableRow>
-                         <TableRow>
-                            <TableCell className="font-medium">FG CI</TableCell>
-                            {weeks.map(week => (
-                                <TableCell key={week} className="text-right">
-                                    {pciData[week] !== undefined ? pciData[week].toLocaleString() : '-'}
-                                </TableCell>
-                            ))}
-                            <TableCell></TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
@@ -347,7 +293,8 @@ function ProjectionAnalysisPageContent() {
         
         if (firstPoFcWeekStr) {
             const firstPoFcWeekNum = parseInt(firstPoFcWeekStr.slice(1));
-            const baselineStartWeek = Math.min(selectedSnapshotWeek, firstPoFcWeekNum - 4);
+            
+            const baselineStartWeek = Math.min(selectedSnapshotWeek, firstPoFcWeekNum);
 
             const baselinePlanResult = runTentativePlanForHorizon(baselineStartWeek, null, weeklyTotals, order, 0);
             const baselinePlan = baselinePlanResult.plan;
