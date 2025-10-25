@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SIZES } from '@/lib/data';
-import type { Order, Size, BomItem } from '@/lib/types';
+import type { Order, Size, BomItem, FcSnapshot, SizeBreakdown } from '@/lib/types';
 import { runTentativePlanForHorizon } from '@/lib/tna-calculator';
 
 
@@ -48,23 +48,26 @@ type ProjectionRow = {
 };
 
 
-const FrcBreakdownTable = ({ breakdown, coverage }: { breakdown: ProjectionRow['breakdown'], coverage: string }) => {
-    if (!breakdown) return null;
-
-    const [startWeekStr, endWeekStr] = coverage.split('-');
-    const startWeek = parseInt(startWeekStr.replace('W', ''));
-    const endWeek = parseInt(endWeekStr.replace('W', ''));
-
-    const weeks = Object.keys(breakdown).filter(weekKey => {
-        const weekNum = parseInt(weekKey.replace('W', ''));
-        return weekNum >= startWeek && weekNum <= endWeek;
-    });
+const FrcBreakdownTable = ({ breakdown, coverage }: { breakdown?: ProjectionRow['breakdown'], coverage: string }) => {
+    if (!breakdown || Object.keys(breakdown).length === 0) {
+      return (
+          <Card className="mt-4">
+              <CardHeader>
+                  <CardTitle>FRC Breakdown</CardTitle>
+              </CardHeader>
+              <CardContent>
+                  <p className="text-muted-foreground">No size breakdown available for this FRC. This may be due to missing forecast snapshot data for the calculated FRC week.</p>
+              </CardContent>
+          </Card>
+      );
+    }
 
     const sizeTotals = SIZES.reduce((acc, size) => {
         acc[size] = 0;
         return acc;
     }, {} as Record<Size, number>);
 
+    const weeks = Object.keys(breakdown);
     weeks.forEach(week => {
         SIZES.forEach(size => {
             sizeTotals[size] += breakdown[week as keyof typeof breakdown]?.[size as Size] || 0;
@@ -76,44 +79,29 @@ const FrcBreakdownTable = ({ breakdown, coverage }: { breakdown: ProjectionRow['
     return (
         <Card className="mt-4">
             <CardHeader>
-                <CardTitle>FRC Breakdown</CardTitle>
+                <CardTitle>FRC Breakdown for {coverage}</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Week</TableHead>
-                            {SIZES.map(size => (
-                                <TableHead key={size} className="text-right">{size}</TableHead>
-                            ))}
-                            <TableHead className="text-right font-bold">Total</TableHead>
+                            <TableHead>Size</TableHead>
+                            <TableHead className="text-right">Quantity</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {weeks.map(week => {
-                            const weekData = breakdown[week as keyof typeof breakdown];
-                            const weekTotal = Object.values(weekData).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0);
-                            return (
-                                <TableRow key={week}>
-                                    <TableCell className="font-medium">{week}</TableCell>
-                                    {SIZES.map(size => (
-                                        <TableCell key={`${week}-${size}`} className="text-right">
-                                            {(weekData[size as Size] || 0).toLocaleString()}
-                                        </TableCell>
-                                    ))}
-                                    <TableCell className="text-right font-bold">{weekTotal.toLocaleString()}</TableCell>
-                                </TableRow>
-                            );
-                        })}
+                        {SIZES.map(size => (
+                           <TableRow key={size}>
+                                <TableCell className="font-medium">{size}</TableCell>
+                                <TableCell className="text-right">
+                                    {(sizeTotals[size] || 0).toLocaleString()}
+                                </TableCell>
+                            </TableRow>
+                        ))}
                     </TableBody>
                     <TableFooter>
                         <TableRow>
                             <TableCell className="font-bold">Total</TableCell>
-                            {SIZES.map(size => (
-                                <TableCell key={`total-${size}`} className="text-right font-bold">
-                                    {(sizeTotals[size] || 0).toLocaleString()}
-                                </TableCell>
-                            ))}
                             <TableCell className="text-right font-bold">{grandTotal.toLocaleString()}</TableCell>
                         </TableRow>
                     </TableFooter>
@@ -159,17 +147,21 @@ function MaterialPlanningPageContent() {
         const firstCkWeek = firstProductionWeek - 1;
         
         const projectionBomItems = (order.bom || []).filter(item => item.forecastType === 'Projection');
-        const maxLeadTimeDays = Math.max(...projectionBomItems.map(item => item.leadTime), 0);
-        const maxLeadTimeWeeks = Math.ceil(maxLeadTimeDays / 7);
+        const maxPrjLeadTimeWeeks = Math.ceil(Math.max(...projectionBomItems.map(item => item.leadTime), 0) / 7);
+        const frcBomItems = (order.bom || []).filter(item => item.forecastType === 'FRC');
+        const maxFrcLeadTimeWeeks = Math.ceil(Math.max(...frcBomItems.map(item => item.leadTime), 0) / 7);
 
-        const firstProjectionWeek = firstCkWeek - maxLeadTimeWeeks;
+        const firstProjectionWeek = firstCkWeek - maxPrjLeadTimeWeeks;
 
         const projections: ProjectionRow[] = [];
         let currentProjectionWeek = firstProjectionWeek;
         let projectionIndex = 1;
+        
+        let cumulativePrjQty = 0;
+        let cumulativeFrcBreakdown: Partial<Record<Size, number>> = {};
 
         while (currentProjectionWeek < 52) {
-            const currentCkWeek = currentProjectionWeek + maxLeadTimeWeeks;
+            const currentCkWeek = currentProjectionWeek + maxPrjLeadTimeWeeks;
             const coverageStart = currentCkWeek + 1;
             const coverageEnd = currentCkWeek + 4;
             
@@ -177,27 +169,97 @@ function MaterialPlanningPageContent() {
             for (let w = coverageStart; w <= coverageEnd; w++) {
                 projectionQty += plan[`W${w}`] || 0;
             }
-
-            if (projectionQty > 0 || projections.length > 0) {
-                 projections.push({
-                    prjNumber: `PRJ-${order.ocn}-${projectionIndex.toString().padStart(2, '0')}`,
-                    prjWeek: `W${currentProjectionWeek}`,
-                    prjCoverage: `W${coverageStart}-W${coverageEnd}`,
-                    ckWeek: `W${currentCkWeek}`,
-                    prjQty: Math.round(projectionQty),
-                    // Dummy data for now
-                    frcNumber: `FRC-${order.ocn}-${projectionIndex.toString().padStart(2, '0')}`,
-                    frcWeek: `W${currentProjectionWeek + 2}`,
-                    frcCoverage: `W${coverageStart}-W${coverageEnd + 2}`, // Example dummy coverage
-                    frcQty: Math.round(projectionQty * 0.8),
-                    cutOrderQty: Math.round(projectionQty * 0.7),
-                    cutOrderPending: Math.round(projectionQty * 0.1),
-                    breakdown: {} // will be filled with dummy data
-                });
-                projectionIndex++;
-            }
             
-            if (Object.keys(plan).filter(w => parseInt(w.slice(1)) > coverageEnd).length === 0) break;
+            projectionQty = Math.round(projectionQty);
+
+            if (projectionQty <= 0 && projections.length === 0) {
+                currentProjectionWeek += 4;
+                continue;
+            }
+
+            cumulativePrjQty += projectionQty;
+
+            // --- FRC Calculation ---
+            const frcWeekNum = currentCkWeek - maxFrcLeadTimeWeeks;
+            const frcWeek = `W${frcWeekNum}`;
+            const targetFrcQty = projectionQty;
+            
+            let frcCoverage = '-';
+            let frcBreakdown: ProjectionRow['breakdown'] = {};
+            
+            const snapshotForFrc = order.fcVsFcDetails.find(s => s.snapshotWeek === frcWeekNum);
+            
+            if (snapshotForFrc) {
+                const poFcWeeks = Object.keys(snapshotForFrc.forecasts).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
+                const firstPoFcWeek = poFcWeeks.find(w => (snapshotForFrc.forecasts[w].total?.po || 0) + (snapshotForFrc.forecasts[w].total?.fc || 0) > 0);
+
+                if (firstPoFcWeek) {
+                    let runningTotal = 0;
+                    let endCoverageWeek = '';
+                    const newCumulativeBreakdown: Partial<Record<Size, number>> = {};
+
+                    for (const week of poFcWeeks) {
+                        if (parseInt(week.slice(1)) < parseInt(firstPoFcWeek.slice(1))) continue;
+
+                        for (const size of SIZES) {
+                            const demand = snapshotForFrc.forecasts[week]?.[size];
+                            const qty = (demand?.po || 0) + (demand?.fc || 0);
+
+                            if (runningTotal + qty >= cumulativePrjQty) {
+                                const needed = cumulativePrjQty - runningTotal;
+                                newCumulativeBreakdown[size] = (newCumulativeBreakdown[size] || 0) + needed;
+                                runningTotal += needed;
+                                endCoverageWeek = week;
+                                break; 
+                            } else {
+                                runningTotal += qty;
+                                newCumulativeBreakdown[size] = (newCumulativeBreakdown[size] || 0) + qty;
+                            }
+                        }
+                         if (endCoverageWeek) break;
+                    }
+                    
+                    if (endCoverageWeek) {
+                        frcCoverage = `${firstPoFcWeek}-${endCoverageWeek}`;
+                        
+                        const currentFrcBreakdown: Partial<Record<Size, number>> = {};
+                        let totalInBreakdown = 0;
+                        for (const size of SIZES) {
+                            const newlyAdded = (newCumulativeBreakdown[size] || 0) - (cumulativeFrcBreakdown[size] || 0);
+                            currentFrcBreakdown[size] = newlyAdded;
+                            totalInBreakdown += newlyAdded;
+                        }
+
+                        // Due to rounding, adjust the last size to match target FRC Qty
+                        const adjustment = targetFrcQty - totalInBreakdown;
+                        const lastSizeWithQty = [...SIZES].reverse().find(s => currentFrcBreakdown[s]!! > 0);
+                        if(lastSizeWithQty) currentFrcBreakdown[lastSizeWithQty]! += adjustment;
+
+                        frcBreakdown = { 'FRC': { ...currentFrcBreakdown, total: targetFrcQty } as any };
+                        cumulativeFrcBreakdown = newCumulativeBreakdown;
+                    }
+                }
+            }
+            // --- End FRC Calculation ---
+
+            projections.push({
+                prjNumber: `PRJ-${order.ocn}-${projectionIndex.toString().padStart(2, '0')}`,
+                prjWeek: `W${currentProjectionWeek}`,
+                prjCoverage: `W${coverageStart}-W${coverageEnd}`,
+                ckWeek: `W${currentCkWeek}`,
+                prjQty: projectionQty,
+                frcNumber: `FRC-${order.ocn}-${projectionIndex.toString().padStart(2, '0')}`,
+                frcWeek: frcWeek,
+                frcCoverage: frcCoverage,
+                frcQty: targetFrcQty, // Same as projection
+                cutOrderQty: Math.round(targetFrcQty * 0.7), // Dummy
+                cutOrderPending: Math.round(targetFrcQty * 0.1), // Dummy
+                breakdown: frcBreakdown
+            });
+            projectionIndex++;
+            
+            const hasMorePlan = Object.keys(plan).some(w => parseInt(w.slice(1)) > coverageEnd && plan[w] > 0);
+            if (!hasMorePlan) break;
 
             currentProjectionWeek += 4;
         }
@@ -348,3 +410,4 @@ export default function MaterialPlanningPage() {
         </Suspense>
     );
 }
+
