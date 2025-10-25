@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Suspense, useMemo, useState } from 'react';
@@ -15,7 +16,7 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, ChevronsUpDown } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -25,8 +26,7 @@ import {
   TableRow,
   TableFooter,
 } from "@/components/ui/table";
-import { Card, CardContent } from '@/components/ui/card';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SIZES } from '@/lib/data';
 import type { Size } from '@/lib/types';
 
@@ -89,6 +89,9 @@ const FrcBreakdownTable = ({ breakdown }: { breakdown: DummyDataType['breakdown'
 
     return (
         <Card className="mt-4">
+            <CardHeader>
+                <CardTitle>FRC Breakdown</CardTitle>
+            </CardHeader>
             <CardContent className="p-0">
                 <Table>
                     <TableHeader>
@@ -137,14 +140,14 @@ const FrcBreakdownTable = ({ breakdown }: { breakdown: DummyDataType['breakdown'
 
 function MaterialPlanningPageContent() {
     const searchParams = useSearchParams();
-    const orderId = searchParams.get('orderId');
+    const orderIdFromUrl = searchParams.get('orderId');
     const { orders, isScheduleLoaded } = useSchedule();
     const [selectedFrc, setSelectedFrc] = useState<DummyDataType | null>(null);
     
     const order = useMemo(() => {
-        if (!isScheduleLoaded || !orderId) return null;
-        return orders.find(o => o.id === orderId);
-    }, [orderId, orders, isScheduleLoaded]);
+        if (!isScheduleLoaded || !orderIdFromUrl) return null;
+        return orders.find(o => o.id === orderIdFromUrl);
+    }, [orderIdFromUrl, orders, isScheduleLoaded]);
 
     const handleFrcClick = (frcItem: DummyDataType) => {
         setSelectedFrc(prev => prev?.prjNumber === frcItem.prjNumber ? null : frcItem);
@@ -255,5 +258,3 @@ export default function MaterialPlanningPage() {
         </Suspense>
     );
 }
-
-    
