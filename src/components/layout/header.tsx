@@ -82,6 +82,9 @@ export function Header({
                     <DropdownMenuItem>Tentative plan</DropdownMenuItem>
                   </Link>
                 )}
+                <Link href="/plan-log">
+                  <DropdownMenuItem>Plan Log</DropdownMenuItem>
+                </Link>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
