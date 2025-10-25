@@ -427,7 +427,7 @@ export const runTentativePlanForHorizon = (
     while (lastRunEndWeek < (endWeek || 52)) {
         const nextDemandWeekStr = allDemandWeeks.find(w => {
             const weekNum = parseInt(w.slice(1));
-            return weekNum > lastRunEndWeek && (weeklyDemand[w] || 0) > 0;
+            return weekNum >= lastRunEndWeek && (weeklyDemand[w] || 0) > 0;
         });
 
         if (!nextDemandWeekStr) break;
