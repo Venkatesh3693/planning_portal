@@ -67,7 +67,8 @@ const generateRollingProjections = (order: Order, currentWeek: number): Projecti
     if (!firstDemandWeekStr) return [];
     
     // Run baseline to find when production actually starts
-    const baselineResult = runTentativePlanForHorizon(earliestSnapshotWeek, null, earliestDemand, order, 0);
+    const firstTrueDemandWeekNum = parseInt(firstDemandWeekStr.slice(1));
+    const baselineResult = runTentativePlanForHorizon(firstTrueDemandWeekNum, null, earliestDemand, order, 0, firstTrueDemandWeekNum);
     const firstProdWeekStr = Object.keys(baselineResult.plan).find(w => (baselineResult.plan[w] || 0) > 0);
     
     if (!firstProdWeekStr) return [];
@@ -106,7 +107,7 @@ const generateRollingProjections = (order: Order, currentWeek: number): Projecti
         
         const firstTrueDemandWeek = Object.keys(currentDemand).filter(w => currentDemand[w] > 0).map(w => parseInt(w.slice(1))).sort((a,b)=> a-b)[0] || projectionWeek;
 
-        const simResult = runTentativePlanForHorizon(firstTrueDemandWeek, null, currentDemand, order, 0);
+        const simResult = runTentativePlanForHorizon(firstTrueDemandWeek, null, currentDemand, order, 0, firstTrueDemandWeek);
         const simulatedPlan = simResult.plan;
 
         let projectionQty = 0;
@@ -165,23 +166,8 @@ const TentativePlanTable = ({
   planData: Record<string, number>;
   selectedProjection: Projection | null;
 }) => {
-  const { weeks, weeklyData, displayWeeks } = useMemo(() => {
-    if (!order?.fcVsFcDetails || !selectedProjection) return { weeks: [], weeklyData: {}, displayWeeks: [] };
-
-    const snapshot = order.fcVsFcDetails.find(
-      (s) => s.snapshotWeek === selectedProjection.projectionWeek
-    );
-    if (!snapshot) return { weeks: [], weeklyData: {}, displayWeeks: [] };
-
-    const allWeeksInSnapshot = Object.keys(snapshot.forecasts).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
-
-    const data: Record<string, { poFc: number }> = {};
-    allWeeksInSnapshot.forEach((week) => {
-      const forecast = snapshot.forecasts[week]?.total;
-      data[week] = {
-        poFc: (forecast?.po || 0) + (forecast?.fc || 0),
-      };
-    });
+  const { displayWeeks } = useMemo(() => {
+    if (!order?.fcVsFcDetails || !selectedProjection) return { displayWeeks: [] };
 
     const displayWeekSubset = Array.from(
       {
@@ -193,7 +179,7 @@ const TentativePlanTable = ({
       (_, i) => `W${selectedProjection.coverageStartWeek + i}`
     );
 
-    return { weeks: allWeeksInSnapshot, weeklyData: data, displayWeeks: displayWeekSubset };
+    return { displayWeeks: displayWeekSubset };
   }, [order, selectedProjection]);
 
   const totalPlan = useMemo(
@@ -272,11 +258,25 @@ function ProjectionAnalysisPageContent() {
 
     useEffect(() => {
         if (order && projectionDetails.length > 0) {
-            setSelectedProjection(projectionDetails[0]);
+            const firstProj = projectionDetails[0];
+            setSelectedProjection(firstProj);
+            
+            const snapshot = order.fcVsFcDetails?.find(s => s.snapshotWeek === firstProj.projectionWeek);
+            if(snapshot) {
+                const weeklyTotals: Record<string, number> = {};
+                Object.keys(snapshot.forecasts).forEach(week => {
+                    const total = snapshot.forecasts[week]?.total;
+                    weeklyTotals[week] = (total?.po || 0) + (total?.fc || 0);
+                });
+                const firstTrueDemandWeek = Object.keys(weeklyTotals).filter(w => weeklyTotals[w] > 0).map(w => parseInt(w.slice(1))).sort((a,b)=> a-b)[0] || firstProj.projectionWeek;
+                const result = runTentativePlanForHorizon(firstTrueDemandWeek, null, weeklyTotals, order, 0, firstTrueDemandWeek);
+                setPlanData(result.plan);
+            }
+
         } else {
             setSelectedProjection(null);
+            setPlanData({});
         }
-        setPlanData({});
     }, [order, projectionDetails]);
     
     const handleGenerateProjections = () => {
@@ -285,46 +285,26 @@ function ProjectionAnalysisPageContent() {
         setProjectionDetails(projections);
     };
 
-    const handleRunTentativePlan = () => {
-        if (!order || !selectedProjection) return;
+    const handleProjectionChange = (projNumber: string) => {
+        if (!order) return;
+        const proj = projectionDetails.find(p => p.projectionNumber === projNumber);
+        if (!proj) return;
 
-        const snapshot = order.fcVsFcDetails?.find(s => s.snapshotWeek === selectedProjection.projectionWeek);
-        if (!snapshot) return;
+        setSelectedProjection(proj);
 
-        const weeklyTotals: Record<string, number> = {};
-        const allWeeks = Object.keys(snapshot.forecasts).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
-        allWeeks.forEach(week => {
-            const total = snapshot.forecasts[week]?.total;
-            weeklyTotals[week] = (total?.po || 0) + (total?.fc || 0);
-        });
-
-        const firstPoFcWeekStr = allWeeks.find(w => (weeklyTotals[w] || 0) > 0);
-        
-        let closingInventoryOfPreviousWeek = 0;
-        
-        if (firstPoFcWeekStr) {
-            const firstPoFcWeekNum = parseInt(firstPoFcWeekStr.slice(1));
-            
-            const baselineStartWeek = Math.min(selectedProjection.projectionWeek, firstPoFcWeekNum);
-
-            const baselinePlanResult = runTentativePlanForHorizon(baselineStartWeek, null, weeklyTotals, order, 0);
-            const baselinePlan = baselinePlanResult.plan;
-            
-            let inventory = 0;
-            const pastWeeks = allWeeks.filter(w => parseInt(w.slice(1)) < selectedProjection.projectionWeek);
-            
-            for (const weekKey of pastWeeks) {
-                const supplyThisWeek = baselinePlan[weekKey] || 0;
-                const demandThisWeek = weeklyTotals[weekKey] || 0;
-                inventory += supplyThisWeek - demandThisWeek;
-            }
-            closingInventoryOfPreviousWeek = inventory;
+        const snapshot = order.fcVsFcDetails?.find(s => s.snapshotWeek === proj.projectionWeek);
+        if (snapshot) {
+            const weeklyTotals: Record<string, number> = {};
+            Object.keys(snapshot.forecasts).forEach(week => {
+                const total = snapshot.forecasts[week]?.total;
+                weeklyTotals[week] = (total?.po || 0) + (total?.fc || 0);
+            });
+            const firstTrueDemandWeek = Object.keys(weeklyTotals).filter(w => weeklyTotals[w] > 0).map(w => parseInt(w.slice(1))).sort((a,b)=> a-b)[0] || proj.projectionWeek;
+            const result = runTentativePlanForHorizon(firstTrueDemandWeek, null, weeklyTotals, order, 0, firstTrueDemandWeek);
+            setPlanData(result.plan);
         }
-        
-        const currentPlanResult = runTentativePlanForHorizon(selectedProjection.projectionWeek, null, weeklyTotals, order, closingInventoryOfPreviousWeek);
-        
-        setPlanData(currentPlanResult.plan);
     };
+
 
     if (!isScheduleLoaded) {
         return <div className="flex items-center justify-center h-full">Loading analysis data...</div>;
@@ -434,10 +414,7 @@ function ProjectionAnalysisPageContent() {
                                 <Label htmlFor="snapshot-select">Select Projection Week</Label>
                                 <Select
                                   value={selectedProjection?.projectionNumber || ''}
-                                  onValueChange={(projNumber) => {
-                                    const proj = projectionDetails.find(p => p.projectionNumber === projNumber);
-                                    setSelectedProjection(proj || null);
-                                  }}
+                                  onValueChange={handleProjectionChange}
                                 >
                                     <SelectTrigger id="snapshot-select">
                                         <SelectValue placeholder="Select a projection..." />
@@ -452,20 +429,14 @@ function ProjectionAnalysisPageContent() {
                                 </Select>
                             </div>
                         )}
-                        <Button onClick={handleRunTentativePlan} disabled={!selectedProjection}>
-                            <Zap className="mr-2 h-4 w-4" />
-                            Run Tentative Plan
-                        </Button>
                     </div>
 
-                    {Object.keys(planData).length > 0 ? (
+                    {selectedProjection && (
                         <TentativePlanTable
                           order={order}
                           planData={planData}
                           selectedProjection={selectedProjection}
                         />
-                    ) : (
-                         <div className="text-center text-muted-foreground pt-10">Select a projection and click "Run Tentative Plan" to view details.</div>
                     )}
                 </div>
             </main>
