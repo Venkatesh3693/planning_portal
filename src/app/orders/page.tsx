@@ -1145,7 +1145,7 @@ const ForecastedOrderRow = forwardRef<
       
       <TableCell className="text-right font-bold">
         {(order.projection?.total) ? (
-            <Link href={`/projection-analysis?orderId=${order.id}`} passHref>
+            <Link href={`/material-planning?orderId=${order.id}`} passHref>
                 <span className="text-primary cursor-pointer hover:underline">
                     {(order.projection.total || 0).toLocaleString()}
                 </span>
