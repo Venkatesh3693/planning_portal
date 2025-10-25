@@ -65,10 +65,9 @@ const generateRollingProjections = (order: Order, currentWeek: number): Projecti
 
     const firstDemandWeekStr = Object.keys(earliestDemand).find(w => (earliestDemand[w] || 0) > 0);
     if (!firstDemandWeekStr) return [];
-    const firstDemandWeekNum = parseInt(firstDemandWeekStr.slice(1));
     
     // Run baseline to find when production actually starts
-    const baselineResult = runTentativePlanForHorizon(firstDemandWeekNum, null, earliestDemand, order, 0);
+    const baselineResult = runTentativePlanForHorizon(earliestSnapshotWeek, null, earliestDemand, order, 0);
     const firstProdWeekStr = Object.keys(baselineResult.plan).find(w => (baselineResult.plan[w] || 0) > 0);
     
     if (!firstProdWeekStr) return [];
@@ -187,7 +186,7 @@ const TentativePlanTable = ({ order, selectedSnapshotWeek, planData, producedDat
         return { weeks: allWeeks, weeklyData: data };
     }, [latestSnapshot]);
 
-    const totalProduced = useMemo(() => Object.values(producedData).reduce((sum, qty) => sum + qty, 0), [producedData]);
+    const totalPlan = useMemo(() => Object.values(planData).reduce((sum, qty) => sum + qty, 0), [planData]);
     
     if (!latestSnapshot) {
         return <div className="p-4 text-muted-foreground">No forecast snapshot data available for the selected week.</div>;
@@ -210,15 +209,15 @@ const TentativePlanTable = ({ order, selectedSnapshotWeek, planData, producedDat
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow>
-                            <TableCell className="font-medium">Produced</TableCell>
+                         <TableRow>
+                            <TableCell className="font-medium">Plan</TableCell>
                             {weeks.map(week => (
-                                <TableCell key={week} className="text-right text-green-600 font-semibold">
-                                    {(producedData[week] || 0) > 0 ? (producedData[week] || 0).toLocaleString() : '-'}
+                                <TableCell key={week} className="text-right font-semibold">
+                                    {(planData[week] || 0) > 0 ? (planData[week] || 0).toLocaleString() : '-'}
                                 </TableCell>
                             ))}
-                            <TableCell className="text-right font-bold text-green-600">
-                                {totalProduced > 0 ? totalProduced.toLocaleString() : '-'}
+                             <TableCell className="text-right font-bold">
+                                {totalPlan > 0 ? totalPlan.toLocaleString() : '-'}
                             </TableCell>
                         </TableRow>
                     </TableBody>
