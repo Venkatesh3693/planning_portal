@@ -23,10 +23,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
-import { getWeek, addWeeks, startOfWeek, format } from 'date-fns';
+import { getWeek } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Zap } from 'lucide-react';
-import type { Order, FrcDetail, ComponentStatusDetail, BomItem, SizeBreakdown } from '@/lib/types';
+import type { Order } from '@/lib/types';
 import { SIZES } from '@/lib/data';
 import { runTentativePlanForHorizon } from '@/lib/tna-calculator';
 
@@ -54,29 +54,30 @@ const generateRollingProjections = (order: Order, currentWeek: number): Projecti
     // Find the earliest forecast data to establish a baseline
     const snapshotOptions = order.fcVsFcDetails.map(s => s.snapshotWeek).sort((a, b) => a - b);
     if (snapshotOptions.length === 0) return [];
+    
     const earliestSnapshotWeek = snapshotOptions[0];
     const earliestSnapshot = order.fcVsFcDetails.find(s => s.snapshotWeek === earliestSnapshotWeek)!;
-
+    
     const earliestDemand = Object.keys(earliestSnapshot.forecasts).reduce((acc, week) => {
-        acc[week] = (earliestSnapshot.forecasts[week]?.total?.po || 0) + (earliestSnapshot.forecasts[week]?.total?.fc || 0);
+        const weekData = earliestSnapshot.forecasts[week]?.total;
+        if(weekData) acc[week] = weekData.po + weekData.fc;
         return acc;
     }, {} as Record<string, number>);
 
     // Run baseline to find when production actually starts
     const baselineResult = runTentativePlanForHorizon(earliestSnapshotWeek, null, earliestDemand, order, 0);
-    const firstProdWeekNum = parseInt(Object.keys(baselineResult.plan).find(w => (baselineResult.plan[w] || 0) > 0)?.slice(1) || '0');
+    const firstProdWeekStr = Object.keys(baselineResult.plan).find(w => (baselineResult.plan[w] || 0) > 0);
     
-    if (firstProdWeekNum === 0) return [];
-
+    if (!firstProdWeekStr) return [];
+    const firstProdWeekNum = parseInt(firstProdWeekStr.slice(1));
+    
     const maxLeadTimeDays = Math.max(0, ...(order.bom || []).filter(item => item.forecastType === 'Projection').map(item => item.leadTime));
     const maxLeadTimeWeeks = Math.ceil(maxLeadTimeDays / 7);
 
     let projections: Projection[] = [];
     let projIndex = 1;
-    let weeksCovered = 0;
-    
-    // Start generating projections
     let keepGoing = true;
+
     while(keepGoing) {
         const firstCkWeek = firstProdWeekNum - 1;
         const firstProjWeek = firstCkWeek - maxLeadTimeWeeks;
@@ -88,22 +89,22 @@ const generateRollingProjections = (order: Order, currentWeek: number): Projecti
             keepGoing = false;
             continue;
         }
-
-        // Determine current projection's coverage
-        const coverageStartWeek = firstProdWeekNum + weeksCovered;
+        
+        const ckForThisProjection = projectionWeek + maxLeadTimeWeeks;
+        const coverageStartWeek = ckForThisProjection + 1;
         const coverageEndWeek = coverageStartWeek + 3;
 
-        // The key fix: Pass inventory from what we've already projected
-        const inventoryForThisRun = projections.reduce((sum, p) => sum + p.projectionQty, 0);
-
-        // Simulate plan for the current projection week
-        const currentSnapshot = order.fcVsFcDetails.find(s => s.snapshotWeek === projectionWeek) || earliestSnapshot;
+        // Get the demand data for the current projection's snapshot week
+        const currentSnapshot = order.fcVsFcDetails.find(s => s.snapshotWeek === projectionWeek) || order.fcVsFcDetails[order.fcVsFcDetails.length - 1];
         const currentDemand = Object.keys(currentSnapshot.forecasts).reduce((acc, week) => {
-            acc[week] = (currentSnapshot.forecasts[week]?.total?.po || 0) + (currentSnapshot.forecasts[week]?.total?.fc || 0);
-            return acc;
+             const weekData = currentSnapshot.forecasts[week]?.total;
+             if(weekData) acc[week] = weekData.po + weekData.fc;
+             return acc;
         }, {} as Record<string, number>);
         
-        const simResult = runTentativePlanForHorizon(projectionWeek, null, currentDemand, order, inventoryForThisRun);
+        // We run a fresh simulation from the projection week itself, with zero inventory.
+        // This isolates the calculation for this specific projection.
+        const simResult = runTentativePlanForHorizon(projectionWeek, null, currentDemand, order, 0);
         const simulatedPlan = simResult.plan;
 
         let projectionQty = 0;
@@ -111,17 +112,15 @@ const generateRollingProjections = (order: Order, currentWeek: number): Projecti
             projectionQty += simulatedPlan[`W${w}`] || 0;
         }
 
-        if (projectionQty <= 0 && projIndex > 1) { // Always show at least one projection
+        if (projectionQty <= 0 && projIndex > 1) {
             keepGoing = false;
             continue;
         }
         
-        // FRC & Cut Order Mock Data
         const frcQty = Math.round(projectionQty * 0.8);
         const cutOrderQty = Math.round(frcQty * 0.75);
         
-        const ckWeek = coverageStartWeek -1;
-        const frcWeek = ckWeek + 2;
+        const frcWeek = ckForThisProjection + 2;
 
         const frcMaxLeadTimeDays = Math.max(0, ...(order.bom || []).filter(item => item.forecastType === 'FRC').map(item => item.leadTime));
         const frcMaxLeadTimeWeeks = Math.ceil(frcMaxLeadTimeDays / 7);
@@ -129,13 +128,12 @@ const generateRollingProjections = (order: Order, currentWeek: number): Projecti
         const frcCKWeek = frcWeek + frcMaxLeadTimeWeeks;
         const frcCoverageStart = frcCKWeek + 1;
 
-
         projections.push({
             projectionNumber: `PROJ-DYN-${String(projIndex).padStart(2, '0')}`,
             projectionWeek: projectionWeek,
             coverageStartWeek: coverageStartWeek,
             coverageEndWeek: coverageEndWeek,
-            ckWeek: ckWeek,
+            ckWeek: ckForThisProjection,
             projectionQty: Math.round(projectionQty),
             frcNumber: `FRC-DYN-${String(projIndex).padStart(2, '0')}`,
             frcWeek: frcWeek,
@@ -146,7 +144,6 @@ const generateRollingProjections = (order: Order, currentWeek: number): Projecti
             pendingCutOrder: frcQty - cutOrderQty,
         });
 
-        weeksCovered += 4;
         projIndex++;
         if (projIndex > 50) keepGoing = false; // Safety break
     }
