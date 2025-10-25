@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Suspense, useMemo } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useSchedule } from '@/context/schedule-provider';
 import { Header } from '@/components/layout/header';
@@ -15,7 +15,7 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ChevronsUpDown } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -23,9 +23,14 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter,
 } from "@/components/ui/table";
 import { Card, CardContent } from '@/components/ui/card';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { SIZES } from '@/lib/data';
+import type { Size } from '@/lib/types';
 
+// Dummy data structure that now includes what we need for the breakdown
 const dummyData = [
     {
         prjNumber: "PRJ-001",
@@ -34,10 +39,16 @@ const dummyData = [
         ckWeek: "W25",
         prjQty: 40000,
         frcWeek: "W14",
-        frcCoverage: "W30-W33",
+        frcCoverage: "W30-W33", // 4 weeks
         frcQty: 32000,
         cutOrderQty: 30000,
         cutOrderPending: 2000,
+        breakdown: {
+            'W30': { 'S': 500, 'M': 1000, 'L': 500, total: 2000 },
+            'W31': { 'S': 1500, 'M': 4000, 'L': 2500, 'XL': 2000, total: 10000 },
+            'W32': { 'S': 1500, 'M': 4000, 'L': 2500, 'XL': 2000, total: 10000 },
+            'W33': { 'S': 1500, 'M': 4000, 'L': 2500, 'XL': 2000, total: 10000 },
+        }
     },
     {
         prjNumber: "PRJ-002",
@@ -46,46 +57,98 @@ const dummyData = [
         ckWeek: "W29",
         prjQty: 45000,
         frcWeek: "W18",
-        frcCoverage: "W34-W37",
+        frcCoverage: "W34-W37", // 4 weeks
         frcQty: 38000,
         cutOrderQty: 35000,
         cutOrderPending: 3000,
-    },
-    {
-        prjNumber: "PRJ-003",
-        prjWeek: "W18",
-        prjCoverage: "W34-W37",
-        ckWeek: "W33",
-        prjQty: 50000,
-        frcWeek: "W22",
-        frcCoverage: "W38-W41",
-        frcQty: 42000,
-        cutOrderQty: 40000,
-        cutOrderPending: 2000,
-    },
-    {
-        prjNumber: "PRJ-004",
-        prjWeek: "W22",
-        prjCoverage: "W38-W41",
-        ckWeek: "W37",
-        prjQty: 55000,
-        frcWeek: "W26",
-        frcCoverage: "W42-W45",
-        frcQty: 48000,
-        cutOrderQty: 45000,
-        cutOrderPending: 3000,
+        breakdown: {
+            'W34': { 'M': 1000, 'L': 2000, 'XL': 1000, total: 4000 },
+            'W35': { 'M': 4000, 'L': 6000, 'XL': 4000, total: 14000 },
+            'W36': { 'M': 4000, 'L': 6000, 'XL': 4000, total: 14000 },
+            'W37': { 'M': 2000, 'L': 3000, 'XL': 1000, total: 6000 },
+        }
     },
 ];
+
+type DummyDataType = typeof dummyData[0];
+
+const FrcBreakdownTable = ({ breakdown }: { breakdown: DummyDataType['breakdown'] }) => {
+    const weeks = Object.keys(breakdown);
+    const sizeTotals = SIZES.reduce((acc, size) => {
+        acc[size] = 0;
+        return acc;
+    }, {} as Record<Size, number>);
+
+    weeks.forEach(week => {
+        SIZES.forEach(size => {
+            sizeTotals[size] += breakdown[week as keyof typeof breakdown]?.[size as Size] || 0;
+        });
+    });
+
+    const grandTotal = Object.values(sizeTotals).reduce((sum, val) => sum + val, 0);
+
+    return (
+        <Card className="mt-4">
+            <CardContent className="p-0">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Week</TableHead>
+                            {SIZES.map(size => (
+                                <TableHead key={size} className="text-right">{size}</TableHead>
+                            ))}
+                            <TableHead className="text-right font-bold">Total</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {weeks.map(week => {
+                            const weekData = breakdown[week as keyof typeof breakdown];
+                            const weekTotal = Object.values(weekData).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0);
+                            return (
+                                <TableRow key={week}>
+                                    <TableCell className="font-medium">{week}</TableCell>
+                                    {SIZES.map(size => (
+                                        <TableCell key={`${week}-${size}`} className="text-right">
+                                            {(weekData[size as Size] || 0).toLocaleString()}
+                                        </TableCell>
+                                    ))}
+                                    <TableCell className="text-right font-bold">{weekTotal.toLocaleString()}</TableCell>
+                                </TableRow>
+                            );
+                        })}
+                    </TableBody>
+                    <TableFooter>
+                        <TableRow>
+                            <TableCell className="font-bold">Total</TableCell>
+                            {SIZES.map(size => (
+                                <TableCell key={`total-${size}`} className="text-right font-bold">
+                                    {(sizeTotals[size] || 0).toLocaleString()}
+                                </TableCell>
+                            ))}
+                            <TableCell className="text-right font-bold">{grandTotal.toLocaleString()}</TableCell>
+                        </TableRow>
+                    </TableFooter>
+                </Table>
+            </CardContent>
+        </Card>
+    );
+};
+
 
 function MaterialPlanningPageContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get('orderId');
     const { orders, isScheduleLoaded } = useSchedule();
+    const [selectedFrc, setSelectedFrc] = useState<DummyDataType | null>(null);
     
     const order = useMemo(() => {
         if (!isScheduleLoaded || !orderId) return null;
         return orders.find(o => o.id === orderId);
     }, [orderId, orders, isScheduleLoaded]);
+
+    const handleFrcClick = (frcItem: DummyDataType) => {
+        setSelectedFrc(prev => prev?.prjNumber === frcItem.prjNumber ? null : frcItem);
+    };
 
     if (!isScheduleLoaded) {
         return <div className="flex items-center justify-center h-full">Loading data...</div>;
@@ -160,7 +223,14 @@ function MaterialPlanningPageContent() {
                                         <TableCell className="text-right">{row.prjQty.toLocaleString()}</TableCell>
                                         <TableCell>{row.frcWeek}</TableCell>
                                         <TableCell>{row.frcCoverage}</TableCell>
-                                        <TableCell className="text-right">{row.frcQty.toLocaleString()}</TableCell>
+                                        <TableCell className="text-right">
+                                            <span 
+                                                className="font-medium text-primary cursor-pointer hover:underline"
+                                                onClick={() => handleFrcClick(row)}
+                                            >
+                                                {row.frcQty.toLocaleString()}
+                                            </span>
+                                        </TableCell>
                                         <TableCell className="text-right">{row.cutOrderQty.toLocaleString()}</TableCell>
                                         <TableCell className="text-right">{row.cutOrderPending.toLocaleString()}</TableCell>
                                     </TableRow>
@@ -169,6 +239,10 @@ function MaterialPlanningPageContent() {
                         </Table>
                     </CardContent>
                 </Card>
+
+                {selectedFrc && (
+                    <FrcBreakdownTable breakdown={selectedFrc.breakdown} />
+                )}
             </main>
         </div>
     );
@@ -181,3 +255,5 @@ export default function MaterialPlanningPage() {
         </Suspense>
     );
 }
+
+    
