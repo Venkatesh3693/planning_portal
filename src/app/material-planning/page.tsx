@@ -50,31 +50,21 @@ type ProjectionRow = {
 
 const FrcBreakdownTable = ({ breakdown, coverage }: { breakdown?: ProjectionRow['breakdown'], coverage: string }) => {
     if (!breakdown || Object.keys(breakdown).length === 0) {
-      return (
-          <Card className="mt-4">
-              <CardHeader>
-                  <CardTitle>FRC Breakdown</CardTitle>
-              </CardHeader>
-              <CardContent>
-                  <p className="text-muted-foreground">No size breakdown available for this FRC. This may be due to missing forecast snapshot data for the calculated FRC week.</p>
-              </CardContent>
-          </Card>
-      );
+        return (
+            <Card className="mt-4">
+                <CardHeader>
+                    <CardTitle>FRC Breakdown</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-muted-foreground">No size breakdown available for this FRC. This may be due to missing forecast snapshot data for the calculated FRC week.</p>
+                </CardContent>
+            </Card>
+        );
     }
+    
+    const breakdownData = breakdown['FRC'];
+    if (!breakdownData) return null;
 
-    const sizeTotals = SIZES.reduce((acc, size) => {
-        acc[size] = 0;
-        return acc;
-    }, {} as Record<Size, number>);
-
-    const weeks = Object.keys(breakdown);
-    weeks.forEach(week => {
-        SIZES.forEach(size => {
-            sizeTotals[size] += breakdown[week as keyof typeof breakdown]?.[size as Size] || 0;
-        });
-    });
-
-    const grandTotal = Object.values(sizeTotals).reduce((sum, val) => sum + val, 0);
 
     return (
         <Card className="mt-4">
@@ -85,26 +75,26 @@ const FrcBreakdownTable = ({ breakdown, coverage }: { breakdown?: ProjectionRow[
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Size</TableHead>
-                            <TableHead className="text-right">Quantity</TableHead>
+                            <TableHead>Breakdown</TableHead>
+                            {SIZES.map(size => (
+                                <TableHead key={size} className="text-right">{size}</TableHead>
+                            ))}
+                            <TableHead className="text-right font-bold">Total</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {SIZES.map(size => (
-                           <TableRow key={size}>
-                                <TableCell className="font-medium">{size}</TableCell>
-                                <TableCell className="text-right">
-                                    {(sizeTotals[size] || 0).toLocaleString()}
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                    <TableFooter>
                         <TableRow>
-                            <TableCell className="font-bold">Total</TableCell>
-                            <TableCell className="text-right font-bold">{grandTotal.toLocaleString()}</TableCell>
+                            <TableCell className="font-medium">Quantity</TableCell>
+                            {SIZES.map(size => (
+                               <TableCell key={size} className="text-right">
+                                    {(breakdownData[size] || 0).toLocaleString()}
+                                </TableCell>
+                            ))}
+                            <TableCell className="text-right font-bold">
+                                {(breakdownData.total || 0).toLocaleString()}
+                            </TableCell>
                         </TableRow>
-                    </TableFooter>
+                    </TableBody>
                 </Table>
             </CardContent>
         </Card>
@@ -157,7 +147,6 @@ function MaterialPlanningPageContent() {
         let currentProjectionWeek = firstProjectionWeek;
         let projectionIndex = 1;
         
-        let cumulativePrjQty = 0;
         let cumulativeFrcBreakdown: Partial<Record<Size, number>> = {};
 
         while (currentProjectionWeek < 52) {
@@ -177,8 +166,6 @@ function MaterialPlanningPageContent() {
                 continue;
             }
 
-            cumulativePrjQty += projectionQty;
-
             // --- FRC Calculation ---
             const frcWeekNum = currentCkWeek - maxFrcLeadTimeWeeks;
             const frcWeek = `W${frcWeekNum}`;
@@ -194,6 +181,7 @@ function MaterialPlanningPageContent() {
                 const firstPoFcWeek = poFcWeeks.find(w => (snapshotForFrc.forecasts[w].total?.po || 0) + (snapshotForFrc.forecasts[w].total?.fc || 0) > 0);
 
                 if (firstPoFcWeek) {
+                    const cumulativeTarget = Object.values(projections).reduce((sum, p) => sum + p.prjQty, 0) + projectionQty;
                     let runningTotal = 0;
                     let endCoverageWeek = '';
                     const newCumulativeBreakdown: Partial<Record<Size, number>> = {};
@@ -205,8 +193,8 @@ function MaterialPlanningPageContent() {
                             const demand = snapshotForFrc.forecasts[week]?.[size];
                             const qty = (demand?.po || 0) + (demand?.fc || 0);
 
-                            if (runningTotal + qty >= cumulativePrjQty) {
-                                const needed = cumulativePrjQty - runningTotal;
+                            if (runningTotal + qty >= cumulativeTarget) {
+                                const needed = cumulativeTarget - runningTotal;
                                 newCumulativeBreakdown[size] = (newCumulativeBreakdown[size] || 0) + needed;
                                 runningTotal += needed;
                                 endCoverageWeek = week;
@@ -230,11 +218,12 @@ function MaterialPlanningPageContent() {
                             totalInBreakdown += newlyAdded;
                         }
 
-                        // Due to rounding, adjust the last size to match target FRC Qty
                         const adjustment = targetFrcQty - totalInBreakdown;
-                        const lastSizeWithQty = [...SIZES].reverse().find(s => currentFrcBreakdown[s]!! > 0);
-                        if(lastSizeWithQty) currentFrcBreakdown[lastSizeWithQty]! += adjustment;
-
+                        if (adjustment !== 0) {
+                            const lastSizeWithQty = [...SIZES].reverse().find(s => (currentFrcBreakdown[s] || 0) > 0);
+                            if(lastSizeWithQty) currentFrcBreakdown[lastSizeWithQty] = (currentFrcBreakdown[lastSizeWithQty] || 0) + adjustment;
+                        }
+                        
                         frcBreakdown = { 'FRC': { ...currentFrcBreakdown, total: targetFrcQty } as any };
                         cumulativeFrcBreakdown = newCumulativeBreakdown;
                     }
@@ -251,7 +240,7 @@ function MaterialPlanningPageContent() {
                 frcNumber: `FRC-${order.ocn}-${projectionIndex.toString().padStart(2, '0')}`,
                 frcWeek: frcWeek,
                 frcCoverage: frcCoverage,
-                frcQty: targetFrcQty, // Same as projection
+                frcQty: targetFrcQty,
                 cutOrderQty: Math.round(targetFrcQty * 0.7), // Dummy
                 cutOrderPending: Math.round(targetFrcQty * 0.1), // Dummy
                 breakdown: frcBreakdown
@@ -411,3 +400,6 @@ export default function MaterialPlanningPage() {
     );
 }
 
+
+
+    
