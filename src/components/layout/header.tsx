@@ -77,6 +77,11 @@ export function Header({
                         <DropdownMenuItem>Demand Analysis</DropdownMenuItem>
                     </Link>
                 )}
+                 {appMode === 'gut' && (
+                    <Link href="/size-wise-demand">
+                        <DropdownMenuItem>Size-wise Demand</DropdownMenuItem>
+                    </Link>
+                )}
                 {appMode === 'gut' && (
                   <Link href="/tentative-plan">
                     <DropdownMenuItem>Tentative plan</DropdownMenuItem>
