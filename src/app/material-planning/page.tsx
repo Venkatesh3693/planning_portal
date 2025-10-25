@@ -28,62 +28,29 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SIZES } from '@/lib/data';
-import type { Size } from '@/lib/types';
+import type { Order, Size, BomItem } from '@/lib/types';
+import { runTentativePlanForHorizon } from '@/lib/tna-calculator';
 
-// Dummy data structure that now includes what we need for the breakdown
-const dummyData = [
-    {
-        prjNumber: "PRJ-001",
-        prjWeek: "W10",
-        prjCoverage: "W26-W29",
-        ckWeek: "W25",
-        prjQty: 40000,
-        frcNumber: "FRC-001",
-        frcWeek: "W14",
-        frcCoverage: "W30-W35", // Cumulative PO+FC from W30 to W35 is 44,000, which covers PRJ-001's 40,000
-        frcQty: 44000,
-        cutOrderQty: 30000,
-        cutOrderPending: 14000,
-        breakdown: {
-            'W30': { 'S': 500, 'M': 1000, 'L': 500, total: 2000 },
-            'W31': { 'S': 1500, 'M': 4000, 'L': 2500, 'XL': 2000, total: 10000 },
-            'W32': { 'S': 1500, 'M': 4000, 'L': 2500, 'XL': 2000, total: 10000 },
-            'W33': { 'S': 1500, 'M': 4000, 'L': 2500, 'XL': 2000, total: 10000 },
-            'W34': { 'M': 1000, 'L': 2000, 'XL': 1000, total: 4000 },
-            'W35': { 'M': 4000, 'L': 6000, 'XL': 4000, total: 14000 },
-            'W36': { 'M': 4000, 'L': 6000, 'XL': 4000, total: 14000 },
-            'W37': { 'M': 2000, 'L': 3000, 'XL': 1000, total: 6000 },
-        }
-    },
-    {
-        prjNumber: "PRJ-002",
-        prjWeek: "W14",
-        prjCoverage: "W30-W33",
-        ckWeek: "W29",
-        prjQty: 45000,
-        frcNumber: "FRC-002",
-        frcWeek: "W18",
-        frcCoverage: "W30-W36", // Cumulative PRJ Qty = 40k + 45k = 85k. Cumulative PO+FC from W30 to W36 is 58k, which is the closest match
-        frcQty: 58000,
-        cutOrderQty: 35000,
-        cutOrderPending: 23000,
-        breakdown: {
-            'W30': { 'S': 500, 'M': 1000, 'L': 500, total: 2000 },
-            'W31': { 'S': 1500, 'M': 4000, 'L': 2500, 'XL': 2000, total: 10000 },
-            'W32': { 'S': 1500, 'M': 4000, 'L': 2500, 'XL': 2000, total: 10000 },
-            'W33': { 'S': 1500, 'M': 4000, 'L': 2500, 'XL': 2000, total: 10000 },
-            'W34': { 'M': 1000, 'L': 2000, 'XL': 1000, total: 4000 },
-            'W35': { 'M': 4000, 'L': 6000, 'XL': 4000, total: 14000 },
-            'W36': { 'M': 4000, 'L': 6000, 'XL': 4000, total: 14000 },
-            'W37': { 'M': 2000, 'L': 3000, 'XL': 1000, total: 6000 },
-        }
-    },
-];
 
-type DummyDataType = typeof dummyData[0];
+type ProjectionRow = {
+    prjNumber: string;
+    prjWeek: string;
+    prjCoverage: string;
+    ckWeek: string;
+    prjQty: number;
+    frcNumber: string;
+    frcWeek: string;
+    frcCoverage: string;
+    frcQty: number;
+    cutOrderQty: number;
+    cutOrderPending: number;
+    breakdown?: Record<string, Record<Size, number> & { total: number }>;
+};
 
-const FrcBreakdownTable = ({ breakdown, coverage }: { breakdown: DummyDataType['breakdown'], coverage: string }) => {
-    
+
+const FrcBreakdownTable = ({ breakdown, coverage }: { breakdown: ProjectionRow['breakdown'], coverage: string }) => {
+    if (!breakdown) return null;
+
     const [startWeekStr, endWeekStr] = coverage.split('-');
     const startWeek = parseInt(startWeekStr.replace('W', ''));
     const endWeek = parseInt(endWeekStr.replace('W', ''));
@@ -161,14 +128,85 @@ function MaterialPlanningPageContent() {
     const searchParams = useSearchParams();
     const orderIdFromUrl = searchParams.get('orderId');
     const { orders, isScheduleLoaded } = useSchedule();
-    const [selectedFrc, setSelectedFrc] = useState<DummyDataType | null>(null);
+    const [selectedFrc, setSelectedFrc] = useState<ProjectionRow | null>(null);
     
     const order = useMemo(() => {
         if (!isScheduleLoaded || !orderIdFromUrl) return null;
         return orders.find(o => o.id === orderIdFromUrl);
     }, [orderIdFromUrl, orders, isScheduleLoaded]);
 
-    const handleFrcClick = (frcItem: DummyDataType) => {
+    const projectionData = useMemo(() => {
+        if (!order || !order.fcVsFcDetails || order.fcVsFcDetails.length === 0) {
+            return [];
+        }
+
+        const firstSnapshot = order.fcVsFcDetails.reduce((earliest, current) => 
+            earliest.snapshotWeek < current.snapshotWeek ? earliest : current
+        );
+
+        const weeklyTotals: Record<string, number> = {};
+        Object.entries(firstSnapshot.forecasts).forEach(([week, data]) => {
+            weeklyTotals[week] = (data.total?.po || 0) + (data.total?.fc || 0);
+        });
+
+        const { plan } = runTentativePlanForHorizon(firstSnapshot.snapshotWeek, null, weeklyTotals, order, 0);
+        
+        const planWeeks = Object.keys(plan).map(w => parseInt(w.slice(1))).sort((a, b) => a - b);
+        const firstProductionWeek = planWeeks.find(w => plan[`W${w}`] > 0);
+
+        if (!firstProductionWeek) return [];
+
+        const firstCkWeek = firstProductionWeek - 1;
+        
+        const projectionBomItems = (order.bom || []).filter(item => item.forecastType === 'Projection');
+        const maxLeadTimeDays = Math.max(...projectionBomItems.map(item => item.leadTime), 0);
+        const maxLeadTimeWeeks = Math.ceil(maxLeadTimeDays / 7);
+
+        const firstProjectionWeek = firstCkWeek - maxLeadTimeWeeks;
+
+        const projections: ProjectionRow[] = [];
+        let currentProjectionWeek = firstProjectionWeek;
+        let projectionIndex = 1;
+
+        while (currentProjectionWeek < 52) {
+            const currentCkWeek = currentProjectionWeek + maxLeadTimeWeeks;
+            const coverageStart = currentCkWeek + 1;
+            const coverageEnd = currentCkWeek + 4;
+            
+            let projectionQty = 0;
+            for (let w = coverageStart; w <= coverageEnd; w++) {
+                projectionQty += plan[`W${w}`] || 0;
+            }
+
+            if (projectionQty > 0 || projections.length > 0) {
+                 projections.push({
+                    prjNumber: `PRJ-${order.ocn}-${projectionIndex.toString().padStart(2, '0')}`,
+                    prjWeek: `W${currentProjectionWeek}`,
+                    prjCoverage: `W${coverageStart}-W${coverageEnd}`,
+                    ckWeek: `W${currentCkWeek}`,
+                    prjQty: Math.round(projectionQty),
+                    // Dummy data for now
+                    frcNumber: `FRC-${order.ocn}-${projectionIndex.toString().padStart(2, '0')}`,
+                    frcWeek: `W${currentProjectionWeek + 2}`,
+                    frcCoverage: `W${coverageStart}-W${coverageEnd + 2}`, // Example dummy coverage
+                    frcQty: Math.round(projectionQty * 0.8),
+                    cutOrderQty: Math.round(projectionQty * 0.7),
+                    cutOrderPending: Math.round(projectionQty * 0.1),
+                    breakdown: {} // will be filled with dummy data
+                });
+                projectionIndex++;
+            }
+            
+            if (Object.keys(plan).filter(w => parseInt(w.slice(1)) > coverageEnd).length === 0) break;
+
+            currentProjectionWeek += 4;
+        }
+
+        return projections;
+    }, [order]);
+
+
+    const handleFrcClick = (frcItem: ProjectionRow) => {
         setSelectedFrc(prev => prev?.prjNumber === frcItem.prjNumber ? null : frcItem);
     };
 
@@ -237,7 +275,7 @@ function MaterialPlanningPageContent() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {dummyData.map((row) => (
+                                {projectionData.length > 0 ? projectionData.map((row) => (
                                     <TableRow key={row.prjNumber}>
                                         <TableCell className="font-medium">{row.prjNumber}</TableCell>
                                         <TableCell>{row.prjWeek}</TableCell>
@@ -258,7 +296,13 @@ function MaterialPlanningPageContent() {
                                         <TableCell className="text-right">{row.cutOrderQty.toLocaleString()}</TableCell>
                                         <TableCell className="text-right">{row.cutOrderPending.toLocaleString()}</TableCell>
                                     </TableRow>
-                                ))}
+                                )) : (
+                                    <TableRow>
+                                        <TableCell colSpan={11} className="h-24 text-center">
+                                            No projection data available for this order.
+                                        </TableCell>
+                                    </TableRow>
+                                )}
                             </TableBody>
                         </Table>
                     </CardContent>
