@@ -81,10 +81,12 @@ const generateRollingProjections = (order: Order, currentWeek: number): Projecti
     let projIndex = 1;
     let keepGoing = true;
 
-    while(keepGoing) {
-        const firstCkWeek = firstProdWeekNum - 1;
-        const firstProjWeek = firstCkWeek - maxLeadTimeWeeks;
+    // Correctly determine the starting CK week and the first projection week.
+    const firstCkWeek = firstProdWeekNum - 1;
+    const firstProjWeek = firstCkWeek - maxLeadTimeWeeks;
 
+
+    while(keepGoing) {
         // Determine current projection's week
         const projectionWeek = firstProjWeek + ((projIndex - 1) * 4);
 
@@ -259,20 +261,7 @@ function ProjectionAnalysisPageContent() {
     useEffect(() => {
         if (order && projectionDetails.length > 0) {
             const firstProj = projectionDetails[0];
-            setSelectedProjection(firstProj);
-            
-            const snapshot = order.fcVsFcDetails?.find(s => s.snapshotWeek === firstProj.projectionWeek);
-            if(snapshot) {
-                const weeklyTotals: Record<string, number> = {};
-                Object.keys(snapshot.forecasts).forEach(week => {
-                    const total = snapshot.forecasts[week]?.total;
-                    weeklyTotals[week] = (total?.po || 0) + (total?.fc || 0);
-                });
-                const firstTrueDemandWeek = Object.keys(weeklyTotals).filter(w => weeklyTotals[w] > 0).map(w => parseInt(w.slice(1))).sort((a,b)=> a-b)[0] || firstProj.projectionWeek;
-                const result = runTentativePlanForHorizon(firstTrueDemandWeek, null, weeklyTotals, order, 0, firstTrueDemandWeek);
-                setPlanData(result.plan);
-            }
-
+            handleProjectionChange(firstProj.projectionNumber);
         } else {
             setSelectedProjection(null);
             setPlanData({});
