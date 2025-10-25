@@ -79,7 +79,7 @@ function PlanLogPageContent() {
         const sortedWeeks = Array.from(weekSet).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
 
         setAllWeeks(sortedWeeks);
-        setPlanLogs(newPlanLogs.sort((a,b) => b.snapshotWeek - a.snapshotWeek));
+        setPlanLogs(newPlanLogs.sort((a,b) => a.snapshotWeek - b.snapshotWeek));
 
     }, [selectedOrderId, gutOrders]);
 
