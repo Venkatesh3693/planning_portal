@@ -38,6 +38,7 @@ const dummyData = [
         prjCoverage: "W26-W29",
         ckWeek: "W25",
         prjQty: 40000,
+        frcNumber: "FRC-001",
         frcWeek: "W14",
         frcCoverage: "W30-W33", // 4 weeks
         frcQty: 32000,
@@ -56,6 +57,7 @@ const dummyData = [
         prjCoverage: "W30-W33",
         ckWeek: "W29",
         prjQty: 45000,
+        frcNumber: "FRC-002",
         frcWeek: "W18",
         frcCoverage: "W34-W37", // 4 weeks
         frcQty: 38000,
@@ -209,6 +211,7 @@ function MaterialPlanningPageContent() {
                                     <TableHead>PRJ Coverage weeks</TableHead>
                                     <TableHead>CK Week</TableHead>
                                     <TableHead className="text-right">Projection Qty</TableHead>
+                                    <TableHead>FRC #</TableHead>
                                     <TableHead>FRC Week</TableHead>
                                     <TableHead>FRC Coverage weeks</TableHead>
                                     <TableHead className="text-right">FRC Qty</TableHead>
@@ -224,6 +227,7 @@ function MaterialPlanningPageContent() {
                                         <TableCell>{row.prjCoverage}</TableCell>
                                         <TableCell>{row.ckWeek}</TableCell>
                                         <TableCell className="text-right">{row.prjQty.toLocaleString()}</TableCell>
+                                        <TableCell>{row.frcNumber}</TableCell>
                                         <TableCell>{row.frcWeek}</TableCell>
                                         <TableCell>{row.frcCoverage}</TableCell>
                                         <TableCell className="text-right">
