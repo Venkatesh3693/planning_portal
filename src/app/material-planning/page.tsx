@@ -205,6 +205,19 @@ function MaterialPlanningPageContent() {
         return projections;
     }, [order]);
 
+    const projectionTotals = useMemo(() => {
+        return projectionData.reduce(
+            (acc, row) => {
+                acc.prjQty += row.prjQty;
+                acc.frcQty += row.frcQty;
+                acc.cutOrderQty += row.cutOrderQty;
+                acc.cutOrderPending += row.cutOrderPending;
+                return acc;
+            },
+            { prjQty: 0, frcQty: 0, cutOrderQty: 0, cutOrderPending: 0 }
+        );
+    }, [projectionData]);
+
 
     const handleFrcClick = (frcItem: ProjectionRow) => {
         setSelectedFrc(prev => prev?.prjNumber === frcItem.prjNumber ? null : frcItem);
@@ -304,6 +317,18 @@ function MaterialPlanningPageContent() {
                                     </TableRow>
                                 )}
                             </TableBody>
+                            {projectionData.length > 0 && (
+                                <TableFooter>
+                                    <TableRow>
+                                        <TableCell colSpan={4} className="font-bold text-right">Total</TableCell>
+                                        <TableCell className="text-right font-bold">{projectionTotals.prjQty.toLocaleString()}</TableCell>
+                                        <TableCell colSpan={3}></TableCell>
+                                        <TableCell className="text-right font-bold">{projectionTotals.frcQty.toLocaleString()}</TableCell>
+                                        <TableCell className="text-right font-bold">{projectionTotals.cutOrderQty.toLocaleString()}</TableCell>
+                                        <TableCell className="text-right font-bold">{projectionTotals.cutOrderPending.toLocaleString()}</TableCell>
+                                    </TableRow>
+                                </TableFooter>
+                            )}
                         </Table>
                     </CardContent>
                 </Card>
