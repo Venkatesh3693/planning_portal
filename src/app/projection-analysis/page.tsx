@@ -165,15 +165,25 @@ const TentativePlanTable = ({
   planData: Record<string, number>;
   selectedProjection: Projection | null;
 }) => {
-  const { weeks, weeklyData } = useMemo(() => {
-    if (!order?.fcVsFcDetails || !selectedProjection) return { weeks: [], weeklyData: {} };
+  const { weeks, weeklyData, displayWeeks } = useMemo(() => {
+    if (!order?.fcVsFcDetails || !selectedProjection) return { weeks: [], weeklyData: {}, displayWeeks: [] };
 
     const snapshot = order.fcVsFcDetails.find(
       (s) => s.snapshotWeek === selectedProjection.projectionWeek
     );
-    if (!snapshot) return { weeks: [], weeklyData: {} };
+    if (!snapshot) return { weeks: [], weeklyData: {}, displayWeeks: [] };
 
-    const allWeeks = Array.from(
+    const allWeeksInSnapshot = Object.keys(snapshot.forecasts).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
+
+    const data: Record<string, { poFc: number }> = {};
+    allWeeksInSnapshot.forEach((week) => {
+      const forecast = snapshot.forecasts[week]?.total;
+      data[week] = {
+        poFc: (forecast?.po || 0) + (forecast?.fc || 0),
+      };
+    });
+
+    const displayWeekSubset = Array.from(
       {
         length:
           selectedProjection.coverageEndWeek -
@@ -183,20 +193,12 @@ const TentativePlanTable = ({
       (_, i) => `W${selectedProjection.coverageStartWeek + i}`
     );
 
-    const data: Record<string, { poFc: number }> = {};
-    allWeeks.forEach((week) => {
-      const forecast = snapshot.forecasts[week]?.total;
-      data[week] = {
-        poFc: (forecast?.po || 0) + (forecast?.fc || 0),
-      };
-    });
-
-    return { weeks: allWeeks, weeklyData: data };
+    return { weeks: allWeeksInSnapshot, weeklyData: data, displayWeeks: displayWeekSubset };
   }, [order, selectedProjection]);
 
   const totalPlan = useMemo(
-    () => weeks.reduce((sum, week) => sum + (planData[week] || 0), 0),
-    [planData, weeks]
+    () => displayWeeks.reduce((sum, week) => sum + (planData[week] || 0), 0),
+    [planData, displayWeeks]
   );
 
   if (!selectedProjection) {
@@ -219,7 +221,7 @@ const TentativePlanTable = ({
           <TableHeader>
             <TableRow>
               <TableHead className="w-[200px] font-bold">Dimension</TableHead>
-              {weeks.map((week) => (
+              {displayWeeks.map((week) => (
                 <TableHead key={week} className="text-right">
                   {week}
                 </TableHead>
@@ -230,7 +232,7 @@ const TentativePlanTable = ({
           <TableBody>
             <TableRow>
               <TableCell className="font-medium">Plan</TableCell>
-              {weeks.map((week) => (
+              {displayWeeks.map((week) => (
                 <TableCell key={week} className="text-right font-semibold">
                   {(planData[week] || 0) > 0
                     ? (planData[week] || 0).toLocaleString()
@@ -258,9 +260,7 @@ function ProjectionAnalysisPageContent() {
     const [currentWeek, setCurrentWeek] = useState(0);
     const [selectedProjection, setSelectedProjection] = useState<Projection | null>(null);
     const [planData, setPlanData] = useState<Record<string, number>>({});
-    const [producedData, setProducedData] = useState<Record<string, number>>({});
-
-
+    
     useEffect(() => {
         setCurrentWeek(getWeek(new Date()));
     }, []);
@@ -277,7 +277,6 @@ function ProjectionAnalysisPageContent() {
             setSelectedProjection(null);
         }
         setPlanData({});
-        setProducedData({});
     }, [order, projectionDetails]);
     
     const handleGenerateProjections = () => {
@@ -301,7 +300,6 @@ function ProjectionAnalysisPageContent() {
 
         const firstPoFcWeekStr = allWeeks.find(w => (weeklyTotals[w] || 0) > 0);
         
-        let finalProducedData: Record<string, number> = {};
         let closingInventoryOfPreviousWeek = 0;
         
         if (firstPoFcWeekStr) {
@@ -319,17 +317,12 @@ function ProjectionAnalysisPageContent() {
                 const supplyThisWeek = baselinePlan[weekKey] || 0;
                 const demandThisWeek = weeklyTotals[weekKey] || 0;
                 inventory += supplyThisWeek - demandThisWeek;
-                
-                if (supplyThisWeek > 0) {
-                  finalProducedData[weekKey] = supplyThisWeek;
-                }
             }
             closingInventoryOfPreviousWeek = inventory;
         }
         
         const currentPlanResult = runTentativePlanForHorizon(selectedProjection.projectionWeek, null, weeklyTotals, order, closingInventoryOfPreviousWeek);
         
-        setProducedData(finalProducedData);
         setPlanData(currentPlanResult.plan);
     };
 
