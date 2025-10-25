@@ -15,73 +15,22 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { Order, FcSnapshot } from '@/lib/types';
+import type { Order } from '@/lib/types';
 import { runTentativePlanForHorizon } from '@/lib/tna-calculator';
 
 
 type PlanLogRow = {
     snapshotWeek: number;
-    weeks: string[];
-    poFcData: Record<string, number>;
     planData: Record<string, number>;
-    totalPoFc: number;
-    totalPlan: number;
 };
-
-const PlanLogTable = ({ log }: { log: PlanLogRow }) => {
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Snapshot Week: {log.snapshotWeek}</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead className="w-[150px] font-bold">Dimension</TableHead>
-                            {log.weeks.map(week => (
-                                <TableHead key={week} className="text-right">{week}</TableHead>
-                            ))}
-                            <TableHead className="text-right font-bold">Total</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        <TableRow>
-                            <TableCell className="font-medium">PO + FC</TableCell>
-                            {log.weeks.map(week => (
-                                <TableCell key={week} className="text-right">
-                                    {(log.poFcData[week] || 0).toLocaleString()}
-                                </TableCell>
-                            ))}
-                            <TableCell className="text-right font-bold">
-                                {log.totalPoFc.toLocaleString()}
-                            </TableCell>
-                        </TableRow>
-                        <TableRow>
-                            <TableCell className="font-medium">Plan</TableCell>
-                            {log.weeks.map(week => (
-                                <TableCell key={week} className="text-right font-semibold">
-                                    {(log.planData[week] || 0) > 0 ? (log.planData[week] || 0).toLocaleString() : '-'}
-                                </TableCell>
-                            ))}
-                            <TableCell className="text-right font-bold">
-                                {log.totalPlan > 0 ? log.totalPlan.toLocaleString() : '-'}
-                            </TableCell>
-                        </TableRow>
-                    </TableBody>
-                </Table>
-            </CardContent>
-        </Card>
-    );
-};
-
 
 function PlanLogPageContent() {
-    const { orders, isScheduleLoaded } = useSchedule();
+    const { orders, isScheduleLoaded, appMode } = useSchedule();
     const [selectedOrderId, setSelectedOrderId] = useState<string>('');
     const [planLogs, setPlanLogs] = useState<PlanLogRow[]>([]);
+    const [allWeeks, setAllWeeks] = useState<string[]>([]);
 
     const gutOrders = useMemo(() => {
         if (!isScheduleLoaded) return [];
@@ -91,50 +40,66 @@ function PlanLogPageContent() {
     useEffect(() => {
         if (!selectedOrderId) {
             setPlanLogs([]);
+            setAllWeeks([]);
             return;
         }
 
         const order = gutOrders.find(o => o.id === selectedOrderId);
         if (!order || !order.fcVsFcDetails) {
             setPlanLogs([]);
+            setAllWeeks([]);
             return;
         }
 
         const newPlanLogs: PlanLogRow[] = [];
+        const weekSet = new Set<string>();
 
-        // Iterate through each snapshot for the selected order
         order.fcVsFcDetails.forEach(snapshot => {
             const weeklyTotals: Record<string, number> = {};
-            const allWeeks = Object.keys(snapshot.forecasts).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
+            const snapshotWeeks = Object.keys(snapshot.forecasts).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
             
-            allWeeks.forEach(week => {
+            snapshotWeeks.forEach(week => {
                 const total = snapshot.forecasts[week]?.total;
                 weeklyTotals[week] = (total?.po || 0) + (total?.fc || 0);
             });
             
-            // Run the same planning logic from the tentative plan page
             const { plan } = runTentativePlanForHorizon(snapshot.snapshotWeek, null, weeklyTotals, order, 0);
 
-            const firstRelevantWeekIndex = allWeeks.findIndex(w => (weeklyTotals[w] || 0) > 0 || (plan[w] || 0) > 0);
-            const relevantWeeks = firstRelevantWeekIndex !== -1 ? allWeeks.slice(firstRelevantWeekIndex) : [];
-
-            const totalPoFc = relevantWeeks.reduce((sum, week) => sum + (weeklyTotals[week] || 0), 0);
-            const totalPlan = relevantWeeks.reduce((sum, week) => sum + (plan[week] || 0), 0);
-            
             newPlanLogs.push({
                 snapshotWeek: snapshot.snapshotWeek,
-                weeks: relevantWeeks,
-                poFcData: weeklyTotals,
                 planData: plan,
-                totalPoFc: totalPoFc,
-                totalPlan: totalPlan
+            });
+
+            Object.keys(plan).forEach(week => {
+                if(plan[week] > 0) weekSet.add(week);
             });
         });
         
+        const sortedWeeks = Array.from(weekSet).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
+
+        setAllWeeks(sortedWeeks);
         setPlanLogs(newPlanLogs.sort((a,b) => b.snapshotWeek - a.snapshotWeek));
 
     }, [selectedOrderId, gutOrders]);
 
+    if (appMode === 'gup') {
+        return (
+            <div className="flex h-screen flex-col">
+              <Header />
+              <main className="flex-1 p-4 sm:p-6 lg:p-8 flex items-center justify-center">
+                <div className="text-center">
+                  <h2 className="text-xl font-semibold">Plan Log Not Available</h2>
+                  <p className="mt-2 text-muted-foreground">
+                    This view is only applicable for GUT mode.
+                  </p>
+                  <Button asChild className="mt-6">
+                    <Link href="/orders">View GUP Orders</Link>
+                  </Button>
+                </div>
+              </main>
+            </div>
+        )
+    }
 
     return (
         <div className="flex h-screen flex-col">
@@ -178,15 +143,45 @@ function PlanLogPageContent() {
                         </Select>
                     </div>
 
-                    <div className="space-y-6">
-                        {planLogs.length > 0 ? (
-                            planLogs.map(log => <PlanLogTable key={log.snapshotWeek} log={log} />)
-                        ) : (
-                            <div className="border rounded-lg p-10 text-center text-muted-foreground">
-                                {selectedOrderId ? 'No plan logs found for this order.' : 'Please select an order to view its plan log.'}
-                            </div>
-                        )}
-                    </div>
+                    <Card>
+                        <CardContent className="p-0">
+                            {planLogs.length > 0 && allWeeks.length > 0 ? (
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="font-bold min-w-[150px]">Snapshot Week</TableHead>
+                                            {allWeeks.map(week => (
+                                                <TableHead key={week} className="text-right">{week}</TableHead>
+                                            ))}
+                                            <TableHead className="text-right font-bold">Total</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {planLogs.map(log => {
+                                            const totalPlan = Object.values(log.planData).reduce((sum, val) => sum + val, 0);
+                                            return (
+                                                <TableRow key={log.snapshotWeek}>
+                                                    <TableCell className="font-medium">W{log.snapshotWeek}</TableCell>
+                                                    {allWeeks.map(week => (
+                                                        <TableCell key={`${log.snapshotWeek}-${week}`} className="text-right font-semibold">
+                                                            {(log.planData[week] || 0) > 0 ? (log.planData[week] || 0).toLocaleString() : '-'}
+                                                        </TableCell>
+                                                    ))}
+                                                    <TableCell className="text-right font-bold">
+                                                        {totalPlan > 0 ? totalPlan.toLocaleString() : '-'}
+                                                    </TableCell>
+                                                </TableRow>
+                                            )
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            ) : (
+                                <div className="border rounded-lg p-10 text-center text-muted-foreground">
+                                    {selectedOrderId ? 'No plan logs found for this order.' : 'Please select an order to view its plan log.'}
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
                 </div>
             </main>
         </div>
