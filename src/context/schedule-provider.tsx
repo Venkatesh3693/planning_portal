@@ -3,7 +3,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, Dispatch, SetStateAction, useMemo } from 'react';
-import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem, Size, FcComposition, FcSnapshot, SyntheticPoRecord, SizeBreakdown, CutOrderRecord } from '@/lib/types';
+import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem, Size, FcComposition, FcSnapshot, SyntheticPoRecord, CutOrderRecord } from '@/lib/types';
 import { ORDERS as staticOrders, PROCESSES, ORDER_COLORS, SIZES } from '@/lib/data';
 import { addDays, startOfToday, isAfter, getWeek, startOfWeek, addWeeks } from 'date-fns';
 import { getProcessBatchSize, getPackingBatchSize, runTentativePlanForHorizon } from '@/lib/tna-calculator';
@@ -139,11 +139,10 @@ const generateCutOrders = (orders: Order[], allPoRecords: SyntheticPoRecord[]): 
     const currentWeek = getWeek(new Date());
 
     orders.forEach(order => {
-        if (order.orderType !== 'Forecasted' || !order.fcVsFcDetails) return;
+        if (order.orderType !== 'Forecasted' || !order.fcVsFcDetails || order.fcVsFcDetails.length === 0) return;
 
         const earliestSnapshot = order.fcVsFcDetails.reduce((earliest, s) => s.snapshotWeek < earliest.snapshotWeek ? s : earliest, order.fcVsFcDetails[0]);
-        if (!earliestSnapshot) return;
-
+        
         const weeklyTotals: Record<string, number> = {};
         const snapshotWeeks = Object.keys(earliestSnapshot.forecasts).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
         snapshotWeeks.forEach(week => {
@@ -176,7 +175,10 @@ const generateCutOrders = (orders: Order[], allPoRecords: SyntheticPoRecord[]): 
             const planQtyW2 = plan[week2Key] || 0;
             const targetQty = planQtyW1 + planQtyW2 + coRemainderQty;
             
-            if (targetQty <= 0) continue;
+            if (targetQty <= 0) {
+                 if (week1 > currentWeek || week2 > currentWeek) break;
+                 continue;
+            }
 
             const posForThisCO: SyntheticPoRecord[] = [];
             let accumulatedQty = 0;
@@ -199,12 +201,16 @@ const generateCutOrders = (orders: Order[], allPoRecords: SyntheticPoRecord[]): 
                 totalCoQty += po.quantities.total;
             });
             
-            allCutOrders.push({
-                coNumber: `CO-${order.ocn}-${String(coCounter++).padStart(2, '0')}`,
-                orderId: order.id,
-                coWeekCoverage: `${week1Key}-${week2Key}`,
-                quantities: { ...coQuantities, total: totalCoQty }
-            });
+            if (totalCoQty > 0) {
+              allCutOrders.push({
+                  coNumber: `CO-${order.ocn}-${String(coCounter++).padStart(2, '0')}`,
+                  orderId: order.id,
+                  coWeekCoverage: `${week1Key}-${week2Key}`,
+                  quantities: { ...coQuantities, total: totalCoQty }
+              });
+            } else {
+              coRemainderQty = 0; // Reset remainder if no POs were found
+            }
         }
     });
 
@@ -223,6 +229,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   const [timelineEndDate, setTimelineEndDate] = useState(() => addDays(startOfToday(), 90));
   const [isScheduleLoaded, setIsScheduleLoaded] = useState(false);
   const [syntheticPoRecords, setSyntheticPoRecords] = useState<SyntheticPoRecord[]>([]);
+  const [cutOrderRecords, setCutOrderRecords] = useState<CutOrderRecord[]>([]);
 
   useEffect(() => {
     try {
@@ -285,12 +292,10 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         };
       });
       setOrders(hydratedOrders);
-      setSyntheticPoRecords(generateSyntheticPos(hydratedOrders));
-
+      
     } catch (err) {
       console.error("Could not load schedule from localStorage", err);
       setOrders(staticOrders);
-      setSyntheticPoRecords(generateSyntheticPos(staticOrders));
     } finally {
       setIsScheduleLoaded(true);
     }
@@ -298,11 +303,14 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isScheduleLoaded) return;
-    try {
-      // Regenerate POs whenever overrides change to keep data fresh
-      const newSyntheticPOs = generateSyntheticPos(orders);
-      setSyntheticPoRecords(newSyntheticPOs);
+    
+    // Regenerate synthetic data whenever orders change
+    const newSyntheticPOs = generateSyntheticPos(orders);
+    const newCutOrders = generateCutOrders(orders, newSyntheticPOs);
+    setSyntheticPoRecords(newSyntheticPOs);
+    setCutOrderRecords(newCutOrders);
 
+    try {
       const stateToSave = {
         appMode,
         scheduledProcesses,
@@ -521,10 +529,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     return { processBatchSizes: pbs, packingBatchSizes: qbs };
   }, [orders, sewingLines]);
 
-  const cutOrderRecords = useMemo(() => {
-    if (!isScheduleLoaded) return [];
-    return generateCutOrders(orders, syntheticPoRecords);
-  }, [isScheduleLoaded, orders, syntheticPoRecords]);
 
   const value = { 
     appMode,
