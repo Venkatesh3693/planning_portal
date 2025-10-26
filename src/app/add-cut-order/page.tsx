@@ -55,7 +55,7 @@ const formSchema = z.object({
     return end >= start;
 }, {
     message: "End week cannot be earlier than start week",
-    path: ["endWeek"], // You can specify which field gets the error
+    path: ["endWeek"],
 });
 
 type CutOrderFormValues = z.infer<typeof formSchema>;
@@ -214,7 +214,54 @@ function AddCutOrderContent() {
     const orderId = searchParams.get('orderId');
 
     return (
-        <div className="flex h-screen flex-col">
+        <div className="flex-1">
+            {orderId ? (
+                <AddCutOrderForm orderId={orderId} />
+            ) : (
+                 <div className="flex-1 rounded-lg border border-dashed shadow-sm flex items-center justify-center">
+                    <div className="text-center">
+                        <p className="text-muted-foreground">Please select an order first.</p>
+                        <Button asChild className="mt-4">
+                            <Link href="/orders">Go to Orders</Link>
+                        </Button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+export default function AddCutOrderPage() {
+    // This component is a placeholder to read searchParams on the client
+    const OrderIdReader = () => {
+        const searchParams = useSearchParams();
+        const orderId = searchParams.get('orderId');
+        return (
+            <>
+                 <div className="flex justify-between items-center mb-4 flex-shrink-0">
+                    <div>
+                        <h1 className="text-2xl font-bold">Add New Cut Order</h1>
+                        {orderId && (
+                            <p className="text-muted-foreground">
+                                For Order ID: {orderId}
+                            </p>
+                        )}
+                    </div>
+                     <Button variant="outline" asChild>
+                        <Link href={`/cut-order?orderId=${orderId || ''}`}>
+                            <ArrowLeft className="mr-2 h-4 w-4" />
+                            Back to Cut Orders
+                        </Link>
+                    </Button>
+                </div>
+                <AddCutOrderContent />
+            </>
+        )
+    }
+
+
+    return (
+         <div className="flex h-screen flex-col">
             <Header />
             <main className="flex-1 p-4 sm:p-6 lg:p-8 flex flex-col">
                 <Breadcrumb className="mb-4 flex-shrink-0">
@@ -233,7 +280,7 @@ function AddCutOrderContent() {
                         <BreadcrumbSeparator />
                         <BreadcrumbItem>
                             <BreadcrumbLink asChild>
-                                <Link href={`/cut-order?orderId=${orderId || ''}`}>Cut Order</Link>
+                                <Link href={`/cut-order?orderId=${''}`}>Cut Order</Link>
                             </BreadcrumbLink>
                         </BreadcrumbItem>
                         <BreadcrumbSeparator />
@@ -242,47 +289,11 @@ function AddCutOrderContent() {
                         </BreadcrumbItem>
                     </BreadcrumbList>
                 </Breadcrumb>
-
-                 <div className="flex justify-between items-center mb-4 flex-shrink-0">
-                    <div>
-                        <h1 className="text-2xl font-bold">Add New Cut Order</h1>
-                        {orderId && (
-                            <p className="text-muted-foreground">
-                                For Order ID: {orderId}
-                            </p>
-                        )}
-                    </div>
-                     <Button variant="outline" asChild>
-                        <Link href={`/cut-order?orderId=${orderId || ''}`}>
-                            <ArrowLeft className="mr-2 h-4 w-4" />
-                            Back to Cut Orders
-                        </Link>
-                    </Button>
-                </div>
                 
-                <div className="flex-1">
-                    {orderId ? (
-                        <AddCutOrderForm orderId={orderId} />
-                    ) : (
-                         <div className="flex-1 rounded-lg border border-dashed shadow-sm flex items-center justify-center">
-                            <div className="text-center">
-                                <p className="text-muted-foreground">Please select an order first.</p>
-                                <Button asChild className="mt-4">
-                                    <Link href="/orders">Go to Orders</Link>
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-                </div>
+                <Suspense fallback={<div>Loading...</div>}>
+                    <OrderIdReader />
+                </Suspense>
             </main>
         </div>
-    );
-}
-
-export default function AddCutOrderPage() {
-    return (
-        <Suspense fallback={<div>Loading...</div>}>
-            <AddCutOrderContent />
-        </Suspense>
     )
 }
