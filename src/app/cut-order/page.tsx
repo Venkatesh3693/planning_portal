@@ -92,7 +92,7 @@ function CutOrderPageContent() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>CO #</TableHead>
-                                    <TableHead>CO Week</TableHead>
+                                    <TableHead>CO Week Coverage</TableHead>
                                     {SIZES.map(size => (
                                         <TableHead key={size} className="text-right">{size}</TableHead>
                                     ))}
