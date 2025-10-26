@@ -21,19 +21,22 @@ import { Label } from '@/components/ui/label';
 import { getWeek } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { runTentativePlanForHorizon } from '@/lib/tna-calculator';
-import type { ProjectionRow, SizeBreakdown, Size } from '@/lib/types';
+import type { ProjectionRow, SizeBreakdown, Size, SyntheticPoRecord } from '@/lib/types';
 import { SIZES } from '@/lib/data';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
 
 function NewCutOrderForm({ orderId }: { orderId: string }) {
-    const { orders, cutOrderRecords, addCutOrderRecord } = useSchedule();
+    const { orders, cutOrderRecords, addCutOrderRecord, syntheticPoRecords } = useSchedule();
     const router = useRouter();
     const [startWeek, setStartWeek] = useState<number | null>(null);
     const [endWeek, setEndWeek] = useState<number | null>(null);
     const [targetQuantity, setTargetQuantity] = useState<number>(0);
     const [projectionData, setProjectionData] = useState<ProjectionRow[]>([]);
     const [availableFrc, setAvailableFrc] = useState<SizeBreakdown | null>(null);
+    const [suggestedPos, setSuggestedPos] = useState<SyntheticPoRecord[]>([]);
+    const [remainingProdQty, setRemainingProdQty] = useState<number>(0);
+
 
     const order = useMemo(() => {
         return orders.find(o => o.id === orderId);
@@ -247,8 +250,61 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
         } else {
             setTargetQuantity(0);
             setAvailableFrc(null);
+            setSuggestedPos([]);
+            setRemainingProdQty(0);
         }
     }, [startWeek, endWeek, order, currentWeek, projectionData, cutOrderRecords, orderId]);
+    
+    useEffect(() => {
+        if (startWeek === null || !availableFrc || targetQuantity <= 0) {
+            setSuggestedPos([]);
+            setRemainingProdQty(0);
+            return;
+        }
+
+        const usedPoNumbers = new Set(cutOrderRecords.flatMap(co => co.poNumbers));
+        
+        const eligiblePos = syntheticPoRecords
+            .filter(po => po.orderId === orderId && !usedPoNumbers.has(po.poNumber))
+            .filter(po => parseInt(po.actualEhdWeek.replace('W','')) >= startWeek)
+            .sort((a,b) => parseInt(a.actualEhdWeek.replace('W','')) - parseInt(b.actualEhdWeek.replace('W','')));
+
+        const clubbedPos: SyntheticPoRecord[] = [];
+        let cumulativePoQty = 0;
+        const cumulativePoSizes: Partial<SizeBreakdown> = SIZES.reduce((acc, size) => ({...acc, [size]: 0}), {});
+
+        for(const po of eligiblePos) {
+            const newTotalQty = cumulativePoQty + po.quantities.total;
+            if (newTotalQty > targetQuantity) {
+                break; // Stop if total quantity exceeds target
+            }
+
+            let sizeLimitExceeded = false;
+            for(const size of SIZES) {
+                const newSizeQty = (cumulativePoSizes[size] || 0) + (po.quantities[size] || 0);
+                if (newSizeQty > (availableFrc[size] || 0)) {
+                    sizeLimitExceeded = true;
+                    break;
+                }
+            }
+            
+            if (sizeLimitExceeded) {
+                break; // Stop if any size exceeds available FRC
+            }
+
+            // If all checks pass, add the PO
+            clubbedPos.push(po);
+            cumulativePoQty = newTotalQty;
+            for(const size of SIZES) {
+                cumulativePoSizes[size] = (cumulativePoSizes[size] || 0) + (po.quantities[size] || 0);
+            }
+        }
+        
+        setSuggestedPos(clubbedPos);
+        setRemainingProdQty(targetQuantity - cumulativePoQty);
+
+    }, [startWeek, availableFrc, targetQuantity, syntheticPoRecords, cutOrderRecords, orderId]);
+
 
     const handleSubmit = () => {
         if (!availableFrc || startWeek === null || endWeek === null) return;
@@ -258,6 +314,7 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
             orderId: orderId,
             coWeekCoverage: `W${startWeek}-W${endWeek}`,
             quantities: availableFrc,
+            poNumbers: suggestedPos.map(po => po.poNumber),
         };
         addCutOrderRecord(newRecord);
         router.push(`/cut-order?orderId=${orderId}`);
@@ -327,46 +384,106 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
                          </div>
                      </div>
                      {targetQuantity > 0 && (
-                        <div className="pt-4 border-t">
-                            <Label>Target Production Quantity</Label>
-                            <p className="font-semibold text-2xl text-primary">{targetQuantity.toLocaleString()}</p>
-                            <p className="text-sm text-muted-foreground">Based on production plan for W{startWeek}-W{endWeek}</p>
-                        </div>
+                        <>
+                            <Separator />
+                            <div className="pt-4">
+                                <Label>Target Production Quantity</Label>
+                                <p className="font-semibold text-2xl text-primary">{targetQuantity.toLocaleString()}</p>
+                                <p className="text-sm text-muted-foreground">Based on production plan for W{startWeek}-W{endWeek}</p>
+                            </div>
+                        </>
                      )}
 
                     {availableFrc && availableFrc.total > 0 && (
-                        <div className="pt-6 mt-6 border-t">
-                            <h3 className="text-lg font-semibold mb-4">Available FRC for Cut Order</h3>
-                            <div className="overflow-x-auto">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Sizes</TableHead>
-                                            {SIZES.map(size => (
-                                                <TableHead key={size} className="text-right">{size}</TableHead>
-                                            ))}
-                                            <TableHead className="text-right font-bold">Total</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        <TableRow>
-                                            <TableCell className="font-medium">Quantity</TableCell>
-                                            {SIZES.map(size => (
-                                                <TableCell key={size} className="text-right">
-                                                    {(availableFrc[size] || 0).toLocaleString()}
+                        <>
+                            <Separator />
+                            <div className="pt-6">
+                                <h3 className="text-lg font-semibold mb-4">Available FRC for Cut Order</h3>
+                                <div className="overflow-x-auto">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Sizes</TableHead>
+                                                {SIZES.map(size => (
+                                                    <TableHead key={size} className="text-right">{size}</TableHead>
+                                                ))}
+                                                <TableHead className="text-right font-bold">Total</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            <TableRow>
+                                                <TableCell className="font-medium">Quantity</TableCell>
+                                                {SIZES.map(size => (
+                                                    <TableCell key={size} className="text-right">
+                                                        {(availableFrc[size] || 0).toLocaleString()}
+                                                    </TableCell>
+                                                ))}
+                                                <TableCell className="text-right font-bold">
+                                                    {(availableFrc.total || 0).toLocaleString()}
                                                 </TableCell>
-                                            ))}
-                                            <TableCell className="text-right font-bold">
-                                                {(availableFrc.total || 0).toLocaleString()}
-                                            </TableCell>
-                                        </TableRow>
-                                    </TableBody>
-                                </Table>
+                                            </TableRow>
+                                        </TableBody>
+                                    </Table>
+                                </div>
                             </div>
-                        </div>
+                        </>
                     )}
                 </CardContent>
             </Card>
+
+            {suggestedPos.length > 0 && (
+                <Card>
+                    <CardContent className="p-6 space-y-4">
+                         <h3 className="text-lg font-semibold">Suggested POs for Cut Order</h3>
+                         <div className="overflow-x-auto">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>PO #</TableHead>
+                                        <TableHead>EHD Week</TableHead>
+                                        {SIZES.map(size => (
+                                            <TableHead key={size} className="text-right">{size}</TableHead>
+                                        ))}
+                                        <TableHead className="text-right font-bold">Total</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {suggestedPos.map(po => (
+                                        <TableRow key={po.poNumber}>
+                                            <TableCell className="font-medium">{po.poNumber}</TableCell>
+                                            <TableCell>{po.actualEhdWeek}</TableCell>
+                                            {SIZES.map(size => (
+                                                <TableCell key={size} className="text-right">
+                                                    {(po.quantities[size] || 0).toLocaleString()}
+                                                </TableCell>
+                                            ))}
+                                            <TableCell className="text-right font-bold">
+                                                {(po.quantities.total).toLocaleString()}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                                <TableFooter>
+                                    <TableRow>
+                                        <TableCell colSpan={2} className="text-right font-bold">Total Suggested Qty</TableCell>
+                                        {SIZES.map(size => {
+                                            const totalSize = suggestedPos.reduce((sum, po) => sum + (po.quantities[size] || 0), 0);
+                                            return <TableCell key={size} className="text-right font-bold">{totalSize.toLocaleString()}</TableCell>
+                                        })}
+                                        <TableCell className="text-right font-bold">
+                                            {suggestedPos.reduce((sum, po) => sum + po.quantities.total, 0).toLocaleString()}
+                                        </TableCell>
+                                    </TableRow>
+                                </TableFooter>
+                            </Table>
+                         </div>
+                        <div className="pt-4 text-right">
+                            <Label>Remaining Production Target</Label>
+                            <p className="font-semibold text-2xl text-amber-600">{remainingProdQty.toLocaleString()}</p>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
             
             {availableFrc && availableFrc.total > 0 && (
                 <div className="flex justify-end">

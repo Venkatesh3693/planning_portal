@@ -203,4 +203,20 @@ export type CutOrderRecord = {
     orderId: string;
     coWeekCoverage: string;
     quantities: SizeBreakdown;
+    poNumbers: string[];
+};
+
+export type ProjectionRow = {
+    prjNumber: string;
+    prjWeek: string;
+    prjCoverage: string;
+    ckWeek: string;
+    prjQty: number;
+    frcNumber: string;
+    frcWeek: string;
+    frcCoverage: string;
+    frcQty: number;
+    cutOrderQty: number;
+    cutOrderPending: number;
+    breakdown?: Record<string, Record<Size, number> & { total: number }>;
 };

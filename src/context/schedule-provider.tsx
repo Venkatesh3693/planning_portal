@@ -175,7 +175,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
           };
         });
         setScheduledProcesses(loadedProcesses);
-        setCutOrderRecords(storedData.cutOrderRecords || []);
+        setCutOrderRecords((storedData.cutOrderRecords || []).map((co: any) => ({...co, poNumbers: co.poNumbers || []})));
         
         if (storedData.timelineEndDate) {
             const storedEndDate = new Date(storedData.timelineEndDate);
