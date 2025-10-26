@@ -285,7 +285,7 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
             const { plan } = runTentativePlanForHorizon(currentWeek, null, weeklyTotals, order, 0);
             let total = 0;
             for (let w = startWeek; w <= endWeek; w++) { total += plan[`W${w}`] || 0; }
-            setTargetQuantity(Math.round(total));
+            setTargetQuantity(Math.round(total) + previousCarryoverQty);
 
             // FRC Calculation
             const relevantFrcs = projectionData.filter(p => parseInt(p.ckWeek.slice(1)) < startWeek);
@@ -324,7 +324,7 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
             setSuggestedPos([]);
             setRemainingProdQty(0);
         }
-    }, [startWeek, endWeek, order, currentWeek, projectionData, cutOrderRecords, orderId]);
+    }, [startWeek, endWeek, order, currentWeek, projectionData, cutOrderRecords, orderId, previousCarryoverQty]);
     
     useEffect(() => {
         if (startWeek === null || !availableFrc || targetQuantity <= 0) {
@@ -478,7 +478,7 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
                             <div className="pt-4">
                                 <Label>Target Production Quantity</Label>
                                 <p className="font-semibold text-2xl text-primary">{targetQuantity.toLocaleString()}</p>
-                                <p className="text-sm text-muted-foreground">Based on production plan for W{startWeek}-W{endWeek}</p>
+                                <p className="text-sm text-muted-foreground">Based on production plan for W{startWeek}-W{endWeek} + previous carryover</p>
                             </div>
                         </>
                      )}
@@ -613,5 +613,3 @@ export default function NewCutOrderPage() {
         </Suspense>
     );
 }
-
-    
