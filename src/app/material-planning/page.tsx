@@ -114,6 +114,7 @@ const AllFrcBreakdownTable = ({ projectionData }: { projectionData: ProjectionRo
                         <TableRow>
                             <TableHead>PRJ#</TableHead>
                             <TableHead>FRC#</TableHead>
+                            <TableHead>FRC Week</TableHead>
                             <TableHead>CK Week</TableHead>
                             <TableHead>FRC Coverage</TableHead>
                             {SIZES.map(size => (
@@ -127,6 +128,7 @@ const AllFrcBreakdownTable = ({ projectionData }: { projectionData: ProjectionRo
                            <TableRow key={row.frcNumber}>
                                <TableCell>{row.prjNumber}</TableCell>
                                <TableCell>{row.frcNumber}</TableCell>
+                               <TableCell>{row.frcWeek}</TableCell>
                                <TableCell>{row.ckWeek}</TableCell>
                                <TableCell>{row.frcCoverage}</TableCell>
                                {SIZES.map(size => (
