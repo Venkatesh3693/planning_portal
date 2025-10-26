@@ -75,8 +75,7 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
         const endOfWeekRange = Math.max(firstProdWeek + 52, lastFcWeek);
 
         const weeks: number[] = [];
-        const start = Math.min(firstProdWeek, currentWeek);
-        for (let i = start; i <= endOfWeekRange; i++) {
+        for (let i = firstProdWeek; i <= endOfWeekRange; i++) {
             weeks.push(i);
         }
 
@@ -331,6 +330,7 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
                         <Table>
                             <TableHeader>
                                 <TableRow>
+                                    <TableHead>Sizes</TableHead>
                                     {SIZES.map(size => (
                                         <TableHead key={size} className="text-right">{size}</TableHead>
                                     ))}
@@ -339,6 +339,7 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
                             </TableHeader>
                             <TableBody>
                                 <TableRow>
+                                    <TableCell className="font-medium">Quantity</TableCell>
                                     {SIZES.map(size => (
                                         <TableCell key={size} className="text-right">
                                             {(availableFrc[size] || 0).toLocaleString()}
