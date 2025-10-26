@@ -232,6 +232,7 @@ function MaterialPlanningPageContent() {
                     let targetMet = false;
 
                     for (const week of poFcWeeks) {
+                        if (targetMet) break; // Check flag at the start of the outer loop
                         if (parseInt(week.slice(1)) < parseInt(firstPoFcWeek.slice(1))) continue;
 
                         for (const size of SIZES) {
@@ -249,9 +250,6 @@ function MaterialPlanningPageContent() {
                                 runningTotal += qty;
                                 newCumulativeBreakdown[size] = (newCumulativeBreakdown[size] || 0) + qty;
                             }
-                        }
-                        if (targetMet) {
-                            break;
                         }
                     }
                     
