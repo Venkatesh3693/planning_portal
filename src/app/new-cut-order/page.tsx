@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Suspense, useMemo } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useSchedule } from '@/context/schedule-provider';
 import { Header } from '@/components/layout/header';
@@ -17,23 +17,124 @@ import {
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { getWeek } from 'date-fns';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+function NewCutOrderForm({ orderId }: { orderId: string }) {
+    const { orders, cutOrderRecords } = useSchedule();
+    const [startWeek, setStartWeek] = useState<number | null>(null);
+    const [endWeek, setEndWeek] = useState<number | null>(null);
+
+    const order = useMemo(() => {
+        return orders.find(o => o.id === orderId);
+    }, [orderId, orders]);
+
+    const currentWeek = useMemo(() => getWeek(new Date()), []);
+    
+    const coNumber = useMemo(() => {
+        if (!order) return '';
+        const orderCutOrders = cutOrderRecords.filter(co => co.orderId === orderId);
+        return `CO-${order.ocn}-${(orderCutOrders.length + 1).toString().padStart(2, '0')}`;
+    }, [order, orderId, cutOrderRecords]);
+
+    const productionWeeks = useMemo(() => {
+        if (!order?.fcVsFcDetails) return [];
+        const weekSet = new Set<number>();
+        order.fcVsFcDetails.forEach(snapshot => {
+            Object.keys(snapshot.forecasts).forEach(weekStr => {
+                weekSet.add(parseInt(weekStr.replace('W', ''), 10));
+            });
+        });
+        return Array.from(weekSet).sort((a, b) => a - b);
+    }, [order]);
+
+    const availableEndWeeks = useMemo(() => {
+        if (startWeek === null) return [];
+        return productionWeeks.filter(week => week >= startWeek);
+    }, [startWeek, productionWeeks]);
+
+    if (!order) {
+        return <div className="flex items-center justify-center h-full">Order not found. Please go back and select an order.</div>;
+    }
+
+    return (
+        <Card>
+            <CardContent className="p-6">
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="space-y-2">
+                            <Label>CO #</Label>
+                            <p className="font-semibold text-lg">{coNumber}</p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Current Week</Label>
+                             <p className="font-semibold text-lg">W{currentWeek}</p>
+                        </div>
+                    </div>
+                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                         <div className="space-y-2">
+                             <Label htmlFor="start-week">Start Week</Label>
+                             <Select
+                                onValueChange={(value) => {
+                                    const week = parseInt(value, 10);
+                                    setStartWeek(week);
+                                    if (endWeek !== null && week > endWeek) {
+                                        setEndWeek(null);
+                                    }
+                                }}
+                                value={startWeek !== null ? String(startWeek) : ''}
+                            >
+                                <SelectTrigger id="start-week">
+                                    <SelectValue placeholder="Select start week" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {productionWeeks.map(week => (
+                                        <SelectItem key={week} value={String(week)}>
+                                            W{week}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                         </div>
+                         <div className="space-y-2">
+                             <Label htmlFor="end-week">End Week</Label>
+                             <Select
+                                onValueChange={(value) => setEndWeek(parseInt(value, 10))}
+                                value={endWeek !== null ? String(endWeek) : ''}
+                                disabled={startWeek === null}
+                            >
+                                <SelectTrigger id="end-week">
+                                    <SelectValue placeholder="Select end week" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {availableEndWeeks.map(week => (
+                                        <SelectItem key={week} value={String(week)}>
+                                            W{week}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                         </div>
+                     </div>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
 
 function NewCutOrderPageContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get('orderId');
-    const { orders, isScheduleLoaded } = useSchedule();
-
-    const order = useMemo(() => {
-        if (!isScheduleLoaded || !orderId) return null;
-        return orders.find(o => o.id === orderId);
-    }, [orderId, orders, isScheduleLoaded]);
+    const { isScheduleLoaded } = useSchedule();
 
     if (!isScheduleLoaded) {
         return <div className="flex items-center justify-center h-full">Loading order data...</div>;
     }
     
-    if (!order) {
-        return <div className="flex items-center justify-center h-full">Order not found. Please go back and select an order.</div>;
+    if (!orderId) {
+        return <div className="flex items-center justify-center h-full">Order ID is missing. Please go back and select an order.</div>;
     }
 
     return (
@@ -70,7 +171,7 @@ function NewCutOrderPageContent() {
                     <div>
                         <h1 className="text-2xl font-bold">New Cut Order</h1>
                         <p className="text-muted-foreground">
-                            For Order ID: {order.id}
+                            For Order ID: {orderId}
                         </p>
                     </div>
                      <Button variant="outline" asChild>
@@ -81,11 +182,7 @@ function NewCutOrderPageContent() {
                     </Button>
                 </div>
                 
-                <Card>
-                    <CardContent className="p-6">
-                        {/* The form will be added here in the next step. */}
-                    </CardContent>
-                </Card>
+                <NewCutOrderForm orderId={orderId} />
             </main>
         </div>
     );
@@ -93,7 +190,7 @@ function NewCutOrderPageContent() {
 
 export default function NewCutOrderPage() {
     return (
-        <Suspense fallback={<div>Loading...</div>}>
+        <Suspense fallback={<div className="flex h-screen w-full items-center justify-center">Loading...</div>}>
             <NewCutOrderPageContent />
         </Suspense>
     );
