@@ -204,6 +204,7 @@ export type CutOrderRecord = {
     coWeekCoverage: string;
     quantities: SizeBreakdown;
     poNumbers: string[];
+    carryoverQty: number;
 };
 
 export type ProjectionRow = {

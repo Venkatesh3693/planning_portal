@@ -386,8 +386,9 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
             coNumber: coNumber,
             orderId: orderId,
             coWeekCoverage: `W${startWeek}-W${endWeek}`,
-            quantities: availableFrc,
+            quantities: totalSuggestedQty, // Use the suggested PO quantities for the cut order
             poNumbers: suggestedPos.map(po => po.poNumber),
+            carryoverQty: remainingProdQty,
         };
         addCutOrderRecord(newRecord);
         router.push(`/cut-order?orderId=${orderId}`);
@@ -581,7 +582,7 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
                 </CardContent>
             </Card>
 
-            {availableFrc && availableFrc.total > 0 && (
+            {suggestedPos.length > 0 && (
                 <div className="flex justify-end">
                     <Button onClick={handleSubmit}>Issue Cut Order</Button>
                 </div>

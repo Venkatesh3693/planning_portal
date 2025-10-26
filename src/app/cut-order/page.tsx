@@ -16,7 +16,7 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, PlusCircle } from 'lucide-react';
+import { ArrowLeft, PlusCircle, Info } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -27,6 +27,12 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SIZES } from '@/lib/data';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 
 function CutOrderPageContent() {
@@ -129,6 +135,8 @@ function CutOrderPageContent() {
                                       <TableHead key={size} className="text-right">{size}</TableHead>
                                     ))}
                                     <TableHead className="text-right font-bold">Total</TableHead>
+                                    <TableHead className="text-center">POs</TableHead>
+                                    <TableHead className="text-right">Carryover Qty</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -145,11 +153,30 @@ function CutOrderPageContent() {
                                             <TableCell className="text-right font-bold">
                                                 {co.quantities.total.toLocaleString()}
                                             </TableCell>
+                                            <TableCell className="text-center">
+                                                {co.poNumbers && co.poNumbers.length > 0 && (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger>
+                                                                <Info className="h-4 w-4 text-muted-foreground mx-auto" />
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                <div className="flex flex-col gap-1 p-2">
+                                                                {co.poNumbers.map(po => <span key={po}>{po}</span>)}
+                                                                </div>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                )}
+                                            </TableCell>
+                                             <TableCell className="text-right font-medium">
+                                                {(co.carryoverQty || 0).toLocaleString()}
+                                             </TableCell>
                                         </TableRow>
                                     ))
                                 ) : (
                                     <TableRow>
-                                        <TableCell colSpan={SIZES.length + 3} className="h-24 text-center">
+                                        <TableCell colSpan={SIZES.length + 5} className="h-24 text-center">
                                             No cut orders issued yet for this order.
                                         </TableCell>
                                     </TableRow>
