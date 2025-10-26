@@ -97,7 +97,7 @@ function PoStatusPageContent() {
 
                  <div className="flex justify-between items-center mb-4 flex-shrink-0">
                     <div>
-                        <h1 className="text-2xl font-bold">Confirmed Purchase Orders</h1>
+                        <h1 className="text-2xl font-bold">PO Status</h1>
                         <p className="text-muted-foreground">
                             Order ID: {order.id}
                         </p>
@@ -133,7 +133,7 @@ function PoStatusPageContent() {
                                     return (
                                         <TableRow key={po.poNumber}>
                                             <TableCell className="font-medium">{po.poNumber}</TableCell>
-                                            <TableCell>{format(po.issueDate, 'dd/MM/yy')}</TableCell>
+                                            <TableCell>{format(new Date(po.issueDate), 'dd/MM/yy')}</TableCell>
                                             {SIZES.map(size => (
                                                 <TableCell key={size} className="text-right">
                                                     {(po.quantities[size] || 0).toLocaleString()}
