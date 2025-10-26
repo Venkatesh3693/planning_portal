@@ -1165,7 +1165,13 @@ const ForecastedOrderRow = forwardRef<
         </Link>
       </TableCell>
       
-      <TableCell className="text-right font-bold">{order.cutOrder?.total.toLocaleString() || '-'}</TableCell>
+      <TableCell className="text-right font-bold">
+        <Link href={`/cut-order?orderId=${order.id}`} passHref>
+          <span className="text-primary cursor-pointer hover:underline">
+            {order.cutOrder?.total.toLocaleString() || '-'}
+          </span>
+        </Link>
+      </TableCell>
 
       <TableCell className="text-right font-bold">{order.produced?.total.toLocaleString() || '-'}</TableCell>
 
