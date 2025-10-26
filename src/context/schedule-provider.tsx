@@ -58,55 +58,69 @@ const generateSyntheticPos = (orders: Order[]): SyntheticPoRecord[] => {
 
         const sortedSnapshots = [...order.fcVsFcDetails].sort((a, b) => a.snapshotWeek - b.snapshotWeek);
 
+        const firstPoWeeks = new Map<string, number>(); // key: demandWeek-destination, value: snapshotWeek
+
         sortedSnapshots.forEach(snapshot => {
             const snapshotWeekNum = snapshot.snapshotWeek;
 
             Object.keys(snapshot.forecasts).forEach(demandWeek => {
                 const demandWeekNum = parseInt(demandWeek.slice(1));
+                const weekData = snapshot.forecasts[demandWeek];
 
-                // The core logic: EHD week must be >= snapshot week + 3
-                if (demandWeekNum >= snapshotWeekNum + 3) {
-                    const weekData = snapshot.forecasts[demandWeek];
-                    const totalPoForWeek = weekData?.total?.po || 0;
+                if (weekData && demandWeekNum >= snapshotWeekNum + FIRM_PO_WINDOW) {
+                    order.demandDetails?.forEach(destDetail => {
+                        const destProportion = destDetail.selectionQty > 0 ? destDetail.selectionQty / order.quantity : 0;
+                        if (destProportion <= 0) return;
 
-                    if (totalPoForWeek > 0) {
-                        const sizeBreakdown = SIZES.reduce((acc, size) => {
-                            acc[size] = weekData?.[size]?.po || 0;
-                            return acc;
-                        }, {} as Record<Size, number>);
-
-                        // Distribute this week's total PO across destinations
-                        order.demandDetails?.forEach(destDetail => {
-                            const destProportion = destDetail.selectionQty / order.quantity;
-                            if (isNaN(destProportion) || destProportion <= 0) return;
-
-                            const poQtyForDest = Math.round(totalPoForWeek * destProportion);
-                            if (poQtyForDest <= 0) return;
-
-                            const quantities: Partial<SizeBreakdown> = {};
-                            let currentPoTotal = 0;
-                            SIZES.forEach(size => {
-                                const sizeQty = Math.round((sizeBreakdown[size] || 0) * destProportion);
-                                quantities[size] = sizeQty;
-                                currentPoTotal += sizeQty;
-                            });
-                            quantities.total = currentPoTotal;
-
-                            if (quantities.total > 0) {
-                                allPos.push({
-                                    orderId: order.id,
-                                    poNumber: `PO-${order.ocn}-${snapshotWeekNum}-${demandWeekNum}-${destDetail.destination.substring(0, 2).toUpperCase()}`,
-                                    issueWeek: `W${snapshotWeekNum}`, // This is the snapshot week
-                                    originalEhdWeek: demandWeek, // This is the delivery week
-                                    actualEhdWeek: demandWeek,
-                                    destination: destDetail.destination,
-                                    quantities: quantities as SizeBreakdown,
-                                });
+                        const totalPoForWeek = weekData?.total?.po || 0;
+                        const poQtyForDest = Math.round(totalPoForWeek * destProportion);
+                        
+                        if (poQtyForDest > 0) {
+                            const poKey = `${demandWeek}-${destDetail.destination}`;
+                            if (!firstPoWeeks.has(poKey)) {
+                                firstPoWeeks.set(poKey, snapshotWeekNum);
                             }
-                        });
-                    }
+                        }
+                    });
                 }
             });
+        });
+
+        firstPoWeeks.forEach((issueWeekNum, key) => {
+            const [demandWeek, destination] = key.split('-');
+
+            const issueSnapshot = sortedSnapshots.find(s => s.snapshotWeek === issueWeekNum);
+            if (!issueSnapshot) return;
+
+            const weekData = issueSnapshot.forecasts[demandWeek];
+            const totalPoForWeek = weekData?.total?.po || 0;
+            const destDetail = order.demandDetails?.find(d => d.destination === destination);
+            const destProportion = destDetail && order.quantity > 0 ? destDetail.selectionQty / order.quantity : 0;
+
+            const poQtyForDest = Math.round(totalPoForWeek * destProportion);
+
+            if (poQtyForDest > 0) {
+                const quantities: Partial<SizeBreakdown> = {};
+                let currentPoTotal = 0;
+                SIZES.forEach(size => {
+                    const sizeQty = Math.round((weekData?.[size]?.po || 0) * destProportion);
+                    quantities[size] = sizeQty;
+                    currentPoTotal += sizeQty;
+                });
+                quantities.total = currentPoTotal;
+
+                if (quantities.total > 0) {
+                     allPos.push({
+                        orderId: order.id,
+                        poNumber: `PO-${order.ocn}-${issueWeekNum}-${demandWeek.replace('W','')}-${destination.substring(0, 2).toUpperCase()}`,
+                        issueWeek: `W${issueWeekNum}`,
+                        originalEhdWeek: demandWeek,
+                        actualEhdWeek: demandWeek,
+                        destination: destination,
+                        quantities: quantities as SizeBreakdown,
+                    });
+                }
+            }
         });
     });
 
@@ -150,7 +164,7 @@ const generateCutOrders = (orders: Order[], allPoRecords: SyntheticPoRecord[]): 
         let coCounter = 1;
 
         for (let week = firstProdWeek; week < 53; week += 2) {
-            if (week > currentWeek) break;
+             if (week > currentWeek) break;
 
             const week1 = week;
             const week2 = week + 1;
