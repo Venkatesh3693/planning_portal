@@ -165,8 +165,7 @@ const generateCutOrders = (orders: Order[], allPoRecords: SyntheticPoRecord[]): 
 
             const posForThisCO: SyntheticPoRecord[] = [];
             let accumulatedQty = 0;
-            const tempAvailablePOs: SyntheticPoRecord[] = [];
-
+            
             while(accumulatedQty < targetQty && availablePOs.length > 0) {
                 const po = availablePOs.shift()!;
                 posForThisCO.push(po);
