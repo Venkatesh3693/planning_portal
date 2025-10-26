@@ -46,7 +46,7 @@ type ScheduleContextType = {
 
 const ScheduleContext = createContext<ScheduleContextType | undefined>(undefined);
 
-// New function to generate synthetic POs
+// New function to generate synthetic POs based on the X+3 rule
 const generateSyntheticPos = (orders: Order[]): SyntheticPoRecord[] => {
     const allPos: SyntheticPoRecord[] = [];
 
@@ -56,71 +56,65 @@ const generateSyntheticPos = (orders: Order[]): SyntheticPoRecord[] => {
         }
 
         const sortedSnapshots = [...order.fcVsFcDetails].sort((a, b) => a.snapshotWeek - b.snapshotWeek);
-        const poConfirmationWeeks: Record<string, number> = {}; // { demandWeek: issueWeek }
 
-        // Find the first time a demand week becomes a PO
         sortedSnapshots.forEach(snapshot => {
+            const snapshotWeekNum = snapshot.snapshotWeek;
+            let poCounter = 1;
+
             Object.keys(snapshot.forecasts).forEach(demandWeek => {
-                const poQty = snapshot.forecasts[demandWeek]?.total?.po || 0;
-                // If it's a PO now and we haven't recorded it yet, this is the issue week.
-                if (poQty > 0 && !poConfirmationWeeks[demandWeek]) {
-                    poConfirmationWeeks[demandWeek] = snapshot.snapshotWeek;
-                }
-            });
-        });
+                const demandWeekNum = parseInt(demandWeek.slice(1));
 
-        // Use the latest snapshot to get the final PO quantities and structure
-        const latestSnapshot = sortedSnapshots[sortedSnapshots.length - 1];
-        if (!latestSnapshot) return;
+                // The core logic: EHD week must be >= snapshot week + 3
+                if (demandWeekNum >= snapshotWeekNum + 3) {
+                    const weekData = snapshot.forecasts[demandWeek];
+                    const totalPoForWeek = weekData?.total?.po || 0;
 
-        let poCounter = 1;
+                    if (totalPoForWeek > 0) {
+                        const sizeBreakdown = SIZES.reduce((acc, size) => {
+                            acc[size] = weekData?.[size]?.po || 0;
+                            return acc;
+                        }, {} as Record<Size, number>);
 
-        Object.entries(poConfirmationWeeks).forEach(([demandWeek, issueWeek]) => {
-            const weekData = latestSnapshot.forecasts[demandWeek];
-            if (!weekData || !weekData.total || weekData.total.po <= 0) return;
+                        // Distribute this week's total PO across destinations
+                        order.demandDetails?.forEach(destDetail => {
+                            const destProportion = destDetail.selectionQty / order.quantity;
+                            if (isNaN(destProportion) || destProportion <= 0) return;
 
-            const totalPoForWeek = weekData.total.po;
-            const sizeBreakdown = SIZES.reduce((acc, size) => {
-                acc[size] = weekData[size]?.po || 0;
-                return acc;
-            }, {} as Record<Size, number>);
+                            const poQtyForDest = Math.round(totalPoForWeek * destProportion);
+                            if (poQtyForDest <= 0) return;
 
-            // Distribute this week's total PO across destinations
-            order.demandDetails?.forEach(destDetail => {
-                const destProportion = destDetail.selectionQty / order.quantity;
-                if (isNaN(destProportion) || destProportion <= 0) return;
-                
-                const poQtyForDest = Math.round(totalPoForWeek * destProportion);
-                if (poQtyForDest <= 0) return;
+                            const quantities: Partial<SizeBreakdown> = {};
+                            let currentPoTotal = 0;
+                            SIZES.forEach(size => {
+                                const sizeQty = Math.round((sizeBreakdown[size] || 0) * destProportion);
+                                quantities[size] = sizeQty;
+                                currentPoTotal += sizeQty;
+                            });
+                            quantities.total = currentPoTotal;
 
-                const quantities: Partial<SizeBreakdown> = {};
-                let currentPoTotal = 0;
-                SIZES.forEach(size => {
-                    const sizeQty = Math.round((sizeBreakdown[size] || 0) * destProportion);
-                    quantities[size] = sizeQty;
-                    currentPoTotal += sizeQty;
-                });
-                quantities.total = currentPoTotal;
-
-                if (quantities.total > 0) {
-                    allPos.push({
-                        orderId: order.id,
-                        poNumber: `PO-${order.ocn}-${destDetail.destination.substring(0, 2).toUpperCase()}-${poCounter++}`,
-                        issueWeek: `W${issueWeek}`,
-                        originalEhdWeek: demandWeek,
-                        actualEhdWeek: demandWeek,
-                        destination: destDetail.destination,
-                        quantities: quantities as SizeBreakdown,
-                    });
+                            if (quantities.total > 0) {
+                                allPos.push({
+                                    orderId: order.id,
+                                    poNumber: `PO-${order.ocn}-${snapshotWeekNum}-${demandWeekNum}-${destDetail.destination.substring(0, 2).toUpperCase()}`,
+                                    issueWeek: `W${snapshotWeekNum}`, // This is the snapshot week
+                                    originalEhdWeek: demandWeek, // This is the delivery week
+                                    actualEhdWeek: demandWeek,
+                                    destination: destDetail.destination,
+                                    quantities: quantities as SizeBreakdown,
+                                });
+                            }
+                        });
+                    }
                 }
             });
         });
     });
 
     return allPos.sort((a,b) => {
-      const weekA = parseInt(a.originalEhdWeek.replace('W',''));
-      const weekB = parseInt(b.originalEhdWeek.replace('W',''));
-      return weekA - weekB;
+        const weekA = parseInt(a.originalEhdWeek.replace('W',''));
+        const weekB = parseInt(b.originalEhdWeek.replace('W',''));
+        if (weekA !== weekB) return weekA - weekB;
+        return a.poNumber.localeCompare(b.poNumber);
     });
 };
 
@@ -171,9 +165,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
             if (isAfter(storedEndDate, maxEndDate)) maxEndDate = storedEndDate;
         }
 
-        if (storedData.syntheticPoRecords) {
-           loadedSyntheticPos = storedData.syntheticPoRecords;
-        }
+        // We will regenerate synthetic POs on every load based on latest data
       }
 
       setTimelineEndDate(addDays(maxEndDate, 3));
@@ -203,12 +195,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         };
       });
       setOrders(hydratedOrders);
-      
-      if (loadedSyntheticPos) {
-        setSyntheticPoRecords(loadedSyntheticPos);
-      } else {
-        setSyntheticPoRecords(generateSyntheticPos(hydratedOrders));
-      }
+      setSyntheticPoRecords(generateSyntheticPos(hydratedOrders));
 
     } catch (err) {
       console.error("Could not load schedule from localStorage", err);
@@ -222,6 +209,10 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isScheduleLoaded) return;
     try {
+      // Regenerate POs whenever overrides change to keep data fresh
+      const newSyntheticPOs = generateSyntheticPos(orders);
+      setSyntheticPoRecords(newSyntheticPOs);
+
       const stateToSave = {
         appMode,
         scheduledProcesses,
@@ -230,14 +221,14 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         productionPlans,
         timelineEndDate,
         splitOrderProcesses,
-        syntheticPoRecords,
       };
       const serializedState = JSON.stringify(stateToSave);
       localStorage.setItem(STORE_KEY, serializedState);
     } catch (err) {
       console.error("Could not save schedule to localStorage", err);
     }
-  }, [appMode, scheduledProcesses, sewingLines, orderOverrides, productionPlans, timelineEndDate, splitOrderProcesses, isScheduleLoaded, syntheticPoRecords]);
+  }, [appMode, scheduledProcesses, sewingLines, orderOverrides, productionPlans, timelineEndDate, splitOrderProcesses, isScheduleLoaded, orders]);
+
 
   const setAppMode = (mode: AppMode) => {
     setAppModeState(mode);
@@ -313,54 +304,49 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   };
   
   const updatePoEhd = (orderId: string, poNumber: string, newWeek: string) => {
+    // This function will now be simpler as we regenerate POs on any data change.
+    // We just need to modify the underlying forecast data.
     const originalPoRecord = syntheticPoRecords.find(p => p.poNumber === poNumber);
     if (!originalPoRecord) return;
   
-    setSyntheticPoRecords(prevRecords =>
-      prevRecords.map(p =>
-        p.poNumber === poNumber ? { ...p, actualEhdWeek: newWeek } : p
-      )
-    );
-    
     setOrderOverrides(prevOverrides => {
         const newOverrides = JSON.parse(JSON.stringify(prevOverrides));
         const orderFcDetails = newOverrides[orderId]?.fcVsFcDetails || orders.find(o => o.id === orderId)?.fcVsFcDetails || [];
         if (orderFcDetails.length === 0) return prevOverrides;
         
-        const latestSnapshot = orderFcDetails.reduce((latest: FcSnapshot | null, current: FcSnapshot) => 
-            (!latest || current.snapshotWeek > latest.snapshotWeek) ? current : latest, null
-        );
+        const snapshotWeekToUpdate = parseInt(originalPoRecord.issueWeek.replace('W',''));
+        const snapshotToUpdate = orderFcDetails.find((s: FcSnapshot) => s.snapshotWeek === snapshotWeekToUpdate);
 
-        if (!latestSnapshot) return prevOverrides;
+        if (!snapshotToUpdate) return prevOverrides;
 
         const fromWeek = originalPoRecord.originalEhdWeek;
         const toWeek = newWeek;
         const movedQuantities = originalPoRecord.quantities;
 
-        if (!latestSnapshot.forecasts[fromWeek]) latestSnapshot.forecasts[fromWeek] = {};
-        if (!latestSnapshot.forecasts[toWeek]) latestSnapshot.forecasts[toWeek] = {};
+        if (!snapshotToUpdate.forecasts[fromWeek]) snapshotToUpdate.forecasts[fromWeek] = {};
+        if (!snapshotToUpdate.forecasts[toWeek]) snapshotToUpdate.forecasts[toWeek] = {};
 
         (Object.keys(movedQuantities) as (keyof typeof movedQuantities)[]).forEach(size => {
             if (size === 'total') return;
             const qtyToMove = movedQuantities[size] || 0;
             
-            if (!latestSnapshot.forecasts[fromWeek][size]) latestSnapshot.forecasts[fromWeek][size] = { po: 0, fc: 0 };
-            latestSnapshot.forecasts[fromWeek][size]!.po = Math.max(0, (latestSnapshot.forecasts[fromWeek][size]!.po || 0) - qtyToMove);
+            if (!snapshotToUpdate.forecasts[fromWeek][size]) snapshotToUpdate.forecasts[fromWeek][size] = { po: 0, fc: 0 };
+            snapshotToUpdate.forecasts[fromWeek][size]!.po = Math.max(0, (snapshotToUpdate.forecasts[fromWeek][size]!.po || 0) - qtyToMove);
 
-            if (!latestSnapshot.forecasts[toWeek][size]) latestSnapshot.forecasts[toWeek][size] = { po: 0, fc: 0 };
-            latestSnapshot.forecasts[toWeek][size]!.po = (latestSnapshot.forecasts[toWeek][size]!.po || 0) + qtyToMove;
+            if (!snapshotToUpdate.forecasts[toWeek][size]) snapshotToUpdate.forecasts[toWeek][size] = { po: 0, fc: 0 };
+            snapshotToUpdate.forecasts[toWeek][size]!.po = (snapshotToUpdate.forecasts[toWeek][size]!.po || 0) + qtyToMove;
         });
 
         [fromWeek, toWeek].forEach(weekKey => {
             let totalPo = 0;
             let totalFc = 0;
             SIZES.forEach(size => {
-                totalPo += latestSnapshot.forecasts[weekKey]?.[size]?.po || 0;
-                totalFc += latestSnapshot.forecasts[weekKey]?.[size]?.fc || 0;
+                totalPo += snapshotToUpdate.forecasts[weekKey]?.[size]?.po || 0;
+                totalFc += snapshotToUpdate.forecasts[weekKey]?.[size]?.fc || 0;
             });
-            if (!latestSnapshot.forecasts[weekKey].total) latestSnapshot.forecasts[weekKey].total = { po: 0, fc: 0 };
-            latestSnapshot.forecasts[weekKey].total!.po = totalPo;
-            latestSnapshot.forecasts[weekKey].total!.fc = totalFc;
+            if (!snapshotToUpdate.forecasts[weekKey].total) snapshotToUpdate.forecasts[weekKey].total = { po: 0, fc: 0 };
+            snapshotToUpdate.forecasts[weekKey].total!.po = totalPo;
+            snapshotToUpdate.forecasts[weekKey].total!.fc = totalFc;
         });
 
         if (!newOverrides[orderId]) newOverrides[orderId] = {};

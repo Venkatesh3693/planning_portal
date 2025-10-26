@@ -16,7 +16,87 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
-import type { SyntheticPoRecord, Size } from '@/lib/types';
+import type { SyntheticPoRecord, Size, SizeBreakdown } from '@/lib/types';
+import { SIZES } from '@/lib/data';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
+
+
+const PoDetailsTable = ({ records }: { records: SyntheticPoRecord[] }) => {
+    const totals = useMemo(() => {
+        const sizeTotals = SIZES.reduce((acc, size) => {
+            acc[size] = 0;
+            return acc;
+        }, {} as Record<Size, number>);
+
+        let grandTotal = 0;
+
+        records.forEach(record => {
+            grandTotal += record.quantities.total || 0;
+            SIZES.forEach(size => {
+                sizeTotals[size] += record.quantities[size] || 0;
+            });
+        });
+
+        return { sizeTotals, grandTotal };
+    }, [records]);
+
+
+    if (records.length === 0) {
+        return (
+            <div className="flex items-center justify-center h-48 text-muted-foreground border rounded-lg">
+                No released POs found for this order based on the current criteria.
+            </div>
+        );
+    }
+    
+    return (
+        <Table>
+            <TableHeader>
+                <TableRow>
+                    <TableHead>PO #</TableHead>
+                    <TableHead>Destination</TableHead>
+                    <TableHead>Snapshot Week</TableHead>
+                    <TableHead>EHD Week</TableHead>
+                    {SIZES.map(size => (
+                        <TableHead key={size} className="text-right">{size}</TableHead>
+                    ))}
+                    <TableHead className="text-right font-bold">Total</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {records.map(record => (
+                    <TableRow key={record.poNumber}>
+                        <TableCell className="font-medium whitespace-nowrap">{record.poNumber}</TableCell>
+                        <TableCell>{record.destination}</TableCell>
+                        <TableCell>{record.issueWeek}</TableCell>
+                        <TableCell>{record.originalEhdWeek}</TableCell>
+                        {SIZES.map(size => (
+                             <TableCell key={size} className="text-right">
+                                {(record.quantities[size] || 0).toLocaleString()}
+                            </TableCell>
+                        ))}
+                        <TableCell className="text-right font-bold">
+                            {(record.quantities.total || 0).toLocaleString()}
+                        </TableCell>
+                    </TableRow>
+                ))}
+            </TableBody>
+            <TableFooter>
+                <TableRow>
+                    <TableCell colSpan={4} className="font-bold text-right">Total</TableCell>
+                    {SIZES.map(size => (
+                        <TableCell key={`total-${size}`} className="text-right font-bold">
+                            {(totals.sizeTotals[size] || 0).toLocaleString()}
+                        </TableCell>
+                    ))}
+                    <TableCell className="text-right font-bold">
+                        {totals.grandTotal.toLocaleString()}
+                    </TableCell>
+                </TableRow>
+            </TableFooter>
+        </Table>
+    )
+}
 
 
 function PoStatusPageContent() {
@@ -83,7 +163,7 @@ function PoStatusPageContent() {
                 </div>
                 
                 <div className="border rounded-lg overflow-auto flex-1">
-                   {/* The table has been removed as requested. */}
+                   <PoDetailsTable records={filteredRecords} />
                 </div>
             </main>
         </div>
