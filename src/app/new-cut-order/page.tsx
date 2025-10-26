@@ -2,7 +2,7 @@
 'use client';
 
 import { Suspense, useMemo, useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useSchedule } from '@/context/schedule-provider';
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
@@ -24,9 +24,11 @@ import { runTentativePlanForHorizon } from '@/lib/tna-calculator';
 import type { ProjectionRow, SizeBreakdown, Size } from '@/lib/types';
 import { SIZES } from '@/lib/data';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
+import { Separator } from '@/components/ui/separator';
 
 function NewCutOrderForm({ orderId }: { orderId: string }) {
-    const { orders, cutOrderRecords } = useSchedule();
+    const { orders, cutOrderRecords, addCutOrderRecord } = useSchedule();
+    const router = useRouter();
     const [startWeek, setStartWeek] = useState<number | null>(null);
     const [endWeek, setEndWeek] = useState<number | null>(null);
     const [targetQuantity, setTargetQuantity] = useState<number>(0);
@@ -248,6 +250,19 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
         }
     }, [startWeek, endWeek, order, currentWeek, projectionData, cutOrderRecords, orderId]);
 
+    const handleSubmit = () => {
+        if (!availableFrc || startWeek === null || endWeek === null) return;
+        
+        const newRecord: CutOrderRecord = {
+            coNumber: coNumber,
+            orderId: orderId,
+            coWeekCoverage: `W${startWeek}-W${endWeek}`,
+            quantities: availableFrc,
+        };
+        addCutOrderRecord(newRecord);
+        router.push(`/cut-order?orderId=${orderId}`);
+    }
+
     if (!order) {
         return <div className="flex items-center justify-center h-full">Order not found. Please go back and select an order.</div>;
     }
@@ -255,104 +270,108 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
     return (
         <div className="space-y-6">
             <Card>
-                <CardContent className="p-6">
-                    <div className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div className="space-y-2">
-                                <Label>CO #</Label>
-                                <p className="font-semibold text-lg">{coNumber}</p>
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Current Week</Label>
-                                <p className="font-semibold text-lg">W{currentWeek}</p>
+                <CardContent className="p-6 space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="space-y-2">
+                            <Label>CO #</Label>
+                            <p className="font-semibold text-lg">{coNumber}</p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Current Week</Label>
+                            <p className="font-semibold text-lg">W{currentWeek}</p>
+                        </div>
+                    </div>
+                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                         <div className="space-y-2">
+                             <Label htmlFor="start-week">Start Week</Label>
+                             <Select
+                                onValueChange={(value) => {
+                                    const week = parseInt(value, 10);
+                                    setStartWeek(week);
+                                    if (endWeek !== null && week > endWeek) {
+                                        setEndWeek(null);
+                                    }
+                                }}
+                                value={startWeek !== null ? String(startWeek) : ''}
+                            >
+                                <SelectTrigger id="start-week">
+                                    <SelectValue placeholder="Select start week" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {productionWeeks.map(week => (
+                                        <SelectItem key={week} value={String(week)}>
+                                            W{week}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                         </div>
+                         <div className="space-y-2">
+                             <Label htmlFor="end-week">End Week</Label>
+                             <Select
+                                onValueChange={(value) => setEndWeek(parseInt(value, 10))}
+                                value={endWeek !== null ? String(endWeek) : ''}
+                                disabled={startWeek === null}
+                            >
+                                <SelectTrigger id="end-week">
+                                    <SelectValue placeholder="Select end week" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {availableEndWeeks.map(week => (
+                                        <SelectItem key={week} value={String(week)}>
+                                            W{week}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                         </div>
+                     </div>
+                     {targetQuantity > 0 && (
+                        <div className="pt-4 border-t">
+                            <Label>Target Production Quantity</Label>
+                            <p className="font-semibold text-2xl text-primary">{targetQuantity.toLocaleString()}</p>
+                            <p className="text-sm text-muted-foreground">Based on production plan for W{startWeek}-W{endWeek}</p>
+                        </div>
+                     )}
+
+                    {availableFrc && availableFrc.total > 0 && (
+                        <div className="pt-6 mt-6 border-t">
+                            <h3 className="text-lg font-semibold mb-4">Available FRC for Cut Order</h3>
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Sizes</TableHead>
+                                            {SIZES.map(size => (
+                                                <TableHead key={size} className="text-right">{size}</TableHead>
+                                            ))}
+                                            <TableHead className="text-right font-bold">Total</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        <TableRow>
+                                            <TableCell className="font-medium">Quantity</TableCell>
+                                            {SIZES.map(size => (
+                                                <TableCell key={size} className="text-right">
+                                                    {(availableFrc[size] || 0).toLocaleString()}
+                                                </TableCell>
+                                            ))}
+                                            <TableCell className="text-right font-bold">
+                                                {(availableFrc.total || 0).toLocaleString()}
+                                            </TableCell>
+                                        </TableRow>
+                                    </TableBody>
+                                </Table>
                             </div>
                         </div>
-                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                             <div className="space-y-2">
-                                 <Label htmlFor="start-week">Start Week</Label>
-                                 <Select
-                                    onValueChange={(value) => {
-                                        const week = parseInt(value, 10);
-                                        setStartWeek(week);
-                                        if (endWeek !== null && week > endWeek) {
-                                            setEndWeek(null);
-                                        }
-                                    }}
-                                    value={startWeek !== null ? String(startWeek) : ''}
-                                >
-                                    <SelectTrigger id="start-week">
-                                        <SelectValue placeholder="Select start week" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {productionWeeks.map(week => (
-                                            <SelectItem key={week} value={String(week)}>
-                                                W{week}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                             </div>
-                             <div className="space-y-2">
-                                 <Label htmlFor="end-week">End Week</Label>
-                                 <Select
-                                    onValueChange={(value) => setEndWeek(parseInt(value, 10))}
-                                    value={endWeek !== null ? String(endWeek) : ''}
-                                    disabled={startWeek === null}
-                                >
-                                    <SelectTrigger id="end-week">
-                                        <SelectValue placeholder="Select end week" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {availableEndWeeks.map(week => (
-                                            <SelectItem key={week} value={String(week)}>
-                                                W{week}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                             </div>
-                         </div>
-                         {targetQuantity > 0 && (
-                            <div className="pt-4 border-t">
-                                <Label>Target Production Quantity</Label>
-                                <p className="font-semibold text-2xl text-primary">{targetQuantity.toLocaleString()}</p>
-                                <p className="text-sm text-muted-foreground">Based on production plan for W{startWeek}-W{endWeek}</p>
-                            </div>
-                         )}
-                    </div>
+                    )}
                 </CardContent>
             </Card>
-
+            
             {availableFrc && availableFrc.total > 0 && (
-                <Card>
-                    <CardContent className="p-6">
-                        <h3 className="text-lg font-semibold mb-4">Available FRC for Cut Order</h3>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Sizes</TableHead>
-                                    {SIZES.map(size => (
-                                        <TableHead key={size} className="text-right">{size}</TableHead>
-                                    ))}
-                                    <TableHead className="text-right font-bold">Total</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                <TableRow>
-                                    <TableCell className="font-medium">Quantity</TableCell>
-                                    {SIZES.map(size => (
-                                        <TableCell key={size} className="text-right">
-                                            {(availableFrc[size] || 0).toLocaleString()}
-                                        </TableCell>
-                                    ))}
-                                    <TableCell className="text-right font-bold">
-                                        {(availableFrc.total || 0).toLocaleString()}
-                                    </TableCell>
-                                </TableRow>
-                            </TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
+                <div className="flex justify-end">
+                    <Button onClick={handleSubmit}>Issue Cut Order</Button>
+                </div>
             )}
         </div>
     );
@@ -362,11 +381,6 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
 function NewCutOrderPageContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get('orderId');
-    const { isScheduleLoaded } = useSchedule();
-
-    if (!isScheduleLoaded) {
-        return <div className="flex items-center justify-center h-full">Loading order data...</div>;
-    }
     
     if (!orderId) {
         return <div className="flex items-center justify-center h-full">Order ID is missing. Please go back and select an order.</div>;
@@ -430,3 +444,5 @@ export default function NewCutOrderPage() {
         </Suspense>
     );
 }
+
+    
