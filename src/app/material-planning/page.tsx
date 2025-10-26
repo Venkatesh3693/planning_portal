@@ -101,12 +101,56 @@ const FrcBreakdownTable = ({ breakdown, coverage }: { breakdown?: ProjectionRow[
     );
 };
 
+const AllFrcBreakdownTable = ({ projectionData }: { projectionData: ProjectionRow[] }) => {
+    if (!projectionData || projectionData.length === 0) return null;
+    return (
+        <Card className="mt-4">
+            <CardHeader>
+                <CardTitle>FRC Breakdown Summary</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>PRJ#</TableHead>
+                            <TableHead>FRC#</TableHead>
+                            <TableHead>CK Week</TableHead>
+                            <TableHead>FRC Coverage</TableHead>
+                            {SIZES.map(size => (
+                                <TableHead key={size} className="text-right">{size}</TableHead>
+                            ))}
+                            <TableHead className="text-right font-bold">Total FRC Qty</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {projectionData.map((row) => (
+                           <TableRow key={row.frcNumber}>
+                               <TableCell>{row.prjNumber}</TableCell>
+                               <TableCell>{row.frcNumber}</TableCell>
+                               <TableCell>{row.ckWeek}</TableCell>
+                               <TableCell>{row.frcCoverage}</TableCell>
+                               {SIZES.map(size => (
+                                    <TableCell key={size} className="text-right">
+                                        {(row.breakdown?.['FRC']?.[size] || 0).toLocaleString()}
+                                    </TableCell>
+                                ))}
+                               <TableCell className="text-right font-bold">{row.frcQty.toLocaleString()}</TableCell>
+                           </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    );
+};
+
 
 function MaterialPlanningPageContent() {
     const searchParams = useSearchParams();
     const orderIdFromUrl = searchParams.get('orderId');
     const { orders, isScheduleLoaded } = useSchedule();
     const [selectedFrc, setSelectedFrc] = useState<ProjectionRow | null>(null);
+    const [showFrcSummary, setShowFrcSummary] = useState(false);
     
     const order = useMemo(() => {
         if (!isScheduleLoaded || !orderIdFromUrl) return null;
@@ -193,21 +237,21 @@ function MaterialPlanningPageContent() {
                         for (const size of SIZES) {
                             const demand = snapshotForFrc.forecasts[week]?.[size];
                             const qty = (demand?.po || 0) + (demand?.fc || 0);
-
+                            
                             if (runningTotal + qty >= cumulativeTarget) {
                                 const needed = cumulativeTarget - runningTotal;
                                 newCumulativeBreakdown[size] = (newCumulativeBreakdown[size] || 0) + needed;
                                 runningTotal += needed;
                                 endCoverageWeek = week;
                                 targetMet = true;
-                                break; // Exit size loop
+                                break; 
                             } else {
                                 runningTotal += qty;
                                 newCumulativeBreakdown[size] = (newCumulativeBreakdown[size] || 0) + qty;
                             }
                         }
                         if (targetMet) {
-                            break; // Exit week loop
+                            break;
                         }
                     }
                     
@@ -252,7 +296,7 @@ function MaterialPlanningPageContent() {
             projectionIndex++;
             
             const hasMorePlan = Object.keys(plan).some(w => parseInt(w.slice(1)) > coverageEnd && plan[w] > 0);
-            if (!hasMorePlan) break;
+            if (!hasMorePlan || currentProjectionWeek > 52) break;
 
             currentProjectionWeek += 4;
         }
@@ -378,7 +422,14 @@ function MaterialPlanningPageContent() {
                                         <TableCell colSpan={4} className="font-bold text-right">Total</TableCell>
                                         <TableCell className="text-right font-bold">{projectionTotals.prjQty.toLocaleString()}</TableCell>
                                         <TableCell colSpan={3}></TableCell>
-                                        <TableCell className="text-right font-bold">{projectionTotals.frcQty.toLocaleString()}</TableCell>
+                                        <TableCell className="text-right font-bold">
+                                            <span
+                                                className="font-medium text-primary cursor-pointer hover:underline"
+                                                onClick={() => setShowFrcSummary(prev => !prev)}
+                                            >
+                                                {projectionTotals.frcQty.toLocaleString()}
+                                            </span>
+                                        </TableCell>
                                         <TableCell className="text-right font-bold">{projectionTotals.cutOrderQty.toLocaleString()}</TableCell>
                                         <TableCell className="text-right font-bold">{projectionTotals.cutOrderPending.toLocaleString()}</TableCell>
                                     </TableRow>
@@ -390,6 +441,10 @@ function MaterialPlanningPageContent() {
 
                 {selectedFrc && (
                     <FrcBreakdownTable breakdown={selectedFrc.breakdown} coverage={selectedFrc.frcCoverage} />
+                )}
+
+                {showFrcSummary && (
+                    <AllFrcBreakdownTable projectionData={projectionData} />
                 )}
             </main>
         </div>
