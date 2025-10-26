@@ -9,6 +9,7 @@ import { addDays, startOfToday, isAfter, getWeek, startOfWeek, addWeeks } from '
 import { getProcessBatchSize, getPackingBatchSize, runTentativePlanForHorizon } from '@/lib/tna-calculator';
 
 const STORE_KEY = 'stitchplan_schedule_v4';
+const FIRM_PO_WINDOW = 3; // weeks
 
 type AppMode = 'gup' | 'gut';
 type SewingRampUpSchemes = Record<string, RampUpEntry[]>;
