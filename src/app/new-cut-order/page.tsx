@@ -59,10 +59,9 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
             .filter(w => plan[w] > 0)
             .map(w => parseInt(w.slice(1)));
 
-        if (allPlanWeeks.length === 0) return [];
         
-        const firstProdWeek = Math.min(...allPlanWeeks);
-        const lastProdWeek = Math.max(...allPlanWeeks);
+        const firstProdWeek = allPlanWeeks.length > 0 ? Math.min(...allPlanWeeks) : 53;
+        const lastProdWeek = allPlanWeeks.length > 0 ? Math.max(...allPlanWeeks) : 0;
         
         // Also consider all forecast weeks to create a full range to the end of the season
         const allForecastWeeks = new Set<number>();
@@ -75,12 +74,15 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
         const endOfWeekRange = Math.max(lastProdWeek, lastFcWeek);
 
         const weeks: number[] = [];
-        for (let i = firstProdWeek; i <= endOfWeekRange; i++) {
+        const start = Math.min(firstProdWeek, currentWeek);
+        for (let i = start; i <= endOfWeekRange; i++) {
             weeks.push(i);
         }
 
-        return weeks;
-    }, [order]);
+        // Filter to only include weeks from the current week onwards
+        return weeks.filter(week => week >= currentWeek);
+
+    }, [order, currentWeek]);
 
     const availableEndWeeks = useMemo(() => {
         if (startWeek === null) return [];
