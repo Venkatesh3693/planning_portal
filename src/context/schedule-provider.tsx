@@ -141,17 +141,17 @@ const generateCutOrders = (orders: Order[], allPoRecords: SyntheticPoRecord[]): 
     orders.forEach(order => {
         if (order.orderType !== 'Forecasted' || !order.fcVsFcDetails) return;
 
-        const latestSnapshot = order.fcVsFcDetails.reduce((latest, s) => s.snapshotWeek > latest.snapshotWeek ? s : latest, order.fcVsFcDetails[0]);
-        if (!latestSnapshot) return;
+        const earliestSnapshot = order.fcVsFcDetails.reduce((earliest, s) => s.snapshotWeek < earliest.snapshotWeek ? s : earliest, order.fcVsFcDetails[0]);
+        if (!earliestSnapshot) return;
 
         const weeklyTotals: Record<string, number> = {};
-        const snapshotWeeks = Object.keys(latestSnapshot.forecasts).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
+        const snapshotWeeks = Object.keys(earliestSnapshot.forecasts).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
         snapshotWeeks.forEach(week => {
-            const total = latestSnapshot.forecasts[week]?.total;
+            const total = earliestSnapshot.forecasts[week]?.total;
             weeklyTotals[week] = (total?.po || 0) + (total?.fc || 0);
         });
 
-        const { plan } = runTentativePlanForHorizon(latestSnapshot.snapshotWeek, null, weeklyTotals, order, 0);
+        const { plan } = runTentativePlanForHorizon(1, null, weeklyTotals, order, 0);
         const planWeeks = Object.keys(plan).map(w => parseInt(w.slice(1))).sort((a, b) => a - b);
         
         const firstProdWeek = planWeeks.find(w => plan[`W${w}`] > 0);
