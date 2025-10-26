@@ -20,6 +20,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { getWeek } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { runTentativePlanForHorizon } from '@/lib/tna-calculator';
 
 function NewCutOrderForm({ orderId }: { orderId: string }) {
     const { orders, cutOrderRecords } = useSchedule();
@@ -39,14 +40,46 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
     }, [order, orderId, cutOrderRecords]);
 
     const productionWeeks = useMemo(() => {
-        if (!order?.fcVsFcDetails) return [];
-        const weekSet = new Set<number>();
+        if (!order?.fcVsFcDetails || order.fcVsFcDetails.length === 0) return [];
+        
+        // Find the earliest snapshot to generate a full tentative plan
+        const firstSnapshot = order.fcVsFcDetails.reduce((earliest, current) => 
+            earliest.snapshotWeek < current.snapshotWeek ? earliest : current
+        );
+
+        const weeklyTotals: Record<string, number> = {};
+        Object.entries(firstSnapshot.forecasts).forEach(([week, data]) => {
+            weeklyTotals[week] = (data.total?.po || 0) + (data.total?.fc || 0);
+        });
+
+        // Run the tentative plan based on the earliest forecast
+        const { plan } = runTentativePlanForHorizon(firstSnapshot.snapshotWeek, null, weeklyTotals, order, 0);
+
+        const allPlanWeeks = Object.keys(plan)
+            .filter(w => plan[w] > 0)
+            .map(w => parseInt(w.slice(1)));
+
+        if (allPlanWeeks.length === 0) return [];
+        
+        const firstProdWeek = Math.min(...allPlanWeeks);
+        const lastProdWeek = Math.max(...allPlanWeeks);
+        
+        // Also consider all forecast weeks to create a full range to the end of the season
+        const allForecastWeeks = new Set<number>();
         order.fcVsFcDetails.forEach(snapshot => {
             Object.keys(snapshot.forecasts).forEach(weekStr => {
-                weekSet.add(parseInt(weekStr.replace('W', ''), 10));
+                allForecastWeeks.add(parseInt(weekStr.replace('W', ''), 10));
             });
         });
-        return Array.from(weekSet).sort((a, b) => a - b);
+        const lastFcWeek = Math.max(...Array.from(allForecastWeeks));
+        const endOfWeekRange = Math.max(lastProdWeek, lastFcWeek);
+
+        const weeks: number[] = [];
+        for (let i = firstProdWeek; i <= endOfWeekRange; i++) {
+            weeks.push(i);
+        }
+
+        return weeks;
     }, [order]);
 
     const availableEndWeeks = useMemo(() => {
