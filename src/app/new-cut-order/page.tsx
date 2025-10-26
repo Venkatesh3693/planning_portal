@@ -21,10 +21,70 @@ import { Label } from '@/components/ui/label';
 import { getWeek } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { runTentativePlanForHorizon } from '@/lib/tna-calculator';
-import type { ProjectionRow, SizeBreakdown, Size, SyntheticPoRecord } from '@/lib/types';
+import type { ProjectionRow, SizeBreakdown, Size, SyntheticPoRecord, CutOrderRecord } from '@/lib/types';
 import { SIZES } from '@/lib/data';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
+
+function NewCutOrderPageContent() {
+    const searchParams = useSearchParams();
+    const orderId = searchParams.get('orderId');
+    
+    if (!orderId) {
+        return <div className="flex items-center justify-center h-full">Order ID is missing. Please go back and select an order.</div>;
+    }
+
+    return (
+        <div className="flex h-screen flex-col">
+            <Header />
+            <main className="flex-1 p-4 sm:p-6 lg:p-8 flex flex-col">
+                <Breadcrumb className="mb-4 flex-shrink-0">
+                    <BreadcrumbList>
+                        <BreadcrumbItem>
+                            <BreadcrumbLink asChild>
+                                <Link href="/">Home</Link>
+                            </BreadcrumbLink>
+                        </BreadcrumbItem>
+                        <BreadcrumbSeparator />
+                        <BreadcrumbItem>
+                             <BreadcrumbLink asChild>
+                                <Link href="/orders">Order Management</Link>
+                            </BreadcrumbLink>
+                        </BreadcrumbItem>
+                        <BreadcrumbSeparator />
+                         <BreadcrumbItem>
+                             <BreadcrumbLink asChild>
+                                <Link href={`/cut-order?orderId=${orderId}`}>Cut Order</Link>
+                            </BreadcrumbLink>
+                        </BreadcrumbItem>
+                        <BreadcrumbSeparator />
+                        <BreadcrumbItem>
+                            <BreadcrumbPage>New Cut Order</BreadcrumbPage>
+                        </BreadcrumbItem>
+                    </BreadcrumbList>
+                </Breadcrumb>
+
+                 <div className="flex justify-between items-center mb-4 flex-shrink-0">
+                    <div>
+                        <h1 className="text-2xl font-bold">New Cut Order</h1>
+                        <p className="text-muted-foreground">
+                            For Order ID: {orderId}
+                        </p>
+                    </div>
+                     <Button variant="outline" asChild>
+                        <Link href={`/cut-order?orderId=${orderId}`}>
+                            <ArrowLeft className="mr-2 h-4 w-4" />
+                            Back to Cut Order
+                        </Link>
+                    </Button>
+                </div>
+                
+                <NewCutOrderForm orderId={orderId} />
+            </main>
+        </div>
+    );
+}
+
 
 function NewCutOrderForm({ orderId }: { orderId: string }) {
     const { orders, cutOrderRecords, addCutOrderRecord, syntheticPoRecords } = useSchedule();
@@ -428,128 +488,69 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
                             </div>
                         </>
                     )}
+
+                    {suggestedPos.length > 0 && (
+                        <>
+                            <Separator />
+                            <div className="pt-6">
+                                 <h3 className="text-lg font-semibold mb-4">Suggested POs for Cut Order</h3>
+                                 <div className="overflow-x-auto">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>PO #</TableHead>
+                                                <TableHead>EHD Week</TableHead>
+                                                {SIZES.map(size => (
+                                                    <TableHead key={size} className="text-right">{size}</TableHead>
+                                                ))}
+                                                <TableHead className="text-right font-bold">Total</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {suggestedPos.map(po => (
+                                                <TableRow key={po.poNumber}>
+                                                    <TableCell className="font-medium">{po.poNumber}</TableCell>
+                                                    <TableCell>{po.actualEhdWeek}</TableCell>
+                                                    {SIZES.map(size => (
+                                                        <TableCell key={size} className="text-right">
+                                                            {(po.quantities[size] || 0).toLocaleString()}
+                                                        </TableCell>
+                                                    ))}
+                                                    <TableCell className="text-right font-bold">
+                                                        {(po.quantities.total).toLocaleString()}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                        <TableFooter>
+                                            <TableRow>
+                                                <TableCell colSpan={2} className="text-right font-bold">Total Suggested Qty</TableCell>
+                                                {SIZES.map(size => {
+                                                    const totalSize = suggestedPos.reduce((sum, po) => sum + (po.quantities[size] || 0), 0);
+                                                    return <TableCell key={size} className="text-right font-bold">{totalSize.toLocaleString()}</TableCell>
+                                                })}
+                                                <TableCell className="text-right font-bold">
+                                                    {suggestedPos.reduce((sum, po) => sum + po.quantities.total, 0).toLocaleString()}
+                                                </TableCell>
+                                            </TableRow>
+                                        </TableFooter>
+                                    </Table>
+                                 </div>
+                                <div className="pt-4 text-right">
+                                    <Label>Remaining Production Target</Label>
+                                    <p className="font-semibold text-2xl text-amber-600">{remainingProdQty.toLocaleString()}</p>
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </CardContent>
             </Card>
 
-            {suggestedPos.length > 0 && (
-                <Card>
-                    <CardContent className="p-6 space-y-4">
-                         <h3 className="text-lg font-semibold">Suggested POs for Cut Order</h3>
-                         <div className="overflow-x-auto">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>PO #</TableHead>
-                                        <TableHead>EHD Week</TableHead>
-                                        {SIZES.map(size => (
-                                            <TableHead key={size} className="text-right">{size}</TableHead>
-                                        ))}
-                                        <TableHead className="text-right font-bold">Total</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {suggestedPos.map(po => (
-                                        <TableRow key={po.poNumber}>
-                                            <TableCell className="font-medium">{po.poNumber}</TableCell>
-                                            <TableCell>{po.actualEhdWeek}</TableCell>
-                                            {SIZES.map(size => (
-                                                <TableCell key={size} className="text-right">
-                                                    {(po.quantities[size] || 0).toLocaleString()}
-                                                </TableCell>
-                                            ))}
-                                            <TableCell className="text-right font-bold">
-                                                {(po.quantities.total).toLocaleString()}
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                                <TableFooter>
-                                    <TableRow>
-                                        <TableCell colSpan={2} className="text-right font-bold">Total Suggested Qty</TableCell>
-                                        {SIZES.map(size => {
-                                            const totalSize = suggestedPos.reduce((sum, po) => sum + (po.quantities[size] || 0), 0);
-                                            return <TableCell key={size} className="text-right font-bold">{totalSize.toLocaleString()}</TableCell>
-                                        })}
-                                        <TableCell className="text-right font-bold">
-                                            {suggestedPos.reduce((sum, po) => sum + po.quantities.total, 0).toLocaleString()}
-                                        </TableCell>
-                                    </TableRow>
-                                </TableFooter>
-                            </Table>
-                         </div>
-                        <div className="pt-4 text-right">
-                            <Label>Remaining Production Target</Label>
-                            <p className="font-semibold text-2xl text-amber-600">{remainingProdQty.toLocaleString()}</p>
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-            
             {availableFrc && availableFrc.total > 0 && (
                 <div className="flex justify-end">
                     <Button onClick={handleSubmit}>Issue Cut Order</Button>
                 </div>
             )}
-        </div>
-    );
-}
-
-
-function NewCutOrderPageContent() {
-    const searchParams = useSearchParams();
-    const orderId = searchParams.get('orderId');
-    
-    if (!orderId) {
-        return <div className="flex items-center justify-center h-full">Order ID is missing. Please go back and select an order.</div>;
-    }
-
-    return (
-        <div className="flex h-screen flex-col">
-            <Header />
-            <main className="flex-1 p-4 sm:p-6 lg:p-8 flex flex-col">
-                <Breadcrumb className="mb-4 flex-shrink-0">
-                    <BreadcrumbList>
-                        <BreadcrumbItem>
-                            <BreadcrumbLink asChild>
-                                <Link href="/">Home</Link>
-                            </BreadcrumbLink>
-                        </BreadcrumbItem>
-                        <BreadcrumbSeparator />
-                        <BreadcrumbItem>
-                             <BreadcrumbLink asChild>
-                                <Link href="/orders">Order Management</Link>
-                            </BreadcrumbLink>
-                        </BreadcrumbItem>
-                        <BreadcrumbSeparator />
-                         <BreadcrumbItem>
-                             <BreadcrumbLink asChild>
-                                <Link href={`/cut-order?orderId=${orderId}`}>Cut Order</Link>
-                            </BreadcrumbLink>
-                        </BreadcrumbItem>
-                        <BreadcrumbSeparator />
-                        <BreadcrumbItem>
-                            <BreadcrumbPage>New Cut Order</BreadcrumbPage>
-                        </BreadcrumbItem>
-                    </BreadcrumbList>
-                </Breadcrumb>
-
-                 <div className="flex justify-between items-center mb-4 flex-shrink-0">
-                    <div>
-                        <h1 className="text-2xl font-bold">New Cut Order</h1>
-                        <p className="text-muted-foreground">
-                            For Order ID: {orderId}
-                        </p>
-                    </div>
-                     <Button variant="outline" asChild>
-                        <Link href={`/cut-order?orderId=${orderId}`}>
-                            <ArrowLeft className="mr-2 h-4 w-4" />
-                            Back to Cut Order
-                        </Link>
-                    </Button>
-                </div>
-                
-                <NewCutOrderForm orderId={orderId} />
-            </main>
         </div>
     );
 }
@@ -561,5 +562,3 @@ export default function NewCutOrderPage() {
         </Suspense>
     );
 }
-
-    
