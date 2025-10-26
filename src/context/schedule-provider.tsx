@@ -49,76 +49,79 @@ const ScheduleContext = createContext<ScheduleContextType | undefined>(undefined
 // New function to generate synthetic POs
 const generateSyntheticPos = (orders: Order[]): SyntheticPoRecord[] => {
     const allPos: SyntheticPoRecord[] = [];
-    
+
     orders.forEach(order => {
-        if (order.orderType !== 'Forecasted' || !order.demandDetails || !order.fcVsFcDetails) return;
+        if (order.orderType !== 'Forecasted' || !order.fcVsFcDetails || order.fcVsFcDetails.length === 0) {
+            return;
+        }
 
-        const selectionQty = order.quantity;
-        const targetTotalPoQty = selectionQty * (0.8 + Math.random() * 0.5); // 80% to 130% of selection
+        const sortedSnapshots = [...order.fcVsFcDetails].sort((a, b) => a.snapshotWeek - b.snapshotWeek);
+        const poConfirmationWeeks: Record<string, number> = {}; // { demandWeek: issueWeek }
 
-        const latestSnapshot = order.fcVsFcDetails.reduce((latest, current) => {
-            return !latest || current.snapshotWeek > latest.snapshotWeek ? current : latest;
-        }, null as FcSnapshot | null);
+        // Find the first time a demand week becomes a PO
+        sortedSnapshots.forEach(snapshot => {
+            Object.keys(snapshot.forecasts).forEach(demandWeek => {
+                const poQty = snapshot.forecasts[demandWeek]?.total?.po || 0;
+                // If it's a PO now and we haven't recorded it yet, this is the issue week.
+                if (poQty > 0 && !poConfirmationWeeks[demandWeek]) {
+                    poConfirmationWeeks[demandWeek] = snapshot.snapshotWeek;
+                }
+            });
+        });
 
+        // Use the latest snapshot to get the final PO quantities and structure
+        const latestSnapshot = sortedSnapshots[sortedSnapshots.length - 1];
         if (!latestSnapshot) return;
 
-        const poWeeks = Object.entries(latestSnapshot.forecasts)
-            .filter(([_, weekData]) => (weekData.total?.po || 0) > 0)
-            .map(([weekKey, weekData]) => ({
-                week: weekKey,
-                totalPo: weekData.total!.po,
-                sizeBreakdown: SIZES.reduce((acc, size) => {
-                    acc[size] = weekData[size]?.po || 0;
-                    return acc;
-                }, {} as Record<Size, number>)
-            }));
-        
-        if (poWeeks.length === 0) return;
-
-        let allocatedQty = 0;
         let poCounter = 1;
 
-        for (const weekInfo of poWeeks) {
-             if (allocatedQty >= targetTotalPoQty) break;
+        Object.entries(poConfirmationWeeks).forEach(([demandWeek, issueWeek]) => {
+            const weekData = latestSnapshot.forecasts[demandWeek];
+            if (!weekData || !weekData.total || weekData.total.po <= 0) return;
 
-            for (const destDetail of order.demandDetails) {
-                 if (allocatedQty >= targetTotalPoQty) break;
+            const totalPoForWeek = weekData.total.po;
+            const sizeBreakdown = SIZES.reduce((acc, size) => {
+                acc[size] = weekData[size]?.po || 0;
+                return acc;
+            }, {} as Record<Size, number>);
 
-                const destProportion = destDetail.selectionQty / selectionQty;
-                const poQtyForDest = Math.round(weekInfo.totalPo * destProportion);
+            // Distribute this week's total PO across destinations
+            order.demandDetails?.forEach(destDetail => {
+                const destProportion = destDetail.selectionQty / order.quantity;
+                if (isNaN(destProportion) || destProportion <= 0) return;
                 
-                if (poQtyForDest < 100) continue; // Minimum PO size
+                const poQtyForDest = Math.round(totalPoForWeek * destProportion);
+                if (poQtyForDest <= 0) return;
 
                 const quantities: Partial<SizeBreakdown> = {};
                 let currentPoTotal = 0;
                 SIZES.forEach(size => {
-                    const sizeQty = Math.round((weekInfo.sizeBreakdown[size] || 0) * destProportion);
+                    const sizeQty = Math.round((sizeBreakdown[size] || 0) * destProportion);
                     quantities[size] = sizeQty;
                     currentPoTotal += sizeQty;
                 });
                 quantities.total = currentPoTotal;
-                
-                if (quantities.total <= 0) continue;
 
-                const ehdWeekNum = parseInt(weekInfo.week.replace('W', ''), 10);
-                const issueWeekNum = ehdWeekNum - 4;
-
-                allPos.push({
-                    orderId: order.id,
-                    poNumber: `PO-${order.ocn}-${destDetail.destination.substring(0,2).toUpperCase()}-${poCounter++}`,
-                    issueWeek: `W${issueWeekNum}`,
-                    originalEhdWeek: weekInfo.week,
-                    actualEhdWeek: weekInfo.week,
-                    destination: destDetail.destination,
-                    quantities: quantities as SizeBreakdown,
-                });
-                
-                allocatedQty += quantities.total;
-            }
-        }
+                if (quantities.total > 0) {
+                    allPos.push({
+                        orderId: order.id,
+                        poNumber: `PO-${order.ocn}-${destDetail.destination.substring(0, 2).toUpperCase()}-${poCounter++}`,
+                        issueWeek: `W${issueWeek}`,
+                        originalEhdWeek: demandWeek,
+                        actualEhdWeek: demandWeek,
+                        destination: destDetail.destination,
+                        quantities: quantities as SizeBreakdown,
+                    });
+                }
+            });
+        });
     });
 
-    return allPos;
+    return allPos.sort((a,b) => {
+      const weekA = parseInt(a.originalEhdWeek.replace('W',''));
+      const weekB = parseInt(b.originalEhdWeek.replace('W',''));
+      return weekA - weekB;
+    });
 };
 
 
@@ -169,10 +172,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         }
 
         if (storedData.syntheticPoRecords) {
-           loadedSyntheticPos = storedData.syntheticPoRecords.map((r: any) => ({
-             ...r,
-             issueDate: new Date(r.issueDate),
-           }));
+           loadedSyntheticPos = storedData.syntheticPoRecords;
         }
       }
 
