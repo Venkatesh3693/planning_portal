@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, Dispatch, SetStateAction, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, Dispatch, SetStateAction, useMemo, useCallback } from 'react';
 import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem, Size, FcComposition, FcSnapshot, SyntheticPoRecord, CutOrderRecord } from '@/lib/types';
 import { ORDERS as staticOrders, PROCESSES, ORDER_COLORS, SIZES } from '@/lib/data';
 import { addDays, startOfToday, isAfter, getWeek, startOfWeek, addWeeks } from 'date-fns';
@@ -139,7 +139,7 @@ const generateCutOrders = (orders: Order[], allPoRecords: SyntheticPoRecord[]): 
     const currentWeek = getWeek(new Date());
 
     orders.forEach(order => {
-        if (order.orderType !== 'Forecasted' || !order.fcVsFcDetails || order.fcVsFcDetails.length === 0) return;
+        if (order.orderType !== 'Forecasted' || !order.fcVsFcDetails || !order.fcVsFcDetails.length) return;
 
         const earliestSnapshot = order.fcVsFcDetails.reduce((earliest, s) => s.snapshotWeek < earliest.snapshotWeek ? s : earliest, order.fcVsFcDetails[0]);
         
@@ -163,9 +163,7 @@ const generateCutOrders = (orders: Order[], allPoRecords: SyntheticPoRecord[]): 
         let coRemainderQty = 0;
         let coCounter = 1;
 
-        for (let week = firstProdWeek; week < 53; week += 2) {
-             if (week > currentWeek) break;
-
+        for (let week = firstProdWeek; week <= currentWeek; week += 2) {
             const week1 = week;
             const week2 = week + 1;
             const week1Key = `W${week1}`;
@@ -176,7 +174,6 @@ const generateCutOrders = (orders: Order[], allPoRecords: SyntheticPoRecord[]): 
             const targetQty = planQtyW1 + planQtyW2 + coRemainderQty;
             
             if (targetQty <= 0) {
-                 if (week1 > currentWeek || week2 > currentWeek) break;
                  continue;
             }
 
@@ -306,8 +303,9 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     
     // Regenerate synthetic data whenever orders change
     const newSyntheticPOs = generateSyntheticPos(orders);
-    const newCutOrders = generateCutOrders(orders, newSyntheticPOs);
     setSyntheticPoRecords(newSyntheticPOs);
+    
+    const newCutOrders = generateCutOrders(orders, newSyntheticPOs);
     setCutOrderRecords(newCutOrders);
 
     try {
@@ -328,11 +326,11 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   }, [appMode, scheduledProcesses, sewingLines, orderOverrides, productionPlans, timelineEndDate, splitOrderProcesses, isScheduleLoaded, orders]);
 
 
-  const setAppMode = (mode: AppMode) => {
+  const setAppMode = useCallback((mode: AppMode) => {
     setAppModeState(mode);
-  };
+  }, []);
 
-  const updateOrderTna = (orderId: string, newTnaProcesses: TnaProcess[]) => {
+  const updateOrderTna = useCallback((orderId: string, newTnaProcesses: TnaProcess[]) => {
       setOrderOverrides(prev => {
         const currentTna = prev[orderId]?.tna || {};
         return {
@@ -351,23 +349,23 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
           }
         }
       }});
-  };
+  }, []);
   
-  const updateSewingRampUpScheme = (orderId: string, scheme: RampUpEntry[]) => {
+  const updateSewingRampUpScheme = useCallback((orderId: string, scheme: RampUpEntry[]) => {
     setOrderOverrides(prev => ({
       ...prev,
       [orderId]: { ...prev[orderId], sewingRampUpScheme: scheme }
     }));
-  };
+  }, []);
 
-  const updateOrderColor = (orderId: string, color: string) => {
+  const updateOrderColor = useCallback((orderId: string, color: string) => {
     setOrderOverrides(prev => ({
       ...prev,
       [orderId]: { ...prev[orderId], displayColor: color }
     }));
-  };
+  }, []);
 
-  const updateOrderMinRunDays = (orderId: string, minRunDays: Record<string, number>) => {
+  const updateOrderMinRunDays = useCallback((orderId: string, minRunDays: Record<string, number>) => {
     setOrderOverrides(prev => {
       const currentTna = prev[orderId]?.tna || {};
       return {
@@ -381,9 +379,9 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         }
       }
     });
-  };
+  }, []);
 
-  const updateOrderBom = (orderId: string, componentName: string, field: keyof BomItem, value: any) => {
+  const updateOrderBom = useCallback((orderId: string, componentName: string, field: keyof BomItem, value: any) => {
     setOrderOverrides(prev => {
       const orderToUpdate = orders.find(o => o.id === orderId);
       const currentBom = prev[orderId]?.bom || orderToUpdate?.bom || [];
@@ -399,11 +397,9 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         }
       };
     });
-  };
+  }, [orders]);
   
-  const updatePoEhd = (orderId: string, poNumber: string, newWeek: string) => {
-    // This function will now be simpler as we regenerate POs on any data change.
-    // We just need to modify the underlying forecast data.
+  const updatePoEhd = useCallback((orderId: string, poNumber: string, newWeek: string) => {
     const originalPoRecord = syntheticPoRecords.find(p => p.poNumber === poNumber);
     if (!originalPoRecord) return;
   
@@ -452,24 +448,24 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         
         return newOverrides;
     });
-};
+  }, [syntheticPoRecords, orders]);
 
 
-  const setSewingLines = (orderId: string, lines: number) => {
+  const setSewingLines = useCallback((orderId: string, lines: number) => {
     setSewingLinesState(prev => ({ ...prev, [orderId]: lines }));
-  };
+  }, []);
 
-  const updateProductionPlan = (orderId: string, plan: Record<string, number>) => {
+  const updateProductionPlan = useCallback((orderId: string, plan: Record<string, number>) => {
     setProductionPlans(prev => ({ ...prev, [orderId]: plan }));
-  };
+  }, []);
 
-  const toggleSplitProcess = (orderId: string, processId: string) => {
+  const toggleSplitProcess = useCallback((orderId: string, processId: string) => {
     const key = `${orderId}_${processId}`;
     setSplitOrderProcesses(prev => ({
       ...prev,
       [key]: !prev[key]
     }));
-  };
+  }, []);
   
   useEffect(() => {
     if (!isScheduleLoaded) return;
