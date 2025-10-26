@@ -193,10 +193,8 @@ function MaterialPlanningPageContent() {
         let currentProjectionWeek = firstProjectionWeek;
         let projectionIndex = 1;
         
-        // --- Refactored FRC State ---
-        let lastConsumedWeek = 0;
-        let lastConsumedSizeIndex = -1;
-        let remainderFromLastSize = 0;
+        let cumulativeTarget = 0;
+        let cumulativeFrcBreakdown: Record<Size, number> = {} as any;
 
         while (currentProjectionWeek < 52) {
             const currentCkWeek = currentProjectionWeek + maxPrjLeadTimeWeeks;
@@ -214,8 +212,9 @@ function MaterialPlanningPageContent() {
                 currentProjectionWeek += 4;
                 continue;
             }
+            
+            cumulativeTarget += projectionQty;
 
-            // --- FRC Calculation ---
             const frcWeekNum = currentCkWeek - maxFrcLeadTimeWeeks;
             const frcWeek = `W${frcWeekNum}`;
             const targetFrcQty = projectionQty;
@@ -225,71 +224,63 @@ function MaterialPlanningPageContent() {
             
             const snapshotForFrc = order.fcVsFcDetails.find(s => s.snapshotWeek === frcWeekNum);
             
-            if (snapshotForFrc && targetFrcQty > 0) {
+            if (snapshotForFrc && cumulativeTarget > 0) {
                 const poFcWeeks = Object.keys(snapshotForFrc.forecasts).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
                 
-                const currentFrcBreakdown: Partial<Record<Size, number>> = {};
-                let runningTotalForThisFrc = 0;
-                let frcStartWeek = '';
-                let frcEndWeek = '';
+                let runningTotal = 0;
+                let endCoverageWeek = '';
+                let newCumulativeBreakdown: Record<Size, number> = {} as any;
                 let targetMet = false;
+                
+                const firstPoFcWeek = poFcWeeks.find(w => Object.values(snapshotForFrc.forecasts[w] || {}).some(d => (d.po || 0) + (d.fc || 0) > 0));
 
-                for (const week of poFcWeeks) {
-                    if (targetMet) break;
-                    const weekNum = parseInt(week.slice(1));
-                    if (weekNum < lastConsumedWeek) continue;
-
-                    for (let sizeIndex = 0; sizeIndex < SIZES.length; sizeIndex++) {
+                if (firstPoFcWeek) {
+                    for (const week of poFcWeeks) {
                         if (targetMet) break;
-                        const size = SIZES[sizeIndex];
-                        if (weekNum === lastConsumedWeek && sizeIndex <= lastConsumedSizeIndex) continue;
+                        if (parseInt(week.slice(1)) < parseInt(firstPoFcWeek.slice(1))) continue;
 
-                        const demand = snapshotForFrc.forecasts[week]?.[size];
-                        let qty = (demand?.po || 0) + (demand?.fc || 0);
-
-                        if(weekNum === lastConsumedWeek && sizeIndex === lastConsumedSizeIndex + 1) {
-                            qty -= remainderFromLastSize;
-                        }
-
-                        if (qty <= 0) continue;
-
-                        if (frcStartWeek === '') frcStartWeek = week;
-                        
-                        const needed = targetFrcQty - runningTotalForThisFrc;
-                        
-                        if (qty >= needed) {
-                            currentFrcBreakdown[size] = (currentFrcBreakdown[size] || 0) + needed;
-                            runningTotalForThisFrc += needed;
+                        for (const size of SIZES) {
+                            const demand = snapshotForFrc.forecasts[week]?.[size];
+                            const qty = (demand?.po || 0) + (demand?.fc || 0);
                             
-                            lastConsumedWeek = weekNum;
-                            lastConsumedSizeIndex = sizeIndex;
-                            remainderFromLastSize = needed;
-                            
-                            frcEndWeek = week;
-                            targetMet = true;
-                        } else {
-                            currentFrcBreakdown[size] = (currentFrcBreakdown[size] || 0) + qty;
-                            runningTotalForThisFrc += qty;
-                            remainderFromLastSize = 0; // reset remainder
+                            if (runningTotal + qty >= cumulativeTarget) {
+                                const needed = cumulativeTarget - runningTotal;
+                                newCumulativeBreakdown[size] = (newCumulativeBreakdown[size] || 0) + needed;
+                                runningTotal += needed;
+                                endCoverageWeek = week;
+                                targetMet = true;
+                                break; 
+                            } else {
+                                newCumulativeBreakdown[size] = (newCumulativeBreakdown[size] || 0) + qty;
+                                runningTotal += qty;
+                            }
                         }
                     }
                 }
                 
-                if (frcStartWeek && frcEndWeek) {
-                    frcCoverage = frcStartWeek === frcEndWeek ? frcStartWeek : `${frcStartWeek}-${frcEndWeek}`;
-                    const finalBreakdownTotal = Object.values(currentFrcBreakdown).reduce((s, q) => s + (q || 0), 0);
-                    const finalAdjustment = targetFrcQty - finalBreakdownTotal;
+                if (endCoverageWeek && targetFrcQty > 0) {
+                    frcCoverage = `${firstPoFcWeek}-${endCoverageWeek}`;
+                    const newlyAdded: Partial<Record<Size, number>> = {};
+                    let newlyAddedTotal = 0;
 
-                    if (finalAdjustment !== 0) {
-                        const lastSizeWithQty = [...SIZES].reverse().find(s => (currentFrcBreakdown[s] || 0) > 0);
-                        if (lastSizeWithQty) {
-                            currentFrcBreakdown[lastSizeWithQty] = (currentFrcBreakdown[lastSizeWithQty] || 0) + finalAdjustment;
+                    for (const size of SIZES) {
+                        const newQty = (newCumulativeBreakdown[size] || 0) - (cumulativeFrcBreakdown[size] || 0);
+                        newlyAdded[size] = newQty;
+                        newlyAddedTotal += newQty;
+                    }
+                    
+                    const adjustment = targetFrcQty - newlyAddedTotal;
+                    if (adjustment !== 0) {
+                        const sizeWithLargestContribution = [...SIZES].sort((a, b) => (newlyAdded[b] || 0) - (newlyAdded[a] || 0))[0];
+                        if (sizeWithLargestContribution) {
+                           newlyAdded[sizeWithLargestContribution] = (newlyAdded[sizeWithLargestContribution] || 0) + adjustment;
                         }
                     }
-                    frcBreakdown = { 'FRC': { ...currentFrcBreakdown, total: targetFrcQty } as any };
+
+                    frcBreakdown = { 'FRC': { ...newlyAdded, total: targetFrcQty } as any };
+                    cumulativeFrcBreakdown = newCumulativeBreakdown;
                 }
             }
-            // --- End FRC Calculation ---
 
             projections.push({
                 prjNumber: `PRJ-${order.ocn}-${projectionIndex.toString().padStart(2, '0')}`,
