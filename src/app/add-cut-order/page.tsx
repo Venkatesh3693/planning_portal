@@ -14,7 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -30,6 +30,13 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import type { CutOrderRecord, SizeBreakdown } from '@/lib/types';
 
@@ -39,8 +46,16 @@ const sizeSchema = SIZES.reduce((acc, size) => {
 }, {});
 
 const formSchema = z.object({
-  coWeekCoverage: z.string().min(1, 'Week coverage is required'),
+  startWeek: z.string().min(1, "Start week is required"),
+  endWeek: z.string().min(1, "End week is required"),
   ...sizeSchema,
+}).refine(data => {
+    const start = parseInt(data.startWeek.replace('W', ''), 10);
+    const end = parseInt(data.endWeek.replace('W', ''), 10);
+    return end >= start;
+}, {
+    message: "End week cannot be earlier than start week",
+    path: ["endWeek"], // You can specify which field gets the error
 });
 
 type CutOrderFormValues = z.infer<typeof formSchema>;
@@ -50,17 +65,28 @@ function AddCutOrderForm({ orderId }: { orderId: string }) {
     const { addCutOrderRecord, cutOrderRecords } = useSchedule();
     const router = useRouter();
     const { toast } = useToast();
+    
+    const weekOptions = useMemo(() => Array.from({ length: 52 }, (_, i) => `W${i + 1}`), []);
 
     const form = useForm<CutOrderFormValues>({
         resolver: zodResolver(formSchema),
         defaultValues: {
-            coWeekCoverage: '',
+            startWeek: '',
+            endWeek: '',
             ...SIZES.reduce((acc, size) => ({ ...acc, [size]: 0 }), {}),
         },
     });
     
     const sizeValues = form.watch(SIZES);
     const totalQuantity = SIZES.reduce((sum, size) => sum + (Number(sizeValues[size as keyof typeof sizeValues]) || 0), 0);
+    
+    const selectedStartWeek = form.watch('startWeek');
+    const endWeekOptions = useMemo(() => {
+        if (!selectedStartWeek) return weekOptions;
+        const startNum = parseInt(selectedStartWeek.replace('W', ''));
+        return weekOptions.filter(w => parseInt(w.replace('W','')) >= startNum);
+    }, [selectedStartWeek, weekOptions]);
+    
 
     useEffect(() => {
         form.setValue('total' as any, totalQuantity);
@@ -79,7 +105,7 @@ function AddCutOrderForm({ orderId }: { orderId: string }) {
         const newCutOrder: CutOrderRecord = {
             coNumber: nextCoNumber,
             orderId,
-            coWeekCoverage: values.coWeekCoverage,
+            coWeekCoverage: `${values.startWeek}-${values.endWeek}`,
             quantities: quantities as SizeBreakdown,
         };
 
@@ -101,19 +127,53 @@ function AddCutOrderForm({ orderId }: { orderId: string }) {
             <CardContent>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-                        <FormField
-                            control={form.control}
-                            name="coWeekCoverage"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>CO Week Coverage</FormLabel>
-                                    <FormControl>
-                                        <Input placeholder="e.g., W26-W27" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <FormField
+                                control={form.control}
+                                name="startWeek"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Start Week</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select start week" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                {weekOptions.map(week => (
+                                                    <SelectItem key={week} value={week}>{week}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                             <FormField
+                                control={form.control}
+                                name="endWeek"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>End Week</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!selectedStartWeek}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select end week" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                {endWeekOptions.map(week => (
+                                                    <SelectItem key={week} value={week}>{week}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
+
 
                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                             {SIZES.map(size => (
