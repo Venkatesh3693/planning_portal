@@ -5,11 +5,11 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, Dispatch, SetStateAction, useMemo, useCallback } from 'react';
 import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem, Size, FcComposition, FcSnapshot, SyntheticPoRecord, CutOrderRecord } from '@/lib/types';
 import { ORDERS as staticOrders, PROCESSES, ORDER_COLORS, SIZES } from '@/lib/data';
-import { addDays, startOfToday, isAfter, getWeek, startOfWeek, addWeeks } from 'date-fns';
-import { getProcessBatchSize, getPackingBatchSize, runTentativePlanForHorizon } from '@/lib/tna-calculator';
+import { addDays, startOfToday, isAfter, getWeek } from 'date-fns';
+import { getProcessBatchSize, getPackingBatchSize } from '@/lib/tna-calculator';
 
 const STORE_KEY = 'stitchplan_schedule_v4';
-const FIRM_PO_WINDOW = 3; // weeks
+const FIRM_PO_WINDOW = 3;
 
 type AppMode = 'gup' | 'gut';
 type SewingRampUpSchemes = Record<string, RampUpEntry[]>;
@@ -134,87 +134,6 @@ const generateSyntheticPos = (orders: Order[]): SyntheticPoRecord[] => {
 };
 
 
-const generateCutOrders = (orders: Order[], allPoRecords: SyntheticPoRecord[]): CutOrderRecord[] => {
-    const allCutOrders: CutOrderRecord[] = [];
-    const currentWeek = getWeek(new Date());
-
-    orders.forEach(order => {
-        if (order.orderType !== 'Forecasted' || !order.fcVsFcDetails || !order.fcVsFcDetails.length) return;
-
-        const earliestSnapshot = order.fcVsFcDetails.reduce((earliest, s) => s.snapshotWeek < earliest.snapshotWeek ? s : earliest, order.fcVsFcDetails[0]);
-        
-        const weeklyTotals: Record<string, number> = {};
-        const snapshotWeeks = Object.keys(earliestSnapshot.forecasts).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
-        snapshotWeeks.forEach(week => {
-            const total = earliestSnapshot.forecasts[week]?.total;
-            weeklyTotals[week] = (total?.po || 0) + (total?.fc || 0);
-        });
-
-        const { plan } = runTentativePlanForHorizon(1, null, weeklyTotals, order, 0);
-        const planWeeks = Object.keys(plan).map(w => parseInt(w.slice(1))).sort((a, b) => a - b);
-        
-        const firstProdWeek = planWeeks.find(w => plan[`W${w}`] > 0);
-        if (!firstProdWeek) return;
-        
-        let availablePOs = allPoRecords
-          .filter(po => po.orderId === order.id)
-          .sort((a, b) => parseInt(a.originalEhdWeek.slice(1)) - parseInt(b.originalEhdWeek.slice(1)));
-        
-        let coRemainderQty = 0;
-        let coCounter = 1;
-
-        for (let week = firstProdWeek; week <= currentWeek; week += 2) {
-            const week1 = week;
-            const week2 = week + 1;
-            const week1Key = `W${week1}`;
-            const week2Key = `W${week2}`;
-
-            const planQtyW1 = plan[week1Key] || 0;
-            const planQtyW2 = plan[week2Key] || 0;
-            const targetQty = planQtyW1 + planQtyW2 + coRemainderQty;
-            
-            if (targetQty <= 0) {
-                 continue;
-            }
-
-            const posForThisCO: SyntheticPoRecord[] = [];
-            let accumulatedQty = 0;
-            
-            while(accumulatedQty < targetQty && availablePOs.length > 0) {
-                const po = availablePOs.shift()!;
-                posForThisCO.push(po);
-                accumulatedQty += po.quantities.total;
-            }
-            
-            coRemainderQty = accumulatedQty - targetQty;
-
-            const coQuantities = SIZES.reduce((acc, size) => ({ ...acc, [size]: 0 }), {} as Record<Size, number>);
-            let totalCoQty = 0;
-
-            posForThisCO.forEach(po => {
-                SIZES.forEach(size => {
-                    coQuantities[size] = (coQuantities[size] || 0) + (po.quantities[size] || 0);
-                });
-                totalCoQty += po.quantities.total;
-            });
-            
-            if (totalCoQty > 0) {
-              allCutOrders.push({
-                  coNumber: `CO-${order.ocn}-${String(coCounter++).padStart(2, '0')}`,
-                  orderId: order.id,
-                  coWeekCoverage: `${week1Key}-${week2Key}`,
-                  quantities: { ...coQuantities, total: totalCoQty }
-              });
-            } else {
-              coRemainderQty = 0; // Reset remainder if no POs were found
-            }
-        }
-    });
-
-    return allCutOrders;
-}
-
-
 export function ScheduleProvider({ children }: { children: ReactNode }) {
   const [appMode, setAppModeState] = useState<AppMode>('gup');
   const [orders, setOrders] = useState<Order[]>([]);
@@ -289,6 +208,9 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         };
       });
       setOrders(hydratedOrders);
+      setSyntheticPoRecords(generateSyntheticPos(hydratedOrders));
+      // Reset cut orders on load
+      setCutOrderRecords([]);
       
     } catch (err) {
       console.error("Could not load schedule from localStorage", err);
@@ -300,14 +222,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isScheduleLoaded) return;
-    
-    // Regenerate synthetic data whenever orders change
-    const newSyntheticPOs = generateSyntheticPos(orders);
-    setSyntheticPoRecords(newSyntheticPOs);
-    
-    const newCutOrders = generateCutOrders(orders, newSyntheticPOs);
-    setCutOrderRecords(newCutOrders);
-
     try {
       const stateToSave = {
         appMode,
@@ -323,7 +237,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error("Could not save schedule to localStorage", err);
     }
-  }, [appMode, scheduledProcesses, sewingLines, orderOverrides, productionPlans, timelineEndDate, splitOrderProcesses, isScheduleLoaded, orders]);
+  }, [appMode, scheduledProcesses, sewingLines, orderOverrides, productionPlans, timelineEndDate, splitOrderProcesses, isScheduleLoaded]);
 
 
   const setAppMode = useCallback((mode: AppMode) => {
@@ -469,40 +383,35 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   
   useEffect(() => {
     if (!isScheduleLoaded) return;
-    setOrders(currentOrders => currentOrders.map(order => {
-        const override = orderOverrides[order.id];
-        if (!override) return order;
-        
-        const updatedOrder = { ...order };
-        if (override.displayColor) updatedOrder.displayColor = override.displayColor;
-        if (override.sewingRampUpScheme) updatedOrder.sewingRampUpScheme = override.sewingRampUpScheme;
-        if (override.bom) updatedOrder.bom = override.bom;
-        if (override.fcVsFcDetails) updatedOrder.fcVsFcDetails = override.fcVsFcDetails;
-        
-        if (override.tna) {
-           const newTna = { ...(updatedOrder.tna || { processes: [] }) } as Tna;
-           if(override.tna.minRunDays) newTna.minRunDays = override.tna.minRunDays;
-           
-           if(override.tna.processes){
-              const storedProcessMap = new Map(override.tna.processes.map(p => [p.processId, p]));
-              newTna.processes = (updatedOrder.tna?.processes || []).map(baseProcess => {
-                  const storedProcess = storedProcessMap.get(baseProcess.processId);
-                  if (storedProcess) {
-                      return {
-                          ...baseProcess,
-                          durationDays: storedProcess.durationDays,
-                          earliestStartDate: storedProcess.earliestStartDate ? new Date(storedProcess.earliestStartDate) : undefined,
-                          latestStartDate: storedProcess.latestStartDate ? new Date(storedProcess.latestStartDate) : undefined,
-                      };
-                  }
-                  return baseProcess;
-              });
-           }
-           updatedOrder.tna = newTna;
-        }
+    const newOrders = staticOrders.map((baseOrder, index) => {
+      const override = orderOverrides[baseOrder.id] || {};
+      const hydratedTna: Tna = { ...(baseOrder.tna as Tna) };
 
-        return updatedOrder;
-    }));
+      if(override.tna) {
+          if (override.tna.processes) {
+              const storedProcessMap = new Map(override.tna.processes.map(p => [p.processId, p]));
+              hydratedTna.processes = (baseOrder.tna?.processes || []).map(baseProcess => {
+                  const storedProcess = storedProcessMap.get(baseProcess.processId);
+                  return storedProcess ? { ...baseProcess, ...storedProcess, earliestStartDate: storedProcess.earliestStartDate ? new Date(storedProcess.earliestStartDate) : undefined, latestStartDate: storedProcess.latestStartDate ? new Date(storedProcess.latestStartDate) : undefined } : baseProcess;
+              });
+          }
+           if(override.tna.minRunDays) hydratedTna.minRunDays = override.tna.minRunDays;
+      }
+        
+        return {
+          ...baseOrder,
+          displayColor: override.displayColor || ORDER_COLORS[index % ORDER_COLORS.length],
+          sewingRampUpScheme: override.sewingRampUpScheme || [{ day: 1, efficiency: baseOrder.budgetedEfficiency || 85 }],
+          tna: hydratedTna,
+          bom: override.bom || baseOrder.bom,
+          fcVsFcDetails: override.fcVsFcDetails || baseOrder.fcVsFcDetails,
+        };
+    });
+    setOrders(newOrders);
+    setSyntheticPoRecords(generateSyntheticPos(newOrders));
+    // Reset cut orders when overrides change
+    setCutOrderRecords([]);
+
   }, [orderOverrides, isScheduleLoaded]);
 
   const sewingRampUpSchemes = useMemo(() => 
