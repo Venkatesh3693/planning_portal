@@ -16,7 +16,7 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, PlusCircle } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -32,12 +32,17 @@ import { SIZES } from '@/lib/data';
 function CutOrderPageContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get('orderId');
-    const { orders, isScheduleLoaded, appMode } = useSchedule();
+    const { orders, isScheduleLoaded, appMode, cutOrderRecords } = useSchedule();
     
     const order = useMemo(() => {
         if (!isScheduleLoaded || !orderId) return null;
         return orders.find(o => o.id === orderId);
     }, [orderId, orders, isScheduleLoaded]);
+
+    const filteredCutOrders = useMemo(() => {
+        if (!orderId) return [];
+        return cutOrderRecords.filter(co => co.orderId === orderId);
+    }, [orderId, cutOrderRecords])
 
     if (!isScheduleLoaded) {
         return <div className="flex items-center justify-center h-full">Loading data...</div>;
@@ -97,12 +102,20 @@ function CutOrderPageContent() {
                             Order ID: {order.id}
                         </p>
                     </div>
-                     <Button variant="outline" asChild>
-                        <Link href="/orders">
-                            <ArrowLeft className="mr-2 h-4 w-4" />
-                            Back to Orders
-                        </Link>
-                    </Button>
+                     <div className="flex items-center gap-2">
+                        <Button asChild>
+                            <Link href={`/add-cut-order?orderId=${orderId}`}>
+                                <PlusCircle className="mr-2 h-4 w-4" />
+                                New Cut Order
+                            </Link>
+                        </Button>
+                        <Button variant="outline" asChild>
+                            <Link href="/orders">
+                                <ArrowLeft className="mr-2 h-4 w-4" />
+                                Back to Orders
+                            </Link>
+                        </Button>
+                    </div>
                 </div>
                 
                 <Card>
@@ -119,11 +132,28 @@ function CutOrderPageContent() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                <TableRow>
-                                    <TableCell colSpan={SIZES.length + 3} className="h-24 text-center">
-                                        No cut orders issued yet for this order.
-                                    </TableCell>
-                                </TableRow>
+                                {filteredCutOrders.length > 0 ? (
+                                    filteredCutOrders.map(co => (
+                                        <TableRow key={co.coNumber}>
+                                            <TableCell className="font-medium">{co.coNumber}</TableCell>
+                                            <TableCell>{co.coWeekCoverage}</TableCell>
+                                            {SIZES.map(size => (
+                                                <TableCell key={size} className="text-right">
+                                                    {(co.quantities[size] || 0).toLocaleString()}
+                                                </TableCell>
+                                            ))}
+                                            <TableCell className="text-right font-bold">
+                                                {co.quantities.total.toLocaleString()}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={SIZES.length + 3} className="h-24 text-center">
+                                            No cut orders issued yet for this order.
+                                        </TableCell>
+                                    </TableRow>
+                                )}
                             </TableBody>
                         </Table>
                     </CardContent>
