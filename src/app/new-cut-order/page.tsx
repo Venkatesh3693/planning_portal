@@ -365,6 +365,19 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
 
     }, [startWeek, availableFrc, targetQuantity, syntheticPoRecords, cutOrderRecords, orderId]);
 
+    const totalSuggestedQty = useMemo(() => {
+        const totals: SizeBreakdown = { total: 0 };
+        SIZES.forEach(size => totals[size] = 0);
+
+        suggestedPos.forEach(po => {
+            SIZES.forEach(size => {
+                totals[size] = (totals[size] || 0) + (po.quantities[size] || 0);
+            });
+            totals.total += po.quantities.total;
+        });
+        return totals;
+    }, [suggestedPos]);
+
 
     const handleSubmit = () => {
         if (!availableFrc || startWeek === null || endWeek === null) return;
@@ -472,7 +485,7 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
                                         </TableHeader>
                                         <TableBody>
                                             <TableRow>
-                                                <TableCell className="font-medium">Quantity</TableCell>
+                                                <TableCell className="font-medium">FRC Qty</TableCell>
                                                 {SIZES.map(size => (
                                                     <TableCell key={size} className="text-right">
                                                         {(availableFrc[size] || 0).toLocaleString()}
@@ -480,6 +493,28 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
                                                 ))}
                                                 <TableCell className="text-right font-bold">
                                                     {(availableFrc.total || 0).toLocaleString()}
+                                                </TableCell>
+                                            </TableRow>
+                                             <TableRow>
+                                                <TableCell className="font-medium">Total Suggested CO Qty</TableCell>
+                                                {SIZES.map(size => (
+                                                    <TableCell key={size} className="text-right text-muted-foreground">
+                                                        -{(totalSuggestedQty[size] || 0).toLocaleString()}
+                                                    </TableCell>
+                                                ))}
+                                                <TableCell className="text-right font-bold text-muted-foreground">
+                                                    -{(totalSuggestedQty.total || 0).toLocaleString()}
+                                                </TableCell>
+                                            </TableRow>
+                                            <TableRow className="bg-muted/50">
+                                                <TableCell className="font-bold">Projected FRC</TableCell>
+                                                {SIZES.map(size => (
+                                                    <TableCell key={size} className="text-right font-bold">
+                                                        {((availableFrc[size] || 0) - (totalSuggestedQty[size] || 0)).toLocaleString()}
+                                                    </TableCell>
+                                                ))}
+                                                <TableCell className="text-right font-bold">
+                                                    {((availableFrc.total || 0) - (totalSuggestedQty.total || 0)).toLocaleString()}
                                                 </TableCell>
                                             </TableRow>
                                         </TableBody>
