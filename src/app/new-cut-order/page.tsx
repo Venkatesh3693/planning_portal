@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useMemo, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useSchedule } from '@/context/schedule-provider';
 import { Header } from '@/components/layout/header';
@@ -26,6 +26,7 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
     const { orders, cutOrderRecords } = useSchedule();
     const [startWeek, setStartWeek] = useState<number | null>(null);
     const [endWeek, setEndWeek] = useState<number | null>(null);
+    const [targetQuantity, setTargetQuantity] = useState<number>(0);
 
     const order = useMemo(() => {
         return orders.find(o => o.id === orderId);
@@ -42,7 +43,6 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
     const productionWeeks = useMemo(() => {
         if (!order?.fcVsFcDetails || order.fcVsFcDetails.length === 0) return [];
         
-        // Find the earliest snapshot to generate a full tentative plan
         const firstSnapshot = order.fcVsFcDetails.reduce((earliest, current) => 
             earliest.snapshotWeek < current.snapshotWeek ? earliest : current
         );
@@ -52,18 +52,14 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
             weeklyTotals[week] = (data.total?.po || 0) + (data.total?.fc || 0);
         });
 
-        // Run the tentative plan based on the earliest forecast
         const { plan } = runTentativePlanForHorizon(firstSnapshot.snapshotWeek, null, weeklyTotals, order, 0);
 
         const allPlanWeeks = Object.keys(plan)
             .filter(w => plan[w] > 0)
             .map(w => parseInt(w.slice(1)));
-
         
         const firstProdWeek = allPlanWeeks.length > 0 ? Math.min(...allPlanWeeks) : 53;
-        const lastProdWeek = allPlanWeeks.length > 0 ? Math.max(...allPlanWeeks) : 0;
         
-        // Also consider all forecast weeks to create a full range to the end of the season
         const allForecastWeeks = new Set<number>();
         order.fcVsFcDetails.forEach(snapshot => {
             Object.keys(snapshot.forecasts).forEach(weekStr => {
@@ -71,7 +67,7 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
             });
         });
         const lastFcWeek = Math.max(...Array.from(allForecastWeeks));
-        const endOfWeekRange = Math.max(lastProdWeek, lastFcWeek);
+        const endOfWeekRange = Math.max(firstProdWeek + 52, lastFcWeek);
 
         const weeks: number[] = [];
         const start = Math.min(firstProdWeek, currentWeek);
@@ -79,7 +75,6 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
             weeks.push(i);
         }
 
-        // Filter to only include weeks from the current week onwards
         return weeks.filter(week => week >= currentWeek);
 
     }, [order, currentWeek]);
@@ -88,6 +83,32 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
         if (startWeek === null) return [];
         return productionWeeks.filter(week => week >= startWeek);
     }, [startWeek, productionWeeks]);
+
+    useEffect(() => {
+        if (startWeek !== null && endWeek !== null && order?.fcVsFcDetails) {
+            const currentSnapshot = order.fcVsFcDetails.find(s => s.snapshotWeek === currentWeek);
+
+            if (!currentSnapshot) {
+                setTargetQuantity(0);
+                return;
+            }
+
+            const weeklyTotals: Record<string, number> = {};
+            Object.entries(currentSnapshot.forecasts).forEach(([week, data]) => {
+                weeklyTotals[week] = (data.total?.po || 0) + (data.total?.fc || 0);
+            });
+            
+            const { plan } = runTentativePlanForHorizon(currentWeek, null, weeklyTotals, order, 0);
+
+            let total = 0;
+            for (let w = startWeek; w <= endWeek; w++) {
+                total += plan[`W${w}`] || 0;
+            }
+            setTargetQuantity(Math.round(total));
+        } else {
+            setTargetQuantity(0);
+        }
+    }, [startWeek, endWeek, order, currentWeek]);
 
     if (!order) {
         return <div className="flex items-center justify-center h-full">Order not found. Please go back and select an order.</div>;
@@ -152,6 +173,13 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
                             </Select>
                          </div>
                      </div>
+                     {targetQuantity > 0 && (
+                        <div className="pt-4 border-t">
+                            <Label>Target Production Quantity</Label>
+                            <p className="font-semibold text-2xl text-primary">{targetQuantity.toLocaleString()}</p>
+                            <p className="text-sm text-muted-foreground">Based on production plan for W{startWeek}-W{endWeek}</p>
+                        </div>
+                     )}
                 </div>
             </CardContent>
         </Card>
