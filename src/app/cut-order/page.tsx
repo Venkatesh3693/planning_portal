@@ -96,11 +96,12 @@ function CutOrderPageContent() {
                                     {SIZES.map(size => (
                                         <TableHead key={size} className="text-right">{size}</TableHead>
                                     ))}
+                                    <TableHead className="text-right font-bold">Total</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 <TableRow>
-                                    <TableCell colSpan={2 + SIZES.length} className="h-24 text-center">
+                                    <TableCell colSpan={3 + SIZES.length} className="h-24 text-center">
                                         No cut orders issued for this order yet.
                                     </TableCell>
                                 </TableRow>
