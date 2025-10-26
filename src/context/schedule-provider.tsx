@@ -3,7 +3,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, Dispatch, SetStateAction, useMemo, useCallback } from 'react';
-import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem, Size, FcComposition, FcSnapshot, SyntheticPoRecord, CutOrderRecord } from '@/lib/types';
+import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem, Size, FcComposition, FcSnapshot, SyntheticPoRecord, CutOrderRecord, SizeBreakdown } from '@/lib/types';
 import { ORDERS as staticOrders, PROCESSES, ORDER_COLORS, SIZES } from '@/lib/data';
 import { addDays, startOfToday, isAfter, getWeek } from 'date-fns';
 import { getProcessBatchSize, getPackingBatchSize } from '@/lib/tna-calculator';
@@ -44,6 +44,7 @@ type ScheduleContextType = {
   syntheticPoRecords: SyntheticPoRecord[];
   setSyntheticPoRecords: Dispatch<SetStateAction<SyntheticPoRecord[]>>;
   cutOrderRecords: CutOrderRecord[];
+  addCutOrderRecord: (record: CutOrderRecord) => void;
 };
 
 const ScheduleContext = createContext<ScheduleContextType | undefined>(undefined);
@@ -174,6 +175,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
           };
         });
         setScheduledProcesses(loadedProcesses);
+        setCutOrderRecords(storedData.cutOrderRecords || []);
         
         if (storedData.timelineEndDate) {
             const storedEndDate = new Date(storedData.timelineEndDate);
@@ -208,9 +210,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         };
       });
       setOrders(hydratedOrders);
-      setSyntheticPoRecords(generateSyntheticPos(hydratedOrders));
-      // Reset cut orders on load
-      setCutOrderRecords([]);
       
     } catch (err) {
       console.error("Could not load schedule from localStorage", err);
@@ -231,13 +230,19 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         productionPlans,
         timelineEndDate,
         splitOrderProcesses,
+        cutOrderRecords,
       };
       const serializedState = JSON.stringify(stateToSave);
       localStorage.setItem(STORE_KEY, serializedState);
     } catch (err) {
       console.error("Could not save schedule to localStorage", err);
     }
-  }, [appMode, scheduledProcesses, sewingLines, orderOverrides, productionPlans, timelineEndDate, splitOrderProcesses, isScheduleLoaded]);
+  }, [appMode, scheduledProcesses, sewingLines, orderOverrides, productionPlans, timelineEndDate, splitOrderProcesses, cutOrderRecords, isScheduleLoaded]);
+
+  useEffect(() => {
+    if (!isScheduleLoaded) return;
+    setSyntheticPoRecords(generateSyntheticPos(orders));
+  }, [orders, isScheduleLoaded]);
 
 
   const setAppMode = useCallback((mode: AppMode) => {
@@ -408,11 +413,12 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         };
     });
     setOrders(newOrders);
-    setSyntheticPoRecords(generateSyntheticPos(newOrders));
-    // Reset cut orders when overrides change
-    setCutOrderRecords([]);
 
   }, [orderOverrides, isScheduleLoaded]);
+
+  const addCutOrderRecord = useCallback((record: CutOrderRecord) => {
+    setCutOrderRecords(prev => [...prev, record]);
+  }, []);
 
   const sewingRampUpSchemes = useMemo(() => 
     Object.entries(orderOverrides).reduce((acc, [orderId, override]) => {
@@ -462,6 +468,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     syntheticPoRecords,
     setSyntheticPoRecords,
     cutOrderRecords,
+    addCutOrderRecord,
   };
 
   return (
