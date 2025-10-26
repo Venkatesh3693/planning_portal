@@ -103,6 +103,26 @@ const FrcBreakdownTable = ({ breakdown, coverage }: { breakdown?: ProjectionRow[
 
 const AllFrcBreakdownTable = ({ projectionData }: { projectionData: ProjectionRow[] }) => {
     if (!projectionData || projectionData.length === 0) return null;
+
+    const totals = useMemo(() => {
+        const sizeTotals = SIZES.reduce((acc, size) => {
+            acc[size] = 0;
+            return acc;
+        }, {} as Record<Size, number>);
+
+        let frcQtyTotal = 0;
+
+        projectionData.forEach(row => {
+            frcQtyTotal += row.frcQty;
+            SIZES.forEach(size => {
+                sizeTotals[size] += row.breakdown?.['FRC']?.[size] || 0;
+            });
+        });
+
+        return { sizeTotals, frcQtyTotal };
+    }, [projectionData]);
+
+
     return (
         <Card className="mt-4">
             <CardHeader>
@@ -140,6 +160,19 @@ const AllFrcBreakdownTable = ({ projectionData }: { projectionData: ProjectionRo
                            </TableRow>
                         ))}
                     </TableBody>
+                    <TableFooter>
+                        <TableRow>
+                            <TableCell colSpan={5} className="font-bold text-right">Total</TableCell>
+                            {SIZES.map(size => (
+                                <TableCell key={`total-${size}`} className="text-right font-bold">
+                                    {(totals.sizeTotals[size] || 0).toLocaleString()}
+                                </TableCell>
+                            ))}
+                            <TableCell className="text-right font-bold">
+                                {totals.frcQtyTotal.toLocaleString()}
+                            </TableCell>
+                        </TableRow>
+                    </TableFooter>
                 </Table>
             </CardContent>
         </Card>
@@ -194,7 +227,7 @@ function MaterialPlanningPageContent() {
         let projectionIndex = 1;
         
         let cumulativeTarget = 0;
-        let cumulativeFrcBreakdown: Record<Size, number> = {} as any;
+        let cumulativeFrcBreakdown: Record<Size, number> = SIZES.reduce((acc, size) => ({ ...acc, [size]: 0 }), {} as Record<Size, number>);
 
         while (currentProjectionWeek < 52) {
             const currentCkWeek = currentProjectionWeek + maxPrjLeadTimeWeeks;
@@ -229,14 +262,14 @@ function MaterialPlanningPageContent() {
                 
                 let runningTotal = 0;
                 let endCoverageWeek = '';
-                let newCumulativeBreakdown: Record<Size, number> = {} as any;
+                let newCumulativeBreakdown: Record<Size, number> = SIZES.reduce((acc, size) => ({ ...acc, [size]: 0 }), {} as Record<Size, number>);
                 let targetMet = false;
                 
                 const firstPoFcWeek = poFcWeeks.find(w => Object.values(snapshotForFrc.forecasts[w] || {}).some(d => (d.po || 0) + (d.fc || 0) > 0));
 
                 if (firstPoFcWeek) {
                     for (const week of poFcWeeks) {
-                        if (targetMet) break; // PERMANENT FIX: Exit outer loop if target is met
+                        if (targetMet) break; 
                         if (parseInt(week.slice(1)) < parseInt(firstPoFcWeek.slice(1))) continue;
 
                         for (const size of SIZES) {
