@@ -51,14 +51,14 @@ type ProjectionRow = {
 const FrcBreakdownTable = ({ breakdown, coverage }: { breakdown?: ProjectionRow['breakdown'], coverage: string }) => {
     if (!breakdown || Object.keys(breakdown).length === 0) {
         return (
-            <Card className="mt-4">
-                <CardHeader>
-                    <CardTitle>FRC Breakdown</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-muted-foreground">No size breakdown available for this FRC. This may be due to missing forecast snapshot data for the calculated FRC week.</p>
-                </CardContent>
-            </Card>
+            <div className="mt-6">
+                <h2 className="text-xl font-semibold mb-4">FRC Breakdown</h2>
+                <Card>
+                    <CardContent>
+                        <p className="text-muted-foreground p-6">No size breakdown available for this FRC. This may be due to missing forecast snapshot data for the calculated FRC week.</p>
+                    </CardContent>
+                </Card>
+            </div>
         );
     }
     
@@ -67,37 +67,37 @@ const FrcBreakdownTable = ({ breakdown, coverage }: { breakdown?: ProjectionRow[
 
 
     return (
-        <Card className="mt-4">
-            <CardHeader>
-                <CardTitle>FRC Breakdown for {coverage}</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Breakdown</TableHead>
-                            {SIZES.map(size => (
-                                <TableHead key={size} className="text-right">{size}</TableHead>
-                            ))}
-                            <TableHead className="text-right font-bold">Total</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        <TableRow>
-                            <TableCell className="font-medium">Quantity</TableCell>
-                            {SIZES.map(size => (
-                               <TableCell key={size} className="text-right">
-                                    {(breakdownData[size] || 0).toLocaleString()}
+        <div className="mt-6">
+            <h2 className="text-xl font-semibold mb-4">FRC Breakdown for {coverage}</h2>
+            <Card>
+                <CardContent className="p-0">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Breakdown</TableHead>
+                                {SIZES.map(size => (
+                                    <TableHead key={size} className="text-right">{size}</TableHead>
+                                ))}
+                                <TableHead className="text-right font-bold">Total</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            <TableRow>
+                                <TableCell className="font-medium">Quantity</TableCell>
+                                {SIZES.map(size => (
+                                   <TableCell key={size} className="text-right">
+                                        {(breakdownData[size] || 0).toLocaleString()}
+                                    </TableCell>
+                                ))}
+                                <TableCell className="text-right font-bold">
+                                    {(breakdownData.total || 0).toLocaleString()}
                                 </TableCell>
-                            ))}
-                            <TableCell className="text-right font-bold">
-                                {(breakdownData.total || 0).toLocaleString()}
-                            </TableCell>
-                        </TableRow>
-                    </TableBody>
-                </Table>
-            </CardContent>
-        </Card>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+        </div>
     );
 };
 
@@ -124,58 +124,58 @@ const AllFrcBreakdownTable = ({ projectionData }: { projectionData: ProjectionRo
 
 
     return (
-        <Card className="mt-4">
-            <CardHeader>
-                <CardTitle>FRC Breakdown Summary</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>PRJ#</TableHead>
-                            <TableHead>FRC#</TableHead>
-                            <TableHead>FRC Week</TableHead>
-                            <TableHead>CK Week</TableHead>
-                            <TableHead>FRC Coverage</TableHead>
-                            {SIZES.map(size => (
-                                <TableHead key={size} className="text-right">{size}</TableHead>
+        <div className="mt-6">
+            <h2 className="text-xl font-semibold mb-4">FRC Breakdown Summary</h2>
+            <Card>
+                <CardContent className="p-0">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>PRJ#</TableHead>
+                                <TableHead>FRC#</TableHead>
+                                <TableHead>FRC Week</TableHead>
+                                <TableHead>CK Week</TableHead>
+                                <TableHead>FRC Coverage</TableHead>
+                                {SIZES.map(size => (
+                                    <TableHead key={size} className="text-right">{size}</TableHead>
+                                ))}
+                                <TableHead className="text-right font-bold">Total FRC Qty</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {projectionData.map((row) => (
+                               <TableRow key={row.frcNumber}>
+                                   <TableCell>{row.prjNumber}</TableCell>
+                                   <TableCell>{row.frcNumber}</TableCell>
+                                   <TableCell>{row.frcWeek}</TableCell>
+                                   <TableCell>{row.ckWeek}</TableCell>
+                                   <TableCell>{row.frcCoverage}</TableCell>
+                                   {SIZES.map(size => (
+                                        <TableCell key={size} className="text-right">
+                                            {(row.breakdown?.['FRC']?.[size] || 0).toLocaleString()}
+                                        </TableCell>
+                                    ))}
+                                   <TableCell className="text-right font-bold">{row.frcQty.toLocaleString()}</TableCell>
+                               </TableRow>
                             ))}
-                            <TableHead className="text-right font-bold">Total FRC Qty</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {projectionData.map((row) => (
-                           <TableRow key={row.frcNumber}>
-                               <TableCell>{row.prjNumber}</TableCell>
-                               <TableCell>{row.frcNumber}</TableCell>
-                               <TableCell>{row.frcWeek}</TableCell>
-                               <TableCell>{row.ckWeek}</TableCell>
-                               <TableCell>{row.frcCoverage}</TableCell>
-                               {SIZES.map(size => (
-                                    <TableCell key={size} className="text-right">
-                                        {(row.breakdown?.['FRC']?.[size] || 0).toLocaleString()}
+                        </TableBody>
+                        <TableFooter>
+                            <TableRow>
+                                <TableCell colSpan={5} className="font-bold text-right">Total</TableCell>
+                                {SIZES.map(size => (
+                                    <TableCell key={`total-${size}`} className="text-right font-bold">
+                                        {(totals.sizeTotals[size] || 0).toLocaleString()}
                                     </TableCell>
                                 ))}
-                               <TableCell className="text-right font-bold">{row.frcQty.toLocaleString()}</TableCell>
-                           </TableRow>
-                        ))}
-                    </TableBody>
-                    <TableFooter>
-                        <TableRow>
-                            <TableCell colSpan={5} className="font-bold text-right">Total</TableCell>
-                            {SIZES.map(size => (
-                                <TableCell key={`total-${size}`} className="text-right font-bold">
-                                    {(totals.sizeTotals[size] || 0).toLocaleString()}
+                                <TableCell className="text-right font-bold">
+                                    {totals.frcQtyTotal.toLocaleString()}
                                 </TableCell>
-                            ))}
-                            <TableCell className="text-right font-bold">
-                                {totals.frcQtyTotal.toLocaleString()}
-                            </TableCell>
-                        </TableRow>
-                    </TableFooter>
-                </Table>
-            </CardContent>
-        </Card>
+                            </TableRow>
+                        </TableFooter>
+                    </Table>
+                </CardContent>
+            </Card>
+        </div>
     );
 };
 
@@ -404,84 +404,86 @@ function MaterialPlanningPageContent() {
                     </Button>
                 </div>
                 
-                <Card>
-                    <CardContent className="p-0">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>PRJ#</TableHead>
-                                    <TableHead>Projection week</TableHead>
-                                    <TableHead>PRJ Coverage weeks</TableHead>
-                                    <TableHead>CK Week</TableHead>
-                                    <TableHead className="text-right">Projection Qty</TableHead>
-                                    <TableHead>FRC #</TableHead>
-                                    <TableHead>FRC Week</TableHead>
-                                    <TableHead>FRC Coverage weeks</TableHead>
-                                    <TableHead className="text-right">FRC Qty</TableHead>
-                                    <TableHead className="text-right">Cut Order Qty</TableHead>
-                                    <TableHead className="text-right">Cut Order pending</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {projectionData.length > 0 ? projectionData.map((row) => (
-                                    <TableRow key={row.prjNumber}>
-                                        <TableCell className="font-medium">{row.prjNumber}</TableCell>
-                                        <TableCell>{row.prjWeek}</TableCell>
-                                        <TableCell>{row.prjCoverage}</TableCell>
-                                        <TableCell>{row.ckWeek}</TableCell>
-                                        <TableCell className="text-right">{row.prjQty.toLocaleString()}</TableCell>
-                                        <TableCell>{row.frcNumber}</TableCell>
-                                        <TableCell>{row.frcWeek}</TableCell>
-                                        <TableCell>{row.frcCoverage}</TableCell>
-                                        <TableCell className="text-right">
-                                            <span 
-                                                className="font-medium text-primary cursor-pointer hover:underline"
-                                                onClick={() => handleFrcClick(row)}
-                                            >
-                                                {row.frcQty.toLocaleString()}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell className="text-right">{row.cutOrderQty.toLocaleString()}</TableCell>
-                                        <TableCell className="text-right">{row.cutOrderPending.toLocaleString()}</TableCell>
-                                    </TableRow>
-                                )) : (
+                <div className="space-y-6">
+                    <Card>
+                        <CardContent className="p-0">
+                            <Table>
+                                <TableHeader>
                                     <TableRow>
-                                        <TableCell colSpan={11} className="h-24 text-center">
-                                            No projection data available for this order.
-                                        </TableCell>
+                                        <TableHead>PRJ#</TableHead>
+                                        <TableHead>Projection week</TableHead>
+                                        <TableHead>PRJ Coverage weeks</TableHead>
+                                        <TableHead>CK Week</TableHead>
+                                        <TableHead className="text-right">Projection Qty</TableHead>
+                                        <TableHead>FRC #</TableHead>
+                                        <TableHead>FRC Week</TableHead>
+                                        <TableHead>FRC Coverage weeks</TableHead>
+                                        <TableHead className="text-right">FRC Qty</TableHead>
+                                        <TableHead className="text-right">Cut Order Qty</TableHead>
+                                        <TableHead className="text-right">Cut Order pending</TableHead>
                                     </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {projectionData.length > 0 ? projectionData.map((row) => (
+                                        <TableRow key={row.prjNumber}>
+                                            <TableCell className="font-medium">{row.prjNumber}</TableCell>
+                                            <TableCell>{row.prjWeek}</TableCell>
+                                            <TableCell>{row.prjCoverage}</TableCell>
+                                            <TableCell>{row.ckWeek}</TableCell>
+                                            <TableCell className="text-right">{row.prjQty.toLocaleString()}</TableCell>
+                                            <TableCell>{row.frcNumber}</TableCell>
+                                            <TableCell>{row.frcWeek}</TableCell>
+                                            <TableCell>{row.frcCoverage}</TableCell>
+                                            <TableCell className="text-right">
+                                                <span 
+                                                    className="font-medium text-primary cursor-pointer hover:underline"
+                                                    onClick={() => handleFrcClick(row)}
+                                                >
+                                                    {row.frcQty.toLocaleString()}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="text-right">{row.cutOrderQty.toLocaleString()}</TableCell>
+                                            <TableCell className="text-right">{row.cutOrderPending.toLocaleString()}</TableCell>
+                                        </TableRow>
+                                    )) : (
+                                        <TableRow>
+                                            <TableCell colSpan={11} className="h-24 text-center">
+                                                No projection data available for this order.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                                {projectionData.length > 0 && (
+                                    <TableFooter>
+                                        <TableRow>
+                                            <TableCell colSpan={4} className="font-bold text-right">Total</TableCell>
+                                            <TableCell className="text-right font-bold">{projectionTotals.prjQty.toLocaleString()}</TableCell>
+                                            <TableCell colSpan={3}></TableCell>
+                                            <TableCell className="text-right font-bold">
+                                                <span
+                                                    className="font-medium text-primary cursor-pointer hover:underline"
+                                                    onClick={() => setShowFrcSummary(prev => !prev)}
+                                                >
+                                                    {projectionTotals.frcQty.toLocaleString()}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="text-right font-bold">{projectionTotals.cutOrderQty.toLocaleString()}</TableCell>
+                                            <TableCell className="text-right font-bold">{projectionTotals.cutOrderPending.toLocaleString()}</TableCell>
+                                        </TableRow>
+                                    </TableFooter>
                                 )}
-                            </TableBody>
-                            {projectionData.length > 0 && (
-                                <TableFooter>
-                                    <TableRow>
-                                        <TableCell colSpan={4} className="font-bold text-right">Total</TableCell>
-                                        <TableCell className="text-right font-bold">{projectionTotals.prjQty.toLocaleString()}</TableCell>
-                                        <TableCell colSpan={3}></TableCell>
-                                        <TableCell className="text-right font-bold">
-                                            <span
-                                                className="font-medium text-primary cursor-pointer hover:underline"
-                                                onClick={() => setShowFrcSummary(prev => !prev)}
-                                            >
-                                                {projectionTotals.frcQty.toLocaleString()}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell className="text-right font-bold">{projectionTotals.cutOrderQty.toLocaleString()}</TableCell>
-                                        <TableCell className="text-right font-bold">{projectionTotals.cutOrderPending.toLocaleString()}</TableCell>
-                                    </TableRow>
-                                </TableFooter>
-                            )}
-                        </Table>
-                    </CardContent>
-                </Card>
+                            </Table>
+                        </CardContent>
+                    </Card>
 
-                {selectedFrc && (
-                    <FrcBreakdownTable breakdown={selectedFrc.breakdown} coverage={selectedFrc.frcCoverage} />
-                )}
+                    {selectedFrc && (
+                        <FrcBreakdownTable breakdown={selectedFrc.breakdown} coverage={selectedFrc.frcCoverage} />
+                    )}
 
-                {showFrcSummary && (
-                    <AllFrcBreakdownTable projectionData={projectionData} />
-                )}
+                    {showFrcSummary && (
+                        <AllFrcBreakdownTable projectionData={projectionData} />
+                    )}
+                </div>
             </main>
         </div>
     );
