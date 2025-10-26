@@ -16,14 +16,6 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { SIZES } from '@/lib/data';
 import type { SyntheticPoRecord } from '@/lib/types';
 import { format, getWeek } from 'date-fns';
@@ -33,34 +25,11 @@ function PoStatusPageContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get('orderId');
     const { orders, isScheduleLoaded, syntheticPoRecords, updatePoEhd } = useSchedule();
-    const [currentSnapshotWeek, setCurrentSnapshotWeek] = useState(0);
-
-    useEffect(() => {
-        setCurrentSnapshotWeek(getWeek(new Date()));
-    }, []);
     
     const order = useMemo(() => {
         if (!isScheduleLoaded || !orderId) return null;
         return orders.find(o => o.id === orderId);
     }, [orderId, orders, isScheduleLoaded]);
-
-    const poRecordsForOrder = useMemo(() => {
-        if (!orderId) return [];
-        return syntheticPoRecords.filter(r => r.orderId === orderId);
-    }, [orderId, syntheticPoRecords]);
-
-    const handleEhdChange = (poNumber: string, newWeek: string) => {
-        if (!orderId) return;
-        updatePoEhd(orderId, poNumber, newWeek);
-    };
-
-    const generateWeekOptions = (startWeek: number) => {
-        const options: number[] = [];
-        for (let i = 0; i < 26; i++) { // Show next 6 months
-            options.push(startWeek + i);
-        }
-        return options;
-    };
 
 
     if (!isScheduleLoaded) {
@@ -111,68 +80,10 @@ function PoStatusPageContent() {
                 </div>
                 
                 <div className="border rounded-lg overflow-auto flex-1">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>PO Number</TableHead>
-                                <TableHead>Issue date</TableHead>
-                                {SIZES.map(size => (
-                                    <TableHead key={size} className="text-right">{size}</TableHead>
-                                ))}
-                                <TableHead className="text-right font-bold">Total Qty</TableHead>
-                                <TableHead>Destination</TableHead>
-                                <TableHead>Original EHD</TableHead>
-                                <TableHead>Actual EHD</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {poRecordsForOrder.length > 0 ? (
-                                poRecordsForOrder.map(po => {
-                                    const startWeekNum = parseInt(po.originalEhdWeek.replace('W', ''), 10);
-                                    const weekOptions = generateWeekOptions(startWeekNum);
-                                    return (
-                                        <TableRow key={po.poNumber}>
-                                            <TableCell className="font-medium">{po.poNumber}</TableCell>
-                                            <TableCell>{format(new Date(po.issueDate), 'dd/MM/yy')}</TableCell>
-                                            {SIZES.map(size => (
-                                                <TableCell key={size} className="text-right">
-                                                    {(po.quantities[size] || 0).toLocaleString()}
-                                                </TableCell>
-                                            ))}
-                                            <TableCell className="text-right font-bold">
-                                                {(po.quantities.total || 0).toLocaleString()}
-                                            </TableCell>
-                                            <TableCell>{po.destination}</TableCell>
-                                            <TableCell>{po.originalEhdWeek}</TableCell>
-                                            <TableCell>
-                                                <Select
-                                                    value={po.actualEhdWeek}
-                                                    onValueChange={(newWeek) => handleEhdChange(po.poNumber, newWeek)}
-                                                >
-                                                    <SelectTrigger className="w-24">
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {weekOptions.map(week => (
-                                                            <SelectItem key={week} value={`W${week}`}>
-                                                                W{week}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })
-                            ) : (
-                                <TableRow>
-                                    <TableCell colSpan={SIZES.length + 5} className="h-24 text-center">
-                                        No PO data to display.
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
+                    {/* The table has been removed as requested. */}
+                    <div className="h-full flex items-center justify-center">
+                        <p className="text-muted-foreground">Ready to build the new PO table.</p>
+                    </div>
                 </div>
             </main>
         </div>
