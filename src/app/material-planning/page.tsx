@@ -236,7 +236,7 @@ function MaterialPlanningPageContent() {
 
                 if (firstPoFcWeek) {
                     for (const week of poFcWeeks) {
-                        if (targetMet) break;
+                        if (targetMet) break; // PERMANENT FIX: Exit outer loop if target is met
                         if (parseInt(week.slice(1)) < parseInt(firstPoFcWeek.slice(1))) continue;
 
                         for (const size of SIZES) {
