@@ -110,6 +110,17 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
         return `CO-${order.ocn}-${(orderCutOrders.length + 1).toString().padStart(2, '0')}`;
     }, [order, orderId, cutOrderRecords]);
 
+    const previousCarryoverQty = useMemo(() => {
+        const orderCutOrders = cutOrderRecords
+            .filter(co => co.orderId === orderId)
+            .sort((a,b) => a.coNumber.localeCompare(b.coNumber));
+        
+        if (orderCutOrders.length > 0) {
+            return orderCutOrders[orderCutOrders.length - 1].carryoverQty || 0;
+        }
+        return 0;
+    }, [cutOrderRecords, orderId]);
+
     const productionWeeks = useMemo(() => {
         if (!order?.fcVsFcDetails || order.fcVsFcDetails.length === 0) return [];
         
@@ -402,7 +413,7 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
         <div className="space-y-6">
             <Card>
                 <CardContent className="p-6 space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                         <div className="space-y-2">
                             <Label>CO #</Label>
                             <p className="font-semibold text-lg">{coNumber}</p>
@@ -410,6 +421,10 @@ function NewCutOrderForm({ orderId }: { orderId: string }) {
                         <div className="space-y-2">
                             <Label>Current Week</Label>
                             <p className="font-semibold text-lg">W{currentWeek}</p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Previous Carryover Qty</Label>
+                            <p className="font-semibold text-lg">{previousCarryoverQty.toLocaleString()}</p>
                         </div>
                     </div>
                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -598,3 +613,5 @@ export default function NewCutOrderPage() {
         </Suspense>
     );
 }
+
+    
