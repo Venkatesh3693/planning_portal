@@ -3,10 +3,10 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, Dispatch, SetStateAction, useMemo } from 'react';
-import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem, Size, FcComposition, FcSnapshot, SyntheticPoRecord, SizeBreakdown } from '@/lib/types';
+import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem, Size, FcComposition, FcSnapshot, SyntheticPoRecord, SizeBreakdown, CutOrderRecord } from '@/lib/types';
 import { ORDERS as staticOrders, PROCESSES, ORDER_COLORS, SIZES } from '@/lib/data';
 import { addDays, startOfToday, isAfter, getWeek, startOfWeek, addWeeks } from 'date-fns';
-import { getProcessBatchSize, getPackingBatchSize } from '@/lib/tna-calculator';
+import { getProcessBatchSize, getPackingBatchSize, runTentativePlanForHorizon } from '@/lib/tna-calculator';
 
 const STORE_KEY = 'stitchplan_schedule_v4';
 
@@ -42,6 +42,7 @@ type ScheduleContextType = {
   packingBatchSizes: Record<string, number>;
   syntheticPoRecords: SyntheticPoRecord[];
   setSyntheticPoRecords: Dispatch<SetStateAction<SyntheticPoRecord[]>>;
+  cutOrderRecords: CutOrderRecord[];
 };
 
 const ScheduleContext = createContext<ScheduleContextType | undefined>(undefined);
@@ -59,7 +60,6 @@ const generateSyntheticPos = (orders: Order[]): SyntheticPoRecord[] => {
 
         sortedSnapshots.forEach(snapshot => {
             const snapshotWeekNum = snapshot.snapshotWeek;
-            let poCounter = 1;
 
             Object.keys(snapshot.forecasts).forEach(demandWeek => {
                 const demandWeekNum = parseInt(demandWeek.slice(1));
@@ -119,6 +119,85 @@ const generateSyntheticPos = (orders: Order[]): SyntheticPoRecord[] => {
 };
 
 
+const generateCutOrders = (orders: Order[], allPoRecords: SyntheticPoRecord[]): CutOrderRecord[] => {
+    const allCutOrders: CutOrderRecord[] = [];
+    const currentWeek = getWeek(new Date());
+
+    orders.forEach(order => {
+        if (order.orderType !== 'Forecasted' || !order.fcVsFcDetails) return;
+
+        const latestSnapshot = order.fcVsFcDetails.reduce((latest, s) => s.snapshotWeek > latest.snapshotWeek ? s : latest, order.fcVsFcDetails[0]);
+        if (!latestSnapshot) return;
+
+        const weeklyTotals: Record<string, number> = {};
+        const snapshotWeeks = Object.keys(latestSnapshot.forecasts).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
+        snapshotWeeks.forEach(week => {
+            const total = latestSnapshot.forecasts[week]?.total;
+            weeklyTotals[week] = (total?.po || 0) + (total?.fc || 0);
+        });
+
+        const { plan } = runTentativePlanForHorizon(latestSnapshot.snapshotWeek, null, weeklyTotals, order, 0);
+        const planWeeks = Object.keys(plan).map(w => parseInt(w.slice(1))).sort((a, b) => a - b);
+        
+        const firstProdWeek = planWeeks.find(w => plan[`W${w}`] > 0);
+        if (!firstProdWeek) return;
+        
+        let availablePOs = allPoRecords
+          .filter(po => po.orderId === order.id)
+          .sort((a, b) => parseInt(a.originalEhdWeek.slice(1)) - parseInt(b.originalEhdWeek.slice(1)));
+        
+        let coRemainderQty = 0;
+        let coCounter = 1;
+
+        for (let week = firstProdWeek; week < 53; week += 2) {
+            if (week > currentWeek) break;
+
+            const week1 = week;
+            const week2 = week + 1;
+            const week1Key = `W${week1}`;
+            const week2Key = `W${week2}`;
+
+            const planQtyW1 = plan[week1Key] || 0;
+            const planQtyW2 = plan[week2Key] || 0;
+            const targetQty = planQtyW1 + planQtyW2 + coRemainderQty;
+            
+            if (targetQty <= 0) continue;
+
+            const posForThisCO: SyntheticPoRecord[] = [];
+            let accumulatedQty = 0;
+            const tempAvailablePOs: SyntheticPoRecord[] = [];
+
+            while(accumulatedQty < targetQty && availablePOs.length > 0) {
+                const po = availablePOs.shift()!;
+                posForThisCO.push(po);
+                accumulatedQty += po.quantities.total;
+            }
+            
+            coRemainderQty = accumulatedQty - targetQty;
+
+            const coQuantities = SIZES.reduce((acc, size) => ({ ...acc, [size]: 0 }), {} as Record<Size, number>);
+            let totalCoQty = 0;
+
+            posForThisCO.forEach(po => {
+                SIZES.forEach(size => {
+                    coQuantities[size] = (coQuantities[size] || 0) + (po.quantities[size] || 0);
+                });
+                totalCoQty += po.quantities.total;
+            });
+            
+            allCutOrders.push({
+                coNumber: `CO-${order.ocn}-${String(coCounter++).padStart(2, '0')}`,
+                orderId: order.id,
+                coWeekCoverage: `${week1Key}-${week2Key}`,
+                quantities: { ...coQuantities, total: totalCoQty }
+            });
+        }
+    });
+
+    return allCutOrders;
+}
+
+
 export function ScheduleProvider({ children }: { children: ReactNode }) {
   const [appMode, setAppModeState] = useState<AppMode>('gup');
   const [orders, setOrders] = useState<Order[]>([]);
@@ -136,7 +215,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
       const serializedState = localStorage.getItem(STORE_KEY);
       let loadedOverrides: StoredOrderOverrides = {};
       let maxEndDate = addDays(startOfToday(), 90);
-      let loadedSyntheticPos: SyntheticPoRecord[] | undefined;
       
       if (serializedState) {
         const storedData = JSON.parse(serializedState);
@@ -164,8 +242,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
             const storedEndDate = new Date(storedData.timelineEndDate);
             if (isAfter(storedEndDate, maxEndDate)) maxEndDate = storedEndDate;
         }
-
-        // We will regenerate synthetic POs on every load based on latest data
       }
 
       setTimelineEndDate(addDays(maxEndDate, 3));
@@ -431,6 +507,11 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     return { processBatchSizes: pbs, packingBatchSizes: qbs };
   }, [orders, sewingLines]);
 
+  const cutOrderRecords = useMemo(() => {
+    if (!isScheduleLoaded) return [];
+    return generateCutOrders(orders, syntheticPoRecords);
+  }, [isScheduleLoaded, orders, syntheticPoRecords]);
+
   const value = { 
     appMode,
     setAppMode,
@@ -457,6 +538,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     packingBatchSizes,
     syntheticPoRecords,
     setSyntheticPoRecords,
+    cutOrderRecords,
   };
 
   return (

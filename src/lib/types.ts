@@ -197,3 +197,10 @@ export type SyntheticPoRecord = {
     quantities: SizeBreakdown;
     orderId: string;
 };
+
+export type CutOrderRecord = {
+    coNumber: string;
+    orderId: string;
+    coWeekCoverage: string;
+    quantities: SizeBreakdown;
+};

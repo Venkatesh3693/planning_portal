@@ -24,20 +24,43 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter,
 } from "@/components/ui/table";
 import { Card, CardContent } from '@/components/ui/card';
 import { SIZES } from '@/lib/data';
+import type { Size } from '@/lib/types';
 
 
 function CutOrderPageContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get('orderId');
-    const { orders, isScheduleLoaded } = useSchedule();
+    const { orders, isScheduleLoaded, cutOrderRecords } = useSchedule();
     
     const order = useMemo(() => {
         if (!isScheduleLoaded || !orderId) return null;
         return orders.find(o => o.id === orderId);
     }, [orderId, orders, isScheduleLoaded]);
+
+    const filteredRecords = useMemo(() => {
+        if (!orderId) return [];
+        return cutOrderRecords.filter(r => r.orderId === orderId);
+    }, [orderId, cutOrderRecords]);
+
+    const totals = useMemo(() => {
+        const sizeTotals = SIZES.reduce((acc, size) => {
+            acc[size] = 0;
+            return acc;
+        }, {} as Record<Size, number>);
+
+        let grandTotal = 0;
+        filteredRecords.forEach(record => {
+            grandTotal += record.quantities.total || 0;
+            SIZES.forEach(size => {
+                sizeTotals[size] += record.quantities[size] || 0;
+            });
+        });
+        return { sizeTotals, grandTotal };
+    }, [filteredRecords]);
 
     if (!isScheduleLoaded) {
         return <div className="flex items-center justify-center h-full">Loading data...</div>;
@@ -100,12 +123,44 @@ function CutOrderPageContent() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                <TableRow>
-                                    <TableCell colSpan={3 + SIZES.length} className="h-24 text-center">
-                                        No cut orders issued for this order yet.
-                                    </TableCell>
-                                </TableRow>
+                                {filteredRecords.length > 0 ? (
+                                    filteredRecords.map(record => (
+                                        <TableRow key={record.coNumber}>
+                                            <TableCell>{record.coNumber}</TableCell>
+                                            <TableCell>{record.coWeekCoverage}</TableCell>
+                                            {SIZES.map(size => (
+                                                <TableCell key={size} className="text-right">
+                                                    {(record.quantities[size] || 0).toLocaleString()}
+                                                </TableCell>
+                                            ))}
+                                            <TableCell className="text-right font-bold">
+                                                {(record.quantities.total || 0).toLocaleString()}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={2 + SIZES.length + 1} className="h-24 text-center">
+                                            No cut orders issued for this order yet.
+                                        </TableCell>
+                                    </TableRow>
+                                )}
                             </TableBody>
+                             {filteredRecords.length > 0 && (
+                                <TableFooter>
+                                    <TableRow>
+                                        <TableCell colSpan={2} className="font-bold text-right">Total</TableCell>
+                                        {SIZES.map(size => (
+                                            <TableCell key={`total-${size}`} className="text-right font-bold">
+                                                {totals.sizeTotals[size].toLocaleString()}
+                                            </TableCell>
+                                        ))}
+                                        <TableCell className="text-right font-bold">
+                                            {totals.grandTotal.toLocaleString()}
+                                        </TableCell>
+                                    </TableRow>
+                                </TableFooter>
+                            )}
                         </Table>
                     </CardContent>
                 </Card>
