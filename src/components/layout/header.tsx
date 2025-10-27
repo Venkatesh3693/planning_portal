@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { Factory, PanelLeftOpen, PanelRightOpen, Settings } from 'lucide-react';
@@ -104,6 +103,9 @@ export function Header({
                       )}
                       <Link href="/plan-log">
                         <DropdownMenuItem>Plan Log</DropdownMenuItem>
+                      </Link>
+                      <Link href="/cc-wise-plan">
+                          <DropdownMenuItem>CC-wise plan</DropdownMenuItem>
                       </Link>
                     </DropdownMenuSubContent>
                   </DropdownMenuPortal>
