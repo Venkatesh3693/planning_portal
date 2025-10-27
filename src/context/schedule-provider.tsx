@@ -3,10 +3,10 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, Dispatch, SetStateAction, useMemo, useCallback } from 'react';
-import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem, Size, FcComposition, FcSnapshot, SyntheticPoRecord, CutOrderRecord, SizeBreakdown } from '@/lib/types';
+import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem, Size, FcComposition, FcSnapshot, SyntheticPoRecord, CutOrderRecord, SizeBreakdown, ProjectionRow } from '@/lib/types';
 import { ORDERS as staticOrders, PROCESSES, ORDER_COLORS, SIZES } from '@/lib/data';
 import { addDays, startOfToday, isAfter, getWeek } from 'date-fns';
-import { getProcessBatchSize, getPackingBatchSize } from '@/lib/tna-calculator';
+import { getProcessBatchSize, getPackingBatchSize, runTentativePlanForHorizon } from '@/lib/tna-calculator';
 
 const STORE_KEY = 'stitchplan_schedule_v4';
 const FIRM_PO_WINDOW = 3;
@@ -134,6 +134,59 @@ const generateSyntheticPos = (orders: Order[]): SyntheticPoRecord[] => {
     });
 };
 
+const calculateProjectionTotalsForOrder = (order: Order): { totalProjectionQty: number; totalFrcQty: number } => {
+    if (!order || order.orderType !== 'Forecasted' || !order.fcVsFcDetails || order.fcVsFcDetails.length === 0) {
+        return { totalProjectionQty: 0, totalFrcQty: 0 };
+    }
+
+    const firstSnapshot = order.fcVsFcDetails.reduce((earliest, current) => 
+        earliest.snapshotWeek < current.snapshotWeek ? earliest : current
+    );
+
+    const weeklyTotals: Record<string, number> = {};
+    Object.entries(firstSnapshot.forecasts).forEach(([week, data]) => {
+        weeklyTotals[week] = (data.total?.po || 0) + (data.total?.fc || 0);
+    });
+
+    const { plan } = runTentativePlanForHorizon(firstSnapshot.snapshotWeek, null, weeklyTotals, order, 0);
+    
+    const planWeeks = Object.keys(plan).map(w => parseInt(w.slice(1))).sort((a, b) => a - b);
+    const firstProductionWeek = planWeeks.find(w => plan[`W${w}`] > 0);
+
+    if (!firstProductionWeek) return { totalProjectionQty: 0, totalFrcQty: 0 };
+
+    const firstCkWeek = firstProductionWeek - 1;
+    
+    const projectionBomItems = (order.bom || []).filter(item => item.forecastType === 'Projection');
+    const maxPrjLeadTimeWeeks = Math.ceil(Math.max(...projectionBomItems.map(item => item.leadTime), 0) / 7);
+
+    const firstProjectionWeek = firstCkWeek - maxPrjLeadTimeWeeks;
+
+    let totalProjectionQty = 0;
+    let currentProjectionWeek = firstProjectionWeek;
+    
+    while (currentProjectionWeek < 52) {
+        const currentCkWeek = currentProjectionWeek + maxPrjLeadTimeWeeks;
+        const coverageStart = currentCkWeek + 1;
+        const coverageEnd = currentCkWeek + 4;
+        
+        let projectionQty = 0;
+        for (let w = coverageStart; w <= coverageEnd; w++) {
+            projectionQty += plan[`W${w}`] || 0;
+        }
+        
+        projectionQty = Math.round(projectionQty);
+        totalProjectionQty += projectionQty;
+
+        const hasMorePlan = Object.keys(plan).some(w => parseInt(w.slice(1)) > coverageEnd && plan[w] > 0);
+        if (!hasMorePlan) break;
+
+        currentProjectionWeek += 4;
+    }
+    // For now, total FRC is the same as total projection
+    return { totalProjectionQty, totalFrcQty: totalProjectionQty };
+}
+
 
 export function ScheduleProvider({ children }: { children: ReactNode }) {
   const [appMode, setAppModeState] = useState<AppMode>('gup');
@@ -200,13 +253,21 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
            if(override.tna.minRunDays) hydratedTna.minRunDays = override.tna.minRunDays;
         }
         
-        return {
+        const intermediateOrder = {
           ...baseOrder,
           displayColor: override.displayColor || ORDER_COLORS[index % ORDER_COLORS.length],
           sewingRampUpScheme: override.sewingRampUpScheme || [{ day: 1, efficiency: baseOrder.budgetedEfficiency || 85 }],
           tna: hydratedTna,
           bom: override.bom || baseOrder.bom,
           fcVsFcDetails: override.fcVsFcDetails || baseOrder.fcVsFcDetails,
+        };
+
+        const { totalProjectionQty, totalFrcQty } = calculateProjectionTotalsForOrder(intermediateOrder);
+
+        return {
+          ...intermediateOrder,
+          totalProjectionQty,
+          totalFrcQty,
         };
       });
       setOrders(hydratedOrders);
@@ -403,14 +464,22 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
            if(override.tna.minRunDays) hydratedTna.minRunDays = override.tna.minRunDays;
       }
         
-        return {
+      const intermediateOrder = {
           ...baseOrder,
           displayColor: override.displayColor || ORDER_COLORS[index % ORDER_COLORS.length],
           sewingRampUpScheme: override.sewingRampUpScheme || [{ day: 1, efficiency: baseOrder.budgetedEfficiency || 85 }],
           tna: hydratedTna,
           bom: override.bom || baseOrder.bom,
           fcVsFcDetails: override.fcVsFcDetails || baseOrder.fcVsFcDetails,
-        };
+      };
+
+      const { totalProjectionQty, totalFrcQty } = calculateProjectionTotalsForOrder(intermediateOrder);
+
+      return {
+          ...intermediateOrder,
+          totalProjectionQty,
+          totalFrcQty,
+      };
     });
     setOrders(newOrders);
 

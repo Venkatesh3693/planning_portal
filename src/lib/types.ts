@@ -150,6 +150,8 @@ export type Order = {
   poFcQty?: number;
   projection?: ForecastDetail;
   frc?: ForecastDetail;
+  totalProjectionQty?: number;
+  totalFrcQty?: number;
   confirmedPoQty?: number;
   cutOrder?: SizeBreakdown;
   produced?: SizeBreakdown;
