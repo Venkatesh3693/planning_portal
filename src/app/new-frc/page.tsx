@@ -164,7 +164,7 @@ function NewFrcForm({ orderId }: { orderId: string }) {
     return (
         <Card>
             <CardContent className="p-6 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 items-end">
                     <div className="space-y-2">
                         <Label>FRC #</Label>
                         <p className="font-semibold text-lg">{frcNumber || 'N/A'}</p>
@@ -184,14 +184,6 @@ function NewFrcForm({ orderId }: { orderId: string }) {
                             </SelectContent>
                         </Select>
                     </div>
-                    {selectedProjection && (
-                        <div className="space-y-2">
-                            <Label>Projection Quantity</Label>
-                            <p className="font-semibold text-lg">{selectedProjection.prjQty.toLocaleString()}</p>
-                        </div>
-                    )}
-                </div>
-                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-end">
                     <div className="space-y-2">
                         <Label htmlFor="frc-week-select">FRC Week</Label>
                         <Select
@@ -214,6 +206,12 @@ function NewFrcForm({ orderId }: { orderId: string }) {
                         <Label>Max Lead Time (FRC)</Label>
                         <p className="font-semibold text-lg">{maxFrcLeadTimeWeeks} weeks</p>
                     </div>
+                    {selectedProjection && (
+                        <div className="space-y-2">
+                            <Label>Projection Quantity</Label>
+                            <p className="font-semibold text-lg">{selectedProjection.prjQty.toLocaleString()}</p>
+                        </div>
+                    )}
                 </div>
             </CardContent>
             <CardFooter className="flex justify-end">
