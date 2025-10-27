@@ -21,16 +21,37 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { runTentativePlanForHorizon } from '@/lib/tna-calculator';
 import type { ProjectionRow, Size, Order } from '@/lib/types';
+import { getWeek } from 'date-fns';
 
 function NewFrcForm({ orderId }: { orderId: string }) {
     const { orders, isScheduleLoaded } = useSchedule();
     const [projections, setProjections] = useState<ProjectionRow[]>([]);
     const [selectedPrjNumber, setSelectedPrjNumber] = useState<string>('');
+    const [selectedFrcWeek, setSelectedFrcWeek] = useState<number | null>(null);
 
     const order = useMemo(() => {
         if (!isScheduleLoaded) return null;
         return orders.find(o => o.id === orderId);
     }, [orderId, orders, isScheduleLoaded]);
+
+    const maxFrcLeadTimeWeeks = useMemo(() => {
+        if (!order || !order.bom) return 0;
+        const frcComponents = order.bom.filter(item => item.forecastType === 'FRC');
+        const maxLeadTimeDays = Math.max(...frcComponents.map(item => item.leadTime), 0);
+        return Math.ceil(maxLeadTimeDays / 7);
+    }, [order]);
+
+    const availableFrcWeeks = useMemo(() => {
+        if (!order?.fcVsFcDetails) return [];
+        const allWeeks = new Set<number>();
+        order.fcVsFcDetails.forEach(snapshot => {
+            Object.keys(snapshot.forecasts).forEach(weekStr => {
+                allWeeks.add(parseInt(weekStr.replace('W', ''), 10));
+            });
+        });
+        return Array.from(allWeeks).sort((a,b) => a - b);
+    }, [order]);
+
 
     useEffect(() => {
         if (!order || !order.fcVsFcDetails || order.fcVsFcDetails.length === 0) {
@@ -112,6 +133,21 @@ function NewFrcForm({ orderId }: { orderId: string }) {
         return projections.find(p => p.prjNumber === selectedPrjNumber);
     }, [selectedPrjNumber, projections]);
 
+    useEffect(() => {
+        if(selectedProjection) {
+            const ckWeekNum = parseInt(selectedProjection.ckWeek.replace('W', ''), 10);
+            const frcWeekNum = ckWeekNum - maxFrcLeadTimeWeeks;
+            if(availableFrcWeeks.includes(frcWeekNum)){
+                setSelectedFrcWeek(frcWeekNum);
+            } else if (availableFrcWeeks.length > 0) {
+                const closest = availableFrcWeeks.reduce((prev, curr) => 
+                  (Math.abs(curr - frcWeekNum) < Math.abs(prev - frcWeekNum) ? curr : prev)
+                );
+                setSelectedFrcWeek(closest);
+            }
+        }
+    }, [selectedProjection, maxFrcLeadTimeWeeks, availableFrcWeeks]);
+
     const frcNumber = useMemo(() => {
         if (!selectedProjection) return '';
         return selectedProjection.prjNumber.replace('PRJ-', 'FRC-');
@@ -128,7 +164,7 @@ function NewFrcForm({ orderId }: { orderId: string }) {
     return (
         <Card>
             <CardContent className="p-6 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div className="space-y-2">
                         <Label>FRC #</Label>
                         <p className="font-semibold text-lg">{frcNumber || 'N/A'}</p>
@@ -154,6 +190,30 @@ function NewFrcForm({ orderId }: { orderId: string }) {
                             <p className="font-semibold text-lg">{selectedProjection.prjQty.toLocaleString()}</p>
                         </div>
                     )}
+                </div>
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-end">
+                    <div className="space-y-2">
+                        <Label htmlFor="frc-week-select">FRC Week</Label>
+                        <Select
+                            value={selectedFrcWeek !== null ? String(selectedFrcWeek) : ''}
+                            onValueChange={(val) => setSelectedFrcWeek(Number(val))}
+                        >
+                            <SelectTrigger id="frc-week-select" className="w-[180px]">
+                                <SelectValue placeholder="Select FRC Week" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {availableFrcWeeks.map(week => (
+                                    <SelectItem key={week} value={String(week)}>
+                                        W{week}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                     <div className="space-y-2">
+                        <Label>Max Lead Time (FRC)</Label>
+                        <p className="font-semibold text-lg">{maxFrcLeadTimeWeeks} weeks</p>
+                    </div>
                 </div>
             </CardContent>
             <CardFooter className="flex justify-end">
