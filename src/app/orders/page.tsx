@@ -1036,12 +1036,12 @@ const ForecastedOrderRow = forwardRef<
     onRampUpSave: (orderId: string, scheme: RampUpEntry[]) => void;
     onBomChange: (orderId: string, componentName: string, field: keyof BomItem, value: any) => void;
     onSetSewingLines: (orderId: string, lines: number) => void;
+    onDemandDetailsOpen: (order: Order) => void;
     children?: React.ReactNode;
   }
->(({ order, onRampUpSave, onBomChange, onSetSewingLines, children, ...props }, ref) => {
+>(({ order, onRampUpSave, onBomChange, onSetSewingLines, onDemandDetailsOpen, children, ...props }, ref) => {
   const [isTnaOpen, setIsTnaOpen] = useState(false);
   const [activeView, setActiveView] = useState<'tna' | 'ob' | 'bom' | 'ramp-up'>('tna');
-  const [demandDetailsOrder, setDemandDetailsOrder] = useState<Order | null>(null);
   
   const { scheduledProcesses, processBatchSizes, updateOrderMinRunDays, sewingLines } = useSchedule();
   const [minRunDays, setMinRunDays] = useState<Record<string, string>>({});
@@ -1130,15 +1130,11 @@ const ForecastedOrderRow = forwardRef<
       <TableCell>{order.modelNo || '-'}</TableCell>
       <TableCell className="text-right">
         {order.demandDetails ? (
-            <Dialog onOpenChange={(isOpen) => !isOpen && setDemandDetailsOrder(null)}>
-              <DialogTrigger asChild>
-                <span className="cursor-pointer text-primary hover:underline" onClick={() => setDemandDetailsOrder(order)}>
-                  {(order.quantity || 0).toLocaleString()}
-                </span>
-              </DialogTrigger>
-            </Dialog>
-          ) : (
-            <span>{(order.quantity || 0).toLocaleString()}</span>
+          <span className="cursor-pointer text-primary hover:underline" onClick={() => onDemandDetailsOpen(order)}>
+            {(order.quantity || 0).toLocaleString()}
+          </span>
+        ) : (
+          <span>{(order.quantity || 0).toLocaleString()}</span>
         )}
       </TableCell>
       <TableCell className="text-right font-medium">
@@ -1183,15 +1179,6 @@ const ForecastedOrderRow = forwardRef<
 
       <TableCell className="text-right font-bold">{order.shipped?.total.toLocaleString() || '-'}</TableCell>                          
       
-      <TableCell>{order.leadTime ? `${order.leadTime} days` : '-'}</TableCell>
-      
-      {demandDetailsOrder && (
-          <DemandDetailsDialog
-          order={demandDetailsOrder}
-          isOpen={!!demandDetailsOrder}
-          onOpenChange={(isOpen) => !isOpen && setDemandDetailsOrder(null)}
-          />
-      )}
     </TableRow>
   );
 });
@@ -1302,7 +1289,6 @@ export default function OrdersPage() {
                         <TableHead className="text-right">Cut Order</TableHead>
                         <TableHead className="text-right">Produced</TableHead>
                         <TableHead className="text-right">Shipped</TableHead>
-                        <TableHead>Lead Time</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1313,6 +1299,7 @@ export default function OrdersPage() {
                           onRampUpSave={updateSewingRampUpScheme}
                           onBomChange={updateOrderBom}
                           onSetSewingLines={setSewingLines}
+                          onDemandDetailsOpen={setDemandDetailsOrder}
                         />
                       ))}
                     </TableBody>
@@ -1333,3 +1320,4 @@ export default function OrdersPage() {
     </div>
   );
 }
+
