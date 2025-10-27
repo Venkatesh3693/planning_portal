@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Suspense, useMemo, useState } from 'react';
@@ -246,23 +245,23 @@ function MaterialPlanningPageContent() {
                 continue;
             }
             
-            cumulativeTarget += projectionQty;
+            const targetFrcQty = projectionQty;
+            cumulativeTarget += targetFrcQty;
 
             const frcWeekNum = currentCkWeek - maxFrcLeadTimeWeeks;
             const frcWeek = `W${frcWeekNum}`;
-            const targetFrcQty = projectionQty;
             
             let frcCoverage = '-';
             let frcBreakdown: ProjectionRow['breakdown'] = {};
             
             const snapshotForFrc = order.fcVsFcDetails.find(s => s.snapshotWeek === frcWeekNum);
             
-            if (snapshotForFrc && cumulativeTarget > 0) {
+            if (snapshotForFrc && targetFrcQty > 0) {
                 const poFcWeeks = Object.keys(snapshotForFrc.forecasts).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
                 
                 let runningTotal = 0;
                 let endCoverageWeek = '';
-                let newCumulativeBreakdown: Record<Size, number> = SIZES.reduce((acc, size) => ({ ...acc, [size]: 0 }), {} as Record<Size, number>);
+                const newCumulativeBreakdown: Record<Size, number> = SIZES.reduce((acc, size) => ({ ...acc, [size]: 0 }), {} as Record<Size, number>);
                 let targetMet = false;
                 
                 const firstPoFcWeek = poFcWeeks.find(w => Object.values(snapshotForFrc.forecasts[w] || {}).some(d => (d.po || 0) + (d.fc || 0) > 0));
@@ -311,7 +310,11 @@ function MaterialPlanningPageContent() {
                     }
 
                     frcBreakdown = { 'FRC': { ...newlyAdded, total: targetFrcQty } as any };
-                    cumulativeFrcBreakdown = newCumulativeBreakdown;
+                    
+                    // Update cumulativeFrcBreakdown for the next iteration
+                    for(const size of SIZES) {
+                        cumulativeFrcBreakdown[size] = (cumulativeFrcBreakdown[size] || 0) + (newlyAdded[size] || 0);
+                    }
                 }
             }
 
@@ -504,3 +507,5 @@ export default function MaterialPlanningPage() {
         </Suspense>
     );
 }
+
+    
