@@ -24,6 +24,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SIZES } from '@/lib/data';
@@ -49,6 +50,26 @@ function CutOrderPageContent() {
         if (!orderId) return [];
         return cutOrderRecords.filter(co => co.orderId === orderId);
     }, [orderId, cutOrderRecords])
+
+    const totals = useMemo(() => {
+        const sizeTotals = SIZES.reduce((acc, size) => {
+            acc[size] = 0;
+            return acc;
+        }, {} as Record<string, number>);
+
+        let grandTotal = 0;
+        let carryoverTotal = 0;
+
+        filteredCutOrders.forEach(record => {
+            grandTotal += record.quantities.total || 0;
+            carryoverTotal += record.carryoverQty || 0;
+            SIZES.forEach(size => {
+                sizeTotals[size] += record.quantities[size] || 0;
+            });
+        });
+
+        return { sizeTotals, grandTotal, carryoverTotal };
+    }, [filteredCutOrders]);
 
     if (!isScheduleLoaded) {
         return <div className="flex items-center justify-center h-full">Loading data...</div>;
@@ -182,6 +203,25 @@ function CutOrderPageContent() {
                                     </TableRow>
                                 )}
                             </TableBody>
+                            {filteredCutOrders.length > 0 && (
+                                <TableFooter>
+                                    <TableRow>
+                                        <TableCell colSpan={2} className="font-bold text-right">Total</TableCell>
+                                        {SIZES.map(size => (
+                                            <TableCell key={`total-${size}`} className="text-right font-bold">
+                                                {(totals.sizeTotals[size] || 0).toLocaleString()}
+                                            </TableCell>
+                                        ))}
+                                        <TableCell className="text-right font-bold">
+                                            {totals.grandTotal.toLocaleString()}
+                                        </TableCell>
+                                        <TableCell></TableCell>
+                                        <TableCell className="text-right font-bold">
+                                            {totals.carryoverTotal.toLocaleString()}
+                                        </TableCell>
+                                    </TableRow>
+                                </TableFooter>
+                            )}
                         </Table>
                     </CardContent>
                 </Card>
