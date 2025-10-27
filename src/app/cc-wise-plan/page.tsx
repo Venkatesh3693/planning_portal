@@ -37,6 +37,12 @@ function CcWisePlanPageContent() {
                         </BreadcrumbItem>
                         <BreadcrumbSeparator />
                         <BreadcrumbItem>
+                             <BreadcrumbLink asChild>
+                                <Link href="/orders">Order Management</Link>
+                            </BreadcrumbLink>
+                        </BreadcrumbItem>
+                        <BreadcrumbSeparator />
+                        <BreadcrumbItem>
                             <BreadcrumbPage>CC-wise Plan</BreadcrumbPage>
                         </BreadcrumbItem>
                     </BreadcrumbList>
