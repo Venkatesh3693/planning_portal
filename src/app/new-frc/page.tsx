@@ -20,14 +20,17 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { runTentativePlanForHorizon } from '@/lib/tna-calculator';
-import type { ProjectionRow, Size, Order } from '@/lib/types';
+import type { ProjectionRow, Size, Order, SizeBreakdown } from '@/lib/types';
 import { getWeek } from 'date-fns';
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
+import { SIZES } from '@/lib/data';
 
 function NewFrcForm({ orderId }: { orderId: string }) {
     const { orders, isScheduleLoaded } = useSchedule();
     const [projections, setProjections] = useState<ProjectionRow[]>([]);
     const [selectedPrjNumber, setSelectedPrjNumber] = useState<string>('');
     const [selectedFrcWeek, setSelectedFrcWeek] = useState<number | null>(null);
+    const [frcBreakdown, setFrcBreakdown] = useState<{ coverage: string; quantities: SizeBreakdown } | null>(null);
 
     const order = useMemo(() => {
         if (!isScheduleLoaded) return null;
@@ -148,6 +151,65 @@ function NewFrcForm({ orderId }: { orderId: string }) {
         }
     }, [selectedProjection, maxFrcLeadTimeWeeks, availableFrcWeeks]);
 
+     useEffect(() => {
+        if (!selectedProjection || !selectedFrcWeek || !order?.fcVsFcDetails) {
+            setFrcBreakdown(null);
+            return;
+        }
+
+        const snapshotForFrc = order.fcVsFcDetails.find(s => s.snapshotWeek === selectedFrcWeek);
+        if (!snapshotForFrc) {
+            setFrcBreakdown(null);
+            return;
+        }
+
+        const poFcWeeks = Object.keys(snapshotForFrc.forecasts).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
+        const firstPoFcWeek = poFcWeeks.find(w => Object.values(snapshotForFrc.forecasts[w] || {}).some(d => (d.po || 0) + (d.fc || 0) > 0));
+
+        if (!firstPoFcWeek) {
+            setFrcBreakdown(null);
+            return;
+        }
+
+        let cumulativeQty = 0;
+        let endCoverageWeek = '';
+        const frcQuantities: SizeBreakdown = { total: 0 };
+        SIZES.forEach(s => frcQuantities[s] = 0);
+
+        for (const week of poFcWeeks) {
+            if (parseInt(week.slice(1)) < parseInt(firstPoFcWeek.slice(1))) continue;
+            
+            for (const size of SIZES) {
+                const demand = snapshotForFrc.forecasts[week]?.[size];
+                const qty = (demand?.po || 0) + (demand?.fc || 0);
+
+                if (cumulativeQty + qty >= selectedProjection.prjQty) {
+                    const needed = selectedProjection.prjQty - cumulativeQty;
+                    frcQuantities[size] = (frcQuantities[size] || 0) + needed;
+                    cumulativeQty += needed;
+                    endCoverageWeek = week;
+                    break; 
+                } else {
+                    frcQuantities[size] = (frcQuantities[size] || 0) + qty;
+                    cumulativeQty += qty;
+                }
+            }
+
+            if (cumulativeQty >= selectedProjection.prjQty) {
+                endCoverageWeek = week;
+                break;
+            }
+        }
+        
+        frcQuantities.total = SIZES.reduce((sum, size) => sum + (frcQuantities[size] || 0), 0);
+
+        setFrcBreakdown({
+            coverage: `${firstPoFcWeek}-${endCoverageWeek}`,
+            quantities: frcQuantities,
+        });
+
+    }, [selectedProjection, selectedFrcWeek, order]);
+
     const frcNumber = useMemo(() => {
         if (!selectedProjection) return '';
         return selectedProjection.prjNumber.replace('PRJ-', 'FRC-');
@@ -162,62 +224,96 @@ function NewFrcForm({ orderId }: { orderId: string }) {
     }
     
     return (
-        <Card>
-            <CardContent className="p-6 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 items-end">
-                    <div className="space-y-2">
-                        <Label>FRC #</Label>
-                        <p className="font-semibold text-lg">{frcNumber || 'N/A'}</p>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="projection-select">Projection #</Label>
-                        <Select value={selectedPrjNumber} onValueChange={setSelectedPrjNumber}>
-                            <SelectTrigger id="projection-select" className="w-[250px]">
-                                <SelectValue placeholder="Select a projection" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {projections.map(proj => (
-                                    <SelectItem key={proj.prjNumber} value={proj.prjNumber}>
-                                        {proj.prjNumber} ({proj.prjCoverage})
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="frc-week-select">FRC Week</Label>
-                        <Select
-                            value={selectedFrcWeek !== null ? String(selectedFrcWeek) : ''}
-                            onValueChange={(val) => setSelectedFrcWeek(Number(val))}
-                        >
-                            <SelectTrigger id="frc-week-select" className="w-[180px]">
-                                <SelectValue placeholder="Select FRC Week" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {availableFrcWeeks.map(week => (
-                                    <SelectItem key={week} value={String(week)}>
-                                        W{week}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                     <div className="space-y-2">
-                        <Label>Max Lead Time (FRC)</Label>
-                        <p className="font-semibold text-lg">{maxFrcLeadTimeWeeks} weeks</p>
-                    </div>
-                    {selectedProjection && (
+        <div className="space-y-6">
+            <Card>
+                <CardContent className="p-6 space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 items-end">
                         <div className="space-y-2">
-                            <Label>Projection Quantity</Label>
-                            <p className="font-semibold text-lg">{selectedProjection.prjQty.toLocaleString()}</p>
+                            <Label>FRC #</Label>
+                            <p className="font-semibold text-lg">{frcNumber || 'N/A'}</p>
                         </div>
-                    )}
-                </div>
-            </CardContent>
-            <CardFooter className="flex justify-end">
-                <Button disabled={!selectedProjection}>Save FRC</Button>
-            </CardFooter>
-        </Card>
+                        <div className="space-y-2">
+                            <Label htmlFor="projection-select">Projection #</Label>
+                            <Select value={selectedPrjNumber} onValueChange={setSelectedPrjNumber}>
+                                <SelectTrigger id="projection-select" className="w-[250px]">
+                                    <SelectValue placeholder="Select a projection" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {projections.map(proj => (
+                                        <SelectItem key={proj.prjNumber} value={proj.prjNumber}>
+                                            {proj.prjNumber} ({proj.prjCoverage})
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="frc-week-select">FRC Week</Label>
+                            <Select
+                                value={selectedFrcWeek !== null ? String(selectedFrcWeek) : ''}
+                                onValueChange={(val) => setSelectedFrcWeek(Number(val))}
+                            >
+                                <SelectTrigger id="frc-week-select" className="w-[180px]">
+                                    <SelectValue placeholder="Select FRC Week" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {availableFrcWeeks.map(week => (
+                                        <SelectItem key={week} value={String(week)}>
+                                            W{week}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                         <div className="space-y-2">
+                            <Label>Max Lead Time (FRC)</Label>
+                            <p className="font-semibold text-lg">{maxFrcLeadTimeWeeks} weeks</p>
+                        </div>
+                        {selectedProjection && (
+                            <div className="space-y-2">
+                                <Label>Projection Quantity</Label>
+                                <p className="font-semibold text-lg">{selectedProjection.prjQty.toLocaleString()}</p>
+                            </div>
+                        )}
+                    </div>
+                </CardContent>
+                <CardFooter className="flex justify-end">
+                    <Button disabled={!selectedProjection}>Save FRC</Button>
+                </CardFooter>
+            </Card>
+
+            {frcBreakdown && (
+                <Card>
+                    <CardContent className="p-6">
+                        <h3 className="text-lg font-semibold mb-2">FRC Breakdown for {frcBreakdown.coverage}</h3>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Breakdown</TableHead>
+                                    {SIZES.map(size => (
+                                        <TableHead key={size} className="text-right">{size}</TableHead>
+                                    ))}
+                                    <TableHead className="text-right font-bold">Total</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow>
+                                    <TableCell className="font-medium">Quantity</TableCell>
+                                    {SIZES.map(size => (
+                                        <TableCell key={size} className="text-right">
+                                            {(frcBreakdown.quantities[size] || 0).toLocaleString()}
+                                        </TableCell>
+                                    ))}
+                                    <TableCell className="text-right font-bold">
+                                        {(frcBreakdown.quantities.total || 0).toLocaleString()}
+                                    </TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+            )}
+        </div>
     );
 }
 
