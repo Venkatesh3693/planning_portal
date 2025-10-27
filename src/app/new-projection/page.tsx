@@ -57,17 +57,18 @@ function NewProjectionForm({ orderId }: { orderId: string }) {
         return `PRJ-${order.ocn}-${(existingProjections + 1).toString().padStart(2, '0')}`;
     }, [order]);
 
-    const { maxLeadTime, coverageStartWeek, coverageEndWeek } = useMemo(() => {
-        if (!order || !order.bom) return { maxLeadTime: 0, coverageStartWeek: 0, coverageEndWeek: 0 };
+    const { maxLeadTime, ckWeek, coverageStartWeek, coverageEndWeek } = useMemo(() => {
+        if (!order || !order.bom) return { maxLeadTime: 0, ckWeek: 0, coverageStartWeek: 0, coverageEndWeek: 0 };
         
         const projectionComponents = order.bom.filter(item => item.forecastType === 'Projection');
         const maxLeadTimeDays = Math.max(...projectionComponents.map(item => item.leadTime), 0);
         const maxLeadTimeWeeks = Math.ceil(maxLeadTimeDays / 7);
 
-        const startWeek = selectedProjectionWeek + maxLeadTimeWeeks + 1;
-        const endWeek = selectedProjectionWeek + maxLeadTimeWeeks + 4;
+        const calculatedCkWeek = selectedProjectionWeek + maxLeadTimeWeeks;
+        const startWeek = calculatedCkWeek + 1;
+        const endWeek = calculatedCkWeek + 4;
 
-        return { maxLeadTime: maxLeadTimeWeeks, coverageStartWeek: startWeek, coverageEndWeek: endWeek };
+        return { maxLeadTime: maxLeadTimeWeeks, ckWeek: calculatedCkWeek, coverageStartWeek: startWeek, coverageEndWeek: endWeek };
     }, [order, selectedProjectionWeek]);
 
     const projectionQty = useMemo(() => {
@@ -103,7 +104,7 @@ function NewProjectionForm({ orderId }: { orderId: string }) {
     return (
         <Card>
             <CardContent className="p-6 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                     <div className="space-y-2">
                         <Label>PRJ #</Label>
                         <p className="font-semibold text-lg">{projectionNumber}</p>
@@ -129,6 +130,10 @@ function NewProjectionForm({ orderId }: { orderId: string }) {
                     <div className="space-y-2">
                         <Label>Max Lead Time (Projection)</Label>
                         <p className="font-semibold text-lg">{maxLeadTime} weeks</p>
+                    </div>
+                    <div className="space-y-2">
+                        <Label>CK Week</Label>
+                        <p className="font-semibold text-lg">W{ckWeek}</p>
                     </div>
                      <div className="space-y-2">
                         <Label>Projection Coverage Weeks</Label>
