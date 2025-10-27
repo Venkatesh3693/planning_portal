@@ -19,6 +19,7 @@ import { useSchedule } from '@/context/schedule-provider';
 import { getWeek } from 'date-fns';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { runTentativePlanForHorizon } from '@/lib/tna-calculator';
 
 function NewProjectionForm({ orderId }: { orderId: string }) {
     const { orders, isScheduleLoaded } = useSchedule();
@@ -32,8 +33,6 @@ function NewProjectionForm({ orderId }: { orderId: string }) {
 
     const projectionNumber = useMemo(() => {
         if (!order) return '';
-        // This is a simplified logic. In a real app, you'd query existing projections.
-        // For now, we assume this is the first new one we are creating.
         const existingProjections = order.projectionDetails?.length || 0;
         return `PRJ-${order.ocn}-${(existingProjections + 1).toString().padStart(2, '0')}`;
     }, [order]);
@@ -50,6 +49,40 @@ function NewProjectionForm({ orderId }: { orderId: string }) {
 
         return { maxLeadTime: maxLeadTimeWeeks, coverageStartWeek: startWeek, coverageEndWeek: endWeek };
     }, [order, currentWeek]);
+
+    const projectionQty = useMemo(() => {
+        if (!order || !order.fcVsFcDetails || coverageStartWeek === 0) return 0;
+        
+        const snapshotForProjectionWeek = order.fcVsFcDetails.find(s => s.snapshotWeek === currentWeek);
+        if (!snapshotForProjectionWeek) {
+            // Find the closest snapshot before the current week as a fallback
+            const fallbackSnapshot = [...order.fcVsFcDetails]
+                .filter(s => s.snapshotWeek < currentWeek)
+                .sort((a,b) => b.snapshotWeek - a.snapshotWeek)[0];
+            
+            if (!fallbackSnapshot) return 0;
+        }
+
+        // Use the earliest snapshot to get the most "raw" demand signal for planning
+        const firstSnapshot = order.fcVsFcDetails.reduce((earliest, current) => 
+            earliest.snapshotWeek < current.snapshotWeek ? earliest : current
+        );
+
+        const weeklyTotals: Record<string, number> = {};
+        Object.entries(firstSnapshot.forecasts).forEach(([week, data]) => {
+            weeklyTotals[week] = (data.total?.po || 0) + (data.total?.fc || 0);
+        });
+
+        const { plan } = runTentativePlanForHorizon(currentWeek, null, weeklyTotals, order, 0);
+
+        let totalQty = 0;
+        for (let w = coverageStartWeek; w <= coverageEndWeek; w++) {
+            totalQty += plan[`W${w}`] || 0;
+        }
+
+        return Math.round(totalQty);
+    }, [order, currentWeek, coverageStartWeek, coverageEndWeek]);
+
 
     if (!order) {
         return (
@@ -75,6 +108,19 @@ function NewProjectionForm({ orderId }: { orderId: string }) {
                         <Label>Projection Coverage Weeks</Label>
                         <p className="font-semibold text-lg">W{coverageStartWeek}-W{coverageEndWeek}</p>
                     </div>
+                </div>
+
+                 <div className="border-t pt-6">
+                    <Label className="text-base">Calculated Projection Quantity</Label>
+                    {projectionQty > 0 ? (
+                        <p className="font-semibold text-3xl text-primary mt-1">
+                            {projectionQty.toLocaleString()}
+                        </p>
+                    ) : (
+                        <p className="text-muted-foreground mt-2">
+                            No projection is needed for this period based on the current production plan.
+                        </p>
+                    )}
                 </div>
             </CardContent>
         </Card>
