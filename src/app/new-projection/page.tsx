@@ -146,7 +146,7 @@ function NewProjectionForm({ orderId }: { orderId: string }) {
                 </div>
             </CardContent>
             <CardFooter className="flex justify-end">
-                <Button>Save Projection</Button>
+                <Button disabled={projectionQty <= 0}>Save Projection</Button>
             </CardFooter>
         </Card>
     );
