@@ -113,6 +113,12 @@ const dmiDemandDetails: DemandDetail[] = [
     { destination: 'Tokyo, Japan', selectionQty: 28334, po: 4667, fc: 18666, poPlusFc: 23333 },
 ];
 
+const dmiDemandDetailsGreen: DemandDetail[] = [
+    { destination: 'Los Angeles, USA', selectionQty: 45000, po: 30000, fc: 5000, poPlusFc: 35000 },
+    { destination: 'Sydney, AU', selectionQty: 25000, po: 15000, fc: 8000, poPlusFc: 23000 },
+];
+
+
 const dsiDemandDetails: DemandDetail[] = [
     { destination: 'Berlin, DE', selectionQty: 100000, po: 80000, fc: 25000, poPlusFc: 105000 },
     { destination: 'Paris, FR', selectionQty: 150000, po: 100000, fc: 40000, poPlusFc: 140000 },
@@ -256,6 +262,7 @@ const generateFcSnapshots = (
 
 
 const dmiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots('AW', CURRENT_WEEK, 3077, 500);
+const dmiFcVsFcDetailsGreen: FcSnapshot[] = generateFcSnapshots('AW', CURRENT_WEEK, 2500, 600);
 const dsiFcVsFcDetails: FcSnapshot[] = generateFcSnapshots('SS', CURRENT_WEEK, 50000, 2500);
 
 const createComponentStatus = (
@@ -391,7 +398,6 @@ const pantsBom: BomItem[] = [
 ];
 
 const dmiProjectionDetails: ProjectionDetail[] = createProjectionDetails(paddedJacketBom);
-const dsiProjectionDetails: ProjectionDetail[] = createProjectionDetails(pantsBom);
 
 
 export const ORDERS: Order[] = [
@@ -493,6 +499,40 @@ export const ORDERS: Order[] = [
         demandDetails: dmiDemandDetails,
         fcVsFcDetails: dmiFcVsFcDetails,
         projectionDetails: dmiProjectionDetails,
+        bom: paddedJacketBom,
+    },
+    {
+        id: 'DMI-114227-Green',
+        ocn: '114227',
+        buyer: 'DMI',
+        style: 'Padded Jacket',
+        color: 'Green',
+        modelNo: 556622,
+        season: 'AW-25',
+        quantity: 70000,
+        poFcQty: 65000,
+        projection: { noPo: 12000, openPos: 10000, grn: 7000, total: 29000 },
+        frc: { noPo: 10000, openPos: 9000, grn: 6000, total: 25000 },
+        confirmedPoQty: 20000,
+        cutOrder: { total: 20000 },
+        produced: { total: 18000 },
+        shipped: { total: 12000 },
+        processIds: ['cutting', 'sewing', 'packing'],
+        displayColor: ORDER_COLORS[1],
+        leadTime: 21,
+        budgetedEfficiency: 78,
+        orderType: 'Forecasted',
+        tna: {
+            processes: [
+                { processId: 'cutting', setupTime: 30 },
+                { processId: 'sewing', setupTime: 100 },
+                { processId: 'packing', setupTime: 10 },
+            ]
+        },
+        poDetails: [], // Assuming new order has no PO details yet
+        demandDetails: dmiDemandDetailsGreen,
+        fcVsFcDetails: dmiFcVsFcDetailsGreen,
+        projectionDetails: createProjectionDetails(paddedJacketBom),
         bom: paddedJacketBom,
     },
 ];
