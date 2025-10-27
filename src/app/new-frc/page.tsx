@@ -196,7 +196,7 @@ function NewFrcForm({ orderId }: { orderId: string }) {
             }
 
             if (cumulativeQty >= selectedProjection.prjQty) {
-                endCoverageWeek = week;
+                if (!endCoverageWeek) endCoverageWeek = week;
                 break;
             }
         }
