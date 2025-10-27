@@ -4,7 +4,7 @@
 
 import { Factory, PanelLeftOpen, PanelRightOpen, Settings } from 'lucide-react';
 import Link from 'next/link';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuPortal } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -72,24 +72,43 @@ export function Header({
                 <Link href="/orders">
                   <DropdownMenuItem>Order management</DropdownMenuItem>
                 </Link>
+
                 {appMode === 'gut' && (
-                    <Link href="/demand-analysis">
-                        <DropdownMenuItem>Demand Analysis</DropdownMenuItem>
-                    </Link>
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <span>Demand</span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuPortal>
+                      <DropdownMenuSubContent>
+                        <Link href="/demand-analysis">
+                          <DropdownMenuItem>Demand Analysis</DropdownMenuItem>
+                        </Link>
+                        <Link href="/size-wise-demand">
+                          <DropdownMenuItem>Size-wise Demand</DropdownMenuItem>
+                        </Link>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuPortal>
+                  </DropdownMenuSub>
                 )}
-                 {appMode === 'gut' && (
-                    <Link href="/size-wise-demand">
-                        <DropdownMenuItem>Size-wise Demand</DropdownMenuItem>
-                    </Link>
-                )}
-                {appMode === 'gut' && (
-                  <Link href="/tentative-plan">
-                    <DropdownMenuItem>Tentative plan</DropdownMenuItem>
-                  </Link>
-                )}
-                <Link href="/plan-log">
-                  <DropdownMenuItem>Plan Log</DropdownMenuItem>
-                </Link>
+
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <span>Plan</span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuPortal>
+                    <DropdownMenuSubContent>
+                      {appMode === 'gut' && (
+                        <Link href="/tentative-plan">
+                          <DropdownMenuItem>Tentative plan</DropdownMenuItem>
+                        </Link>
+                      )}
+                      <Link href="/plan-log">
+                        <DropdownMenuItem>Plan Log</DropdownMenuItem>
+                      </Link>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuPortal>
+                </DropdownMenuSub>
+
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
