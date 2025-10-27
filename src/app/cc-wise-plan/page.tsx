@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useState, useMemo } from 'react';
 import { useSchedule } from '@/context/schedule-provider';
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
@@ -15,10 +15,19 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 
 
 function CcWisePlanPageContent() {
-    const { isScheduleLoaded } = useSchedule();
+    const { isScheduleLoaded, orders } = useSchedule();
+    const [selectedCc, setSelectedCc] = useState<string>('');
+
+    const ccOptions = useMemo(() => {
+        if (!isScheduleLoaded) return [];
+        const uniqueCcs = [...new Set(orders.map(o => o.ocn))];
+        return uniqueCcs.sort();
+    }, [orders, isScheduleLoaded]);
     
     if (!isScheduleLoaded) {
         return <div className="flex items-center justify-center h-full">Loading data...</div>;
@@ -48,7 +57,7 @@ function CcWisePlanPageContent() {
                     </BreadcrumbList>
                 </Breadcrumb>
 
-                 <div className="flex justify-between items-center mb-4 flex-shrink-0">
+                 <div className="flex justify-between items-start mb-4 flex-shrink-0">
                     <div>
                         <h1 className="text-2xl font-bold">CC-wise Plan</h1>
                         <p className="text-muted-foreground">
@@ -64,7 +73,21 @@ function CcWisePlanPageContent() {
                 </div>
                 
                 <div className="space-y-4">
-                    {/* Page content will be built here */}
+                    <div className="w-full max-w-xs space-y-2">
+                        <Label htmlFor="cc-select">Select CC</Label>
+                        <Select value={selectedCc} onValueChange={setSelectedCc}>
+                            <SelectTrigger id="cc-select">
+                                <SelectValue placeholder="Select a CC..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {ccOptions.map(cc => (
+                                    <SelectItem key={cc} value={cc}>
+                                        {cc}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
             </main>
         </div>
