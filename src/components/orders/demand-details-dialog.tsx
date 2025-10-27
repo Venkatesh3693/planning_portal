@@ -128,14 +128,6 @@ export default function DemandDetailsDialog({
         </DialogHeader>
         <div className="pt-4 space-y-4">
             <SelectionVsPoFc order={order} />
-             <div className="flex justify-end pt-4">
-                <Button asChild>
-                    <Link href={`/demand-analysis?orderId=${order.id}`}>
-                        <LineChart className="mr-2 h-4 w-4" />
-                        PO + FC Analysis
-                    </Link>
-                </Button>
-            </div>
         </div>
       </DialogContent>
     </Dialog>
