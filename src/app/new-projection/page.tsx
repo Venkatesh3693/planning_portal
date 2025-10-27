@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { useSchedule } from '@/context/schedule-provider';
 import { getWeek } from 'date-fns';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { runTentativePlanForHorizon } from '@/lib/tna-calculator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -114,7 +114,7 @@ function NewProjectionForm({ orderId }: { orderId: string }) {
                             value={String(selectedProjectionWeek)}
                             onValueChange={(value) => setSelectedProjectionWeek(Number(value))}
                         >
-                            <SelectTrigger id="projection-week">
+                            <SelectTrigger id="projection-week" className="w-[180px]">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -145,6 +145,9 @@ function NewProjectionForm({ orderId }: { orderId: string }) {
                     )}
                 </div>
             </CardContent>
+            <CardFooter className="flex justify-end">
+                <Button>Save Projection</Button>
+            </CardFooter>
         </Card>
     );
 }
