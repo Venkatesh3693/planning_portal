@@ -16,7 +16,7 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, PlusCircle } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -396,12 +396,20 @@ function MaterialPlanningPageContent() {
                             Style: {order.style} | Buyer: {order.buyer}
                         </p>
                     </div>
-                    <Button variant="outline" asChild>
-                        <Link href="/orders">
-                            <ArrowLeft className="mr-2 h-4 w-4" />
-                            Back to Orders
-                        </Link>
-                    </Button>
+                    <div className="flex items-center gap-2">
+                         <Button asChild>
+                           <Link href={`/new-projection?orderId=${orderIdFromUrl}`}>
+                                <PlusCircle className="mr-2 h-4 w-4" />
+                                Create New Projection
+                           </Link>
+                        </Button>
+                        <Button variant="outline" asChild>
+                            <Link href="/orders">
+                                <ArrowLeft className="mr-2 h-4 w-4" />
+                                Back to Orders
+                            </Link>
+                        </Button>
+                    </div>
                 </div>
                 
                 <div className="space-y-6">
