@@ -403,6 +403,12 @@ function MaterialPlanningPageContent() {
                                 Create New Projection
                            </Link>
                         </Button>
+                        <Button asChild>
+                           <Link href={`/new-frc?orderId=${orderIdFromUrl}`}>
+                                <PlusCircle className="mr-2 h-4 w-4" />
+                                Create New FRC
+                           </Link>
+                        </Button>
                     </div>
                 </div>
                 
