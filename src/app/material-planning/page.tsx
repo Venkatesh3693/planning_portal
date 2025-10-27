@@ -403,12 +403,6 @@ function MaterialPlanningPageContent() {
                                 Create New Projection
                            </Link>
                         </Button>
-                        <Button variant="outline" asChild>
-                            <Link href="/orders">
-                                <ArrowLeft className="mr-2 h-4 w-4" />
-                                Back to Orders
-                            </Link>
-                        </Button>
                     </div>
                 </div>
                 
