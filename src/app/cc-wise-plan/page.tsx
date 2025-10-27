@@ -20,7 +20,7 @@ import { Label } from '@/components/ui/label';
 
 
 function CcWisePlanPageContent() {
-    const { isScheduleLoaded, orders } = useSchedule();
+    const { isScheduleLoaded, orders, appMode } = useSchedule();
     const [selectedCc, setSelectedCc] = useState<string>('');
 
     const ccOptions = useMemo(() => {
@@ -31,6 +31,25 @@ function CcWisePlanPageContent() {
     
     if (!isScheduleLoaded) {
         return <div className="flex items-center justify-center h-full">Loading data...</div>;
+    }
+
+    if (appMode === 'gup') {
+        return (
+            <div className="flex h-screen flex-col">
+              <Header />
+              <main className="flex-1 p-4 sm:p-6 lg:p-8 flex items-center justify-center">
+                <div className="text-center">
+                  <h2 className="text-xl font-semibold">CC-wise Plan Not Available</h2>
+                  <p className="mt-2 text-muted-foreground">
+                    This view is only applicable for GUT mode.
+                  </p>
+                  <Button asChild className="mt-6">
+                    <Link href="/">View GUP Schedule</Link>
+                  </Button>
+                </div>
+              </main>
+            </div>
+        )
     }
 
     return (
