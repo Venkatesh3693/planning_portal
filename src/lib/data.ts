@@ -507,7 +507,7 @@ export const ORDERS: Order[] = [
         buyer: 'DMI',
         style: 'Padded Jacket',
         color: 'Green',
-        modelNo: 556622,
+        modelNo: 556623,
         season: 'AW-25',
         quantity: 70000,
         poFcQty: 65000,
