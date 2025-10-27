@@ -146,8 +146,22 @@ const DemandTrendAnalysis = ({ order }: { order: Order }) => {
     
     if (previousValue !== undefined && currentValue !== undefined && previousValue > 0) {
       const change = ((currentValue - previousValue) / previousValue) * 100;
+      const absChange = Math.abs(change);
+      
+      let variant: "destructive" | "secondary" | "default" = 'secondary';
+      if (absChange > 20) {
+        variant = 'destructive';
+      } else if (absChange > 5) {
+        variant = 'default';
+      }
+
+      let badgeClasses = "text-xs tabular-nums ";
+      if (variant === 'default') {
+          badgeClasses += "bg-yellow-400 text-yellow-900";
+      }
+
       return (
-        <Badge variant={change > 0 ? 'destructive' : 'secondary'} className="text-xs tabular-nums">
+        <Badge variant={variant} className={badgeClasses}>
           {change > 0 ? '+' : ''}{change.toFixed(1)}%
         </Badge>
       );
@@ -379,3 +393,4 @@ export default function DemandAnalysisPage() {
         </Suspense>
     );
 }
+
