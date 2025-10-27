@@ -238,7 +238,8 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
 
       setTimelineEndDate(addDays(maxEndDate, 3));
 
-      const initialOrders = staticOrders.map((baseOrder, index) => {
+      // Initial hydration of orders from static data + overrides
+      const initialOrdersWithOverrides = staticOrders.map((baseOrder, index) => {
         const override = loadedOverrides[baseOrder.id] || {};
         return {
           ...baseOrder,
@@ -249,7 +250,31 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
           fcVsFcDetails: override.fcVsFcDetails || baseOrder.fcVsFcDetails,
         };
       });
-      setOrders(initialOrders);
+
+      // Generate synthetic POs from the initially hydrated orders
+      const newPos = generateSyntheticPos(initialOrdersWithOverrides);
+      setSyntheticPoRecords(newPos);
+      
+      const poTotalsByOrder = newPos.reduce((acc, po) => {
+          acc[po.orderId] = (acc[po.orderId] || 0) + po.quantities.total;
+          return acc;
+      }, {} as Record<string, number>);
+
+      // Final order state with all dynamic data calculated
+      const finalOrders = initialOrdersWithOverrides.map(order => {
+          if (order.orderType === 'Forecasted') {
+              const { totalProjectionQty, totalFrcQty } = calculateProjectionTotalsForOrder(order);
+              return {
+                  ...order,
+                  totalProjectionQty,
+                  totalFrcQty,
+                  confirmedPoQty: poTotalsByOrder[order.id] || 0,
+              };
+          }
+          return order;
+      });
+
+      setOrders(finalOrders);
       
     } catch (err) {
       console.error("Could not load schedule from localStorage", err);
@@ -278,34 +303,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
       console.error("Could not save schedule to localStorage", err);
     }
   }, [appMode, scheduledProcesses, sewingLines, orderOverrides, productionPlans, timelineEndDate, splitOrderProcesses, cutOrderRecords, isScheduleLoaded]);
-
-  useEffect(() => {
-    if (!isScheduleLoaded) return;
-    
-    const newPos = generateSyntheticPos(orders);
-    setSyntheticPoRecords(newPos);
-
-    const poTotalsByOrder = newPos.reduce((acc, po) => {
-        acc[po.orderId] = (acc[po.orderId] || 0) + po.quantities.total;
-        return acc;
-    }, {} as Record<string, number>);
-
-
-    setOrders(prevOrders => prevOrders.map(order => {
-        if (order.orderType === 'Forecasted') {
-            const { totalProjectionQty, totalFrcQty } = calculateProjectionTotalsForOrder(order);
-            return {
-                ...order,
-                totalProjectionQty,
-                totalFrcQty,
-                confirmedPoQty: poTotalsByOrder[order.id] || 0,
-            };
-        }
-        return order;
-    }));
-
-  }, [orderOverrides, isScheduleLoaded]);
-
 
   const setAppMode = useCallback((mode: AppMode) => {
     setAppModeState(mode);
@@ -475,16 +472,25 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
           fcVsFcDetails: override.fcVsFcDetails || baseOrder.fcVsFcDetails,
       };
 
+      // Regenerate synthetic POs and totals whenever overrides change
+      const newPos = generateSyntheticPos([intermediateOrder]);
+      const poTotal = newPos.reduce((sum, po) => sum + po.quantities.total, 0);
+
       if (intermediateOrder.orderType === 'Forecasted') {
         const { totalProjectionQty, totalFrcQty } = calculateProjectionTotalsForOrder(intermediateOrder);
         return {
             ...intermediateOrder,
             totalProjectionQty,
             totalFrcQty,
+            confirmedPoQty: poTotal,
         };
       }
       return intermediateOrder;
     });
+
+    const allNewPos = generateSyntheticPos(newOrders);
+    setSyntheticPoRecords(allNewPos);
+
     setOrders(newOrders);
 
   }, [orderOverrides, isScheduleLoaded]);
