@@ -205,12 +205,6 @@ function NewProjectionPageContent() {
                             </p>
                         )}
                     </div>
-                     <Button variant="outline" asChild>
-                        <Link href={`/material-planning?orderId=${orderId}`}>
-                            <ArrowLeft className="mr-2 h-4 w-4" />
-                            Back to Material Planning
-                        </Link>
-                    </Button>
                 </div>
                 
                 {orderId ? (
