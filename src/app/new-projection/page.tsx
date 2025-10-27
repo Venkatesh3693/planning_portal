@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Suspense, useMemo } from 'react';
+import { Suspense, useMemo, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
@@ -20,16 +20,36 @@ import { getWeek } from 'date-fns';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { runTentativePlanForHorizon } from '@/lib/tna-calculator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 function NewProjectionForm({ orderId }: { orderId: string }) {
     const { orders, isScheduleLoaded } = useSchedule();
+    const [selectedProjectionWeek, setSelectedProjectionWeek] = useState<number>(getWeek(new Date()));
 
     const order = useMemo(() => {
         if (!isScheduleLoaded) return null;
         return orders.find(o => o.id === orderId);
     }, [orderId, orders, isScheduleLoaded]);
 
-    const currentWeek = useMemo(() => getWeek(new Date()), []);
+    const availableSnapshotWeeks = useMemo(() => {
+        if (!order?.fcVsFcDetails) return [];
+        return [...order.fcVsFcDetails]
+            .map(s => s.snapshotWeek)
+            .sort((a, b) => a - b);
+    }, [order]);
+    
+    useEffect(() => {
+        if(availableSnapshotWeeks.length > 0) {
+            const currentWeek = getWeek(new Date());
+            if (availableSnapshotWeeks.includes(currentWeek)) {
+                setSelectedProjectionWeek(currentWeek);
+            } else {
+                // select latest available snapshot if current is not available
+                setSelectedProjectionWeek(availableSnapshotWeeks[availableSnapshotWeeks.length - 1]);
+            }
+        }
+    }, [availableSnapshotWeeks]);
+
 
     const projectionNumber = useMemo(() => {
         if (!order) return '';
@@ -44,36 +64,24 @@ function NewProjectionForm({ orderId }: { orderId: string }) {
         const maxLeadTimeDays = Math.max(...projectionComponents.map(item => item.leadTime), 0);
         const maxLeadTimeWeeks = Math.ceil(maxLeadTimeDays / 7);
 
-        const startWeek = currentWeek + maxLeadTimeWeeks + 1;
-        const endWeek = currentWeek + maxLeadTimeWeeks + 4;
+        const startWeek = selectedProjectionWeek + maxLeadTimeWeeks + 1;
+        const endWeek = selectedProjectionWeek + maxLeadTimeWeeks + 4;
 
         return { maxLeadTime: maxLeadTimeWeeks, coverageStartWeek: startWeek, coverageEndWeek: endWeek };
-    }, [order, currentWeek]);
+    }, [order, selectedProjectionWeek]);
 
     const projectionQty = useMemo(() => {
         if (!order || !order.fcVsFcDetails || coverageStartWeek === 0) return 0;
         
-        const snapshotForProjectionWeek = order.fcVsFcDetails.find(s => s.snapshotWeek === currentWeek);
-        if (!snapshotForProjectionWeek) {
-            // Find the closest snapshot before the current week as a fallback
-            const fallbackSnapshot = [...order.fcVsFcDetails]
-                .filter(s => s.snapshotWeek < currentWeek)
-                .sort((a,b) => b.snapshotWeek - a.snapshotWeek)[0];
-            
-            if (!fallbackSnapshot) return 0;
-        }
-
-        // Use the earliest snapshot to get the most "raw" demand signal for planning
-        const firstSnapshot = order.fcVsFcDetails.reduce((earliest, current) => 
-            earliest.snapshotWeek < current.snapshotWeek ? earliest : current
-        );
+        const snapshotForProjectionWeek = order.fcVsFcDetails.find(s => s.snapshotWeek === selectedProjectionWeek);
+        if (!snapshotForProjectionWeek) return 0;
 
         const weeklyTotals: Record<string, number> = {};
-        Object.entries(firstSnapshot.forecasts).forEach(([week, data]) => {
+        Object.entries(snapshotForProjectionWeek.forecasts).forEach(([week, data]) => {
             weeklyTotals[week] = (data.total?.po || 0) + (data.total?.fc || 0);
         });
 
-        const { plan } = runTentativePlanForHorizon(currentWeek, null, weeklyTotals, order, 0);
+        const { plan } = runTentativePlanForHorizon(selectedProjectionWeek, null, weeklyTotals, order, 0);
 
         let totalQty = 0;
         for (let w = coverageStartWeek; w <= coverageEndWeek; w++) {
@@ -81,7 +89,7 @@ function NewProjectionForm({ orderId }: { orderId: string }) {
         }
 
         return Math.round(totalQty);
-    }, [order, currentWeek, coverageStartWeek, coverageEndWeek]);
+    }, [order, selectedProjectionWeek, coverageStartWeek, coverageEndWeek]);
 
 
     if (!order) {
@@ -101,8 +109,22 @@ function NewProjectionForm({ orderId }: { orderId: string }) {
                         <p className="font-semibold text-lg">{projectionNumber}</p>
                     </div>
                     <div className="space-y-2">
-                        <Label>Projection Week</Label>
-                        <p className="font-semibold text-lg">W{currentWeek}</p>
+                        <Label htmlFor="projection-week">Projection Week</Label>
+                        <Select
+                            value={String(selectedProjectionWeek)}
+                            onValueChange={(value) => setSelectedProjectionWeek(Number(value))}
+                        >
+                            <SelectTrigger id="projection-week">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {availableSnapshotWeeks.map(week => (
+                                    <SelectItem key={week} value={String(week)}>
+                                        W{week}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                      <div className="space-y-2">
                         <Label>Projection Coverage Weeks</Label>
