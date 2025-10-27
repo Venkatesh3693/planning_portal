@@ -114,8 +114,7 @@ function NewFrcForm({ orderId }: { orderId: string }) {
 
     const frcNumber = useMemo(() => {
         if (!selectedProjection) return '';
-        // This is a simplified logic, a real app would check existing FRCs for this PRJ
-        return `${selectedProjection.prjNumber}-FRC-01`;
+        return selectedProjection.prjNumber.replace('PRJ-', 'FRC-');
     }, [selectedProjection]);
 
     if (!order) {
