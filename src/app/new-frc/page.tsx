@@ -244,6 +244,11 @@ function NewFrcForm({ orderId }: { orderId: string }) {
         return selectedProjection.prjNumber.replace('PRJ-', 'FRC-');
     }, [selectedProjection]);
 
+    const ckWeekForFrc = useMemo(() => {
+        if (selectedFrcWeek === null) return null;
+        return selectedFrcWeek + maxFrcLeadTimeWeeks;
+    }, [selectedFrcWeek, maxFrcLeadTimeWeeks]);
+
     if (!order) {
         return (
             <div className="flex-1 rounded-lg border border-dashed shadow-sm flex items-center justify-center">
@@ -255,7 +260,7 @@ function NewFrcForm({ orderId }: { orderId: string }) {
     return (
         <Card>
             <CardContent className="p-6 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 items-end">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 items-end">
                     <div className="space-y-2">
                         <Label>FRC #</Label>
                         <p className="font-semibold text-lg">{frcNumber || 'N/A'}</p>
@@ -263,7 +268,7 @@ function NewFrcForm({ orderId }: { orderId: string }) {
                     <div className="space-y-2">
                         <Label htmlFor="projection-select">Projection #</Label>
                         <Select value={selectedPrjNumber} onValueChange={setSelectedPrjNumber}>
-                            <SelectTrigger id="projection-select" className="w-[250px]">
+                            <SelectTrigger id="projection-select" className="w-full">
                                 <SelectValue placeholder="Select a projection" />
                             </SelectTrigger>
                             <SelectContent>
@@ -281,7 +286,7 @@ function NewFrcForm({ orderId }: { orderId: string }) {
                             value={selectedFrcWeek !== null ? String(selectedFrcWeek) : ''}
                             onValueChange={(val) => setSelectedFrcWeek(Number(val))}
                         >
-                            <SelectTrigger id="frc-week-select" className="w-[180px]">
+                            <SelectTrigger id="frc-week-select" className="w-full">
                                 <SelectValue placeholder="Select FRC Week" />
                             </SelectTrigger>
                             <SelectContent>
@@ -293,7 +298,11 @@ function NewFrcForm({ orderId }: { orderId: string }) {
                             </SelectContent>
                         </Select>
                     </div>
-                        <div className="space-y-2">
+                    <div className="space-y-2">
+                        <Label>CK Week (FRC)</Label>
+                        <p className="font-semibold text-lg">{ckWeekForFrc ? `W${ckWeekForFrc}` : 'N/A'}</p>
+                    </div>
+                    <div className="space-y-2">
                         <Label>Max Lead Time (FRC)</Label>
                         <p className="font-semibold text-lg">{maxFrcLeadTimeWeeks} weeks</p>
                     </div>
@@ -353,7 +362,7 @@ function NewFrcForm({ orderId }: { orderId: string }) {
                     </>
                 )}
             </CardContent>
-            <CardFooter className="flex justify-end p-6">
+            <CardFooter className="flex justify-end p-6 border-t">
                 <Button disabled={!selectedProjection}>Save FRC</Button>
             </CardFooter>
         </Card>
