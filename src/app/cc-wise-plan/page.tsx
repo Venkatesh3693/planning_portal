@@ -25,7 +25,8 @@ function CcWisePlanPageContent() {
 
     const ccOptions = useMemo(() => {
         if (!isScheduleLoaded) return [];
-        const uniqueCcs = [...new Set(orders.map(o => o.ocn))];
+        const gutOrders = orders.filter(o => o.orderType === 'Forecasted');
+        const uniqueCcs = [...new Set(gutOrders.map(o => o.ocn))];
         return uniqueCcs.sort();
     }, [orders, isScheduleLoaded]);
     
