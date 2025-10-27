@@ -5,7 +5,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { ScheduleProvider } from '@/context/schedule-provider';
 
 export const metadata: Metadata = {
-  title: 'StitchPlan',
+  title: 'Planning DB',
   description: 'A simple manufacturing process scheduler.',
 };
 

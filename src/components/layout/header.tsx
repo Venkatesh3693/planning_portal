@@ -45,7 +45,7 @@ export function Header({
             <Link href="/" className={cn("flex items-center gap-3", isHomePage && "hidden sm:flex")}>
               <Factory className="h-8 w-8 text-primary" />
               <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                StitchPlan
+                Planning DB
               </h1>
             </Link>
           </div>
