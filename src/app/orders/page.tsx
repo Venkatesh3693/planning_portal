@@ -1015,7 +1015,6 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
           />
         </TableCell>
         <TableCell className="text-right">{order.quantity}</TableCell>
-        <TableCell>{order.leadTime ? `${order.leadTime} days` : '-'}</TableCell>
         <TableCell>{order.dueDate ? format(new Date(order.dueDate), 'PPP') : '-'}</TableCell>
         <TableCell className={cn(isLate && "text-destructive font-semibold")}>
           {ehd ? (
@@ -1064,6 +1063,19 @@ const ForecastedOrderRow = forwardRef<
     sewingProcess ? calculateMinDays(order, sewingProcess.sam, order.sewingRampUpScheme || []) : 0,
     [order]
   );
+  
+  const latestPoFcQty = useMemo(() => {
+    if (!order.fcVsFcDetails || order.fcVsFcDetails.length === 0) {
+      return order.poFcQty || 0;
+    }
+    const latestSnapshot = [...order.fcVsFcDetails].sort((a, b) => b.snapshotWeek - a.snapshotWeek)[0];
+    
+    return Object.values(latestSnapshot.forecasts).reduce((total, weekData) => {
+      const weekTotal = weekData.total;
+      return total + (weekTotal?.po || 0) + (weekTotal?.fc || 0);
+    }, 0);
+  }, [order]);
+
   
   return (
     <TableRow ref={ref} {...props}>
@@ -1129,18 +1141,14 @@ const ForecastedOrderRow = forwardRef<
       <TableCell>{order.style}</TableCell>
       <TableCell>{order.modelNo || '-'}</TableCell>
       <TableCell className="text-right">
-        {order.demandDetails ? (
           <span className="cursor-pointer text-primary hover:underline" onClick={() => onDemandDetailsOpen(order)}>
             {(order.quantity || 0).toLocaleString()}
           </span>
-        ) : (
-          <span>{(order.quantity || 0).toLocaleString()}</span>
-        )}
       </TableCell>
       <TableCell className="text-right font-medium">
         <Link href={`/demand-analysis?orderId=${order.id}`} passHref>
             <span className="text-primary cursor-pointer hover:underline">
-                {(order.poFcQty || 0).toLocaleString()}
+                {(latestPoFcQty || 0).toLocaleString()}
             </span>
         </Link>
       </TableCell>
@@ -1249,7 +1257,6 @@ export default function OrdersPage() {
                         <TableHead>Days to Budget</TableHead>
                         <TableHead>Display Color</TableHead>
                         <TableHead className="text-right">Quantity</TableHead>
-                        <TableHead>Lead Time</TableHead>
                         <TableHead>Due Date</TableHead>
                         <TableHead>EHD</TableHead>
                       </TableRow>
@@ -1320,4 +1327,3 @@ export default function OrdersPage() {
     </div>
   );
 }
-
