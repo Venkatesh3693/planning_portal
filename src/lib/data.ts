@@ -495,41 +495,6 @@ export const ORDERS: Order[] = [
         projectionDetails: dmiProjectionDetails,
         bom: paddedJacketBom,
     },
-    {
-        id: 'DSI-300096-Green',
-        ocn: '300096',
-        buyer: 'DSI',
-        style: 'Pants',
-        color: 'Green',
-        modelNo: 778899,
-        season: 'SS-26',
-        quantity: 250000,
-        poFcQty: 250000,
-        projection: { noPo: 100000, openPos: 75000, grn: 50000, total: 225000 },
-        frc: { noPo: 80000, openPos: 70000, grn: 50000, total: 200000 },
-        confirmedPoQty: 180000,
-        cutOrder: { '2XS': 18000, 'XS': 18000, 'S': 18000, 'M': 18000, 'L': 18000, 'XL': 18000, '2XL': 18000, '3XL': 18000, '4XL': 18000, '5XL': 17000, total: 179000 },
-        produced: { '2XS': 15000, 'XS': 15000, 'S': 15000, 'M': 15000, 'L': 15000, 'XL': 15000, '2XL': 15000, '3XL': 15000, '4XL': 15000, '5XL': 15000, total: 150000 },
-        shipped: { '2XS': 12000, 'XS': 12000, 'S': 12000, 'M': 12000, 'L': 12000, 'XL': 12000, '2XL': 12000, '3XL': 12000, '4XL': 12000, '5XL': 12000, total: 120000 },
-        processIds: ['cutting', 'embroidery', 'sewing', 'packing'],
-        displayColor: ORDER_COLORS[6],
-        leadTime: 21,
-        budgetedEfficiency: 78,
-        orderType: 'Forecasted',
-        tna: {
-            processes: [
-                { processId: 'cutting', setupTime: 60 },
-                { processId: 'embroidery', setupTime: 150 },
-                { processId: 'sewing', setupTime: 180 },
-                { processId: 'packing', setupTime: 20 },
-            ]
-        },
-        poDetails: dsiPoDetails,
-        demandDetails: dsiDemandDetails,
-        fcVsFcDetails: dsiFcVsFcDetails,
-        projectionDetails: dsiProjectionDetails,
-        bom: pantsBom,
-    }
 ];
 
 export const MACHINE_NAME_ABBREVIATIONS: Record<string, string> = {
