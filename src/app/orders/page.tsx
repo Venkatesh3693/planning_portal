@@ -1128,19 +1128,25 @@ const ForecastedOrderRow = forwardRef<
       <TableCell>{order.season || '-'}</TableCell>
       <TableCell>{order.style}</TableCell>
       <TableCell>{order.modelNo || '-'}</TableCell>
-      <TableCell className="text-right">{(order.quantity || 0).toLocaleString()}</TableCell>
-      <TableCell className="text-right font-medium">
+      <TableCell className="text-right">
         {order.demandDetails ? (
-          <Dialog onOpenChange={(isOpen) => !isOpen && setDemandDetailsOrder(null)}>
-            <DialogTrigger asChild>
-              <span className="cursor-pointer text-primary hover:underline" onClick={() => setDemandDetailsOrder(order)}>
-                {(order.poFcQty || 0).toLocaleString()}
-              </span>
-            </DialogTrigger>
-          </Dialog>
-        ) : (
-          <span>{(order.poFcQty || 0).toLocaleString()}</span>
+            <Dialog onOpenChange={(isOpen) => !isOpen && setDemandDetailsOrder(null)}>
+              <DialogTrigger asChild>
+                <span className="cursor-pointer text-primary hover:underline" onClick={() => setDemandDetailsOrder(order)}>
+                  {(order.quantity || 0).toLocaleString()}
+                </span>
+              </DialogTrigger>
+            </Dialog>
+          ) : (
+            <span>{(order.quantity || 0).toLocaleString()}</span>
         )}
+      </TableCell>
+      <TableCell className="text-right font-medium">
+        <Link href={`/demand-analysis?orderId=${order.id}`} passHref>
+            <span className="text-primary cursor-pointer hover:underline">
+                {(order.poFcQty || 0).toLocaleString()}
+            </span>
+        </Link>
       </TableCell>
       
       <TableCell className="text-right font-bold">
