@@ -14,7 +14,7 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Layers, BarChart } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { runTentativePlanForHorizon } from '@/lib/tna-calculator';
@@ -27,13 +27,17 @@ type PlanData = {
     [orderId: string]: Record<string, number>;
 };
 
+type ViewMode = 'quantity' | 'lines';
+
 function CcWisePlanPageContent() {
     const { isScheduleLoaded, orders, appMode } = useSchedule();
     const [selectedCc, setSelectedCc] = useState<string>('');
     const [selectedSnapshotWeek, setSelectedSnapshotWeek] = useState<number | null>(null);
     const [planData, setPlanData] = useState<PlanData>({});
+    const [linesData, setLinesData] = useState<PlanData>({});
     const [allWeeks, setAllWeeks] = useState<string[]>([]);
     const [totals, setTotals] = useState<Record<string, number>>({});
+    const [viewMode, setViewMode] = useState<ViewMode>('quantity');
 
     const ccOptions = useMemo(() => {
         if (!isScheduleLoaded) return [];
@@ -69,13 +73,16 @@ function CcWisePlanPageContent() {
     useEffect(() => {
         if (ordersForCc.length > 0 && selectedSnapshotWeek !== null) {
             const newPlanData: PlanData = {};
+            const newLinesData: PlanData = {};
             const weekSet = new Set<string>();
             const newTotals: Record<string, number> = {};
+            const weeklyLines: Record<string, number> = {};
 
             ordersForCc.forEach(order => {
                 const snapshot = order.fcVsFcDetails?.find(s => s.snapshotWeek === selectedSnapshotWeek);
                 if (!snapshot) {
                     newPlanData[order.id] = {};
+                    newLinesData[order.id] = {};
                     return;
                 }
 
@@ -84,9 +91,20 @@ function CcWisePlanPageContent() {
                     weeklyTotals[week] = (data.total?.po || 0) + (data.total?.fc || 0);
                 });
 
-                const { plan } = runTentativePlanForHorizon(selectedSnapshotWeek, null, weeklyTotals, order, 0);
+                const { plan, runs } = runTentativePlanForHorizon(selectedSnapshotWeek, null, weeklyTotals, order, 0);
                 newPlanData[order.id] = plan;
                 
+                const orderLinesByWeek: Record<string, number> = {};
+                runs.forEach(run => {
+                    const start = parseInt(run.startWeek.slice(1));
+                    const end = parseInt(run.endWeek.slice(1));
+                    for (let w = start; w <= end; w++) {
+                        const weekKey = `W${w}`;
+                        orderLinesByWeek[weekKey] = Math.max(orderLinesByWeek[weekKey] || 0, run.lines);
+                    }
+                });
+                newLinesData[order.id] = orderLinesByWeek;
+
                 Object.keys(plan).forEach(week => {
                     if (plan[week] > 0) {
                         weekSet.add(week);
@@ -96,15 +114,36 @@ function CcWisePlanPageContent() {
             });
             
             setPlanData(newPlanData);
+            setLinesData(newLinesData);
+
             const sortedWeeks = Array.from(weekSet).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
             setAllWeeks(sortedWeeks);
-            setTotals(newTotals);
+            
+            // Calculate total lines per week (max, not sum)
+            sortedWeeks.forEach(week => {
+                let maxLines = 0;
+                ordersForCc.forEach(order => {
+                    if(newLinesData[order.id]?.[week]) {
+                        maxLines += newLinesData[order.id][week]
+                    }
+                })
+                weeklyLines[week] = maxLines
+            })
+
+
+            if (viewMode === 'quantity') {
+              setTotals(newTotals);
+            } else {
+              setTotals(weeklyLines);
+            }
+
         } else {
             setPlanData({});
+            setLinesData({});
             setAllWeeks([]);
             setTotals({});
         }
-    }, [ordersForCc, selectedSnapshotWeek]);
+    }, [ordersForCc, selectedSnapshotWeek, viewMode]);
 
     
     if (!isScheduleLoaded) {
@@ -130,6 +169,7 @@ function CcWisePlanPageContent() {
         )
     }
 
+    const dataToShow = viewMode === 'quantity' ? planData : linesData;
     const grandTotal = Object.values(totals).reduce((sum, val) => sum + val, 0);
 
     return (
@@ -205,6 +245,16 @@ function CcWisePlanPageContent() {
                                 </Select>
                             </div>
                         )}
+                        {selectedCc && (
+                            <Button
+                                variant="outline"
+                                onClick={() => setViewMode(prev => prev === 'quantity' ? 'lines' : 'quantity')}
+                                title={`Switch to ${viewMode === 'quantity' ? 'Lines' : 'Quantity'} view`}
+                            >
+                                {viewMode === 'quantity' ? <Layers className="mr-2 h-4 w-4" /> : <BarChart className="mr-2 h-4 w-4" />}
+                                View by {viewMode === 'quantity' ? 'Lines' : 'Quantity'}
+                            </Button>
+                        )}
                     </div>
                     {selectedCc && selectedSnapshotWeek !== null && allWeeks.length > 0 && (
                         <Card>
@@ -221,7 +271,7 @@ function CcWisePlanPageContent() {
                                     </TableHeader>
                                     <TableBody>
                                         {ordersForCc.map(order => {
-                                            const orderPlan = planData[order.id] || {};
+                                            const orderPlan = dataToShow[order.id] || {};
                                             const orderTotal = Object.values(orderPlan).reduce((s, v) => s + v, 0);
                                             return (
                                                 <TableRow key={order.id}>
@@ -269,5 +319,3 @@ export default function CcWisePlanPage() {
         </Suspense>
     );
 }
-
-    
