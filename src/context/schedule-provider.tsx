@@ -238,39 +238,18 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
 
       setTimelineEndDate(addDays(maxEndDate, 3));
 
-      const hydratedOrders = staticOrders.map((baseOrder, index) => {
+      const initialOrders = staticOrders.map((baseOrder, index) => {
         const override = loadedOverrides[baseOrder.id] || {};
-        const hydratedTna: Tna = { ...(baseOrder.tna as Tna) };
-
-        if(override.tna) {
-          if (override.tna.processes) {
-              const storedProcessMap = new Map(override.tna.processes.map(p => [p.processId, p]));
-              hydratedTna.processes = hydratedTna.processes.map(baseProcess => {
-                  const storedProcess = storedProcessMap.get(baseProcess.processId);
-                  return storedProcess ? { ...baseProcess, ...storedProcess, earliestStartDate: storedProcess.earliestStartDate ? new Date(storedProcess.earliestStartDate) : undefined, latestStartDate: storedProcess.latestStartDate ? new Date(storedProcess.latestStartDate) : undefined } : baseProcess;
-              });
-          }
-           if(override.tna.minRunDays) hydratedTna.minRunDays = override.tna.minRunDays;
-        }
-        
-        const intermediateOrder = {
+        return {
           ...baseOrder,
           displayColor: override.displayColor || ORDER_COLORS[index % ORDER_COLORS.length],
           sewingRampUpScheme: override.sewingRampUpScheme || [{ day: 1, efficiency: baseOrder.budgetedEfficiency || 85 }],
-          tna: hydratedTna,
+          tna: override.tna || baseOrder.tna,
           bom: override.bom || baseOrder.bom,
           fcVsFcDetails: override.fcVsFcDetails || baseOrder.fcVsFcDetails,
         };
-
-        const { totalProjectionQty, totalFrcQty } = calculateProjectionTotalsForOrder(intermediateOrder);
-
-        return {
-          ...intermediateOrder,
-          totalProjectionQty,
-          totalFrcQty,
-        };
       });
-      setOrders(hydratedOrders);
+      setOrders(initialOrders);
       
     } catch (err) {
       console.error("Could not load schedule from localStorage", err);
@@ -302,8 +281,30 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isScheduleLoaded) return;
-    setSyntheticPoRecords(generateSyntheticPos(orders));
-  }, [orders, isScheduleLoaded]);
+    
+    const newPos = generateSyntheticPos(orders);
+    setSyntheticPoRecords(newPos);
+
+    const poTotalsByOrder = newPos.reduce((acc, po) => {
+        acc[po.orderId] = (acc[po.orderId] || 0) + po.quantities.total;
+        return acc;
+    }, {} as Record<string, number>);
+
+
+    setOrders(prevOrders => prevOrders.map(order => {
+        if (order.orderType === 'Forecasted') {
+            const { totalProjectionQty, totalFrcQty } = calculateProjectionTotalsForOrder(order);
+            return {
+                ...order,
+                totalProjectionQty,
+                totalFrcQty,
+                confirmedPoQty: poTotalsByOrder[order.id] || 0,
+            };
+        }
+        return order;
+    }));
+
+  }, [orderOverrides, isScheduleLoaded]);
 
 
   const setAppMode = useCallback((mode: AppMode) => {
@@ -449,7 +450,8 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   
   useEffect(() => {
     if (!isScheduleLoaded) return;
-    const newOrders = staticOrders.map((baseOrder, index) => {
+    
+    const newOrders = orders.map((baseOrder) => {
       const override = orderOverrides[baseOrder.id] || {};
       const hydratedTna: Tna = { ...(baseOrder.tna as Tna) };
 
@@ -466,20 +468,22 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         
       const intermediateOrder = {
           ...baseOrder,
-          displayColor: override.displayColor || ORDER_COLORS[index % ORDER_COLORS.length],
-          sewingRampUpScheme: override.sewingRampUpScheme || [{ day: 1, efficiency: baseOrder.budgetedEfficiency || 85 }],
+          displayColor: override.displayColor || baseOrder.displayColor,
+          sewingRampUpScheme: override.sewingRampUpScheme || baseOrder.sewingRampUpScheme,
           tna: hydratedTna,
           bom: override.bom || baseOrder.bom,
           fcVsFcDetails: override.fcVsFcDetails || baseOrder.fcVsFcDetails,
       };
 
-      const { totalProjectionQty, totalFrcQty } = calculateProjectionTotalsForOrder(intermediateOrder);
-
-      return {
-          ...intermediateOrder,
-          totalProjectionQty,
-          totalFrcQty,
-      };
+      if (intermediateOrder.orderType === 'Forecasted') {
+        const { totalProjectionQty, totalFrcQty } = calculateProjectionTotalsForOrder(intermediateOrder);
+        return {
+            ...intermediateOrder,
+            totalProjectionQty,
+            totalFrcQty,
+        };
+      }
+      return intermediateOrder;
     });
     setOrders(newOrders);
 
