@@ -286,6 +286,65 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isScheduleLoaded) return;
+
+    // This effect now correctly handles all dynamic data updates for orders.
+    const cutOrderTotalsByOrder = cutOrderRecords.reduce((acc, co) => {
+        if (!acc[co.orderId]) {
+            acc[co.orderId] = { total: 0 };
+            SIZES.forEach(size => acc[co.orderId][size] = 0);
+        }
+        (Object.keys(co.quantities) as (keyof SizeBreakdown)[]).forEach(key => {
+            acc[co.orderId][key] = (acc[co.orderId][key] || 0) + (co.quantities[key] || 0);
+        });
+        return acc;
+    }, {} as Record<string, SizeBreakdown>);
+
+    const poTotalsByOrder = syntheticPoRecords.reduce((acc, po) => {
+      acc[po.orderId] = (acc[po.orderId] || 0) + po.quantities.total;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const newOrders = staticOrders.map((baseOrder) => {
+      const override = orderOverrides[baseOrder.id] || {};
+      const hydratedTna: Tna = { ...(baseOrder.tna as Tna) };
+
+      if(override.tna) {
+          if (override.tna.processes) {
+              const storedProcessMap = new Map(override.tna.processes.map(p => [p.processId, p]));
+              hydratedTna.processes = (baseOrder.tna?.processes || []).map(baseProcess => {
+                  const storedProcess = storedProcessMap.get(baseProcess.processId);
+                  return storedProcess ? { ...baseProcess, ...storedProcess, earliestStartDate: storedProcess.earliestStartDate ? new Date(storedProcess.earliestStartDate) : undefined, latestStartDate: storedProcess.latestStartDate ? new Date(storedProcess.latestStartDate) : undefined } : baseProcess;
+              });
+          }
+           if(override.tna.minRunDays) hydratedTna.minRunDays = override.tna.minRunDays;
+      }
+        
+      const intermediateOrder: Order = {
+          ...baseOrder,
+          displayColor: override.displayColor || baseOrder.displayColor,
+          sewingRampUpScheme: override.sewingRampUpScheme || baseOrder.sewingRampUpScheme,
+          tna: hydratedTna,
+          bom: override.bom || baseOrder.bom,
+          fcVsFcDetails: override.fcVsFcDetails || baseOrder.fcVsFcDetails,
+      };
+
+      if (intermediateOrder.orderType === 'Forecasted') {
+        const { totalProjectionQty, totalFrcQty } = calculateProjectionTotalsForOrder(intermediateOrder);
+        intermediateOrder.totalProjectionQty = totalProjectionQty;
+        intermediateOrder.totalFrcQty = totalFrcQty;
+        intermediateOrder.confirmedPoQty = poTotalsByOrder[intermediateOrder.id] || 0;
+        intermediateOrder.cutOrder = cutOrderTotalsByOrder[intermediateOrder.id] || { total: 0 };
+      }
+      return intermediateOrder;
+    });
+
+    setOrders(newOrders);
+
+  }, [orderOverrides, isScheduleLoaded, cutOrderRecords, syntheticPoRecords]);
+
+
+  useEffect(() => {
+    if (!isScheduleLoaded) return;
     try {
       const stateToSave = {
         appMode,
@@ -445,55 +504,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
   
-  useEffect(() => {
-    if (!isScheduleLoaded) return;
-    
-    const newOrders = orders.map((baseOrder) => {
-      const override = orderOverrides[baseOrder.id] || {};
-      const hydratedTna: Tna = { ...(baseOrder.tna as Tna) };
-
-      if(override.tna) {
-          if (override.tna.processes) {
-              const storedProcessMap = new Map(override.tna.processes.map(p => [p.processId, p]));
-              hydratedTna.processes = (baseOrder.tna?.processes || []).map(baseProcess => {
-                  const storedProcess = storedProcessMap.get(baseProcess.processId);
-                  return storedProcess ? { ...baseProcess, ...storedProcess, earliestStartDate: storedProcess.earliestStartDate ? new Date(storedProcess.earliestStartDate) : undefined, latestStartDate: storedProcess.latestStartDate ? new Date(storedProcess.latestStartDate) : undefined } : baseProcess;
-              });
-          }
-           if(override.tna.minRunDays) hydratedTna.minRunDays = override.tna.minRunDays;
-      }
-        
-      const intermediateOrder = {
-          ...baseOrder,
-          displayColor: override.displayColor || baseOrder.displayColor,
-          sewingRampUpScheme: override.sewingRampUpScheme || baseOrder.sewingRampUpScheme,
-          tna: hydratedTna,
-          bom: override.bom || baseOrder.bom,
-          fcVsFcDetails: override.fcVsFcDetails || baseOrder.fcVsFcDetails,
-      };
-
-      // Regenerate synthetic POs and totals whenever overrides change
-      const newPos = generateSyntheticPos([intermediateOrder]);
-      const poTotal = newPos.reduce((sum, po) => sum + po.quantities.total, 0);
-
-      if (intermediateOrder.orderType === 'Forecasted') {
-        const { totalProjectionQty, totalFrcQty } = calculateProjectionTotalsForOrder(intermediateOrder);
-        return {
-            ...intermediateOrder,
-            totalProjectionQty,
-            totalFrcQty,
-            confirmedPoQty: poTotal,
-        };
-      }
-      return intermediateOrder;
-    });
-
-    const allNewPos = generateSyntheticPos(newOrders);
-    setSyntheticPoRecords(allNewPos);
-
-    setOrders(newOrders);
-
-  }, [orderOverrides, isScheduleLoaded]);
 
   const addCutOrderRecord = useCallback((record: CutOrderRecord) => {
     setCutOrderRecords(prev => [...prev, record]);
