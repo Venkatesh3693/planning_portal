@@ -22,7 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { runTentativePlanForHorizon } from '@/lib/tna-calculator';
 import type { ProjectionRow, Size, Order, SizeBreakdown } from '@/lib/types';
 import { getWeek } from 'date-fns';
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell, TableFooter as TableFoot } from '@/components/ui/table';
 import { SIZES } from '@/lib/data';
 
 function NewFrcForm({ orderId }: { orderId: string }) {
@@ -30,7 +30,8 @@ function NewFrcForm({ orderId }: { orderId: string }) {
     const [projections, setProjections] = useState<ProjectionRow[]>([]);
     const [selectedPrjNumber, setSelectedPrjNumber] = useState<string>('');
     const [selectedFrcWeek, setSelectedFrcWeek] = useState<number | null>(null);
-    const [frcBreakdown, setFrcBreakdown] = useState<{ coverage: string; quantities: SizeBreakdown } | null>(null);
+    const [frcBreakdown, setFrcBreakdown] = useState<{ coverage: string; weeklyBreakdown: Record<string, SizeBreakdown> } | null>(null);
+
 
     const order = useMemo(() => {
         if (!isScheduleLoaded) return null;
@@ -162,8 +163,7 @@ function NewFrcForm({ orderId }: { orderId: string }) {
         }
         
         const coverageStartWeekNum = selectedFrcWeek + maxFrcLeadTimeWeeks + 1;
-        const coverageStartWeekStr = `W${coverageStartWeekNum}`;
-
+        
         const poFcWeeks = Object.keys(snapshotForFrc.forecasts)
             .sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)))
             .filter(w => parseInt(w.slice(1)) >= coverageStartWeekNum);
@@ -173,26 +173,39 @@ function NewFrcForm({ orderId }: { orderId: string }) {
             return;
         }
 
+        const coverageStartWeekStr = poFcWeeks[0];
         let cumulativeQty = 0;
         let endCoverageWeek = '';
-        const frcQuantities: SizeBreakdown = { total: 0 };
-        SIZES.forEach(s => frcQuantities[s] = 0);
+        const weeklyBreakdown: Record<string, SizeBreakdown> = {};
 
         for (const week of poFcWeeks) {
-            for (const size of SIZES) {
-                const demand = snapshotForFrc.forecasts[week]?.[size];
-                const qty = (demand?.po || 0) + (demand?.fc || 0);
+            if (cumulativeQty >= selectedProjection.prjQty) break;
 
-                if (cumulativeQty + qty >= selectedProjection.prjQty) {
+            const weeklyDemand: SizeBreakdown = { total: 0 };
+            SIZES.forEach(s => weeklyDemand[s] = 0);
+            
+            const weekForecast = snapshotForFrc.forecasts[week];
+            if (!weekForecast) continue;
+            
+            for (const size of SIZES) {
+                const demand = (weekForecast[size]?.po || 0) + (weekForecast[size]?.fc || 0);
+
+                if (cumulativeQty + demand >= selectedProjection.prjQty) {
                     const needed = selectedProjection.prjQty - cumulativeQty;
-                    frcQuantities[size] = (frcQuantities[size] || 0) + needed;
+                    weeklyDemand[size] = (weeklyDemand[size] || 0) + needed;
+                    weeklyDemand.total += needed;
                     cumulativeQty += needed;
                     endCoverageWeek = week;
-                    break; 
+                    break;
                 } else {
-                    frcQuantities[size] = (frcQuantities[size] || 0) + qty;
-                    cumulativeQty += qty;
+                    weeklyDemand[size] = (weeklyDemand[size] || 0) + demand;
+                    weeklyDemand.total += demand;
+                    cumulativeQty += demand;
                 }
+            }
+            
+            if(weeklyDemand.total > 0) {
+                 weeklyBreakdown[week] = weeklyDemand;
             }
             if (cumulativeQty >= selectedProjection.prjQty) {
                 if (!endCoverageWeek) endCoverageWeek = week;
@@ -200,14 +213,30 @@ function NewFrcForm({ orderId }: { orderId: string }) {
             }
         }
         
-        frcQuantities.total = SIZES.reduce((sum, size) => sum + (frcQuantities[size] || 0), 0);
-
-        setFrcBreakdown({
-            coverage: `${coverageStartWeekStr}-${endCoverageWeek}`,
-            quantities: frcQuantities,
-        });
+        if (Object.keys(weeklyBreakdown).length > 0) {
+            setFrcBreakdown({
+                coverage: `${coverageStartWeekStr}-${endCoverageWeek}`,
+                weeklyBreakdown: weeklyBreakdown,
+            });
+        } else {
+            setFrcBreakdown(null);
+        }
 
     }, [selectedProjection, selectedFrcWeek, order, maxFrcLeadTimeWeeks]);
+    
+    const breakdownTotals = useMemo(() => {
+        if (!frcBreakdown) return null;
+        const totals: SizeBreakdown = { total: 0 };
+        SIZES.forEach(s => totals[s] = 0);
+
+        Object.values(frcBreakdown.weeklyBreakdown).forEach(weeklyData => {
+            SIZES.forEach(s => {
+                totals[s] = (totals[s] || 0) + (weeklyData[s] || 0);
+            });
+            totals.total += weeklyData.total;
+        });
+        return totals;
+    }, [frcBreakdown]);
 
     const frcNumber = useMemo(() => {
         if (!selectedProjection) return '';
@@ -246,7 +275,7 @@ function NewFrcForm({ orderId }: { orderId: string }) {
                                 </SelectContent>
                             </Select>
                         </div>
-                        <div className="space-y-2">
+                         <div className="space-y-2">
                             <Label htmlFor="frc-week-select">FRC Week</Label>
                             <Select
                                 value={selectedFrcWeek !== null ? String(selectedFrcWeek) : ''}
@@ -281,14 +310,14 @@ function NewFrcForm({ orderId }: { orderId: string }) {
                 </CardFooter>
             </Card>
 
-            {frcBreakdown && (
+            {frcBreakdown && breakdownTotals && (
                 <Card>
                     <CardContent className="p-6">
                         <h3 className="text-lg font-semibold mb-2">FRC Breakdown for {frcBreakdown.coverage}</h3>
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Breakdown</TableHead>
+                                    <TableHead>Week</TableHead>
                                     {SIZES.map(size => (
                                         <TableHead key={size} className="text-right">{size}</TableHead>
                                     ))}
@@ -296,18 +325,33 @@ function NewFrcForm({ orderId }: { orderId: string }) {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
+                                {Object.entries(frcBreakdown.weeklyBreakdown).map(([week, breakdown]) => (
+                                    <TableRow key={week}>
+                                        <TableCell className="font-medium">{week}</TableCell>
+                                        {SIZES.map(size => (
+                                            <TableCell key={size} className="text-right">
+                                                {(breakdown[size] || 0).toLocaleString()}
+                                            </TableCell>
+                                        ))}
+                                        <TableCell className="text-right font-bold">
+                                            {(breakdown.total || 0).toLocaleString()}
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                            <TableFoot>
                                 <TableRow>
-                                    <TableCell className="font-medium">Quantity</TableCell>
+                                    <TableCell className="font-bold">Total</TableCell>
                                     {SIZES.map(size => (
-                                        <TableCell key={size} className="text-right">
-                                            {(frcBreakdown.quantities[size] || 0).toLocaleString()}
+                                        <TableCell key={size} className="text-right font-bold">
+                                            {(breakdownTotals[size] || 0).toLocaleString()}
                                         </TableCell>
                                     ))}
                                     <TableCell className="text-right font-bold">
-                                        {(frcBreakdown.quantities.total || 0).toLocaleString()}
+                                        {breakdownTotals.total.toLocaleString()}
                                     </TableCell>
                                 </TableRow>
-                            </TableBody>
+                            </TableFoot>
                         </Table>
                     </CardContent>
                 </Card>
@@ -387,3 +431,5 @@ export default function NewFrcPage() {
         </Suspense>
     );
 }
+
+    
