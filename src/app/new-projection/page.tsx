@@ -103,7 +103,7 @@ function NewProjectionForm({ orderId }: { orderId: string }) {
     return (
         <Card>
             <CardContent className="p-6 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div className="space-y-2">
                         <Label>PRJ #</Label>
                         <p className="font-semibold text-lg">{projectionNumber}</p>
@@ -125,6 +125,10 @@ function NewProjectionForm({ orderId }: { orderId: string }) {
                                 ))}
                             </SelectContent>
                         </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Max Lead Time (Projection)</Label>
+                        <p className="font-semibold text-lg">{maxLeadTime} weeks</p>
                     </div>
                      <div className="space-y-2">
                         <Label>Projection Coverage Weeks</Label>
