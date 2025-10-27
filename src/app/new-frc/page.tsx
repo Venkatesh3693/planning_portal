@@ -48,9 +48,7 @@ function NewFrcForm({ orderId }: { orderId: string }) {
         if (!order?.fcVsFcDetails) return [];
         const allWeeks = new Set<number>();
         order.fcVsFcDetails.forEach(snapshot => {
-            Object.keys(snapshot.forecasts).forEach(weekStr => {
-                allWeeks.add(parseInt(weekStr.replace('W', ''), 10));
-            });
+            allWeeks.add(snapshot.snapshotWeek);
         });
         return Array.from(allWeeks).sort((a,b) => a - b);
     }, [order]);
@@ -162,11 +160,15 @@ function NewFrcForm({ orderId }: { orderId: string }) {
             setFrcBreakdown(null);
             return;
         }
+        
+        const coverageStartWeekNum = selectedFrcWeek + maxFrcLeadTimeWeeks + 1;
+        const coverageStartWeekStr = `W${coverageStartWeekNum}`;
 
-        const poFcWeeks = Object.keys(snapshotForFrc.forecasts).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
-        const firstPoFcWeek = poFcWeeks.find(w => Object.values(snapshotForFrc.forecasts[w] || {}).some(d => (d.po || 0) + (d.fc || 0) > 0));
+        const poFcWeeks = Object.keys(snapshotForFrc.forecasts)
+            .sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)))
+            .filter(w => parseInt(w.slice(1)) >= coverageStartWeekNum);
 
-        if (!firstPoFcWeek) {
+        if (poFcWeeks.length === 0) {
             setFrcBreakdown(null);
             return;
         }
@@ -177,8 +179,6 @@ function NewFrcForm({ orderId }: { orderId: string }) {
         SIZES.forEach(s => frcQuantities[s] = 0);
 
         for (const week of poFcWeeks) {
-            if (parseInt(week.slice(1)) < parseInt(firstPoFcWeek.slice(1))) continue;
-            
             for (const size of SIZES) {
                 const demand = snapshotForFrc.forecasts[week]?.[size];
                 const qty = (demand?.po || 0) + (demand?.fc || 0);
@@ -194,7 +194,6 @@ function NewFrcForm({ orderId }: { orderId: string }) {
                     cumulativeQty += qty;
                 }
             }
-
             if (cumulativeQty >= selectedProjection.prjQty) {
                 if (!endCoverageWeek) endCoverageWeek = week;
                 break;
@@ -204,11 +203,11 @@ function NewFrcForm({ orderId }: { orderId: string }) {
         frcQuantities.total = SIZES.reduce((sum, size) => sum + (frcQuantities[size] || 0), 0);
 
         setFrcBreakdown({
-            coverage: `${firstPoFcWeek}-${endCoverageWeek}`,
+            coverage: `${coverageStartWeekStr}-${endCoverageWeek}`,
             quantities: frcQuantities,
         });
 
-    }, [selectedProjection, selectedFrcWeek, order]);
+    }, [selectedProjection, selectedFrcWeek, order, maxFrcLeadTimeWeeks]);
 
     const frcNumber = useMemo(() => {
         if (!selectedProjection) return '';
