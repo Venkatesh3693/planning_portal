@@ -329,15 +329,12 @@ function CcWisePlanPageContent() {
         ordersForCc.forEach(order => {
             fgciWithoutPlan[order.id] = {};
             let lastWeekPci = 0;
-            let lastWeekProduction = 0;
             for (const week of sortedWeeks) {
                 const demand = newModelData[order.id].poFc[week] || 0;
-                const supplyThisWeek = 0; // No plan yet
-                const openingInventory = lastWeekPci + lastWeekProduction;
+                const openingInventory = lastWeekPci;
                 const currentPci = openingInventory - demand;
                 fgciWithoutPlan[order.id][week] = currentPci;
                 lastWeekPci = currentPci;
-                lastWeekProduction = supplyThisWeek;
             }
         });
         
@@ -384,24 +381,28 @@ function CcWisePlanPageContent() {
                 bestModelId = ordersForCc[0].id;
             }
 
-            // Allocate plan to the best model
+            // Allocate plan to the best model and recalculate FGCI for ALL models
             if (bestModelId) {
                 modelPlanAllocation[bestModelId][planWeek] = (modelPlanAllocation[bestModelId][planWeek] || 0) + planQty;
             
-                // Recalculate FGCI for the chosen model from the planWeek onwards
-                let lastWeekPciForRecalc = planWeekNum > firstSnapshotWeek ? (liveFgci[bestModelId][`W${planWeekNum - 1}`] || 0) : 0;
+                // Recalculate FGCI for all models from the planWeek onwards
+                ordersForCc.forEach(order => {
+                    let lastWeekPciForRecalc = planWeekNum > firstSnapshotWeek 
+                        ? (liveFgci[order.id][`W${planWeekNum - 1}`] || 0) 
+                        : 0;
 
-                for (let w = planWeekNum; w <= parseInt(sortedWeeks[sortedWeeks.length-1].slice(1)); w++) {
-                    const weekKey = `W${w}`;
-                    const demand = newModelData[bestModelId].poFc[weekKey] || 0;
-                    const supplyThisWeek = modelPlanAllocation[bestModelId][weekKey] || 0;
-                    const productionInPreviousWeek = modelPlanAllocation[bestModelId][`W${w - 1}`] || 0;
-                    
-                    const openingInventory = lastWeekPciForRecalc;
-                    
-                    liveFgci[bestModelId][weekKey] = openingInventory + productionInPreviousWeek - demand;
-                    lastWeekPciForRecalc = liveFgci[bestModelId][weekKey];
-                }
+                    for (let w = planWeekNum; w <= parseInt(sortedWeeks[sortedWeeks.length-1].slice(1)); w++) {
+                        const weekKey = `W${w}`;
+                        const demand = newModelData[order.id].poFc[weekKey] || 0;
+                        const productionInPreviousWeek = modelPlanAllocation[order.id][`W${w-1}`] || 0;
+                        
+                        // The opening inventory for this week is the closing inventory of the last week.
+                        const openingInventory = lastWeekPciForRecalc;
+                        
+                        liveFgci[order.id][weekKey] = openingInventory + productionInPreviousWeek - demand;
+                        lastWeekPciForRecalc = liveFgci[order.id][weekKey];
+                    }
+                });
             }
         }
         
