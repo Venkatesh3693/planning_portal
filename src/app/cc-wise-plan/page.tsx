@@ -442,7 +442,7 @@ function CcWisePlanPageContent() {
                                         </TableHeader>
                                         <TableBody>
                                             <TableRow>
-                                                <TableCell className="font-medium sticky left-0 bg-background/95">PO + FC</TableCell>
+                                                <TableCell className="font-medium sticky left-0 bg-background/95 min-w-[150px] z-10">CC-PO + FC</TableCell>
                                                 {allWeeks.map(week => (
                                                     <TableCell key={week} className="text-right">
                                                         {(weeklyDemand[week] || 0) > 0 ? (weeklyDemand[week] || 0).toLocaleString() : '-'}
@@ -451,7 +451,7 @@ function CcWisePlanPageContent() {
                                                 <TableCell className="text-right font-bold">{totalPoFc > 0 ? totalPoFc.toLocaleString() : '-'}</TableCell>
                                             </TableRow>
                                              <TableRow>
-                                                <TableCell className="font-medium sticky left-0 bg-muted/95">Produced</TableCell>
+                                                <TableCell className="font-medium sticky left-0 bg-muted/95 min-w-[150px] z-10">CC-Produced</TableCell>
                                                 {allWeeks.map(week => (
                                                     <TableCell key={week} className="text-right text-green-600 font-semibold">
                                                         {(producedData[week] || 0) > 0 ? (producedData[week] || 0).toLocaleString() : '-'}
@@ -462,7 +462,7 @@ function CcWisePlanPageContent() {
                                                 </TableCell>
                                             </TableRow>
                                             <TableRow>
-                                                <TableCell className="font-medium sticky left-0 bg-background/95">Plan</TableCell>
+                                                <TableCell className="font-medium sticky left-0 bg-background/95 min-w-[150px] z-10">CC-Plan</TableCell>
                                                 {allWeeks.map(week => (
                                                     <TableCell key={week} className="text-right font-semibold">
                                                         {(planData[week] || 0) > 0 ? (planData[week] || 0).toLocaleString() : '-'}
@@ -473,7 +473,7 @@ function CcWisePlanPageContent() {
                                                 </TableCell>
                                             </TableRow>
                                             <TableRow>
-                                                <TableCell className="font-medium sticky left-0 bg-muted/95">FG CI</TableCell>
+                                                <TableCell className="font-medium sticky left-0 bg-muted/95 min-w-[150px] z-10">CC-FG CI</TableCell>
                                                 {allWeeks.map(week => (
                                                     <TableCell key={week} className="text-right">
                                                         {fgciData[week] !== undefined ? fgciData[week].toLocaleString() : '-'}
@@ -547,5 +547,7 @@ export default function CcWisePlanPage() {
         </Suspense>
     );
 }
+
+    
 
     
