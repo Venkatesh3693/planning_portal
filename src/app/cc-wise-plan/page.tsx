@@ -314,14 +314,22 @@ function CcWisePlanPageContent() {
 
             const modelPoFc: Record<string, number> = {};
             allWeeks.forEach(week => {
-                const weeklyTotal = (snapshot.forecasts[week]?.total?.po || 0) + (snapshot.forecasts[week]?.total?.fc || 0);
-                
-                // This is a rough split based on order quantity proportion.
-                // A more accurate model would need POs to be linked to specific orders.
-                const ccTotalDemand = ordersForCc.reduce((sum, o) => sum + o.quantity, 0);
-                const orderProportion = ccTotalDemand > 0 ? order.quantity / ccTotalDemand : 0;
-                
-                modelPoFc[week] = Math.round(weeklyTotal * orderProportion);
+                const weekData = snapshot.forecasts[week];
+                const weeklyTotal = (weekData?.total?.po || 0) + (weekData?.total?.fc || 0);
+
+                // Find this order's contribution to the total CC demand for the week
+                let orderContribution = 0;
+                if (weekData && weekData.total) {
+                    const ccTotalForWeek = (weekData.total.po || 0) + (weekData.total.fc || 0);
+                    if (ccTotalForWeek > 0) {
+                         // Find the specific forecast for this order (model)
+                        const modelForecast = snapshot.forecasts[week];
+                        if (modelForecast) {
+                            orderContribution = (modelForecast.total?.po || 0) + (modelForecast.total?.fc || 0);
+                        }
+                    }
+                }
+                modelPoFc[week] = orderContribution;
             });
             
             // FGCI Calculation for model
@@ -643,3 +651,4 @@ export default function CcWisePlanPage() {
         </Suspense>
     );
 }
+
