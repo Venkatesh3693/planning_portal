@@ -14,31 +14,21 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Layers, BarChart } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { runTentativePlanForHorizon } from '@/lib/tna-calculator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { Card, CardContent } from '@/components/ui/card';
 import type { Order } from '@/lib/types';
 
 
-type PlanData = {
-    [orderId: string]: Record<string, number>;
-};
-
-type ViewMode = 'quantity' | 'lines';
-
 function CcWisePlanPageContent() {
     const { isScheduleLoaded, orders, appMode } = useSchedule();
     const [selectedCc, setSelectedCc] = useState<string>('');
     const [selectedSnapshotWeek, setSelectedSnapshotWeek] = useState<number | null>(null);
-    const [planData, setPlanData] = useState<PlanData>({});
-    const [linesData, setLinesData] = useState<PlanData>({});
+    const [weeklyDemand, setWeeklyDemand] = useState<Record<string, number>>({});
     const [allWeeks, setAllWeeks] = useState<string[]>([]);
-    const [totals, setTotals] = useState<Record<string, number>>({});
-    const [viewMode, setViewMode] = useState<ViewMode>('quantity');
-
+    
     const ccOptions = useMemo(() => {
         if (!isScheduleLoaded) return [];
         const gutOrders = orders.filter(o => o.orderType === 'Forecasted');
@@ -72,78 +62,30 @@ function CcWisePlanPageContent() {
 
     useEffect(() => {
         if (ordersForCc.length > 0 && selectedSnapshotWeek !== null) {
-            const newPlanData: PlanData = {};
-            const newLinesData: PlanData = {};
+            const aggregatedDemand: Record<string, number> = {};
             const weekSet = new Set<string>();
-            const newTotals: Record<string, number> = {};
-            const weeklyLines: Record<string, number> = {};
 
             ordersForCc.forEach(order => {
                 const snapshot = order.fcVsFcDetails?.find(s => s.snapshotWeek === selectedSnapshotWeek);
-                if (!snapshot) {
-                    newPlanData[order.id] = {};
-                    newLinesData[order.id] = {};
-                    return;
-                }
+                if (!snapshot) return;
 
-                const weeklyTotals: Record<string, number> = {};
                 Object.entries(snapshot.forecasts).forEach(([week, data]) => {
-                    weeklyTotals[week] = (data.total?.po || 0) + (data.total?.fc || 0);
-                });
-
-                const { plan, runs } = runTentativePlanForHorizon(selectedSnapshotWeek, null, weeklyTotals, order, 0);
-                newPlanData[order.id] = plan;
-                
-                const orderLinesByWeek: Record<string, number> = {};
-                runs.forEach(run => {
-                    const start = parseInt(run.startWeek.slice(1));
-                    const end = parseInt(run.endWeek.slice(1));
-                    for (let w = start; w <= end; w++) {
-                        const weekKey = `W${w}`;
-                        orderLinesByWeek[weekKey] = Math.max(orderLinesByWeek[weekKey] || 0, run.lines);
-                    }
-                });
-                newLinesData[order.id] = orderLinesByWeek;
-
-                Object.keys(plan).forEach(week => {
-                    if (plan[week] > 0) {
+                    const weeklyTotal = (data.total?.po || 0) + (data.total?.fc || 0);
+                    if (weeklyTotal > 0) {
+                        aggregatedDemand[week] = (aggregatedDemand[week] || 0) + weeklyTotal;
                         weekSet.add(week);
-                        newTotals[week] = (newTotals[week] || 0) + plan[week];
                     }
                 });
             });
             
-            setPlanData(newPlanData);
-            setLinesData(newLinesData);
-
             const sortedWeeks = Array.from(weekSet).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
             setAllWeeks(sortedWeeks);
-            
-            // Calculate total lines per week (max, not sum)
-            sortedWeeks.forEach(week => {
-                let maxLines = 0;
-                ordersForCc.forEach(order => {
-                    if(newLinesData[order.id]?.[week]) {
-                        maxLines += newLinesData[order.id][week]
-                    }
-                })
-                weeklyLines[week] = maxLines
-            })
-
-
-            if (viewMode === 'quantity') {
-              setTotals(newTotals);
-            } else {
-              setTotals(weeklyLines);
-            }
-
+            setWeeklyDemand(aggregatedDemand);
         } else {
-            setPlanData({});
-            setLinesData({});
+            setWeeklyDemand({});
             setAllWeeks([]);
-            setTotals({});
         }
-    }, [ordersForCc, selectedSnapshotWeek, viewMode]);
+    }, [ordersForCc, selectedSnapshotWeek]);
 
     
     if (!isScheduleLoaded) {
@@ -169,8 +111,7 @@ function CcWisePlanPageContent() {
         )
     }
 
-    const dataToShow = viewMode === 'quantity' ? planData : linesData;
-    const grandTotal = Object.values(totals).reduce((sum, val) => sum + val, 0);
+    const grandTotal = Object.values(weeklyDemand).reduce((sum, val) => sum + val, 0);
 
     return (
         <div className="flex h-screen flex-col">
@@ -245,16 +186,6 @@ function CcWisePlanPageContent() {
                                 </Select>
                             </div>
                         )}
-                        {selectedCc && (
-                            <Button
-                                variant="outline"
-                                onClick={() => setViewMode(prev => prev === 'quantity' ? 'lines' : 'quantity')}
-                                title={`Switch to ${viewMode === 'quantity' ? 'Lines' : 'Quantity'} view`}
-                            >
-                                {viewMode === 'quantity' ? <Layers className="mr-2 h-4 w-4" /> : <BarChart className="mr-2 h-4 w-4" />}
-                                View by {viewMode === 'quantity' ? 'Lines' : 'Quantity'}
-                            </Button>
-                        )}
                     </div>
                     {selectedCc && selectedSnapshotWeek !== null && allWeeks.length > 0 && (
                         <Card>
@@ -262,7 +193,7 @@ function CcWisePlanPageContent() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead className="min-w-[200px]">Order ID</TableHead>
+                                            <TableHead className="min-w-[200px]">Demand</TableHead>
                                             {allWeeks.map(week => (
                                                 <TableHead key={week} className="text-right">{week}</TableHead>
                                             ))}
@@ -270,40 +201,23 @@ function CcWisePlanPageContent() {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {ordersForCc.map(order => {
-                                            const orderPlan = dataToShow[order.id] || {};
-                                            const orderTotal = Object.values(orderPlan).reduce((s, v) => s + v, 0);
-                                            return (
-                                                <TableRow key={order.id}>
-                                                    <TableCell className="font-medium">{order.id}</TableCell>
-                                                    {allWeeks.map(week => (
-                                                        <TableCell key={`${order.id}-${week}`} className="text-right">
-                                                            {(orderPlan[week] || 0) > 0 ? (orderPlan[week] || 0).toLocaleString() : '-'}
-                                                        </TableCell>
-                                                    ))}
-                                                    <TableCell className="text-right font-bold">{orderTotal.toLocaleString()}</TableCell>
-                                                </TableRow>
-                                            );
-                                        })}
-                                    </TableBody>
-                                    <TableFooter>
                                         <TableRow>
-                                            <TableCell className="font-bold">Total</TableCell>
+                                            <TableCell className="font-medium">PO + FC</TableCell>
                                             {allWeeks.map(week => (
-                                                <TableCell key={`total-${week}`} className="text-right font-bold">
-                                                    {(totals[week] || 0).toLocaleString()}
+                                                <TableCell key={week} className="text-right">
+                                                    {(weeklyDemand[week] || 0).toLocaleString()}
                                                 </TableCell>
                                             ))}
                                             <TableCell className="text-right font-bold">{grandTotal.toLocaleString()}</TableCell>
                                         </TableRow>
-                                    </TableFooter>
+                                    </TableBody>
                                 </Table>
                             </CardContent>
                         </Card>
                     )}
-                     {selectedCc && (ordersForCc.length === 0 || allWeeks.length === 0) && (
+                     {selectedCc && allWeeks.length === 0 && (
                         <div className="border rounded-lg p-10 text-center text-muted-foreground">
-                           <p>No plan data available for the selected CC and snapshot week.</p>
+                           <p>No PO+FC demand data available for the selected CC and snapshot week.</p>
                         </div>
                     )}
                 </div>
