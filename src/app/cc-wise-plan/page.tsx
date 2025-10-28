@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { Suspense, useState, useMemo, useEffect } from 'react';
@@ -493,8 +492,8 @@ function CcWisePlanPageContent() {
                                         </TableHeader>
                                         <TableBody>
                                             <TableRow>
-                                                <TableCell rowSpan={4} className="font-bold sticky left-0 bg-background/95 min-w-[80px] z-10 align-middle text-center">CC</TableCell>
-                                                <TableCell className="font-medium sticky left-[80px] bg-background/95 z-10">CC-PO + FC</TableCell>
+                                                <TableCell rowSpan={4} className="font-bold sticky left-0 bg-background/95 min-w-[80px] z-10 align-middle text-center">{selectedCc}</TableCell>
+                                                <TableCell className="font-medium sticky left-[80px] bg-background/95 z-10">PO + FC</TableCell>
                                                 {allWeeks.map(week => (
                                                     <TableCell key={week} className="text-right">
                                                         {(weeklyDemand[week] || 0) > 0 ? (weeklyDemand[week] || 0).toLocaleString() : '-'}
@@ -503,7 +502,7 @@ function CcWisePlanPageContent() {
                                                 <TableCell className="text-right font-bold">{totalPoFc > 0 ? totalPoFc.toLocaleString() : '-'}</TableCell>
                                             </TableRow>
                                              <TableRow>
-                                                <TableCell className="font-medium sticky left-[80px] bg-background/95 z-10">CC-Produced</TableCell>
+                                                <TableCell className="font-medium sticky left-[80px] bg-background/95 z-10">Produced</TableCell>
                                                 {allWeeks.map(week => (
                                                     <TableCell key={week} className="text-right text-green-600 font-semibold">
                                                         {(producedData[week] || 0) > 0 ? (producedData[week] || 0).toLocaleString() : '-'}
@@ -514,7 +513,7 @@ function CcWisePlanPageContent() {
                                                 </TableCell>
                                             </TableRow>
                                             <TableRow>
-                                                <TableCell className="font-medium sticky left-[80px] bg-background/95 z-10">CC-Plan</TableCell>
+                                                <TableCell className="font-medium sticky left-[80px] bg-background/95 z-10">Plan</TableCell>
                                                 {allWeeks.map(week => (
                                                     <TableCell key={week} className="text-right font-semibold">
                                                         {(planData[week] || 0) > 0 ? (planData[week] || 0).toLocaleString() : '-'}
@@ -525,7 +524,7 @@ function CcWisePlanPageContent() {
                                                 </TableCell>
                                             </TableRow>
                                             <TableRow>
-                                                <TableCell className="font-medium sticky left-[80px] bg-background/95 z-10">CC-FG CI</TableCell>
+                                                <TableCell className="font-medium sticky left-[80px] bg-background/95 z-10">FG CI</TableCell>
                                                 {allWeeks.map(week => (
                                                     <TableCell key={week} className="text-right">
                                                         {fgciData[week] !== undefined ? fgciData[week].toLocaleString() : '-'}
@@ -537,9 +536,9 @@ function CcWisePlanPageContent() {
                                             {ordersForCc.map((order, orderIndex) => (
                                                 <React.Fragment key={order.id}>
                                                     <TableRow>
-                                                        <TableCell rowSpan={4} className={cn("font-bold sticky left-0 z-10 align-middle text-center", orderIndex % 2 === 0 ? 'bg-muted/95' : 'bg-background/95')}>Model</TableCell>
+                                                        <TableCell rowSpan={4} className={cn("font-bold sticky left-0 z-10 align-middle text-center", orderIndex % 2 === 0 ? 'bg-muted/95' : 'bg-background/95')}>{order.color}</TableCell>
                                                         <TableCell className={cn("font-medium sticky left-[80px] z-10", orderIndex % 2 === 0 ? 'bg-muted/95' : 'bg-background/95')}>
-                                                            {order.id} - PO + FC
+                                                            PO + FC
                                                         </TableCell>
                                                          {allWeeks.map(week => (
                                                             <TableCell key={week} className="text-right">
@@ -551,17 +550,17 @@ function CcWisePlanPageContent() {
                                                         </TableCell>
                                                     </TableRow>
                                                     <TableRow>
-                                                        <TableCell className={cn("font-medium sticky left-[80px] z-10", orderIndex % 2 === 0 ? 'bg-muted/95' : 'bg-background/95')}>{order.id} - Produced</TableCell>
+                                                        <TableCell className={cn("font-medium sticky left-[80px] z-10", orderIndex % 2 === 0 ? 'bg-muted/95' : 'bg-background/95')}>Produced</TableCell>
                                                         {allWeeks.map(week => <TableCell key={week} className="text-right">-</TableCell>)}
                                                         <TableCell className="text-right font-bold">-</TableCell>
                                                     </TableRow>
                                                     <TableRow>
-                                                         <TableCell className={cn("font-medium sticky left-[80px] z-10", orderIndex % 2 === 0 ? 'bg-muted/95' : 'bg-background/95')}>{order.id} - Plan</TableCell>
+                                                         <TableCell className={cn("font-medium sticky left-[80px] z-10", orderIndex % 2 === 0 ? 'bg-muted/95' : 'bg-background/95')}>Plan</TableCell>
                                                         {allWeeks.map(week => <TableCell key={week} className="text-right">-</TableCell>)}
                                                         <TableCell className="text-right font-bold">-</TableCell>
                                                     </TableRow>
                                                     <TableRow>
-                                                         <TableCell className={cn("font-medium sticky left-[80px] z-10", orderIndex % 2 === 0 ? 'bg-muted/95' : 'bg-background/95')}>{order.id} - FG CI</TableCell>
+                                                         <TableCell className={cn("font-medium sticky left-[80px] z-10", orderIndex % 2 === 0 ? 'bg-muted/95' : 'bg-background/95')}>FG CI</TableCell>
                                                          {allWeeks.map(week => (
                                                             <TableCell key={week} className="text-right">
                                                                 {modelData[order.id]?.fgci?.[week] !== undefined ? modelData[order.id]?.fgci?.[week].toLocaleString() : '-'}
