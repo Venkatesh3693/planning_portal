@@ -343,6 +343,7 @@ function CcWisePlanPageContent() {
         
         // This will hold the evolving state of our inventory as we allocate plans
         let liveFgci = JSON.parse(JSON.stringify(fgciWithoutPlan));
+        let candidateModels: string[] = [];
 
         for (const planWeek of ccPlanWeeks) {
             const planQty = currentPlanResult.plan[planWeek];
@@ -356,17 +357,24 @@ function CcWisePlanPageContent() {
                 const checkWeek = `W${planWeekNum + lookahead}`;
                 
                 let minFgci = Infinity;
-                let candidateModels: string[] = [];
+                if (lookahead === 0) {
+                    candidateModels = []; // Reset candidates for new plan week decision
+                }
 
-                ordersForCc.forEach(order => {
+                const modelsToEvaluate = candidateModels.length > 0 ? ordersForCc.filter(o => candidateModels.includes(o.id)) : ordersForCc;
+                
+                modelsToEvaluate.forEach(order => {
                     const fgci = liveFgci[order.id][checkWeek] || 0;
                     if (fgci < minFgci) {
                         minFgci = fgci;
                         candidateModels = [order.id];
-                    } else if (fgci === minFgci) {
+                    } else if (fgci === minFgci && !candidateModels.includes(order.id)) {
                         candidateModels.push(order.id);
                     }
                 });
+                
+                // Filter to keep only those with the new minimum
+                 candidateModels = candidateModels.filter(id => (liveFgci[id][checkWeek] || 0) === minFgci);
 
                 if (candidateModels.length === 1) {
                     bestModelId = candidateModels[0];
@@ -374,7 +382,9 @@ function CcWisePlanPageContent() {
                 }
             }
             // If still tied, pick the first one
-            if (!bestModelId && ordersForCc.length > 0) {
+            if (!bestModelId && candidateModels.length > 0) {
+                bestModelId = candidateModels[0];
+            } else if (!bestModelId && ordersForCc.length > 0) {
                 bestModelId = ordersForCc[0].id;
             }
 
@@ -383,19 +393,18 @@ function CcWisePlanPageContent() {
                 modelPlanAllocation[bestModelId][planWeek] = (modelPlanAllocation[bestModelId][planWeek] || 0) + planQty;
             
                 // Recalculate FGCI for the chosen model from the planWeek onwards
-                let lastWeekPciForRecalc = liveFgci[bestModelId][`W${planWeekNum - 1}`] || 0;
-                let lastWeekProductionForRecalc = modelPlanAllocation[bestModelId][`W${planWeekNum-1}`] || 0;
+                let lastWeekPciForRecalc = planWeekNum > firstSnapshotWeek ? (liveFgci[bestModelId][`W${planWeekNum - 1}`] || 0) : 0;
 
                 for (let w = planWeekNum; w <= parseInt(sortedWeeks[sortedWeeks.length-1].slice(1)); w++) {
                     const weekKey = `W${w}`;
                     const demand = newModelData[bestModelId].poFc[weekKey] || 0;
                     const supplyThisWeek = modelPlanAllocation[bestModelId][weekKey] || 0;
-
-                    const openingInventory = lastWeekPciForRecalc + lastWeekProductionForRecalc;
+                    const productionInPreviousWeek = modelPlanAllocation[bestModelId][`W${w - 1}`] || 0;
                     
-                    liveFgci[bestModelId][weekKey] = openingInventory - demand;
+                    const openingInventory = lastWeekPciForRecalc;
+                    
+                    liveFgci[bestModelId][weekKey] = openingInventory + productionInPreviousWeek - demand;
                     lastWeekPciForRecalc = liveFgci[bestModelId][weekKey];
-                    lastWeekProductionForRecalc = supplyThisWeek;
                 }
             }
         }
@@ -428,9 +437,13 @@ function CcWisePlanPageContent() {
 
         for (let i = 0; i < relevantWeeks.length; i++) {
             const week = relevantWeeks[i];
+            const weekNum = parseInt(week.slice(1));
             const demand = weeklyDemand[week] || 0;
             const supplyThisWeek = (planData[week] || 0) + (producedData[week] || 0);
-            const openingInventory = lastWeekPci + lastWeekProduction;
+
+            const productionInPreviousWeek = (producedData[`W${weekNum-1}`] || 0) + (planData[`W${weekNum-1}`] || 0);
+
+            const openingInventory = lastWeekPci + productionInPreviousWeek;
             const currentPci = openingInventory - demand;
             
             data[week] = currentPci;
