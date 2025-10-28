@@ -51,6 +51,11 @@ function CcWisePlanPageContent() {
         });
         return Array.from(weekSet).sort((a,b) => b - a);
     }, [ordersForCc]);
+
+    const firstSnapshotWeek = useMemo(() => {
+        if (snapshotOptions.length === 0) return null;
+        return Math.min(...snapshotOptions);
+    }, [snapshotOptions]);
     
     useEffect(() => {
         if (snapshotOptions.length > 0) {
@@ -61,7 +66,7 @@ function CcWisePlanPageContent() {
     }, [snapshotOptions]);
 
     useEffect(() => {
-        if (ordersForCc.length > 0 && selectedSnapshotWeek !== null) {
+        if (ordersForCc.length > 0 && selectedSnapshotWeek !== null && firstSnapshotWeek !== null) {
             const aggregatedDemand: Record<string, number> = {};
             const weekSet = new Set<number>();
 
@@ -82,7 +87,7 @@ function CcWisePlanPageContent() {
             const demandWeeks = Array.from(weekSet).sort((a, b) => a - b);
             if (demandWeeks.length > 0) {
                 const lastDemandWeek = demandWeeks[demandWeeks.length - 1];
-                const startDisplayWeek = selectedSnapshotWeek;
+                const startDisplayWeek = firstSnapshotWeek;
                 const fullWeekRange: string[] = [];
                 for(let w = startDisplayWeek; w <= lastDemandWeek; w++) {
                     fullWeekRange.push(`W${w}`);
@@ -97,7 +102,7 @@ function CcWisePlanPageContent() {
             setWeeklyDemand({});
             setAllWeeks([]);
         }
-    }, [ordersForCc, selectedSnapshotWeek]);
+    }, [ordersForCc, selectedSnapshotWeek, firstSnapshotWeek]);
 
     
     if (!isScheduleLoaded) {
