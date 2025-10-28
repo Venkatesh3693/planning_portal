@@ -343,7 +343,6 @@ function CcWisePlanPageContent() {
         
         // This will hold the evolving state of our inventory as we allocate plans
         let liveFgci = JSON.parse(JSON.stringify(fgciWithoutPlan));
-        let candidateModels: string[] = [];
 
         for (const planWeek of ccPlanWeeks) {
             const planQty = currentPlanResult.plan[planWeek];
@@ -351,31 +350,28 @@ function CcWisePlanPageContent() {
 
             const planWeekNum = parseInt(planWeek.slice(1));
             let bestModelId = '';
-            
+            let candidateModels: string[] = [];
+
             // Look ahead to find the model with the least FG CI
             for (let lookahead = 0; lookahead <= (sortedWeeks.length - planWeekNum); lookahead++) {
                 const checkWeek = `W${planWeekNum + lookahead}`;
                 
-                let minFgci = Infinity;
-                if (lookahead === 0) {
-                    candidateModels = []; // Reset candidates for new plan week decision
-                }
-
                 const modelsToEvaluate = candidateModels.length > 0 ? ordersForCc.filter(o => candidateModels.includes(o.id)) : ordersForCc;
-                
+                let minFgci = Infinity;
+                let nextCandidates: string[] = [];
+
                 modelsToEvaluate.forEach(order => {
                     const fgci = liveFgci[order.id][checkWeek] || 0;
                     if (fgci < minFgci) {
                         minFgci = fgci;
-                        candidateModels = [order.id];
-                    } else if (fgci === minFgci && !candidateModels.includes(order.id)) {
-                        candidateModels.push(order.id);
+                        nextCandidates = [order.id];
+                    } else if (fgci === minFgci) {
+                        nextCandidates.push(order.id);
                     }
                 });
-                
-                // Filter to keep only those with the new minimum
-                 candidateModels = candidateModels.filter(id => (liveFgci[id][checkWeek] || 0) === minFgci);
 
+                candidateModels = nextCandidates;
+                
                 if (candidateModels.length === 1) {
                     bestModelId = candidateModels[0];
                     break;
