@@ -20,8 +20,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import type { Order, SewingOperation } from '@/lib/types';
-import { SEWING_OPERATIONS_BY_STYLE, WORK_DAY_MINUTES } from '@/lib/data';
+import type { Order, SewingOperation, Size, SizeBreakdown } from '@/lib/types';
+import { SEWING_OPERATIONS_BY_STYLE, WORK_DAY_MINUTES, SIZES } from '@/lib/data';
 import { cn } from '@/lib/utils';
 
 type TrackerRun = {
@@ -36,6 +36,8 @@ type TrackerRun = {
 type ModelPlanData = {
     poFc: Record<string, number>;
     fgci: Record<string, number>;
+    plan: Record<string, number>;
+    produced: Record<string, number>;
 };
 
 
@@ -96,7 +98,7 @@ function CcWisePlanPageContent() {
         setTrackerData([]);
         setWeeklyDemand({});
         setAllWeeks([]);
-    }, [snapshotOptions]);
+    }, [selectedCc]);
 
     const calculatePlanForHorizon = (
         startWeek: number,
@@ -251,17 +253,15 @@ function CcWisePlanPageContent() {
         const allDemandWeeks = new Set<string>();
         ordersForCc.forEach(order => order.fcVsFcDetails?.forEach(s => Object.keys(s.forecasts).forEach(w => allDemandWeeks.add(w))));
         const demandWeeks = Array.from(allDemandWeeks).map(w => parseInt(w.slice(1))).sort((a,b)=>a-b);
-
+        
+        const sortedWeeks: string[] = [];
         if (demandWeeks.length > 0) {
             const lastDemandWeek = demandWeeks[demandWeeks.length - 1];
-            const fullWeekRange: string[] = [];
             for(let w = firstSnapshotWeek; w <= lastDemandWeek; w++) {
-                fullWeekRange.push(`W${w}`);
+                sortedWeeks.push(`W${w}`);
             }
-            setAllWeeks(fullWeekRange);
-        } else {
-            setAllWeeks([]);
         }
+        setAllWeeks(sortedWeeks);
 
         // 3. Calculate historical production and inventory
         let cumulativeInventory = 0;
@@ -292,71 +292,112 @@ function CcWisePlanPageContent() {
             cumulativeInventory += productionThisWeek - demandThisWeek;
         }
 
-        // 4. Run planning logic for the current and future weeks
+        // 4. Run CC-level planning logic for the current and future weeks
         const currentPlanResult = calculatePlanForHorizon(selectedSnapshotWeek, null, currentDemand, ordersForCc, cumulativeInventory, selectedSnapshotWeek);
-        
         setProducedData(finalProducedData);
         setPlanData(currentPlanResult.plan);
         setTrackerData(currentPlanResult.runs);
-    };
 
-    useEffect(() => {
-        if (!selectedCc || !selectedSnapshotWeek || ordersForCc.length === 0 || allWeeks.length === 0) {
-            setModelData({});
-            return;
-        }
-
+        // 5. Calculate model-wise data
         const newModelData: Record<string, ModelPlanData> = {};
-        
         ordersForCc.forEach(order => {
             const snapshot = order.fcVsFcDetails?.find(s => s.snapshotWeek === selectedSnapshotWeek);
             if (!snapshot) return;
 
             const modelPoFc: Record<string, number> = {};
-            allWeeks.forEach(week => {
-                const weekData = snapshot.forecasts[week];
-                const weeklyTotal = (weekData?.total?.po || 0) + (weekData?.total?.fc || 0);
-
-                // Find this order's contribution to the total CC demand for the week
-                let orderContribution = 0;
-                if (weekData && weekData.total) {
-                    const ccTotalForWeek = (weekData.total.po || 0) + (weekData.total.fc || 0);
-                    if (ccTotalForWeek > 0) {
-                         // Find the specific forecast for this order (model)
-                        const modelForecast = snapshot.forecasts[week];
-                        if (modelForecast) {
-                            orderContribution = (modelForecast.total?.po || 0) + (modelForecast.total?.fc || 0);
-                        }
-                    }
-                }
-                modelPoFc[week] = orderContribution;
+            sortedWeeks.forEach(week => {
+                const weekForecast = snapshot.forecasts[week];
+                modelPoFc[week] = (weekForecast?.total?.po || 0) + (weekForecast?.total?.fc || 0);
             });
-            
-            // FGCI Calculation for model
-            const modelFgci: Record<string, number> = {};
-            let lastWeekPci = 0;
-             const sortedWeeks = [...allWeeks].sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
+            newModelData[order.id] = { poFc: modelPoFc, fgci: {}, plan: {}, produced: {} };
+        });
+        
+        // 6. Allocate CC plan to models
+        const modelPlanAllocation: Record<string, Record<string, number>> = {};
+        ordersForCc.forEach(order => modelPlanAllocation[order.id] = {});
 
+        const ccPlanWeeks = Object.keys(currentPlanResult.plan).filter(w => (currentPlanResult.plan[w] || 0) > 0).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
+
+        // Pre-calculate FGCI for all models without any plan first
+        const fgciWithoutPlan: Record<string, Record<string, number>> = {};
+        ordersForCc.forEach(order => {
+            fgciWithoutPlan[order.id] = {};
+            let lastWeekPci = 0;
             for (const week of sortedWeeks) {
-                const demand = modelPoFc[week] || 0;
-                // For now, model plan and produced are 0
-                const supplyThisWeek = 0;
-                
+                const demand = newModelData[order.id].poFc[week] || 0;
+                const supplyThisWeek = 0; // No plan yet
                 const openingInventory = lastWeekPci;
                 const currentPci = openingInventory + supplyThisWeek - demand;
-                
-                modelFgci[week] = currentPci;
+                fgciWithoutPlan[order.id][week] = currentPci;
                 lastWeekPci = currentPci;
             }
+        });
+        
+        // This will hold the evolving state of our inventory as we allocate plans
+        let liveFgci = JSON.parse(JSON.stringify(fgciWithoutPlan));
 
-            newModelData[order.id] = {
-                poFc: modelPoFc,
-                fgci: modelFgci
-            };
+        for (const planWeek of ccPlanWeeks) {
+            const planQty = currentPlanResult.plan[planWeek];
+            if (planQty <= 0) continue;
+
+            const planWeekNum = parseInt(planWeek.slice(1));
+            let bestModelId = '';
+            
+            // Look ahead to find the model with the least FGCI
+            for (let lookahead = 1; lookahead <= (sortedWeeks.length - planWeekNum); lookahead++) {
+                const checkWeek = `W${planWeekNum + lookahead}`;
+                
+                let minFgci = Infinity;
+                let candidateModels: string[] = [];
+
+                ordersForCc.forEach(order => {
+                    const fgci = liveFgci[order.id][checkWeek] || 0;
+                    if (fgci < minFgci) {
+                        minFgci = fgci;
+                        candidateModels = [order.id];
+                    } else if (fgci === minFgci) {
+                        candidateModels.push(order.id);
+                    }
+                });
+
+                if (candidateModels.length === 1) {
+                    bestModelId = candidateModels[0];
+                    break;
+                }
+            }
+            // If still tied, pick the first one
+            if (!bestModelId && ordersForCc.length > 0) {
+                bestModelId = ordersForCc[0].id;
+            }
+
+            // Allocate plan to the best model
+            if (bestModelId) {
+                modelPlanAllocation[bestModelId][planWeek] = (modelPlanAllocation[bestModelId][planWeek] || 0) + planQty;
+            
+                // Recalculate FGCI for the chosen model from the planWeek onwards
+                let lastWeekPciForRecalc = liveFgci[bestModelId][`W${planWeekNum - 1}`] || 0;
+                for (let w = planWeekNum; w < sortedWeeks.length; w++) {
+                    const weekKey = `W${w}`;
+                    const demand = newModelData[bestModelId].poFc[weekKey] || 0;
+                    const supplyThisWeek = modelPlanAllocation[bestModelId][weekKey] || 0;
+                    const openingInventory = w === planWeekNum ? lastWeekPciForRecalc : liveFgci[bestModelId][`W${w - 1}`];
+                    liveFgci[bestModelId][weekKey] = openingInventory + supplyThisWeek - demand;
+                }
+            }
+        }
+        
+        // Set the final model data
+        ordersForCc.forEach(order => {
+            newModelData[order.id].plan = modelPlanAllocation[order.id];
+            newModelData[order.id].fgci = liveFgci[order.id];
+            // TODO: Populate `produced` data from a historical model-wise plan log
+            newModelData[order.id].produced = {};
         });
 
         setModelData(newModelData);
-    }, [selectedCc, selectedSnapshotWeek, ordersForCc, allWeeks]);
+
+    };
+
 
     const fgciData = useMemo(() => {
         if (allWeeks.length === 0) return {};
@@ -548,43 +589,58 @@ function CcWisePlanPageContent() {
                                                 <TableCell></TableCell>
                                             </TableRow>
 
-                                            {ordersForCc.map((order, orderIndex) => (
-                                                <React.Fragment key={order.id}>
-                                                    <TableRow>
-                                                        <TableCell rowSpan={4} className={cn("font-bold sticky left-0 z-10 align-middle text-center", orderIndex % 2 === 0 ? 'bg-muted/95' : 'bg-background/95')}>{order.color}</TableCell>
-                                                        <TableCell className={cn("font-medium sticky left-[80px] z-10", orderIndex % 2 === 0 ? 'bg-muted/95' : 'bg-background/95')}>
-                                                            PO + FC
-                                                        </TableCell>
-                                                         {allWeeks.map(week => (
-                                                            <TableCell key={week} className="text-right">
-                                                                {(modelData[order.id]?.poFc?.[week] || 0) > 0 ? (modelData[order.id]?.poFc?.[week] || 0).toLocaleString() : '-'}
+                                            {ordersForCc.map((order, orderIndex) => {
+                                                const modelPlan = modelData[order.id];
+                                                const totalModelPoFc = Object.values(modelPlan?.poFc || {}).reduce((s, v) => s + v, 0);
+                                                const totalModelProduced = Object.values(modelPlan?.produced || {}).reduce((s, v) => s + v, 0);
+                                                const totalModelPlan = Object.values(modelPlan?.plan || {}).reduce((s, v) => s + v, 0);
+
+                                                return (
+                                                    <React.Fragment key={order.id}>
+                                                        <TableRow>
+                                                            <TableCell rowSpan={4} className={cn("font-bold sticky left-0 z-10 align-middle text-center", orderIndex % 2 === 0 ? 'bg-muted/95' : 'bg-background/95')}>{order.color}</TableCell>
+                                                            <TableCell className={cn("font-medium sticky left-[80px] z-10", orderIndex % 2 === 0 ? 'bg-muted/95' : 'bg-background/95')}>
+                                                                PO + FC
                                                             </TableCell>
-                                                        ))}
-                                                        <TableCell className="text-right font-bold">
-                                                            {Object.values(modelData[order.id]?.poFc || {}).reduce((s, v) => s + v, 0).toLocaleString()}
-                                                        </TableCell>
-                                                    </TableRow>
-                                                    <TableRow>
-                                                        <TableCell className={cn("font-medium sticky left-[80px] z-10", orderIndex % 2 === 0 ? 'bg-muted/95' : 'bg-background/95')}>Produced</TableCell>
-                                                        {allWeeks.map(week => <TableCell key={week} className="text-right">-</TableCell>)}
-                                                        <TableCell className="text-right font-bold">-</TableCell>
-                                                    </TableRow>
-                                                    <TableRow>
-                                                         <TableCell className={cn("font-medium sticky left-[80px] z-10", orderIndex % 2 === 0 ? 'bg-muted/95' : 'bg-background/95')}>Plan</TableCell>
-                                                        {allWeeks.map(week => <TableCell key={week} className="text-right">-</TableCell>)}
-                                                        <TableCell className="text-right font-bold">-</TableCell>
-                                                    </TableRow>
-                                                    <TableRow>
-                                                         <TableCell className={cn("font-medium sticky left-[80px] z-10", orderIndex % 2 === 0 ? 'bg-muted/95' : 'bg-background/95')}>FG CI</TableCell>
-                                                         {allWeeks.map(week => (
-                                                            <TableCell key={week} className="text-right">
-                                                                {modelData[order.id]?.fgci?.[week] !== undefined ? modelData[order.id]?.fgci?.[week].toLocaleString() : '-'}
+                                                            {allWeeks.map(week => (
+                                                                <TableCell key={week} className="text-right">
+                                                                    {(modelPlan?.poFc?.[week] || 0) > 0 ? (modelPlan?.poFc?.[week] || 0).toLocaleString() : '-'}
+                                                                </TableCell>
+                                                            ))}
+                                                            <TableCell className="text-right font-bold">
+                                                                {totalModelPoFc > 0 ? totalModelPoFc.toLocaleString() : '-'}
                                                             </TableCell>
-                                                        ))}
-                                                        <TableCell></TableCell>
-                                                    </TableRow>
-                                                </React.Fragment>
-                                            ))}
+                                                        </TableRow>
+                                                        <TableRow>
+                                                            <TableCell className={cn("font-medium sticky left-[80px] z-10", orderIndex % 2 === 0 ? 'bg-muted/95' : 'bg-background/95')}>Produced</TableCell>
+                                                            {allWeeks.map(week => (
+                                                                <TableCell key={week} className="text-right text-green-600 font-semibold">
+                                                                    {(modelPlan?.produced?.[week] || 0) > 0 ? (modelPlan?.produced?.[week] || 0).toLocaleString() : '-'}
+                                                                </TableCell>
+                                                            ))}
+                                                            <TableCell className="text-right font-bold text-green-600">{totalModelProduced > 0 ? totalModelProduced.toLocaleString() : '-'}</TableCell>
+                                                        </TableRow>
+                                                        <TableRow>
+                                                            <TableCell className={cn("font-medium sticky left-[80px] z-10", orderIndex % 2 === 0 ? 'bg-muted/95' : 'bg-background/95')}>Plan</TableCell>
+                                                             {allWeeks.map(week => (
+                                                                <TableCell key={week} className="text-right font-semibold">
+                                                                    {(modelPlan?.plan?.[week] || 0) > 0 ? (modelPlan?.plan?.[week] || 0).toLocaleString() : '-'}
+                                                                </TableCell>
+                                                            ))}
+                                                            <TableCell className="text-right font-bold">{totalModelPlan > 0 ? totalModelPlan.toLocaleString() : '-'}</TableCell>
+                                                        </TableRow>
+                                                        <TableRow>
+                                                            <TableCell className={cn("font-medium sticky left-[80px] z-10", orderIndex % 2 === 0 ? 'bg-muted/95' : 'bg-background/95')}>FG CI</TableCell>
+                                                            {allWeeks.map(week => (
+                                                                <TableCell key={week} className="text-right">
+                                                                    {modelPlan?.fgci?.[week] !== undefined ? modelPlan?.fgci?.[week].toLocaleString() : '-'}
+                                                                </TableCell>
+                                                            ))}
+                                                            <TableCell></TableCell>
+                                                        </TableRow>
+                                                    </React.Fragment>
+                                                )
+                                            })}
                                         </TableBody>
                                     </Table>
                                 </div>
@@ -651,4 +707,3 @@ export default function CcWisePlanPage() {
         </Suspense>
     );
 }
-
