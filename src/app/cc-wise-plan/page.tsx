@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Suspense, useState, useMemo, useEffect } from 'react';
@@ -432,7 +433,7 @@ function CcWisePlanPageContent() {
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead className="min-w-[200px] font-bold sticky left-0 bg-card z-10">Dimension</TableHead>
+                                                <TableHead className="min-w-[150px] font-bold sticky left-0 bg-background/95 z-10">Dimension</TableHead>
                                                 {allWeeks.map(week => (
                                                     <TableHead key={week} className="text-right">{week}</TableHead>
                                                 ))}
@@ -441,7 +442,7 @@ function CcWisePlanPageContent() {
                                         </TableHeader>
                                         <TableBody>
                                             <TableRow>
-                                                <TableCell className="font-medium sticky left-0 bg-card">PO + FC</TableCell>
+                                                <TableCell className="font-medium sticky left-0 bg-background/95">PO + FC</TableCell>
                                                 {allWeeks.map(week => (
                                                     <TableCell key={week} className="text-right">
                                                         {(weeklyDemand[week] || 0) > 0 ? (weeklyDemand[week] || 0).toLocaleString() : '-'}
@@ -450,7 +451,7 @@ function CcWisePlanPageContent() {
                                                 <TableCell className="text-right font-bold">{totalPoFc > 0 ? totalPoFc.toLocaleString() : '-'}</TableCell>
                                             </TableRow>
                                              <TableRow>
-                                                <TableCell className="font-medium sticky left-0 bg-card">Produced</TableCell>
+                                                <TableCell className="font-medium sticky left-0 bg-muted/95">Produced</TableCell>
                                                 {allWeeks.map(week => (
                                                     <TableCell key={week} className="text-right text-green-600 font-semibold">
                                                         {(producedData[week] || 0) > 0 ? (producedData[week] || 0).toLocaleString() : '-'}
@@ -461,7 +462,7 @@ function CcWisePlanPageContent() {
                                                 </TableCell>
                                             </TableRow>
                                             <TableRow>
-                                                <TableCell className="font-medium sticky left-0 bg-card">Plan</TableCell>
+                                                <TableCell className="font-medium sticky left-0 bg-background/95">Plan</TableCell>
                                                 {allWeeks.map(week => (
                                                     <TableCell key={week} className="text-right font-semibold">
                                                         {(planData[week] || 0) > 0 ? (planData[week] || 0).toLocaleString() : '-'}
@@ -472,7 +473,7 @@ function CcWisePlanPageContent() {
                                                 </TableCell>
                                             </TableRow>
                                             <TableRow>
-                                                <TableCell className="font-medium sticky left-0 bg-card">FG CI</TableCell>
+                                                <TableCell className="font-medium sticky left-0 bg-muted/95">FG CI</TableCell>
                                                 {allWeeks.map(week => (
                                                     <TableCell key={week} className="text-right">
                                                         {fgciData[week] !== undefined ? fgciData[week].toLocaleString() : '-'}
