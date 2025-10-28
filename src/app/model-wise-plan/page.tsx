@@ -56,7 +56,7 @@ function ModelWisePlanPageContent() {
                         </BreadcrumbItem>
                         <BreadcrumbSeparator />
                         <BreadcrumbItem>
-                            <BreadcrumbPage>Model-wise Plan</BreadcrumbPage>
+                            <BreadcrumbPage>Model-wise plan log</BreadcrumbPage>
                         </BreadcrumbItem>
                     </BreadcrumbList>
                 </Breadcrumb>

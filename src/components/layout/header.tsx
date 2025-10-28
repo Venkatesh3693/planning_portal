@@ -108,7 +108,7 @@ export function Header({
                           <DropdownMenuItem>CC-wise plan</DropdownMenuItem>
                       </Link>
                        <Link href="/model-wise-plan">
-                          <DropdownMenuItem>Model-wise plan</DropdownMenuItem>
+                          <DropdownMenuItem>Model-wise plan log</DropdownMenuItem>
                       </Link>
                     </DropdownMenuSubContent>
                   </DropdownMenuPortal>
