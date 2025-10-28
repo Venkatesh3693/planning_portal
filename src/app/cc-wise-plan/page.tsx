@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import React, { Suspense, useState, useMemo, useEffect } from 'react';
@@ -98,7 +96,7 @@ function CcWisePlanPageContent() {
         setTrackerData([]);
         setWeeklyDemand({});
         setAllWeeks([]);
-    }, [selectedCc]);
+    }, [selectedCc, snapshotOptions]);
 
     const calculatePlanForHorizon = (
         startWeek: number,
@@ -345,8 +343,8 @@ function CcWisePlanPageContent() {
             const planWeekNum = parseInt(planWeek.slice(1));
             let bestModelId = '';
             
-            // Look ahead to find the model with the least FGCI
-            for (let lookahead = 1; lookahead <= (sortedWeeks.length - planWeekNum); lookahead++) {
+            // Look ahead to find the model with the least FG CI
+            for (let lookahead = 0; lookahead <= (sortedWeeks.length - planWeekNum); lookahead++) {
                 const checkWeek = `W${planWeekNum + lookahead}`;
                 
                 let minFgci = Infinity;
@@ -422,13 +420,8 @@ function CcWisePlanPageContent() {
 
         for (let i = 0; i < relevantWeeks.length; i++) {
             const week = relevantWeeks[i];
-            const weekNum = parseInt(week.slice(1));
-            const prevWeekKey = `W${weekNum-1}`;
-
             const demand = weeklyDemand[week] || 0;
-            
             const supplyThisWeek = (planData[week] || 0) + (producedData[week] || 0);
-
             const openingInventory = lastWeekPci + lastWeekProduction;
             const currentPci = openingInventory - demand;
             
