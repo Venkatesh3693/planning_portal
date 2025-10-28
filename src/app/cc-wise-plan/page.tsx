@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { Suspense, useState, useMemo, useEffect } from 'react';
@@ -305,6 +306,13 @@ function CcWisePlanPageContent() {
             const modelPoFc: Record<string, number> = {};
             sortedWeeks.forEach(week => {
                 const weekForecast = snapshot.forecasts[week];
+                let totalModelDemand = 0;
+                if(weekForecast) {
+                    SIZES.forEach(size => {
+                        totalModelDemand += weekForecast[size]?.po || 0;
+                        totalModelDemand += weekForecast[size]?.fc || 0;
+                    })
+                }
                 modelPoFc[week] = (weekForecast?.total?.po || 0) + (weekForecast?.total?.fc || 0);
             });
             newModelData[order.id] = { poFc: modelPoFc, fgci: {}, plan: {}, produced: {} };
