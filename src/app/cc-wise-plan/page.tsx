@@ -18,8 +18,18 @@ import { ArrowLeft } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
-import { Card, CardContent } from '@/components/ui/card';
-import type { Order } from '@/lib/types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { Order, SewingOperation } from '@/lib/types';
+import { SEWING_OPERATIONS_BY_STYLE, WORK_DAY_MINUTES } from '@/lib/data';
+
+type TrackerRun = {
+  runNumber: number;
+  startWeek: string;
+  endWeek: string;
+  quantity: number;
+  lines: number;
+  offset: number;
+};
 
 
 function CcWisePlanPageContent() {
@@ -28,6 +38,9 @@ function CcWisePlanPageContent() {
     const [selectedSnapshotWeek, setSelectedSnapshotWeek] = useState<number | null>(null);
     const [weeklyDemand, setWeeklyDemand] = useState<Record<string, number>>({});
     const [allWeeks, setAllWeeks] = useState<string[]>([]);
+    const [trackerData, setTrackerData] = useState<TrackerRun[]>([]);
+    const [planData, setPlanData] = useState<Record<string, number>>({});
+    const [producedData, setProducedData] = useState<Record<string, number>>({});
     
     const ccOptions = useMemo(() => {
         if (!isScheduleLoaded) return [];
@@ -54,8 +67,15 @@ function CcWisePlanPageContent() {
 
     const firstSnapshotWeek = useMemo(() => {
         if (snapshotOptions.length === 0) return null;
-        return Math.min(...snapshotOptions);
-    }, [snapshotOptions]);
+        const allWeeks = new Set<number>();
+         ordersForCc.forEach(order => {
+            order.fcVsFcDetails?.forEach(snapshot => {
+                allWeeks.add(snapshot.snapshotWeek);
+            });
+        });
+        if (allWeeks.size === 0) return null;
+        return Math.min(...Array.from(allWeeks));
+    }, [snapshotOptions, ordersForCc]);
     
     useEffect(() => {
         if (snapshotOptions.length > 0) {
@@ -63,10 +83,15 @@ function CcWisePlanPageContent() {
         } else {
             setSelectedSnapshotWeek(null);
         }
+        setPlanData({});
+        setProducedData({});
+        setTrackerData([]);
+        setWeeklyDemand({});
+        setAllWeeks([]);
     }, [snapshotOptions]);
 
-    useEffect(() => {
-        if (ordersForCc.length > 0 && selectedSnapshotWeek !== null && firstSnapshotWeek !== null) {
+    const aggregateWeeklyDemand = () => {
+         if (ordersForCc.length > 0 && selectedSnapshotWeek !== null && firstSnapshotWeek !== null) {
             const aggregatedDemand: Record<string, number> = {};
             const weekSet = new Set<number>();
 
@@ -102,7 +127,229 @@ function CcWisePlanPageContent() {
             setWeeklyDemand({});
             setAllWeeks([]);
         }
-    }, [ordersForCc, selectedSnapshotWeek, firstSnapshotWeek]);
+    }
+
+    const calculatePlanForHorizon = (
+        startWeek: number,
+        endWeek: number | null,
+        weeklyDemand: Record<string, number>,
+        ccOrders: Order[],
+        initialInventory: number = 0,
+        simulationStartDate: number
+    ): { runs: TrackerRun[]; plan: Record<string, number> } => {
+        if (ccOrders.length === 0) return { runs: [], plan: {} };
+        const representativeOrder = ccOrders[0]; // Use first order for style and efficiency info
+
+        const allDemandWeeks = Object.keys(weeklyDemand).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
+        
+        let inventory = initialInventory;
+        let finalRuns: TrackerRun[] = [];
+        let finalPlan: Record<string, number> = {};
+        let runCounter = 1;
+        let lastRunEndWeek = startWeek - 1;
+
+        while (lastRunEndWeek < (endWeek || 52)) {
+            const nextDemandWeekStr = allDemandWeeks.find(w => {
+                const weekNum = parseInt(w.slice(1));
+                return weekNum > lastRunEndWeek && (weeklyDemand[w] || 0) > 0;
+            });
+
+            if (!nextDemandWeekStr) break;
+
+            let currentRun = {
+                startWeek: nextDemandWeekStr,
+                endWeek: nextDemandWeekStr,
+                quantity: 0
+            };
+            
+            let zeroDemandStreak = 0;
+            const demandScanStartWeek = parseInt(nextDemandWeekStr.slice(1));
+
+            for (let w = demandScanStartWeek; w <= (endWeek || 52); w++) {
+                const weekKey = `W${w}`;
+                const demand = weeklyDemand[weekKey] || 0;
+
+                if (demand > 0) {
+                    currentRun.endWeek = weekKey;
+                    zeroDemandStreak = 0;
+                } else {
+                    zeroDemandStreak++;
+                }
+                if (zeroDemandStreak >= 4) {
+                    break;
+                }
+            }
+
+            const runStartNum = parseInt(currentRun.startWeek.slice(1));
+            const runEndNum = parseInt(currentRun.endWeek.slice(1));
+            
+            let grossDemandForRun = 0;
+            for (let w = runStartNum; w <= runEndNum; w++) {
+                grossDemandForRun += weeklyDemand[`W${w}`] || 0;
+            }
+
+            const netQuantityForRun = Math.max(0, grossDemandForRun - inventory);
+            inventory = Math.max(0, inventory - grossDemandForRun);
+
+            if (netQuantityForRun > 0) {
+                 const obData: SewingOperation[] = SEWING_OPERATIONS_BY_STYLE[representativeOrder.style] || [];
+                 if (!obData || obData.length === 0) continue;
+
+                 const totalSam = obData.reduce((sum, op) => sum + op.sam, 0);
+                 const totalTailors = obData.reduce((sum, op) => sum + op.operators, 0);
+                 const budgetedEfficiency = representativeOrder.budgetedEfficiency || 85;
+
+                 let numberOfLines = 1;
+                 let keepLooping = true;
+
+                 while (keepLooping) {
+                     const maxWeeklyOutput = (WORK_DAY_MINUTES * 6 * totalTailors * numberOfLines * (budgetedEfficiency / 100)) / totalSam;
+
+                     let openingInventoryForSim = 0;
+                     let minClosingInventory = 0;
+
+                     for (let w = runStartNum; w <= runEndNum; w++) {
+                         const weekKey = `W${w}`;
+                         const poFc = weeklyDemand[weekKey] || 0;
+                         const supplyFromPreviousWeek = (w === runStartNum) ? 0 : maxWeeklyOutput;
+                         const closingInventory = openingInventoryForSim + supplyFromPreviousWeek - poFc;
+
+                         if (closingInventory < minClosingInventory) {
+                             minClosingInventory = closingInventory;
+                         }
+                         openingInventoryForSim = closingInventory;
+                     }
+                     
+                     const trueRequiredOffset = Math.ceil(Math.abs(Math.min(0, minClosingInventory)) / maxWeeklyOutput);
+                     
+                     if (trueRequiredOffset <= 4) {
+                         const initialProposedStartWeek = runStartNum - trueRequiredOffset;
+                         const finalStartWeekNum = Math.max(initialProposedStartWeek, simulationStartDate);
+                         const finalOffset = runStartNum - finalStartWeekNum;
+
+                         const weeksToProduce = Math.ceil(netQuantityForRun / maxWeeklyOutput);
+                         const finalEndWeekNum = finalStartWeekNum + weeksToProduce - 1;
+
+                         const currentRunData: TrackerRun = {
+                             runNumber: runCounter++,
+                             startWeek: `W${finalStartWeekNum}`,
+                             endWeek: `W${finalEndWeekNum}`,
+                             lines: numberOfLines,
+                             offset: finalOffset,
+                             quantity: Math.round(netQuantityForRun),
+                         };
+                         finalRuns.push(currentRunData);
+                         
+                         let remainingQty = netQuantityForRun;
+                         for (let w = finalStartWeekNum; w <= finalEndWeekNum; w++) {
+                             const weekKey = `W${w}`;
+                             const planQty = Math.min(remainingQty, maxWeeklyOutput);
+                             finalPlan[weekKey] = (finalPlan[weekKey] || 0) + Math.round(planQty);
+                             remainingQty -= planQty;
+                         }
+
+                         inventory += netQuantityForRun; //Replenish inventory with what was just planned
+                         keepLooping = false;
+                     } else {
+                         numberOfLines++;
+                     }
+
+                     if (numberOfLines > 100) keepLooping = false;
+                 }
+            }
+            lastRunEndWeek = runEndNum;
+        }
+
+        return { runs: finalRuns, plan: finalPlan };
+    };
+
+    const handlePlan = () => {
+        if (!selectedCc || !selectedSnapshotWeek || ordersForCc.length === 0) return;
+
+        // 1. Aggregate demand for the CC
+        const aggregatedDemand: Record<string, number> = {};
+        ordersForCc.forEach(order => {
+            const snapshot = order.fcVsFcDetails?.find(s => s.snapshotWeek === selectedSnapshotWeek);
+            if (!snapshot) return;
+            Object.entries(snapshot.forecasts).forEach(([week, data]) => {
+                const weeklyTotal = (data.total?.po || 0) + (data.total?.fc || 0);
+                aggregatedDemand[week] = (aggregatedDemand[week] || 0) + weeklyTotal;
+            });
+        });
+
+        // 2. Set up weeks for display
+        const demandWeeks = Object.keys(aggregatedDemand).filter(w => aggregatedDemand[w] > 0).map(w => parseInt(w.slice(1))).sort((a,b)=>a-b);
+        if (demandWeeks.length > 0 && firstSnapshotWeek) {
+            const lastDemandWeek = demandWeeks[demandWeeks.length - 1];
+            const fullWeekRange: string[] = [];
+            for(let w = firstSnapshotWeek; w <= lastDemandWeek; w++) {
+                fullWeekRange.push(`W${w}`);
+            }
+            setAllWeeks(fullWeekRange);
+        } else {
+            setAllWeeks([]);
+        }
+
+        setWeeklyDemand(aggregatedDemand);
+        
+        // 3. Run planning logic
+        const firstPoFcWeekStr = Object.keys(aggregatedDemand).find(w => (aggregatedDemand[w] || 0) > 0);
+        let closingInventoryOfPreviousWeek = 0;
+        let finalProducedData: Record<string, number> = {};
+
+        if (firstPoFcWeekStr) {
+            const firstPoFcWeekNum = parseInt(firstPoFcWeekStr.slice(1));
+            const baselineStartWeek = Math.min(selectedSnapshotWeek, firstPoFcWeekNum - 4);
+            const baselinePlanResult = calculatePlanForHorizon(baselineStartWeek, null, aggregatedDemand, ordersForCc, 0, baselineStartWeek);
+            const baselinePlan = baselinePlanResult.plan;
+            
+            let inventory = 0;
+            const pastWeeks = Object.keys(aggregatedDemand).filter(w => parseInt(w.slice(1)) < selectedSnapshotWeek);
+            
+            for (const weekKey of pastWeeks) {
+                const supplyThisWeek = baselinePlan[weekKey] || 0;
+                const demandThisWeek = aggregatedDemand[weekKey] || 0;
+                inventory += supplyThisWeek - demandThisWeek;
+                if (supplyThisWeek > 0) {
+                  finalProducedData[weekKey] = supplyThisWeek;
+                }
+            }
+            closingInventoryOfPreviousWeek = inventory;
+        }
+
+        const currentPlanResult = calculatePlanForHorizon(selectedSnapshotWeek, null, aggregatedDemand, ordersForCc, closingInventoryOfPreviousWeek, selectedSnapshotWeek);
+        
+        setProducedData(finalProducedData);
+        setPlanData(currentPlanResult.plan);
+        setTrackerData(currentPlanResult.runs);
+    };
+
+    const fgciData = useMemo(() => {
+        if (allWeeks.length === 0) return {};
+        
+        const data: Record<string, number> = {};
+        const sortedWeeks = [...allWeeks].sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
+
+        const firstRelevantWeekIndex = sortedWeeks.findIndex(w => (weeklyDemand[w] || 0) > 0 || (planData[w] || 0) > 0 || (producedData[w] || 0) > 0);
+        if (firstRelevantWeekIndex === -1) return {};
+
+        const relevantWeeks = sortedWeeks.slice(firstRelevantWeekIndex);
+        let lastWeekPci = 0;
+
+        for (let i = 0; i < relevantWeeks.length; i++) {
+            const week = relevantWeeks[i];
+            const demand = weeklyDemand[week] || 0;
+            const supplyThisWeek = (planData[week] || 0) + (producedData[week] || 0);
+
+            const openingInventory = lastWeekPci;
+            const currentPci = openingInventory + supplyThisWeek - demand;
+            
+            data[week] = currentPci;
+            lastWeekPci = currentPci;
+        }
+
+        return data;
+    }, [allWeeks, weeklyDemand, planData, producedData]);
 
     
     if (!isScheduleLoaded) {
@@ -128,7 +375,9 @@ function CcWisePlanPageContent() {
         )
     }
 
-    const grandTotal = Object.values(weeklyDemand).reduce((sum, val) => sum + val, 0);
+    const totalPoFc = Object.values(weeklyDemand).reduce((sum, val) => sum + val, 0);
+    const totalProduced = Object.values(producedData).reduce((sum, qty) => sum + qty, 0);
+    const totalPlan = Object.values(planData).reduce((sum, qty) => sum + qty, 0);
 
     return (
         <div className="flex h-screen flex-col">
@@ -187,20 +436,23 @@ function CcWisePlanPageContent() {
                             </Select>
                         </div>
                         {selectedCc && snapshotOptions.length > 0 && (
-                            <div className="space-y-2">
-                                <Label htmlFor="snapshot-select">Snapshot Week</Label>
-                                <Select value={selectedSnapshotWeek !== null ? String(selectedSnapshotWeek) : ''} onValueChange={(v) => setSelectedSnapshotWeek(Number(v))}>
-                                    <SelectTrigger id="snapshot-select" className="w-[180px]">
-                                        <SelectValue placeholder="Select week..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {snapshotOptions.map(week => (
-                                            <SelectItem key={week} value={String(week)}>
-                                                Week {week}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                            <div className="flex items-end gap-2">
+                                <div className="space-y-2">
+                                    <Label htmlFor="snapshot-select">Snapshot Week</Label>
+                                    <Select value={selectedSnapshotWeek !== null ? String(selectedSnapshotWeek) : ''} onValueChange={(v) => setSelectedSnapshotWeek(Number(v))}>
+                                        <SelectTrigger id="snapshot-select" className="w-[180px]">
+                                            <SelectValue placeholder="Select week..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {snapshotOptions.map(week => (
+                                                <SelectItem key={week} value={String(week)}>
+                                                    Week {week}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                 <Button onClick={handlePlan}>Plan</Button>
                             </div>
                         )}
                     </div>
@@ -210,7 +462,7 @@ function CcWisePlanPageContent() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead className="min-w-[200px]">Demand</TableHead>
+                                            <TableHead className="min-w-[200px] font-bold">Dimension</TableHead>
                                             {allWeeks.map(week => (
                                                 <TableHead key={week} className="text-right">{week}</TableHead>
                                             ))}
@@ -225,7 +477,38 @@ function CcWisePlanPageContent() {
                                                     {(weeklyDemand[week] || 0) > 0 ? (weeklyDemand[week] || 0).toLocaleString() : '-'}
                                                 </TableCell>
                                             ))}
-                                            <TableCell className="text-right font-bold">{grandTotal.toLocaleString()}</TableCell>
+                                            <TableCell className="text-right font-bold">{totalPoFc.toLocaleString()}</TableCell>
+                                        </TableRow>
+                                         <TableRow>
+                                            <TableCell className="font-medium">Produced</TableCell>
+                                            {allWeeks.map(week => (
+                                                <TableCell key={week} className="text-right text-green-600 font-semibold">
+                                                    {(producedData[week] || 0) > 0 ? (producedData[week] || 0).toLocaleString() : '-'}
+                                                </TableCell>
+                                            ))}
+                                            <TableCell className="text-right font-bold text-green-600">
+                                                {totalProduced > 0 ? totalProduced.toLocaleString() : '-'}
+                                            </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                            <TableCell className="font-medium">Plan</TableCell>
+                                            {allWeeks.map(week => (
+                                                <TableCell key={week} className="text-right font-semibold">
+                                                    {(planData[week] || 0) > 0 ? (planData[week] || 0).toLocaleString() : '-'}
+                                                </TableCell>
+                                            ))}
+                                            <TableCell className="text-right font-bold">
+                                                {totalPlan > 0 ? totalPlan.toLocaleString() : '-'}
+                                            </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                            <TableCell className="font-medium">FG CI</TableCell>
+                                            {allWeeks.map(week => (
+                                                <TableCell key={week} className="text-right">
+                                                    {fgciData[week] !== undefined ? fgciData[week].toLocaleString() : '-'}
+                                                </TableCell>
+                                            ))}
+                                            <TableCell></TableCell>
                                         </TableRow>
                                     </TableBody>
                                 </Table>
@@ -238,6 +521,48 @@ function CcWisePlanPageContent() {
                         </div>
                     )}
                 </div>
+
+                {selectedCc && (
+                    <Card className="mt-6">
+                        <CardHeader>
+                            <CardTitle>Tracker</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Run Number</TableHead>
+                                        <TableHead>Plan start</TableHead>
+                                        <TableHead>Plan end</TableHead>
+                                        <TableHead>Offset</TableHead>
+                                        <TableHead className="text-right">Quantity</TableHead>
+                                        <TableHead>Number of lines</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {trackerData.length > 0 ? (
+                                        trackerData.map(run => (
+                                            <TableRow key={run.runNumber}>
+                                                <TableCell>{run.runNumber}</TableCell>
+                                                <TableCell>{run.startWeek}</TableCell>
+                                                <TableCell>{run.endWeek}</TableCell>
+                                                <TableCell>{run.offset}</TableCell>
+                                                <TableCell className="text-right font-medium">{run.quantity.toLocaleString()}</TableCell>
+                                                <TableCell>{run.lines}</TableCell>
+                                            </TableRow>
+                                        ))
+                                    ) : (
+                                        <TableRow>
+                                            <TableCell colSpan={6} className="h-24 text-center">
+                                                Click "Plan" to generate production runs.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                )}
             </main>
         </div>
     );
