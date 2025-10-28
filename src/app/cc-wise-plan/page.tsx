@@ -90,45 +90,6 @@ function CcWisePlanPageContent() {
         setAllWeeks([]);
     }, [snapshotOptions]);
 
-    const aggregateWeeklyDemand = () => {
-         if (ordersForCc.length > 0 && selectedSnapshotWeek !== null && firstSnapshotWeek !== null) {
-            const aggregatedDemand: Record<string, number> = {};
-            const weekSet = new Set<number>();
-
-            ordersForCc.forEach(order => {
-                const snapshot = order.fcVsFcDetails?.find(s => s.snapshotWeek === selectedSnapshotWeek);
-                if (!snapshot) return;
-
-                Object.entries(snapshot.forecasts).forEach(([week, data]) => {
-                    const weekNum = parseInt(week.slice(1));
-                    const weeklyTotal = (data.total?.po || 0) + (data.total?.fc || 0);
-                    if (weeklyTotal > 0) {
-                        aggregatedDemand[week] = (aggregatedDemand[week] || 0) + weeklyTotal;
-                        weekSet.add(weekNum);
-                    }
-                });
-            });
-            
-            const demandWeeks = Array.from(weekSet).sort((a, b) => a - b);
-            if (demandWeeks.length > 0) {
-                const lastDemandWeek = demandWeeks[demandWeeks.length - 1];
-                const startDisplayWeek = firstSnapshotWeek;
-                const fullWeekRange: string[] = [];
-                for(let w = startDisplayWeek; w <= lastDemandWeek; w++) {
-                    fullWeekRange.push(`W${w}`);
-                }
-                setAllWeeks(fullWeekRange);
-            } else {
-                setAllWeeks([]);
-            }
-
-            setWeeklyDemand(aggregatedDemand);
-        } else {
-            setWeeklyDemand({});
-            setAllWeeks([]);
-        }
-    }
-
     const calculatePlanForHorizon = (
         startWeek: number,
         endWeek: number | null,
@@ -264,22 +225,26 @@ function CcWisePlanPageContent() {
     };
 
     const handlePlan = () => {
-        if (!selectedCc || !selectedSnapshotWeek || ordersForCc.length === 0) return;
+        if (!selectedCc || !selectedSnapshotWeek || ordersForCc.length === 0 || !firstSnapshotWeek) return;
 
-        // 1. Aggregate demand for the CC
-        const aggregatedDemand: Record<string, number> = {};
+        // 1. Aggregate demand for the currently selected snapshot week
+        const currentDemand: Record<string, number> = {};
         ordersForCc.forEach(order => {
             const snapshot = order.fcVsFcDetails?.find(s => s.snapshotWeek === selectedSnapshotWeek);
             if (!snapshot) return;
             Object.entries(snapshot.forecasts).forEach(([week, data]) => {
                 const weeklyTotal = (data.total?.po || 0) + (data.total?.fc || 0);
-                aggregatedDemand[week] = (aggregatedDemand[week] || 0) + weeklyTotal;
+                currentDemand[week] = (currentDemand[week] || 0) + weeklyTotal;
             });
         });
+        setWeeklyDemand(currentDemand);
 
-        // 2. Set up weeks for display
-        const demandWeeks = Object.keys(aggregatedDemand).filter(w => aggregatedDemand[w] > 0).map(w => parseInt(w.slice(1))).sort((a,b)=>a-b);
-        if (demandWeeks.length > 0 && firstSnapshotWeek) {
+        // 2. Set up the full week range for display
+        const allDemandWeeks = new Set<string>();
+        ordersForCc.forEach(order => order.fcVsFcDetails?.forEach(s => Object.keys(s.forecasts).forEach(w => allDemandWeeks.add(w))));
+        const demandWeeks = Array.from(allDemandWeeks).map(w => parseInt(w.slice(1))).sort((a,b)=>a-b);
+
+        if (demandWeeks.length > 0) {
             const lastDemandWeek = demandWeeks[demandWeeks.length - 1];
             const fullWeekRange: string[] = [];
             for(let w = firstSnapshotWeek; w <= lastDemandWeek; w++) {
@@ -290,34 +255,37 @@ function CcWisePlanPageContent() {
             setAllWeeks([]);
         }
 
-        setWeeklyDemand(aggregatedDemand);
-        
-        // 3. Run planning logic
-        const firstPoFcWeekStr = Object.keys(aggregatedDemand).find(w => (aggregatedDemand[w] || 0) > 0);
-        let closingInventoryOfPreviousWeek = 0;
+        // 3. Calculate historical production and inventory
+        let cumulativeInventory = 0;
         let finalProducedData: Record<string, number> = {};
 
-        if (firstPoFcWeekStr) {
-            const firstPoFcWeekNum = parseInt(firstPoFcWeekStr.slice(1));
-            const baselineStartWeek = Math.min(selectedSnapshotWeek, firstPoFcWeekNum - 4);
-            const baselinePlanResult = calculatePlanForHorizon(baselineStartWeek, null, aggregatedDemand, ordersForCc, 0, baselineStartWeek);
-            const baselinePlan = baselinePlanResult.plan;
+        for (let week = firstSnapshotWeek; week < selectedSnapshotWeek; week++) {
+            const historicalSnapshot = ordersForCc[0].fcVsFcDetails?.find(s => s.snapshotWeek === week);
+            if (!historicalSnapshot) continue; // Skip if no data for this historical week
+
+            const historicalDemand: Record<string, number> = {};
+            ordersForCc.forEach(order => {
+                const snapshot = order.fcVsFcDetails?.find(s => s.snapshotWeek === week);
+                if (!snapshot) return;
+                Object.entries(snapshot.forecasts).forEach(([w, data]) => {
+                    historicalDemand[w] = (historicalDemand[w] || 0) + ((data.total?.po || 0) + (data.total?.fc || 0));
+                });
+            });
+
+            const { plan: historicalPlan } = calculatePlanForHorizon(week, null, historicalDemand, ordersForCc, cumulativeInventory, week);
             
-            let inventory = 0;
-            const pastWeeks = Object.keys(aggregatedDemand).filter(w => parseInt(w.slice(1)) < selectedSnapshotWeek);
-            
-            for (const weekKey of pastWeeks) {
-                const supplyThisWeek = baselinePlan[weekKey] || 0;
-                const demandThisWeek = aggregatedDemand[weekKey] || 0;
-                inventory += supplyThisWeek - demandThisWeek;
-                if (supplyThisWeek > 0) {
-                  finalProducedData[weekKey] = supplyThisWeek;
-                }
+            const productionThisWeek = historicalPlan[`W${week}`] || 0;
+            const demandThisWeek = historicalDemand[`W${week}`] || 0;
+
+            if (productionThisWeek > 0) {
+                finalProducedData[`W${week}`] = productionThisWeek;
             }
-            closingInventoryOfPreviousWeek = inventory;
+            
+            cumulativeInventory += productionThisWeek - demandThisWeek;
         }
 
-        const currentPlanResult = calculatePlanForHorizon(selectedSnapshotWeek, null, aggregatedDemand, ordersForCc, closingInventoryOfPreviousWeek, selectedSnapshotWeek);
+        // 4. Run planning logic for the current and future weeks
+        const currentPlanResult = calculatePlanForHorizon(selectedSnapshotWeek, null, currentDemand, ordersForCc, cumulativeInventory, selectedSnapshotWeek);
         
         setProducedData(finalProducedData);
         setPlanData(currentPlanResult.plan);
@@ -459,59 +427,61 @@ function CcWisePlanPageContent() {
                     {selectedCc && selectedSnapshotWeek !== null && allWeeks.length > 0 && (
                         <Card>
                             <CardContent className="p-0">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead className="min-w-[200px] font-bold">Dimension</TableHead>
-                                            {allWeeks.map(week => (
-                                                <TableHead key={week} className="text-right">{week}</TableHead>
-                                            ))}
-                                            <TableHead className="text-right font-bold">Total</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        <TableRow>
-                                            <TableCell className="font-medium">PO + FC</TableCell>
-                                            {allWeeks.map(week => (
-                                                <TableCell key={week} className="text-right">
-                                                    {(weeklyDemand[week] || 0) > 0 ? (weeklyDemand[week] || 0).toLocaleString() : '-'}
+                                <div className="overflow-x-auto">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead className="min-w-[200px] font-bold">Dimension</TableHead>
+                                                {allWeeks.map(week => (
+                                                    <TableHead key={week} className="text-right">{week}</TableHead>
+                                                ))}
+                                                <TableHead className="text-right font-bold">Total</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            <TableRow>
+                                                <TableCell className="font-medium">PO + FC</TableCell>
+                                                {allWeeks.map(week => (
+                                                    <TableCell key={week} className="text-right">
+                                                        {(weeklyDemand[week] || 0) > 0 ? (weeklyDemand[week] || 0).toLocaleString() : '-'}
+                                                    </TableCell>
+                                                ))}
+                                                <TableCell className="text-right font-bold">{totalPoFc > 0 ? totalPoFc.toLocaleString() : '-'}</TableCell>
+                                            </TableRow>
+                                             <TableRow>
+                                                <TableCell className="font-medium">Produced</TableCell>
+                                                {allWeeks.map(week => (
+                                                    <TableCell key={week} className="text-right text-green-600 font-semibold">
+                                                        {(producedData[week] || 0) > 0 ? (producedData[week] || 0).toLocaleString() : '-'}
+                                                    </TableCell>
+                                                ))}
+                                                <TableCell className="text-right font-bold text-green-600">
+                                                    {totalProduced > 0 ? totalProduced.toLocaleString() : '-'}
                                                 </TableCell>
-                                            ))}
-                                            <TableCell className="text-right font-bold">{totalPoFc.toLocaleString()}</TableCell>
-                                        </TableRow>
-                                         <TableRow>
-                                            <TableCell className="font-medium">Produced</TableCell>
-                                            {allWeeks.map(week => (
-                                                <TableCell key={week} className="text-right text-green-600 font-semibold">
-                                                    {(producedData[week] || 0) > 0 ? (producedData[week] || 0).toLocaleString() : '-'}
+                                            </TableRow>
+                                            <TableRow>
+                                                <TableCell className="font-medium">Plan</TableCell>
+                                                {allWeeks.map(week => (
+                                                    <TableCell key={week} className="text-right font-semibold">
+                                                        {(planData[week] || 0) > 0 ? (planData[week] || 0).toLocaleString() : '-'}
+                                                    </TableCell>
+                                                ))}
+                                                <TableCell className="text-right font-bold">
+                                                    {totalPlan > 0 ? totalPlan.toLocaleString() : '-'}
                                                 </TableCell>
-                                            ))}
-                                            <TableCell className="text-right font-bold text-green-600">
-                                                {totalProduced > 0 ? totalProduced.toLocaleString() : '-'}
-                                            </TableCell>
-                                        </TableRow>
-                                        <TableRow>
-                                            <TableCell className="font-medium">Plan</TableCell>
-                                            {allWeeks.map(week => (
-                                                <TableCell key={week} className="text-right font-semibold">
-                                                    {(planData[week] || 0) > 0 ? (planData[week] || 0).toLocaleString() : '-'}
-                                                </TableCell>
-                                            ))}
-                                            <TableCell className="text-right font-bold">
-                                                {totalPlan > 0 ? totalPlan.toLocaleString() : '-'}
-                                            </TableCell>
-                                        </TableRow>
-                                        <TableRow>
-                                            <TableCell className="font-medium">FG CI</TableCell>
-                                            {allWeeks.map(week => (
-                                                <TableCell key={week} className="text-right">
-                                                    {fgciData[week] !== undefined ? fgciData[week].toLocaleString() : '-'}
-                                                </TableCell>
-                                            ))}
-                                            <TableCell></TableCell>
-                                        </TableRow>
-                                    </TableBody>
-                                </Table>
+                                            </TableRow>
+                                            <TableRow>
+                                                <TableCell className="font-medium">FG CI</TableCell>
+                                                {allWeeks.map(week => (
+                                                    <TableCell key={week} className="text-right">
+                                                        {fgciData[week] !== undefined ? fgciData[week].toLocaleString() : '-'}
+                                                    </TableCell>
+                                                ))}
+                                                <TableCell></TableCell>
+                                            </TableRow>
+                                        </TableBody>
+                                    </Table>
+                                </div>
                             </CardContent>
                         </Card>
                     )}
