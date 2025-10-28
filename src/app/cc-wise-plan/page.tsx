@@ -63,23 +63,35 @@ function CcWisePlanPageContent() {
     useEffect(() => {
         if (ordersForCc.length > 0 && selectedSnapshotWeek !== null) {
             const aggregatedDemand: Record<string, number> = {};
-            const weekSet = new Set<string>();
+            const weekSet = new Set<number>();
 
             ordersForCc.forEach(order => {
                 const snapshot = order.fcVsFcDetails?.find(s => s.snapshotWeek === selectedSnapshotWeek);
                 if (!snapshot) return;
 
                 Object.entries(snapshot.forecasts).forEach(([week, data]) => {
+                    const weekNum = parseInt(week.slice(1));
                     const weeklyTotal = (data.total?.po || 0) + (data.total?.fc || 0);
                     if (weeklyTotal > 0) {
                         aggregatedDemand[week] = (aggregatedDemand[week] || 0) + weeklyTotal;
-                        weekSet.add(week);
+                        weekSet.add(weekNum);
                     }
                 });
             });
             
-            const sortedWeeks = Array.from(weekSet).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
-            setAllWeeks(sortedWeeks);
+            const demandWeeks = Array.from(weekSet).sort((a, b) => a - b);
+            if (demandWeeks.length > 0) {
+                const lastDemandWeek = demandWeeks[demandWeeks.length - 1];
+                const startDisplayWeek = selectedSnapshotWeek;
+                const fullWeekRange: string[] = [];
+                for(let w = startDisplayWeek; w <= lastDemandWeek; w++) {
+                    fullWeekRange.push(`W${w}`);
+                }
+                setAllWeeks(fullWeekRange);
+            } else {
+                setAllWeeks([]);
+            }
+
             setWeeklyDemand(aggregatedDemand);
         } else {
             setWeeklyDemand({});
@@ -205,7 +217,7 @@ function CcWisePlanPageContent() {
                                             <TableCell className="font-medium">PO + FC</TableCell>
                                             {allWeeks.map(week => (
                                                 <TableCell key={week} className="text-right">
-                                                    {(weeklyDemand[week] || 0).toLocaleString()}
+                                                    {(weeklyDemand[week] || 0) > 0 ? (weeklyDemand[week] || 0).toLocaleString() : '-'}
                                                 </TableCell>
                                             ))}
                                             <TableCell className="text-right font-bold">{grandTotal.toLocaleString()}</TableCell>
