@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useState, useMemo } from 'react';
 import { useSchedule } from '@/context/schedule-provider';
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
@@ -14,9 +14,17 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 
 function ModelPlanLogPageContent() {
-    const { appMode } = useSchedule();
+    const { appMode, orders, isScheduleLoaded } = useSchedule();
+    const [selectedOrderId, setSelectedOrderId] = useState<string>('');
+
+    const gutOrders = useMemo(() => {
+        if (!isScheduleLoaded) return [];
+        return orders.filter(o => o.orderType === 'Forecasted');
+    }, [orders, isScheduleLoaded]);
 
     if (appMode === 'gup') {
         return (
@@ -59,6 +67,23 @@ function ModelPlanLogPageContent() {
                     <p className="text-muted-foreground">
                         A historical log of all planning activities for a model.
                     </p>
+
+                    <div className="w-full max-w-xs space-y-2">
+                        <Label htmlFor="order-select">Select Order ID</Label>
+                        <Select value={selectedOrderId} onValueChange={setSelectedOrderId}>
+                            <SelectTrigger id="order-select">
+                                <SelectValue placeholder="Select an order..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {gutOrders.map(order => (
+                                    <SelectItem key={order.id} value={order.id}>
+                                        {order.id} ({order.style})
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
                      <div className="border rounded-lg p-10 text-center text-muted-foreground">
                         <p>Content to be added.</p>
                     </div>
