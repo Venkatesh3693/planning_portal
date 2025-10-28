@@ -323,13 +323,15 @@ function CcWisePlanPageContent() {
         ordersForCc.forEach(order => {
             fgciWithoutPlan[order.id] = {};
             let lastWeekPci = 0;
+            let lastWeekProduction = 0;
             for (const week of sortedWeeks) {
                 const demand = newModelData[order.id].poFc[week] || 0;
                 const supplyThisWeek = 0; // No plan yet
-                const openingInventory = lastWeekPci;
-                const currentPci = openingInventory + supplyThisWeek - demand;
+                const openingInventory = lastWeekPci + lastWeekProduction;
+                const currentPci = openingInventory - demand;
                 fgciWithoutPlan[order.id][week] = currentPci;
                 lastWeekPci = currentPci;
+                lastWeekProduction = supplyThisWeek;
             }
         });
         
@@ -376,12 +378,18 @@ function CcWisePlanPageContent() {
             
                 // Recalculate FGCI for the chosen model from the planWeek onwards
                 let lastWeekPciForRecalc = liveFgci[bestModelId][`W${planWeekNum - 1}`] || 0;
-                for (let w = planWeekNum; w < sortedWeeks.length; w++) {
+                let lastWeekProductionForRecalc = modelPlanAllocation[bestModelId][`W${planWeekNum-1}`] || 0;
+
+                for (let w = planWeekNum; w <= parseInt(sortedWeeks[sortedWeeks.length-1].slice(1)); w++) {
                     const weekKey = `W${w}`;
                     const demand = newModelData[bestModelId].poFc[weekKey] || 0;
                     const supplyThisWeek = modelPlanAllocation[bestModelId][weekKey] || 0;
-                    const openingInventory = w === planWeekNum ? lastWeekPciForRecalc : liveFgci[bestModelId][`W${w - 1}`];
-                    liveFgci[bestModelId][weekKey] = openingInventory + supplyThisWeek - demand;
+
+                    const openingInventory = lastWeekPciForRecalc + lastWeekProductionForRecalc;
+                    
+                    liveFgci[bestModelId][weekKey] = openingInventory - demand;
+                    lastWeekPciForRecalc = liveFgci[bestModelId][weekKey];
+                    lastWeekProductionForRecalc = supplyThisWeek;
                 }
             }
         }
@@ -410,17 +418,23 @@ function CcWisePlanPageContent() {
 
         const relevantWeeks = sortedWeeks.slice(firstRelevantWeekIndex);
         let lastWeekPci = 0;
+        let lastWeekProduction = 0;
 
         for (let i = 0; i < relevantWeeks.length; i++) {
             const week = relevantWeeks[i];
+            const weekNum = parseInt(week.slice(1));
+            const prevWeekKey = `W${weekNum-1}`;
+
             const demand = weeklyDemand[week] || 0;
+            
             const supplyThisWeek = (planData[week] || 0) + (producedData[week] || 0);
 
-            const openingInventory = lastWeekPci;
-            const currentPci = openingInventory + supplyThisWeek - demand;
+            const openingInventory = lastWeekPci + lastWeekProduction;
+            const currentPci = openingInventory - demand;
             
             data[week] = currentPci;
             lastWeekPci = currentPci;
+            lastWeekProduction = supplyThisWeek;
         }
 
         return data;
