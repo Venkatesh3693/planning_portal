@@ -23,34 +23,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Order, SewingOperation, Size, SizeBreakdown } from '@/lib/types';
 import { SEWING_OPERATIONS_BY_STYLE, WORK_DAY_MINUTES, SIZES } from '@/lib/data';
 import { cn } from '@/lib/utils';
-
-type TrackerRun = {
-  runNumber: number;
-  startWeek: string;
-  endWeek: string;
-  quantity: number;
-  lines: number;
-  offset: number;
-};
-
-type ModelPlanData = {
-    poFc: Record<string, number>;
-    fgci: Record<string, number>;
-    plan: Record<string, number>;
-    produced: Record<string, number>;
-};
+import { runCcWisePlan, type CcWisePlanResult } from '@/lib/tna-calculator';
 
 
 function CcWisePlanPageContent() {
     const { isScheduleLoaded, orders, appMode } = useSchedule();
     const [selectedCc, setSelectedCc] = useState<string>('');
     const [selectedSnapshotWeek, setSelectedSnapshotWeek] = useState<number | null>(null);
-    const [weeklyDemand, setWeeklyDemand] = useState<Record<string, number>>({});
-    const [allWeeks, setAllWeeks] = useState<string[]>([]);
-    const [trackerData, setTrackerData] = useState<TrackerRun[]>([]);
-    const [planData, setPlanData] = useState<Record<string, number>>({});
-    const [producedData, setProducedData] = useState<Record<string, number>>({});
-    const [modelData, setModelData] = useState<Record<string, ModelPlanData>>({});
+    const [planResult, setPlanResult] = useState<CcWisePlanResult | null>(null);
     
     const ccOptions = useMemo(() => {
         if (!isScheduleLoaded) return [];
@@ -74,18 +54,6 @@ function CcWisePlanPageContent() {
         });
         return Array.from(weekSet).sort((a,b) => b - a);
     }, [ordersForCc]);
-
-    const firstSnapshotWeek = useMemo(() => {
-        if (ordersForCc.length === 0) return null;
-        const allWeeks = new Set<number>();
-         ordersForCc.forEach(order => {
-            order.fcVsFcDetails?.forEach(snapshot => {
-                allWeeks.add(snapshot.snapshotWeek);
-            });
-        });
-        if (allWeeks.size === 0) return null;
-        return Math.min(...Array.from(allWeeks));
-    }, [ordersForCc]);
     
     useEffect(() => {
         if (snapshotOptions.length > 0) {
@@ -93,336 +61,43 @@ function CcWisePlanPageContent() {
         } else {
             setSelectedSnapshotWeek(null);
         }
-        setPlanData({});
-        setProducedData({});
-        setTrackerData([]);
-        setWeeklyDemand({});
-        setAllWeeks([]);
+        setPlanResult(null);
     }, [selectedCc, snapshotOptions]);
 
-    const calculatePlanForHorizon = (
-        startWeek: number,
-        endWeek: number | null,
-        weeklyDemand: Record<string, number>,
-        ccOrders: Order[],
-        initialInventory: number = 0,
-        simulationStartDate: number
-    ): { runs: TrackerRun[]; plan: Record<string, number> } => {
-        if (ccOrders.length === 0) return { runs: [], plan: {} };
-        const representativeOrder = ccOrders[0]; // Use first order for style and efficiency info
-
-        const allDemandWeeks = Object.keys(weeklyDemand).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
-        
-        let inventory = initialInventory;
-        let finalRuns: TrackerRun[] = [];
-        let finalPlan: Record<string, number> = {};
-        let runCounter = 1;
-        let lastRunEndWeek = startWeek - 1;
-
-        while (lastRunEndWeek < (endWeek || 52)) {
-            const nextDemandWeekStr = allDemandWeeks.find(w => {
-                const weekNum = parseInt(w.slice(1));
-                return weekNum > lastRunEndWeek && (weeklyDemand[w] || 0) > 0;
-            });
-
-            if (!nextDemandWeekStr) break;
-
-            let currentRun = {
-                startWeek: nextDemandWeekStr,
-                endWeek: nextDemandWeekStr,
-                quantity: 0
-            };
-            
-            let zeroDemandStreak = 0;
-            const demandScanStartWeek = parseInt(nextDemandWeekStr.slice(1));
-
-            for (let w = demandScanStartWeek; w <= (endWeek || 52); w++) {
-                const weekKey = `W${w}`;
-                const demand = weeklyDemand[weekKey] || 0;
-
-                if (demand > 0) {
-                    currentRun.endWeek = weekKey;
-                    zeroDemandStreak = 0;
-                } else {
-                    zeroDemandStreak++;
-                }
-                if (zeroDemandStreak >= 4) {
-                    break;
-                }
-            }
-
-            const runStartNum = parseInt(currentRun.startWeek.slice(1));
-            const runEndNum = parseInt(currentRun.endWeek.slice(1));
-            
-            let grossDemandForRun = 0;
-            for (let w = runStartNum; w <= runEndNum; w++) {
-                grossDemandForRun += weeklyDemand[`W${w}`] || 0;
-            }
-
-            const netQuantityForRun = Math.max(0, grossDemandForRun - inventory);
-            inventory = Math.max(0, inventory - grossDemandForRun);
-
-            if (netQuantityForRun > 0) {
-                 const obData: SewingOperation[] = SEWING_OPERATIONS_BY_STYLE[representativeOrder.style] || [];
-                 if (!obData || obData.length === 0) continue;
-
-                 const totalSam = obData.reduce((sum, op) => sum + op.sam, 0);
-                 const totalTailors = obData.reduce((sum, op) => sum + op.operators, 0);
-                 const budgetedEfficiency = representativeOrder.budgetedEfficiency || 85;
-
-                 let numberOfLines = 1;
-                 let keepLooping = true;
-
-                 while (keepLooping) {
-                     const maxWeeklyOutput = (WORK_DAY_MINUTES * 6 * totalTailors * numberOfLines * (budgetedEfficiency / 100)) / totalSam;
-
-                     let openingInventoryForSim = 0;
-                     let minClosingInventory = 0;
-
-                     for (let w = runStartNum; w <= runEndNum; w++) {
-                         const weekKey = `W${w}`;
-                         const poFc = weeklyDemand[weekKey] || 0;
-                         const supplyFromPreviousWeek = (w === runStartNum) ? 0 : maxWeeklyOutput;
-                         const closingInventory = openingInventoryForSim + supplyFromPreviousWeek - poFc;
-
-                         if (closingInventory < minClosingInventory) {
-                             minClosingInventory = closingInventory;
-                         }
-                         openingInventoryForSim = closingInventory;
-                     }
-                     
-                     const trueRequiredOffset = Math.ceil(Math.abs(Math.min(0, minClosingInventory)) / maxWeeklyOutput);
-                     
-                     if (trueRequiredOffset <= 4) {
-                         const initialProposedStartWeek = runStartNum - trueRequiredOffset;
-                         const finalStartWeekNum = Math.max(initialProposedStartWeek, simulationStartDate);
-                         const finalOffset = runStartNum - finalStartWeekNum;
-
-                         const weeksToProduce = Math.ceil(netQuantityForRun / maxWeeklyOutput);
-                         const finalEndWeekNum = finalStartWeekNum + weeksToProduce - 1;
-
-                         const currentRunData: TrackerRun = {
-                             runNumber: runCounter++,
-                             startWeek: `W${finalStartWeekNum}`,
-                             endWeek: `W${finalEndWeekNum}`,
-                             lines: numberOfLines,
-                             offset: finalOffset,
-                             quantity: Math.round(netQuantityForRun),
-                         };
-                         finalRuns.push(currentRunData);
-                         
-                         let remainingQty = netQuantityForRun;
-                         for (let w = finalStartWeekNum; w <= finalEndWeekNum; w++) {
-                             const weekKey = `W${w}`;
-                             const planQty = Math.min(remainingQty, maxWeeklyOutput);
-                             finalPlan[weekKey] = (finalPlan[weekKey] || 0) + Math.round(planQty);
-                             remainingQty -= planQty;
-                         }
-
-                         inventory += netQuantityForRun; //Replenish inventory with what was just planned
-                         keepLooping = false;
-                     } else {
-                         numberOfLines++;
-                     }
-
-                     if (numberOfLines > 100) keepLooping = false;
-                 }
-            }
-            lastRunEndWeek = runEndNum;
-        }
-
-        return { runs: finalRuns, plan: finalPlan };
-    };
-
     const handlePlan = () => {
-        if (!selectedCc || !selectedSnapshotWeek || ordersForCc.length === 0 || !firstSnapshotWeek) return;
-    
-        // 1. Aggregate CC-level demand
-        const currentDemand: Record<string, number> = {};
-        ordersForCc.forEach(order => {
-            const snapshot = order.fcVsFcDetails?.find(s => s.snapshotWeek === selectedSnapshotWeek);
-            if (!snapshot) return;
-            Object.entries(snapshot.forecasts).forEach(([week, data]) => {
-                const weeklyTotal = (data.total?.po || 0) + (data.total?.fc || 0);
-                currentDemand[week] = (currentDemand[week] || 0) + weeklyTotal;
-            });
-        });
-        setWeeklyDemand(currentDemand);
-    
-        // 2. Set up week range for display
-        const allDemandWeeks = new Set<string>();
-        ordersForCc.forEach(order => order.fcVsFcDetails?.forEach(s => Object.keys(s.forecasts).forEach(w => allDemandWeeks.add(w))));
-        const demandWeeks = Array.from(allDemandWeeks).map(w => parseInt(w.slice(1))).sort((a,b)=>a-b);
-        const sortedWeeks: string[] = [];
-        if (demandWeeks.length > 0) {
-            const lastDemandWeek = demandWeeks[demandWeeks.length - 1];
-            for(let w = firstSnapshotWeek; w <= lastDemandWeek; w++) {
-                sortedWeeks.push(`W${w}`);
-            }
-        }
-        setAllWeeks(sortedWeeks);
-    
-        // 3. Calculate historical production and inventory
-        let cumulativeInventory = 0;
-        let finalProducedData: Record<string, number> = {};
-        for (let week = firstSnapshotWeek; week < selectedSnapshotWeek; week++) {
-            const historicalSnapshot = ordersForCc[0].fcVsFcDetails?.find(s => s.snapshotWeek === week);
-            if (!historicalSnapshot) continue;
-    
-            const historicalDemand: Record<string, number> = {};
-            ordersForCc.forEach(order => {
-                const snapshot = order.fcVsFcDetails?.find(s => s.snapshotWeek === week);
-                if (!snapshot) return;
-                Object.entries(snapshot.forecasts).forEach(([w, data]) => {
-                    historicalDemand[w] = (historicalDemand[w] || 0) + ((data.total?.po || 0) + (data.total?.fc || 0));
-                });
-            });
-    
-            const { plan: historicalPlan } = calculatePlanForHorizon(week, null, historicalDemand, ordersForCc, cumulativeInventory, week);
-            const productionThisWeek = historicalPlan[`W${week}`] || 0;
-            const demandThisWeek = historicalDemand[`W${week}`] || 0;
-    
-            if (productionThisWeek > 0) {
-                finalProducedData[`W${week}`] = productionThisWeek;
-            }
-            cumulativeInventory += productionThisWeek - demandThisWeek;
-        }
-    
-        // 4. Run CC-level planning
-        const currentPlanResult = calculatePlanForHorizon(selectedSnapshotWeek, null, currentDemand, ordersForCc, cumulativeInventory, selectedSnapshotWeek);
-        setProducedData(finalProducedData);
-        setPlanData(currentPlanResult.plan);
-        setTrackerData(currentPlanResult.runs);
-    
-        // 5. Prepare model-wise data structures
-        const newModelData: Record<string, ModelPlanData> = {};
-        ordersForCc.forEach(order => {
-            const snapshot = order.fcVsFcDetails?.find(s => s.snapshotWeek === selectedSnapshotWeek);
-            if (!snapshot) return;
-            const modelPoFc: Record<string, number> = {};
-            sortedWeeks.forEach(week => {
-                const weekForecast = snapshot.forecasts[week];
-                let totalModelDemand = 0;
-                if(weekForecast) {
-                    SIZES.forEach(size => {
-                        totalModelDemand += weekForecast[size]?.po || 0;
-                        totalModelDemand += weekForecast[size]?.fc || 0;
-                    })
-                }
-                modelPoFc[week] = totalModelDemand;
-            });
-            newModelData[order.id] = { poFc: modelPoFc, fgci: {}, plan: {}, produced: {} };
-        });
-    
-        // 6. Allocate CC plan to models using a single source of truth for inventory
-        const modelPlanAllocation: Record<string, Record<string, number>> = {};
-        ordersForCc.forEach(order => modelPlanAllocation[order.id] = {});
-    
-        const calculateModelFgci = (
-            modelId: string,
-            weeks: string[],
-            demand: Record<string, number>,
-            plan: Record<string, number>
-        ): Record<string, number> => {
-            const fgci: Record<string, number> = {};
-            let lastWeekPci = 0;
-            let lastWeekProduction = 0;
-    
-            for (const week of weeks) {
-                const weekNum = parseInt(week.slice(1));
-                const openingInventory = lastWeekPci + lastWeekProduction;
-                const demandThisWeek = demand[week] || 0;
-                const supplyThisWeek = plan[week] || 0;
-                const currentPci = openingInventory - demandThisWeek;
-                fgci[week] = currentPci;
-                lastWeekPci = currentPci;
-                lastWeekProduction = supplyThisWeek;
-            }
-            return fgci;
-        };
-    
-        const ccPlanWeeks = Object.keys(currentPlanResult.plan).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
-    
-        for (const planWeek of ccPlanWeeks) {
-            const planQty = currentPlanResult.plan[planWeek];
-            if (planQty <= 0) continue;
-    
-            let bestModelId = '';
-            let minFgci = Infinity;
-    
-            for (const order of ordersForCc) {
-                const tempModelPlan = { ...modelPlanAllocation[order.id] };
-                const modelDemand = newModelData[order.id].poFc;
-                
-                // Calculate FG CI *as if no production is happening this week*
-                const projectedFgci = calculateModelFgci(order.id, sortedWeeks, modelDemand, tempModelPlan);
-                
-                // Find the first future week with demand to break ties
-                let lookaheadWeek = planWeek;
-                let foundFutureDemand = false;
-                for (let w = parseInt(planWeek.slice(1)); w <= parseInt(sortedWeeks[sortedWeeks.length-1].slice(1)); w++) {
-                     if((modelDemand[`W${w}`] || 0) > 0) {
-                         lookaheadWeek = `W${w}`;
-                         foundFutureDemand = true;
-                         break;
-                     }
-                }
-                if (!foundFutureDemand) {
-                    lookaheadWeek = planWeek;
-                }
+        if (!selectedCc || !selectedSnapshotWeek || ordersForCc.length === 0) return;
+        
+        let ccProducedData: Record<string, number> = {};
+        const previousSnapshotWeek = selectedSnapshotWeek - 1;
 
-                const fgciForComparison = projectedFgci[lookaheadWeek] || 0;
-    
-                if (fgciForComparison < minFgci) {
-                    minFgci = fgciForComparison;
-                    bestModelId = order.id;
-                }
-            }
-    
-            if (bestModelId) {
-                modelPlanAllocation[bestModelId][planWeek] = (modelPlanAllocation[bestModelId][planWeek] || 0) + planQty;
+        if (snapshotOptions.includes(previousSnapshotWeek)) {
+             // We need to get the plan from the PREVIOUS week to determine what was "produced"
+            const prevSnapshotResult = runCcWisePlan({
+                ordersForCc,
+                snapshotWeek: previousSnapshotWeek,
+                producedData: {}, // Start with zero produced for the historical run
+            });
+
+            if (prevSnapshotResult) {
+                // Filter plan quantities for weeks before the current snapshot
+                Object.entries(prevSnapshotResult.planData).forEach(([week, qty]) => {
+                    const weekNum = parseInt(week.slice(1));
+                    if (weekNum < selectedSnapshotWeek) {
+                        ccProducedData[week] = qty;
+                    }
+                });
             }
         }
-    
-        // 7. Set final model data after all allocations are done
-        ordersForCc.forEach(order => {
-            newModelData[order.id].plan = modelPlanAllocation[order.id];
-            const finalFgci = calculateModelFgci(order.id, sortedWeeks, newModelData[order.id].poFc, newModelData[order.id].plan);
-            newModelData[order.id].fgci = finalFgci;
-            // TODO: Populate `produced` data from a historical model-wise plan log
-            newModelData[order.id].produced = {};
+        
+        const result = runCcWisePlan({
+            ordersForCc,
+            snapshotWeek: selectedSnapshotWeek,
+            producedData: ccProducedData,
         });
-    
-        setModelData(newModelData);
+
+        setPlanResult(result);
     };
 
-
-    const fgciData = useMemo(() => {
-        if (allWeeks.length === 0) return {};
-        
-        const data: Record<string, number> = {};
-        const sortedWeeks = [...allWeeks].sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
-
-        let lastWeekPci = 0;
-        let lastWeekProduction = 0;
-
-        for (let i = 0; i < sortedWeeks.length; i++) {
-            const week = sortedWeeks[i];
-            const weekNum = parseInt(week.slice(1));
-            const demand = weeklyDemand[week] || 0;
-            const supplyThisWeek = (planData[week] || 0) + (producedData[week] || 0);
-
-            const openingInventory = lastWeekPci;
-            const currentPci = openingInventory + supplyThisWeek - demand;
-            
-            data[week] = currentPci;
-            lastWeekPci = currentPci;
-        }
-
-        return data;
-    }, [allWeeks, weeklyDemand, planData, producedData]);
-
-    
     if (!isScheduleLoaded) {
         return <div className="flex items-center justify-center h-full">Loading data...</div>;
     }
@@ -446,6 +121,16 @@ function CcWisePlanPageContent() {
         )
     }
 
+    const { weeklyDemand, producedData, planData, modelData, allWeeks, fgciData, trackerData } = planResult || {
+        weeklyDemand: {},
+        producedData: {},
+        planData: {},
+        modelData: {},
+        allWeeks: [],
+        fgciData: {},
+        trackerData: [],
+    };
+    
     const totalPoFc = Object.values(weeklyDemand).reduce((sum, val) => sum + val, 0);
     const totalProduced = Object.values(producedData).reduce((sum, qty) => sum + qty, 0);
     const totalPlan = Object.values(planData).reduce((sum, qty) => sum + qty, 0);
@@ -527,7 +212,7 @@ function CcWisePlanPageContent() {
                             </div>
                         )}
                     </div>
-                    {selectedCc && selectedSnapshotWeek !== null && allWeeks.length > 0 && (
+                    {selectedCc && selectedSnapshotWeek !== null && planResult && allWeeks.length > 0 && (
                         <Card>
                             <CardContent className="p-0">
                                 <div className="overflow-x-auto relative">
@@ -643,14 +328,14 @@ function CcWisePlanPageContent() {
                             </CardContent>
                         </Card>
                     )}
-                     {selectedCc && allWeeks.length === 0 && (
+                     {selectedCc && (!planResult || allWeeks.length === 0) && (
                         <div className="border rounded-lg p-10 text-center text-muted-foreground">
-                           <p>No PO+FC demand data available for the selected CC and snapshot week.</p>
+                           <p>No PO+FC demand data available for the selected CC and snapshot week. Click "Plan" to run a calculation.</p>
                         </div>
                     )}
                 </div>
 
-                {selectedCc && (
+                {selectedCc && planResult && (
                     <Card className="mt-6">
                         <CardHeader>
                             <CardTitle>Tracker</CardTitle>
