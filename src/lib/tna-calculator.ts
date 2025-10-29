@@ -442,10 +442,15 @@ const calculateModelFgci = (
     let lastWeekPci = 0;
 
     for (const week of weeks) {
-        const openingInventory = lastWeekPci;
+        const weekNum = parseInt(week.replace('W',''));
+        const prevWeek = `W${weekNum-1}`;
+        
+        const producedPrevWeek = produced[prevWeek] || 0;
+        const planPrevWeek = plan[prevWeek] || 0;
         const demandThisWeek = demand[week] || 0;
-        const supplyThisWeek = (plan[week] || 0) + (produced[week] || 0);
-        const currentPci = openingInventory + supplyThisWeek - demandThisWeek;
+        
+        const currentPci = lastWeekPci + producedPrevWeek + planPrevWeek - demandThisWeek;
+
         fgci[week] = currentPci;
         lastWeekPci = currentPci;
     }
@@ -489,14 +494,20 @@ export const runCcWisePlan = ({
     }
     
     // 3. Calculate initial inventory for the CC plan based on *all* production before the snapshot week
-    const ccOpeningInventory = Object.entries(producedData).reduce((inv, [week, qty]) => {
-        const weekNum = parseInt(week.slice(1));
-        if (weekNum < snapshotWeek) {
-            const demand = weeklyDemand[week] || 0;
-            return inv + qty - demand;
-        }
-        return inv;
-    }, 0);
+    let ccOpeningInventory = 0;
+    let lastWeekPci = 0;
+    for(const week of sortedWeeks) {
+      if (parseInt(week.slice(1)) >= snapshotWeek) break;
+      const prevWeekNum = parseInt(week.slice(1)) - 1;
+      const prevWeekKey = `W${prevWeekNum}`;
+      
+      const producedPrev = producedData[prevWeekKey] || 0;
+      const demandCurrent = weeklyDemand[week] || 0;
+      
+      const currentPci = lastWeekPci + producedPrev - demandCurrent;
+      lastWeekPci = currentPci;
+    }
+    ccOpeningInventory = lastWeekPci;
 
 
     // 4. Run CC-level planning
@@ -604,14 +615,18 @@ export const runCcWisePlan = ({
 
     // 9. Calculate final CC-level FGCI
     const fgciData: Record<string, number> = {};
-    let lastWeekPci = 0;
+    let ccLastWeekPci = 0;
     for (const week of sortedWeeks) {
-        const demand = weeklyDemand[week] || 0;
-        const supplyThisWeek = (planData[week] || 0) + (producedData[week] || 0);
-        const openingInventory = lastWeekPci;
-        const currentPci = openingInventory + supplyThisWeek - demand;
+        const weekNum = parseInt(week.replace('W',''));
+        const prevWeek = `W${weekNum-1}`;
+
+        const producedPrev = producedData[prevWeek] || 0;
+        const planPrev = planData[prevWeek] || 0;
+        const demandThisWeek = weeklyDemand[week] || 0;
+        
+        const currentPci = ccLastWeekPci + producedPrev + planPrev - demandThisWeek;
         fgciData[week] = currentPci;
-        lastWeekPci = currentPci;
+        ccLastWeekPci = currentPci;
     }
 
     return {

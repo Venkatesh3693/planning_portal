@@ -64,11 +64,12 @@ function CcWisePlanPageContent() {
         setPlanResult(null);
     }, [selectedCc, snapshotOptions]);
 
-     const handlePlan = () => {
+    const handlePlan = () => {
         if (!selectedCc || !selectedSnapshotWeek || ordersForCc.length === 0) return;
 
         let cumulativeProducedData: Record<string, number> = {};
 
+        // Get all snapshot weeks before the selected one and sort them chronologically
         const historicalSnapshots = snapshotOptions
             .filter(w => w < selectedSnapshotWeek)
             .sort((a, b) => a - b);
@@ -83,8 +84,8 @@ function CcWisePlanPageContent() {
             });
             
             if (resultForWeek) {
-                 // The plan from this historical week becomes "produced" for the next iteration
-                 // but only for the week it was planned in.
+                // The plan from this historical week becomes "produced" for the next iteration
+                // but only for the week it was planned in.
                 const planForThisWeek = resultForWeek.planData[`W${week}`] || 0;
                 if(planForThisWeek > 0) {
                    cumulativeProducedData[`W${week}`] = (cumulativeProducedData[`W${week}`] || 0) + planForThisWeek;
