@@ -85,7 +85,6 @@ function CcWisePlanPageContent() {
             
             if (resultForWeek) {
                 // The plan from this historical week becomes "produced" for the next iteration
-                // but only for the week it was planned in.
                 const planForThisWeek = resultForWeek.planData[`W${week}`] || 0;
                 if(planForThisWeek > 0) {
                    cumulativeProducedData[`W${week}`] = (cumulativeProducedData[`W${week}`] || 0) + planForThisWeek;
@@ -93,6 +92,9 @@ function CcWisePlanPageContent() {
             }
         }
         
+        const currentSnapshot = ordersForCc[0].fcVsFcDetails?.find(s => s.snapshotWeek === selectedSnapshotWeek);
+        if (!currentSnapshot) return;
+
         // Final run for the selected snapshot week, using the complete historical production data
         const finalResult = runCcWisePlan({
             ordersForCc,

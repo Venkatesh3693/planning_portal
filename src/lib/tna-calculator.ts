@@ -495,7 +495,7 @@ export const runCcWisePlan = ({
     
     // 3. Calculate initial inventory for the CC plan based on *all* production before the snapshot week
     let ccOpeningInventory = 0;
-    let lastWeekPci = 0;
+    let ccLastWeekPci = 0;
     for(const week of sortedWeeks) {
       if (parseInt(week.slice(1)) >= snapshotWeek) break;
       const prevWeekNum = parseInt(week.slice(1)) - 1;
@@ -504,14 +504,14 @@ export const runCcWisePlan = ({
       const producedPrev = producedData[prevWeekKey] || 0;
       const demandCurrent = weeklyDemand[week] || 0;
       
-      const currentPci = lastWeekPci + producedPrev - demandCurrent;
-      lastWeekPci = currentPci;
+      const currentPci = ccLastWeekPci + producedPrev - demandCurrent;
+      ccLastWeekPci = currentPci;
     }
-    ccOpeningInventory = lastWeekPci;
+    ccOpeningInventory = ccLastWeekPci;
 
 
     // 4. Run CC-level planning
-    const { runs: trackerData, plan: planData } = runTentativePlanForHorizon(snapshotWeek, null, weeklyDemand, ordersForCc[0], ccOpeningInventory);
+    const { runs: trackerData, plan: planData } = runTentativePlanForHorizon(snapshotWeek, null, weeklyDemand, ordersForCc[0], ccOpeningInventory, producedData);
 
     // 5. Prepare model-wise data structures
     const newModelData: Record<string, ModelPlanData> = {};
@@ -615,7 +615,7 @@ export const runCcWisePlan = ({
 
     // 9. Calculate final CC-level FGCI
     const fgciData: Record<string, number> = {};
-    let ccLastWeekPci = 0;
+    let lastWeekPci = 0;
     for (const week of sortedWeeks) {
         const weekNum = parseInt(week.replace('W',''));
         const prevWeek = `W${weekNum-1}`;
@@ -624,9 +624,9 @@ export const runCcWisePlan = ({
         const planPrev = planData[prevWeek] || 0;
         const demandThisWeek = weeklyDemand[week] || 0;
         
-        const currentPci = ccLastWeekPci + producedPrev + planPrev - demandThisWeek;
+        const currentPci = lastWeekPci + producedPrev + planPrev - demandThisWeek;
         fgciData[week] = currentPci;
-        ccLastWeekPci = currentPci;
+        lastWeekPci = currentPci;
     }
 
     return {
@@ -646,6 +646,7 @@ export const runTentativePlanForHorizon = (
     weeklyDemand: Record<string, number>,
     order: Order,
     initialInventory: number = 0,
+    producedData: Record<string, number> = {}
 ): { runs: TrackerRun[]; plan: Record<string, number> } => {
     const allDemandWeeks = Object.keys(weeklyDemand).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
     
@@ -658,7 +659,7 @@ export const runTentativePlanForHorizon = (
     while (lastRunEndWeek < (endWeek || 52)) {
         const nextDemandWeekStr = allDemandWeeks.find(w => {
             const weekNum = parseInt(w.slice(1));
-            return weekNum >= lastRunEndWeek && (weeklyDemand[w] || 0) > 0;
+            return weekNum > lastRunEndWeek && (weeklyDemand[w] || 0) > 0;
         });
 
         if (!nextDemandWeekStr) break;
@@ -689,13 +690,23 @@ export const runTentativePlanForHorizon = (
         const runStartNum = parseInt(currentRun.startWeek.slice(1));
         const runEndNum = parseInt(currentRun.endWeek.slice(1));
         
-        let grossDemandForRun = 0;
+        let minProjectedInventory = inventory;
+        let lastWeekInventory = inventory;
+
         for (let w = runStartNum; w <= runEndNum; w++) {
-            grossDemandForRun += weeklyDemand[`W${w}`] || 0;
+            const weekKey = `W${w}`;
+            const prevWeekKey = `W${w-1}`;
+            const supplyPrevWeek = (producedData[prevWeekKey] || 0) + (finalPlan[prevWeekKey] || 0);
+            const demandThisWeek = weeklyDemand[weekKey] || 0;
+            
+            const currentWeekInventory = lastWeekInventory + supplyPrevWeek - demandThisWeek;
+            if (currentWeekInventory < minProjectedInventory) {
+                minProjectedInventory = currentWeekInventory;
+            }
+            lastWeekInventory = currentWeekInventory;
         }
 
-        const netQuantityForRun = Math.max(0, grossDemandForRun - inventory);
-        inventory = Math.max(0, inventory - grossDemandForRun);
+        const netQuantityForRun = Math.max(0, -minProjectedInventory);
 
         if (netQuantityForRun > 0) {
              const obData: SewingOperation[] = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
