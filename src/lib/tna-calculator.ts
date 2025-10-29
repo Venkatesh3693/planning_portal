@@ -626,7 +626,7 @@ export const runCcWisePlan = ({
 
     // 9. Calculate final CC-level FGCI
     const fgciData: Record<string, number> = {};
-    let lastWeekPci = 0;
+    let lastPci = 0;
     for (const week of sortedWeeks) {
         const weekNum = parseInt(week.replace('W',''));
         const prevWeek = `W${weekNum-1}`;
@@ -635,9 +635,9 @@ export const runCcWisePlan = ({
         const planPrev = planData[prevWeek] || 0;
         const demandThisWeek = weeklyDemand[week] || 0;
         
-        const currentPci = lastWeekPci + producedPrev - planPrev - demandThisWeek;
+        const currentPci = lastPci + producedPrev + planPrev - demandThisWeek;
         fgciData[week] = currentPci;
-        lastWeekPci = currentPci;
+        lastPci = currentPci;
     }
 
     return {
@@ -668,6 +668,7 @@ export const runTentativePlanForHorizon = (
     const firstPoFcWeek = parseInt(firstPoFcWeekStr.slice(1));
     const earliestProductionStartWeek = firstPoFcWeek - 3;
     
+    // Ghost plan to determine ideal start week
     const ghostPlanResult = runSingleScenarioPlan(earliestProductionStartWeek - 1, null, weeklyDemand, order, 0, {}, false, 1);
     const firstGhostPlanWeekStr = Object.keys(ghostPlanResult.plan).find(w => ghostPlanResult.plan[w] > 0);
     const baselineProductionStartWeek = firstGhostPlanWeekStr ? parseInt(firstGhostPlanWeekStr.slice(1)) : firstPoFcWeek;
@@ -675,8 +676,7 @@ export const runTentativePlanForHorizon = (
     let finalRuns: TrackerRun[] = [];
     let finalPlan: Record<string, number> = {};
     
-    // Scenario A: "On-Time" Planning
-    if (simulationStartDate <= earliestProductionStartWeek) {
+    if (simulationStartDate < baselineProductionStartWeek) { // Caters to Scenario A & B
         let keepLooping = true;
         let numberOfLines = 1;
         let finalOffset = 0;
@@ -698,33 +698,8 @@ export const runTentativePlanForHorizon = (
             }
             if (numberOfLines > 100) keepLooping = false; // Safety break
         }
-    } 
-    // Scenario B: "Intermediate" Planning
-    else if (simulationStartDate > earliestProductionStartWeek && simulationStartDate < baselineProductionStartWeek) {
-        let keepLooping = true;
-        let numberOfLines = 1;
-        let finalOffset = 0;
-        
-        while(keepLooping) {
-            const { minFgci, maxWeeklyOutput } = calculateMinFgciForScenario(simulationStartDate, endWeek, weeklyDemand, order, initialInventory, producedData, numberOfLines);
-            if (maxWeeklyOutput <= 0) { keepLooping = false; break; }
-
-            const requiredOffset = Math.ceil(Math.abs(Math.min(0, minFgci)) / maxWeeklyOutput);
-            finalOffset = requiredOffset; // Update offset in loop
-
-            if (requiredOffset <= 3) {
-                const { runs, plan } = runSingleScenarioPlan(simulationStartDate, endWeek, weeklyDemand, order, initialInventory, producedData, true, numberOfLines, finalOffset);
-                finalRuns = runs;
-                finalPlan = plan;
-                keepLooping = false;
-            } else {
-                numberOfLines++;
-            }
-            if (numberOfLines > 100) keepLooping = false; // Safety break
-        }
     }
-    // Scenario C: "Late" Planning
-    else {
+    else { // Scenario C: "Late" Planning
         let keepLooping = true;
         let numberOfLines = 1;
         while(keepLooping) {
@@ -758,6 +733,8 @@ const calculateMinFgciForScenario = (
     if (!obData || obData.length === 0) return { minFgci: 0, maxWeeklyOutput: 0 };
     
     const totalSam = obData.reduce((sum, op) => sum + op.sam, 0);
+    if (totalSam <= 0) return { minFgci: 0, maxWeeklyOutput: 0 };
+
     const totalTailors = obData.reduce((sum, op) => sum + op.operators, 0);
     const budgetedEfficiency = order.budgetedEfficiency || 85;
     const maxWeeklyOutput = (WORK_DAY_MINUTES * 6 * totalTailors * lines * (budgetedEfficiency / 100)) / totalSam;
@@ -766,11 +743,12 @@ const calculateMinFgciForScenario = (
     
     const { plan } = runSingleScenarioPlan(simulationStartDate, endWeek, weeklyDemand, order, initialInventory, producedData, false, lines, 0);
     
-    const allWeeks = Object.keys(weeklyDemand).concat(Object.keys(plan)).map(w => parseInt(w.slice(1)));
+    const allWeeks = [...new Set(Object.keys(weeklyDemand).concat(Object.keys(plan), Object.keys(producedData)))].map(w => parseInt(w.slice(1)));
+
     if (allWeeks.length === 0) return { minFgci: initialInventory, maxWeeklyOutput };
 
     const minWeek = Math.min(...allWeeks);
-    const maxWeek = Math.max(...allWeeks);
+    const maxWeek = Math.max(...allWeeks, endWeek || 0);
     
     let lastWeekInventory = initialInventory;
     let minFgci = initialInventory;
@@ -783,7 +761,9 @@ const calculateMinFgciForScenario = (
         const demandThisWeek = weeklyDemand[weekKey] || 0;
         
         const currentInventory = lastWeekInventory + supplyFromPrev - demandThisWeek;
-        minFgci = Math.min(minFgci, currentInventory);
+        if(w >= simulationStartDate) {
+            minFgci = Math.min(minFgci, currentInventory);
+        }
         lastWeekInventory = currentInventory;
     }
     
@@ -808,6 +788,8 @@ const runSingleScenarioPlan = (
     if (!obData || obData.length === 0) return { runs: [], plan: {}, inventory: {} };
 
     const totalSam = obData.reduce((sum, op) => sum + op.sam, 0);
+    if (totalSam <= 0) return { runs: [], plan: {}, inventory: {} };
+    
     const totalTailors = obData.reduce((sum, op) => sum + op.operators, 0);
     const budgetedEfficiency = order.budgetedEfficiency || 85;
     const maxWeeklyOutput = (WORK_DAY_MINUTES * 6 * totalTailors * lines * (budgetedEfficiency / 100)) / totalSam;
@@ -854,7 +836,9 @@ const runSingleScenarioPlan = (
             const demandThisWeek = weeklyDemand[weekKey] || 0;
             
             tempInventory = tempInventory + supplyPrevWeek - demandThisWeek;
-            minProjectedInventory = Math.min(minProjectedInventory, tempInventory);
+            if(w >= simulationStartDate) {
+               minProjectedInventory = Math.min(minProjectedInventory, tempInventory);
+            }
         }
         const runNetDemand = Math.max(0, -minProjectedInventory);
         
@@ -862,9 +846,9 @@ const runSingleScenarioPlan = (
             let planStartWeekNum = runDemandStartWeek;
             let offset = 0;
             if(useOffsetLogic) {
-                const requiredOffset = offsetOverride ?? Math.ceil(runNetDemand / maxWeeklyOutput);
-                planStartWeekNum = runDemandStartWeek - 1 - requiredOffset;
-                offset = requiredOffset;
+                offset = offsetOverride ?? Math.ceil(runNetDemand / maxWeeklyOutput);
+                planStartWeekNum = Math.max(simulationStartDate, runDemandStartWeek - 1 - offset);
+                offset = runDemandStartWeek - 1 - planStartWeekNum;
             } else {
                 planStartWeekNum = Math.max(simulationStartDate, runDemandStartWeek);
             }
