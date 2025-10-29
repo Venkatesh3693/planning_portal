@@ -675,20 +675,21 @@ export const runTentativePlanForHorizon = (
     let finalRuns: TrackerRun[] = [];
     let finalPlan: Record<string, number> = {};
     
-    // Scenario A: On-Time Planning
+    // Scenario A: "On-Time" Planning
     if (simulationStartDate <= earliestProductionStartWeek) {
         let keepLooping = true;
         let numberOfLines = 1;
+        let finalOffset = 0;
+        
         while(keepLooping) {
             const { minFgci, maxWeeklyOutput } = calculateMinFgciForScenario(simulationStartDate, endWeek, weeklyDemand, order, initialInventory, producedData, numberOfLines);
-            if (maxWeeklyOutput <= 0) {
-              keepLooping = false;
-              break;
-            }
+            if (maxWeeklyOutput <= 0) { keepLooping = false; break; }
+            
             const requiredOffset = Math.ceil(Math.abs(Math.min(0, minFgci)) / maxWeeklyOutput);
+            finalOffset = requiredOffset; // Update offset in loop
 
             if (requiredOffset <= 3) {
-                const { runs, plan } = runSingleScenarioPlan(simulationStartDate, endWeek, weeklyDemand, order, initialInventory, producedData, true, numberOfLines);
+                const { runs, plan } = runSingleScenarioPlan(simulationStartDate, endWeek, weeklyDemand, order, initialInventory, producedData, true, numberOfLines, finalOffset);
                 finalRuns = runs;
                 finalPlan = plan;
                 keepLooping = false;
@@ -698,34 +699,31 @@ export const runTentativePlanForHorizon = (
             if (numberOfLines > 100) keepLooping = false; // Safety break
         }
     } 
-    // Scenario B: Intermediate Planning
+    // Scenario B: "Intermediate" Planning
     else if (simulationStartDate > earliestProductionStartWeek && simulationStartDate < baselineProductionStartWeek) {
         let keepLooping = true;
         let numberOfLines = 1;
+        let finalOffset = 0;
+        
         while(keepLooping) {
             const { minFgci, maxWeeklyOutput } = calculateMinFgciForScenario(simulationStartDate, endWeek, weeklyDemand, order, initialInventory, producedData, numberOfLines);
-            if (maxWeeklyOutput <= 0) {
-              keepLooping = false;
-              break;
-            }
-            const idealOffset = Math.ceil(Math.abs(Math.min(0, minFgci)) / maxWeeklyOutput);
-            
-            const idealStartDate = firstPoFcWeek - idealOffset;
-            const achievableStartDate = Math.max(idealStartDate, simulationStartDate);
-            const lostOffset = Math.abs(idealStartDate - achievableStartDate);
+            if (maxWeeklyOutput <= 0) { keepLooping = false; break; }
 
-            if (lostOffset > 0 || idealOffset > 3) {
-                 numberOfLines++;
-            } else {
-                 const { runs, plan } = runSingleScenarioPlan(simulationStartDate, endWeek, weeklyDemand, order, initialInventory, producedData, true, numberOfLines);
+            const requiredOffset = Math.ceil(Math.abs(Math.min(0, minFgci)) / maxWeeklyOutput);
+            finalOffset = requiredOffset; // Update offset in loop
+
+            if (requiredOffset <= 3) {
+                const { runs, plan } = runSingleScenarioPlan(simulationStartDate, endWeek, weeklyDemand, order, initialInventory, producedData, true, numberOfLines, finalOffset);
                 finalRuns = runs;
                 finalPlan = plan;
                 keepLooping = false;
+            } else {
+                numberOfLines++;
             }
             if (numberOfLines > 100) keepLooping = false; // Safety break
         }
     }
-    // Scenario C: Late Planning
+    // Scenario C: "Late" Planning
     else {
         let keepLooping = true;
         let numberOfLines = 1;
@@ -733,7 +731,7 @@ export const runTentativePlanForHorizon = (
             const { minFgci } = calculateMinFgciForScenario(simulationStartDate, endWeek, weeklyDemand, order, initialInventory, producedData, numberOfLines);
             
             if (minFgci >= 0) {
-                const { runs, plan } = runSingleScenarioPlan(simulationStartDate, endWeek, weeklyDemand, order, initialInventory, producedData, false, numberOfLines);
+                const { runs, plan } = runSingleScenarioPlan(simulationStartDate, endWeek, weeklyDemand, order, initialInventory, producedData, false, numberOfLines, 0);
                 finalRuns = runs;
                 finalPlan = plan;
                 keepLooping = false;
@@ -766,7 +764,7 @@ const calculateMinFgciForScenario = (
 
     if (maxWeeklyOutput <= 0) return { minFgci: 0, maxWeeklyOutput: 0 };
     
-    const { plan } = runSingleScenarioPlan(simulationStartDate, endWeek, weeklyDemand, order, initialInventory, producedData, false, lines);
+    const { plan } = runSingleScenarioPlan(simulationStartDate, endWeek, weeklyDemand, order, initialInventory, producedData, false, lines, 0);
     
     const allWeeks = Object.keys(weeklyDemand).concat(Object.keys(plan)).map(w => parseInt(w.slice(1)));
     if (allWeeks.length === 0) return { minFgci: initialInventory, maxWeeklyOutput };
@@ -802,6 +800,7 @@ const runSingleScenarioPlan = (
     producedData: Record<string, number> = {},
     useOffsetLogic: boolean,
     lines: number,
+    offsetOverride?: number,
 ): { runs: TrackerRun[]; plan: Record<string, number>; inventory: any } => {
     const allDemandWeeks = Object.keys(weeklyDemand).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
     
@@ -845,7 +844,6 @@ const runSingleScenarioPlan = (
             if (zeroDemandStreak >= 4) break;
         }
 
-        let runNetDemand = 0;
         let minProjectedInventory = lastWeekInventory;
         
         let tempInventory = lastWeekInventory;
@@ -858,15 +856,15 @@ const runSingleScenarioPlan = (
             tempInventory = tempInventory + supplyPrevWeek - demandThisWeek;
             minProjectedInventory = Math.min(minProjectedInventory, tempInventory);
         }
-        runNetDemand = Math.max(0, -minProjectedInventory);
+        const runNetDemand = Math.max(0, -minProjectedInventory);
         
         if (runNetDemand > 0) {
             let planStartWeekNum = runDemandStartWeek;
             let offset = 0;
             if(useOffsetLogic) {
-                const requiredOffset = Math.ceil(runNetDemand / maxWeeklyOutput);
-                planStartWeekNum = Math.max(simulationStartDate, runDemandStartWeek - requiredOffset);
-                offset = runDemandStartWeek - planStartWeekNum;
+                const requiredOffset = offsetOverride ?? Math.ceil(runNetDemand / maxWeeklyOutput);
+                planStartWeekNum = runDemandStartWeek - 1 - requiredOffset;
+                offset = requiredOffset;
             } else {
                 planStartWeekNum = Math.max(simulationStartDate, runDemandStartWeek);
             }
