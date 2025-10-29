@@ -445,11 +445,11 @@ const calculateModelFgci = (
         const weekNum = parseInt(week.replace('W',''));
         const prevWeek = `W${weekNum-1}`;
         
-        const producedPrevWeek = produced[prevWeek] || 0;
-        const planPrevWeek = plan[prevWeek] || 0;
+        const producedThisWeek = produced[week] || 0;
+        const planThisWeek = plan[week] || 0;
         const demandThisWeek = demand[week] || 0;
         
-        const currentPci = lastWeekPci + producedPrevWeek + planPrevWeek - demandThisWeek;
+        const currentPci = lastWeekPci + producedThisWeek + planThisWeek - demandThisWeek;
 
         fgci[week] = currentPci;
         lastWeekPci = currentPci;
@@ -629,13 +629,13 @@ export const runCcWisePlan = ({
     let lastPci = 0;
     for (const week of sortedWeeks) {
         const weekNum = parseInt(week.replace('W',''));
-        const prevWeek = `W${weekNum-1}`;
-
-        const producedPrev = producedData[prevWeek] || 0;
-        const planPrev = planData[prevWeek] || 0;
+        const prevWeekKey = `W${weekNum-1}`;
+        
+        const producedPrevWeek = producedData[prevWeekKey] || 0;
+        const planPrevWeek = planData[prevWeekKey] || 0;
         const demandThisWeek = weeklyDemand[week] || 0;
         
-        const currentPci = lastPci + producedPrev + planPrev - demandThisWeek;
+        const currentPci = lastPci + producedPrevWeek + planPrevWeek - demandThisWeek;
         fgciData[week] = currentPci;
         lastPci = currentPci;
     }
@@ -664,7 +664,7 @@ export const runTentativePlanForHorizon = (
 
     const firstPoFcWeekStr = allDemandWeeks.find(w => (weeklyDemand[w] || 0) > 0);
     if (!firstPoFcWeekStr) return { runs: [], plan: {} };
-    
+
     const firstPoFcWeek = parseInt(firstPoFcWeekStr.slice(1));
     const earliestProductionStartWeek = firstPoFcWeek - 3;
     
@@ -675,21 +675,22 @@ export const runTentativePlanForHorizon = (
 
     let finalRuns: TrackerRun[] = [];
     let finalPlan: Record<string, number> = {};
-    
-    if (simulationStartDate < baselineProductionStartWeek) { // Caters to Scenario A & B
+
+    // Scenario A & B: On-Time or Intermediate Planning
+    if (simulationStartDate < baselineProductionStartWeek) {
         let keepLooping = true;
         let numberOfLines = 1;
-        let finalOffset = 0;
         
         while(keepLooping) {
             const { minFgci, maxWeeklyOutput } = calculateMinFgciForScenario(simulationStartDate, endWeek, weeklyDemand, order, initialInventory, producedData, numberOfLines);
             if (maxWeeklyOutput <= 0) { keepLooping = false; break; }
             
             const requiredOffset = Math.ceil(Math.abs(Math.min(0, minFgci)) / maxWeeklyOutput);
-            finalOffset = requiredOffset; // Update offset in loop
-
+            
             if (requiredOffset <= 3) {
-                const { runs, plan } = runSingleScenarioPlan(simulationStartDate, endWeek, weeklyDemand, order, initialInventory, producedData, true, numberOfLines, finalOffset);
+                const finalStartWeek = Math.max(simulationStartDate, firstPoFcWeek - 1 - requiredOffset);
+                const finalOffset = firstPoFcWeek - 1 - finalStartWeek;
+                const { runs, plan } = runSingleScenarioPlan(finalStartWeek, endWeek, weeklyDemand, order, initialInventory, producedData, true, numberOfLines, finalOffset);
                 finalRuns = runs;
                 finalPlan = plan;
                 keepLooping = false;
@@ -699,7 +700,8 @@ export const runTentativePlanForHorizon = (
             if (numberOfLines > 100) keepLooping = false; // Safety break
         }
     }
-    else { // Scenario C: "Late" Planning
+    // Scenario C: Late Planning
+    else {
         let keepLooping = true;
         let numberOfLines = 1;
         while(keepLooping) {
@@ -747,7 +749,7 @@ const calculateMinFgciForScenario = (
 
     if (allWeeks.length === 0) return { minFgci: initialInventory, maxWeeklyOutput };
 
-    const minWeek = Math.min(...allWeeks);
+    const minWeek = Math.min(...allWeeks, simulationStartDate);
     const maxWeek = Math.max(...allWeeks, endWeek || 0);
     
     let lastWeekInventory = initialInventory;
@@ -762,7 +764,7 @@ const calculateMinFgciForScenario = (
         
         const currentInventory = lastWeekInventory + supplyFromPrev - demandThisWeek;
         if(w >= simulationStartDate) {
-            minFgci = Math.min(minFgci, currentInventory);
+           minFgci = Math.min(minFgci, currentInventory);
         }
         lastWeekInventory = currentInventory;
     }
