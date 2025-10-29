@@ -641,7 +641,7 @@ export const runCcWisePlan = ({
 };
 
 export const runTentativePlanForHorizon = (
-    startWeek: number,
+    simulationStartDate: number,
     endWeek: number | null,
     weeklyDemand: Record<string, number>,
     order: Order,
@@ -654,7 +654,7 @@ export const runTentativePlanForHorizon = (
     let finalRuns: TrackerRun[] = [];
     let finalPlan: Record<string, number> = {};
     let runCounter = 1;
-    let lastRunEndWeek = startWeek - 1;
+    let lastRunEndWeek = simulationStartDate - 1;
 
     while (lastRunEndWeek < (endWeek || 52)) {
         const nextDemandWeekStr = allDemandWeeks.find(w => {
@@ -719,59 +719,92 @@ export const runTentativePlanForHorizon = (
              let numberOfLines = 1;
              let keepLooping = true;
 
-             while (keepLooping) {
-                 const maxWeeklyOutput = (WORK_DAY_MINUTES * 6 * totalTailors * numberOfLines * (budgetedEfficiency / 100)) / totalSam;
+            const idealMaxWeeklyOutput = (WORK_DAY_MINUTES * 6 * totalTailors * 1 * (budgetedEfficiency / 100)) / totalSam;
+            const idealWeeksToProduce = Math.ceil(netQuantityForRun / idealMaxWeeklyOutput);
+            const idealOffset = Math.ceil(Math.abs(Math.min(0, minProjectedInventory)) / idealMaxWeeklyOutput);
+            const initialProposedStartWeek = runStartNum - idealOffset;
 
-                 let openingInventoryForSim = 0;
-                 let minClosingInventory = 0;
+            if (initialProposedStartWeek < simulationStartDate) {
+                // Iterative line calculation for late planning
+                while(keepLooping) {
+                    const maxWeeklyOutput = (WORK_DAY_MINUTES * 6 * totalTailors * numberOfLines * (budgetedEfficiency / 100)) / totalSam;
+                    
+                    let openingInventoryForSim = initialInventory;
+                    let minClosingInventory = initialInventory;
+                    let tempPlan: Record<string, number> = {};
+                    let remainingQtyForRun = netQuantityForRun;
 
-                 for (let w = runStartNum; w <= runEndNum; w++) {
+                    for (let w = simulationStartDate; w <= runEndNum; w++) {
+                        const weekKey = `W${w}`;
+                        const supplyThisWeek = Math.min(remainingQtyForRun, maxWeeklyOutput);
+                        tempPlan[weekKey] = (tempPlan[weekKey] || 0) + supplyThisWeek;
+                        remainingQtyForRun -= supplyThisWeek;
+                        
+                        const closingInventory = openingInventoryForSim + (tempPlan[weekKey] || 0) - (weeklyDemand[weekKey] || 0);
+
+                        if(closingInventory < minClosingInventory) {
+                            minClosingInventory = closingInventory;
+                        }
+                        openingInventoryForSim = closingInventory;
+                        if(remainingQtyForRun <= 0) break;
+                    }
+
+                    if (minClosingInventory >= 0) {
+                        const weeksToProduce = Math.ceil(netQuantityForRun / maxWeeklyOutput);
+                        const finalEndWeekNum = simulationStartDate + weeksToProduce -1;
+
+                        const currentRunData: TrackerRun = {
+                            runNumber: runCounter++,
+                            startWeek: `W${simulationStartDate}`,
+                            endWeek: `W${finalEndWeekNum}`,
+                            lines: numberOfLines,
+                            offset: 0,
+                            quantity: Math.round(netQuantityForRun),
+                        };
+                        finalRuns.push(currentRunData);
+
+                        let remainingQty = netQuantityForRun;
+                        for (let w = simulationStartDate; w <= finalEndWeekNum; w++) {
+                            const weekKey = `W${w}`;
+                            const planQty = Math.min(remainingQty, maxWeeklyOutput);
+                            finalPlan[weekKey] = (finalPlan[weekKey] || 0) + Math.round(planQty);
+                            remainingQty -= planQty;
+                        }
+
+                        inventory += netQuantityForRun;
+                        keepLooping = false;
+                    } else {
+                        numberOfLines++;
+                    }
+                    if(numberOfLines > 100) keepLooping = false; // Safety break
+                }
+            } else {
+                // Original logic for when offset is possible
+                 const maxWeeklyOutput = (WORK_DAY_MINUTES * 6 * totalTailors * 1 * (budgetedEfficiency / 100)) / totalSam;
+                 const trueRequiredOffset = Math.ceil(Math.abs(Math.min(0, minProjectedInventory)) / maxWeeklyOutput);
+                 const finalStartWeekNum = runStartNum - trueRequiredOffset;
+                 const finalOffset = runStartNum - finalStartWeekNum;
+                 const weeksToProduce = Math.ceil(netQuantityForRun / maxWeeklyOutput);
+                 const finalEndWeekNum = finalStartWeekNum + weeksToProduce - 1;
+
+                 const currentRunData: TrackerRun = {
+                     runNumber: runCounter++,
+                     startWeek: `W${finalStartWeekNum}`,
+                     endWeek: `W${finalEndWeekNum}`,
+                     lines: 1,
+                     offset: finalOffset,
+                     quantity: Math.round(netQuantityForRun),
+                 };
+                 finalRuns.push(currentRunData);
+                 
+                 let remainingQty = netQuantityForRun;
+                 for (let w = finalStartWeekNum; w <= finalEndWeekNum; w++) {
                      const weekKey = `W${w}`;
-                     const poFc = weeklyDemand[weekKey] || 0;
-                     const supplyFromPreviousWeek = (w === runStartNum) ? 0 : maxWeeklyOutput;
-                     const closingInventory = openingInventoryForSim + supplyFromPreviousWeek - poFc;
-
-                     if (closingInventory < minClosingInventory) {
-                         minClosingInventory = closingInventory;
-                     }
-                     openingInventoryForSim = closingInventory;
+                     const planQty = Math.min(remainingQty, maxWeeklyOutput);
+                     finalPlan[weekKey] = (finalPlan[weekKey] || 0) + Math.round(planQty);
+                     remainingQty -= planQty;
                  }
-                 
-                 const trueRequiredOffset = Math.ceil(Math.abs(Math.min(0, minClosingInventory)) / maxWeeklyOutput);
-                 
-                 if (trueRequiredOffset <= 4) {
-                     const initialProposedStartWeek = runStartNum - trueRequiredOffset;
-                     const finalStartWeekNum = Math.max(initialProposedStartWeek, startWeek);
-                     const finalOffset = runStartNum - finalStartWeekNum;
-
-                     const weeksToProduce = Math.ceil(netQuantityForRun / maxWeeklyOutput);
-                     const finalEndWeekNum = finalStartWeekNum + weeksToProduce - 1;
-
-                     const currentRunData: TrackerRun = {
-                         runNumber: runCounter++,
-                         startWeek: `W${finalStartWeekNum}`,
-                         endWeek: `W${finalEndWeekNum}`,
-                         lines: numberOfLines,
-                         offset: finalOffset,
-                         quantity: Math.round(netQuantityForRun),
-                     };
-                     finalRuns.push(currentRunData);
-                     
-                     let remainingQty = netQuantityForRun;
-                     for (let w = finalStartWeekNum; w <= finalEndWeekNum; w++) {
-                         const weekKey = `W${w}`;
-                         const planQty = Math.min(remainingQty, maxWeeklyOutput);
-                         finalPlan[weekKey] = (finalPlan[weekKey] || 0) + Math.round(planQty);
-                         remainingQty -= planQty;
-                     }
-
-                     inventory += netQuantityForRun;
-                     keepLooping = false;
-                 } else {
-                     numberOfLines++;
-                 }
-
-                 if (numberOfLines > 100) keepLooping = false;
+                 inventory += netQuantityForRun;
              }
         }
         lastRunEndWeek = runEndNum;
