@@ -1,6 +1,6 @@
 
 
-import type { Order, Process, TnaProcess, RampUpEntry, ScheduledProcess, SewingOperation, Size } from './types';
+import type { Order, Process, TnaProcess, RampUpEntry, ScheduledProcess, SewingOperation, Size, FcComposition, FcSnapshot } from './types';
 import { WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE, SIZES } from './data';
 import { addDays, subDays, getDay, format, startOfDay, differenceInMinutes, isBefore, isAfter } from 'date-fns';
 import { calculateStartDateTime, subBusinessDays } from './utils';
@@ -593,7 +593,12 @@ export const runCcWisePlan = ({
     // 8. Set final model data and calculate FGCI for all models
     ordersForCc.forEach(order => {
         newModelData[order.id].plan = modelPlanAllocation[order.id];
-        const finalFgci = calculateModelFgci(order.id, sortedWeeks, newModelData[order.id].poFc, newModelData[order.id].plan, newModelData[order.id].produced);
+        const finalFgci = calculateModelFgci(
+            sortedWeeks, 
+            newModelData[order.id].poFc, 
+            newModelData[order.id].plan, 
+            newModelData[order.id].produced
+        );
         newModelData[order.id].fgci = finalFgci;
     });
 
@@ -749,4 +754,3 @@ export const runTentativePlanForHorizon = (
     return { runs: finalRuns, plan: finalPlan };
 };
     
-
