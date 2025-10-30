@@ -73,7 +73,7 @@ const ModelWisePlanTable = ({ planResult }: { planResult: any }) => {
                                         <React.Fragment key={modelName}>
                                             {metrics.map((metric, metricIndex) => (
                                                  <TableRow key={`${modelName}-${metric.name}`} className={modelIndex > 0 && metricIndex === 0 ? 'border-t-4 border-border' : ''}>
-                                                    <TableCell className={cn("sticky left-0 z-10 font-medium", metricIndex > 0 ? 'bg-muted/50' : 'bg-background')}>
+                                                    <TableCell className={cn("sticky left-0 z-10 font-medium", metricIndex > 0 ? 'bg-muted' : 'bg-background')}>
                                                         {metricIndex === 0 ? (
                                                           <div className='font-semibold'>{modelName}</div>
                                                         ) : (
@@ -89,7 +89,7 @@ const ModelWisePlanTable = ({ planResult }: { planResult: any }) => {
                                                           }
                                                         </TableCell>
                                                     ))}
-                                                     <TableCell className={cn("sticky right-0 z-10 text-center font-bold", metricIndex > 0 ? 'bg-muted/50' : 'bg-background', metric.name === 'FG OI' && (metric.total || 0) < 0 && 'text-destructive')}>
+                                                     <TableCell className={cn("sticky right-0 z-10 text-center font-bold", metricIndex > 0 ? 'bg-muted' : 'bg-background', metric.name === 'FG OI' && (metric.total || 0) < 0 && 'text-destructive')}>
                                                         {metric.isMin ? Math.round(metric.total).toLocaleString() : metric.total.toLocaleString()}
                                                     </TableCell>
                                                  </TableRow>
