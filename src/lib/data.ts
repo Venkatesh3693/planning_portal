@@ -468,7 +468,7 @@ export const ORDERS: Order[] = [
         }
     },
     {
-        id: 'DMI-114227-Purple',
+        id: '114227-Purple',
         ocn: '114227',
         buyer: 'DMI',
         style: 'Padded Jacket',
@@ -502,7 +502,7 @@ export const ORDERS: Order[] = [
         bom: paddedJacketBom,
     },
     {
-        id: 'DMI-114227-Green',
+        id: '114227-Green',
         ocn: '114227',
         buyer: 'DMI',
         style: 'Padded Jacket',

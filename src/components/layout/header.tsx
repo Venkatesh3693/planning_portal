@@ -73,21 +73,26 @@ export function Header({
                 </Link>
 
                 {appMode === 'gut' && (
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      <span>Demand</span>
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuPortal>
-                      <DropdownMenuSubContent>
-                        <Link href="/demand-analysis">
-                          <DropdownMenuItem>Demand Analysis</DropdownMenuItem>
-                        </Link>
-                        <Link href="/size-wise-demand">
-                          <DropdownMenuItem>Size-wise Demand</DropdownMenuItem>
-                        </Link>
-                      </DropdownMenuSubContent>
-                    </DropdownMenuPortal>
-                  </DropdownMenuSub>
+                  <>
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <span>Demand</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuPortal>
+                        <DropdownMenuSubContent>
+                          <Link href="/demand-analysis">
+                            <DropdownMenuItem>Demand Analysis</DropdownMenuItem>
+                          </Link>
+                          <Link href="/size-wise-demand">
+                            <DropdownMenuItem>Size-wise Demand</DropdownMenuItem>
+                          </Link>
+                        </DropdownMenuSubContent>
+                      </DropdownMenuPortal>
+                    </DropdownMenuSub>
+                    <Link href="/cc-plan">
+                      <DropdownMenuItem>CC Plan</DropdownMenuItem>
+                    </Link>
+                  </>
                 )}
 
               </DropdownMenuContent>
