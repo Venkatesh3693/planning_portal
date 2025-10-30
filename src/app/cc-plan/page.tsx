@@ -31,7 +31,7 @@ type ModelPlanQuantities = {
     plan: Record<string, number>;
 };
 
-const allocateProduction = (
+const initialAllocation = (
     mainPlan: CcWisePlanResult,
     modelDemands: Record<string, Record<string, number>>,
     allWeeks: string[]
@@ -105,13 +105,94 @@ const allocateProduction = (
     return modelQuantities;
 };
 
+const correctAllocationForNegativeFgoi = (
+    initialQuantities: Record<string, ModelPlanQuantities>,
+    modelDemands: Record<string, Record<string, number>>,
+    allWeeks: string[]
+): Record<string, ModelPlanQuantities> => {
+    const correctedQuantities = JSON.parse(JSON.stringify(initialQuantities));
+    const modelNames = Object.keys(modelDemands);
+
+    for (const week of allWeeks) {
+        // Calculate FG OI for all models based on the current state of correctedQuantities
+        const fgoiState: Record<string, Record<string, number>> = {};
+        modelNames.forEach(name => {
+            fgoiState[name] = calculateFgoiForSingleScenario(
+                allWeeks,
+                modelDemands[name],
+                correctedQuantities[name].plan,
+                correctedQuantities[name].produced,
+                0
+            );
+        });
+
+        // Check for any negative FG OI in the current week
+        const deficits: Record<string, number> = {};
+        let totalDeficit = 0;
+        modelNames.forEach(name => {
+            const fgoi = fgoiState[name][week] || 0;
+            if (fgoi < 0) {
+                deficits[name] = -fgoi;
+                totalDeficit += -fgoi;
+            }
+        });
+
+        if (totalDeficit <= 0) continue; // No correction needed for this week
+
+        // Find the model that originally received an allocation
+        let sourceModel: string | null = null;
+        let sourceType: 'produced' | 'plan' | null = null;
+
+        for (const name of modelNames) {
+            if ((correctedQuantities[name].produced[week] || 0) > 0) {
+                sourceModel = name;
+                sourceType = 'produced';
+                break;
+            }
+            if ((correctedQuantities[name].plan[week] || 0) > 0) {
+                sourceModel = name;
+                sourceType = 'plan';
+                break;
+            }
+        }
+        
+        if (sourceModel && sourceType) {
+            const availableToRedistribute = correctedQuantities[sourceModel][sourceType][week] || 0;
+            const quantityToMove = Math.min(totalDeficit, availableToRedistribute);
+
+            // Deduct from the source model
+            correctedQuantities[sourceModel][sourceType][week] -= quantityToMove;
+
+            // Distribute to models with deficits
+            let movedAmount = 0;
+            Object.entries(deficits).forEach(([deficitModel, amount]) => {
+                const share = Math.min(amount, quantityToMove - movedAmount);
+                if (share > 0) {
+                    correctedQuantities[deficitModel][sourceType!][week] = (correctedQuantities[deficitModel][sourceType!][week] || 0) + share;
+                    movedAmount += share;
+                }
+            });
+
+            // If there's any remainder due to rounding or availability, give it back to the source
+            if(movedAmount < quantityToMove) {
+                 correctedQuantities[sourceModel][sourceType][week] += (quantityToMove - movedAmount);
+            }
+        }
+    }
+
+    return correctedQuantities;
+};
+
+
 const ModelWisePlanTable = ({ planResult }: { planResult: any }) => {
     const { allWeeks, modelWiseDemand } = planResult;
     const modelNames = Object.keys(modelWiseDemand || {});
     
     const modelProduction = useMemo(() => {
         if (!planResult || !modelWiseDemand) return {};
-        return allocateProduction(planResult, modelWiseDemand, allWeeks);
+        const initialPlan = initialAllocation(planResult, modelWiseDemand, allWeeks);
+        const correctedPlan = correctAllocationForNegativeFgoi(initialPlan, modelWiseDemand, allWeeks);
+        return correctedPlan;
     }, [planResult, modelWiseDemand, allWeeks]);
 
 
@@ -382,3 +463,5 @@ export default function CcPlanPage() {
         </Suspense>
     );
 }
+
+    
