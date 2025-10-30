@@ -70,11 +70,11 @@ export default function CcPlanTable({ planResult }: CcPlanTableProps) {
                             <TableRow>
                                 <TableCell className="sticky left-0 z-10 bg-muted font-medium">Produced Qty</TableCell>
                                 {weekHeaders.map(week => (
-                                    <TableCell key={week} className="text-center">
+                                    <TableCell key={week} className="text-center text-green-600 font-semibold">
                                         {(producedData[week] || 0) > 0 ? (producedData[week] || 0).toLocaleString() : '-'}
                                     </TableCell>
                                 ))}
-                                <TableCell className="sticky right-0 z-10 bg-muted text-center font-bold">
+                                <TableCell className="sticky right-0 z-10 bg-muted text-center font-bold text-green-600">
                                     {(producedQtyTotal || 0).toLocaleString()}
                                 </TableCell>
                             </TableRow>
