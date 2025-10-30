@@ -434,7 +434,7 @@ type CcProdPlannerArgs = {
     producedData: Record<string, number>;
 };
 
-const calculateFgoiForSingleScenario = (
+export const calculateFgoiForSingleScenario = (
     weeks: string[],
     demand: Record<string, number>,
     plan: Record<string, number>,
@@ -614,4 +614,3 @@ export const CcProdPlanner = ({
         lines: finalLines,
     };
 };
-

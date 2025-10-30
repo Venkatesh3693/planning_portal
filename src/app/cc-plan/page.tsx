@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import type { Order } from '@/lib/types';
 import CcPlanTable from '@/components/cc-plan/plan-table';
+import ModelPlanTable from '@/components/cc-plan/model-plan-table';
 import { CcProdPlanner } from '@/lib/tna-calculator';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -84,6 +85,31 @@ function CcPlanPageContent() {
             producedData: {}, // Passing empty for now as per logic
         });
     }, [selectedCc, selectedSnapshotWeek, ordersForCc]);
+
+    const modelWiseData = useMemo(() => {
+        if (!planData || !selectedSnapshotWeek) return [];
+        
+        const models = ordersForCc.reduce((acc, order) => {
+            const model = order.modelNo || 'Unknown';
+            if (!acc[model]) {
+                acc[model] = {
+                    name: String(model),
+                    weeklyDemand: {}
+                };
+            }
+
+            const snapshot = order.fcVsFcDetails?.find(s => s.snapshotWeek === selectedSnapshotWeek);
+            if (snapshot) {
+                Object.entries(snapshot.forecasts).forEach(([week, data]) => {
+                    acc[model].weeklyDemand[week] = (acc[model].weeklyDemand[week] || 0) + ((data.total?.po || 0) + (data.total?.fc || 0));
+                });
+            }
+            return acc;
+        }, {} as Record<string, { name: string; weeklyDemand: Record<string, number> }>);
+
+        return Object.values(models);
+
+    }, [planData, ordersForCc, selectedSnapshotWeek]);
 
     if (appMode === 'gup') {
         return (
@@ -184,9 +210,25 @@ function CcPlanPageContent() {
                     </Card>
                 )}
                 
-                <div className="overflow-x-auto">
+                <div className="space-y-8 overflow-x-auto">
                     {selectedCc && selectedSnapshotWeek !== null && planData ? (
-                        <CcPlanTable planResult={planData} />
+                        <>
+                            <CcPlanTable planResult={planData} />
+
+                            {modelWiseData.length > 0 && (
+                                <div>
+                                    <h2 className="text-xl font-bold mb-4">Model-wise Plan</h2>
+                                    {modelWiseData.map(modelData => (
+                                        <ModelPlanTable 
+                                            key={modelData.name}
+                                            modelName={modelData.name}
+                                            weeklyDemand={modelData.weeklyDemand}
+                                            allWeeks={planData.allWeeks}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </>
                     ) : (
                          <div className="h-48 flex items-center justify-center text-center text-muted-foreground border rounded-lg">
                             <p>{selectedCc ? "Select a snapshot week to view the plan." : "Please select a CC to view the plan."}</p>
