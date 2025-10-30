@@ -6,7 +6,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, Dispa
 import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem, Size, FcComposition, FcSnapshot, SyntheticPoRecord, CutOrderRecord, SizeBreakdown, ProjectionRow } from '@/lib/types';
 import { ORDERS as staticOrders, PROCESSES, ORDER_COLORS, SIZES } from '@/lib/data';
 import { addDays, startOfToday, isAfter, getWeek } from 'date-fns';
-import { getProcessBatchSize, getPackingBatchSize, runTentativePlanForHorizon } from '@/lib/tna-calculator';
+import { getProcessBatchSize, getPackingBatchSize } from '@/lib/tna-calculator';
 
 const STORE_KEY = 'stitchplan_schedule_v4';
 const FIRM_PO_WINDOW = 3;
@@ -138,53 +138,9 @@ const calculateProjectionTotalsForOrder = (order: Order): { totalProjectionQty: 
     if (!order || order.orderType !== 'Forecasted' || !order.fcVsFcDetails || order.fcVsFcDetails.length === 0) {
         return { totalProjectionQty: 0, totalFrcQty: 0 };
     }
-
-    const firstSnapshot = order.fcVsFcDetails.reduce((earliest, current) => 
-        earliest.snapshotWeek < current.snapshotWeek ? earliest : current
-    );
-
-    const weeklyTotals: Record<string, number> = {};
-    Object.entries(firstSnapshot.forecasts).forEach(([week, data]) => {
-        weeklyTotals[week] = (data.total?.po || 0) + (data.total?.fc || 0);
-    });
-
-    const { plan } = runTentativePlanForHorizon(firstSnapshot.snapshotWeek, null, weeklyTotals, order, 0);
-    
-    const planWeeks = Object.keys(plan).map(w => parseInt(w.slice(1))).sort((a, b) => a - b);
-    const firstProductionWeek = planWeeks.find(w => plan[`W${w}`] > 0);
-
-    if (!firstProductionWeek) return { totalProjectionQty: 0, totalFrcQty: 0 };
-
-    const firstCkWeek = firstProductionWeek - 1;
-    
-    const projectionBomItems = (order.bom || []).filter(item => item.forecastType === 'Projection');
-    const maxPrjLeadTimeWeeks = Math.ceil(Math.max(...projectionBomItems.map(item => item.leadTime), 0) / 7);
-
-    const firstProjectionWeek = firstCkWeek - maxPrjLeadTimeWeeks;
-
-    let totalProjectionQty = 0;
-    let currentProjectionWeek = firstProjectionWeek;
-    
-    while (currentProjectionWeek < 52) {
-        const currentCkWeek = currentProjectionWeek + maxPrjLeadTimeWeeks;
-        const coverageStart = currentCkWeek + 1;
-        const coverageEnd = currentCkWeek + 4;
-        
-        let projectionQty = 0;
-        for (let w = coverageStart; w <= coverageEnd; w++) {
-            projectionQty += plan[`W${w}`] || 0;
-        }
-        
-        projectionQty = Math.round(projectionQty);
-        totalProjectionQty += projectionQty;
-
-        const hasMorePlan = Object.keys(plan).some(w => parseInt(w.slice(1)) > coverageEnd && plan[w] > 0);
-        if (!hasMorePlan) break;
-
-        currentProjectionWeek += 4;
-    }
-    // For now, total FRC is the same as total projection
-    return { totalProjectionQty, totalFrcQty: totalProjectionQty };
+    // This function's logic is removed as requested by the user.
+    // It will be replaced with a more advanced planner later.
+    return { totalProjectionQty: 0, totalFrcQty: 0 };
 }
 
 

@@ -19,7 +19,6 @@ import { useSchedule } from '@/context/schedule-provider';
 import { getWeek } from 'date-fns';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { runTentativePlanForHorizon } from '@/lib/tna-calculator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 function NewProjectionForm({ orderId }: { orderId: string }) {
@@ -77,16 +76,15 @@ function NewProjectionForm({ orderId }: { orderId: string }) {
         const snapshotForProjectionWeek = order.fcVsFcDetails.find(s => s.snapshotWeek === selectedProjectionWeek);
         if (!snapshotForProjectionWeek) return 0;
 
-        const weeklyTotals: Record<string, number> = {};
-        Object.entries(snapshotForProjectionWeek.forecasts).forEach(([week, data]) => {
-            weeklyTotals[week] = (data.total?.po || 0) + (data.total?.fc || 0);
-        });
-
-        const { plan } = runTentativePlanForHorizon(selectedProjectionWeek, null, weeklyTotals, order, 0);
-
+        // This part of the logic has been simplified because runTentativePlanForHorizon was removed.
+        // A more advanced calculation will be added later.
         let totalQty = 0;
         for (let w = coverageStartWeek; w <= coverageEndWeek; w++) {
-            totalQty += plan[`W${w}`] || 0;
+            const weekKey = `W${w}`;
+            const weekData = snapshotForProjectionWeek.forecasts[weekKey];
+            if(weekData) {
+                 totalQty += (weekData.total?.po || 0) + (weekData.total?.fc || 0);
+            }
         }
 
         return Math.round(totalQty);

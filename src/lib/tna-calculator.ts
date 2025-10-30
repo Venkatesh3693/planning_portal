@@ -445,7 +445,6 @@ const calculateFgciForSingleScenario = (
     let lastWeekInventory = openingInventory;
 
     for (const week of weeks) {
-        const prevWeekKey = `W${parseInt(week.slice(1)) - 1}`;
         const producedThisWeek = produced[week] || 0;
         const planThisWeek = plan[week] || 0;
         const demandThisWeek = demand[week] || 0;
@@ -456,68 +455,6 @@ const calculateFgciForSingleScenario = (
         lastWeekInventory = currentInventory;
     }
     return fgci;
-};
-
-
-export const runTentativePlanForHorizon = (
-  snapshotWeek: number,
-  producedQty: Record<string, number> | null,
-  weeklyDemand: Record<string, number>,
-  order: Order,
-  lines: number = 1,
-): { plan: Record<string, number>, fgci: Record<string, number> } => {
-    const plan: Record<string, number> = {};
-    const fgci: Record<string, number> = {};
-    const produced = producedQty || {};
-    
-    const obData: SewingOperation[] = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
-    const totalSam = obData.reduce((sum, op) => sum + op.sam, 0);
-
-    const calculateMaxWeeklyOutput = (numLines: number) => {
-        if (totalSam <= 0) return 0;
-        const totalTailors = obData.reduce((sum, op) => sum + op.operators, 0);
-        const budgetedEfficiency = order.budgetedEfficiency || 85;
-        return (WORK_DAY_MINUTES * 6 * totalTailors * numLines * (budgetedEfficiency / 100)) / totalSam;
-    };
-
-    const maxWeeklyOutput = calculateMaxWeeklyOutput(lines);
-
-    const allWeeks = Object.keys(weeklyDemand)
-        .map(w => parseInt(w.slice(1)))
-        .sort((a,b) => a - b);
-    
-    if (allWeeks.length === 0) return { plan, fgci };
-    
-    const firstDemandWeek = allWeeks.find(w => weeklyDemand[`W${w}`] > 0) || allWeeks[0];
-    const lastDemandWeek = allWeeks[allWeeks.length - 1];
-
-    let inventory = 0;
-    
-    for (let w = firstDemandWeek - 10; w <= lastDemandWeek + 10; w++) {
-        const weekKey = `W${w}`;
-        const prevWeekKey = `W${w - 1}`;
-        const demand = weeklyDemand[weekKey] || 0;
-        const producedThisWeek = produced[weekKey] || 0;
-
-        const prevInventory = fgci[prevWeekKey] || 0;
-        const prevPlan = plan[prevWeekKey] || 0;
-        const prevProduced = produced[prevWeekKey] || 0;
-        
-        inventory = prevInventory + prevProduced + prevPlan - (weeklyDemand[prevWeekKey] || 0);
-
-        let planQty = 0;
-        if (w >= snapshotWeek) {
-            const required = demand - inventory;
-            if (required > 0) {
-                planQty = Math.min(required, maxWeeklyOutput);
-            }
-        }
-        
-        plan[weekKey] = Math.round(planQty);
-        fgci[weekKey] = Math.round(inventory + producedThisWeek + planQty - demand);
-    }
-    
-    return { plan, fgci };
 };
 
 export const CcProdPlanner = ({
@@ -571,36 +508,35 @@ export const CcProdPlanner = ({
         return plan;
     };
 
-    const totalProducedQty = Object.values(initialProducedData).reduce((sum, qty) => sum + qty, 0);
-    const totalDemandToProduce = totalPoFcQty - totalProducedQty;
-    
     let finalPlan: Record<string, number> = {};
     let finalProduced: Record<string, number> = { ...initialProducedData };
     let finalLines = 1;
     let finalOffset = 0;
     let finalProdStartWeek = firstPoFcWeek - 1;
 
-    // This logic must run for all scenarios to determine the baseline start week and lines
     let lines = 1;
-    while(true) {
+    while (true) {
         const capacity = getMaxWeeklyOutput(lines);
         if (capacity <= 0) break;
+
+        const totalProducedQty = Object.values(initialProducedData).reduce((sum, qty) => sum + qty, 0);
+        const totalDemandToProduce = totalPoFcQty - totalProducedQty;
         
-        let tempStartWeek = firstPoFcWeek - 1;
-        const tempPlan = distributePlan(totalDemandToProduce, tempStartWeek, capacity);
-        const allWeeksForSim = [...new Set([...Object.keys(weeklyDemand), ...Object.keys(tempPlan)])].sort((a,b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
+        const tempPlan = distributePlan(totalDemandToProduce, finalProdStartWeek, capacity);
+
+        const allWeeksForSim = [...new Set([...Object.keys(weeklyDemand), ...Object.keys(tempPlan)])]
+            .sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
+
         const tempFgci = calculateFgciForSingleScenario(allWeeksForSim, weeklyDemand, tempPlan, {}, 0);
         const minFgOi = Math.min(0, ...Object.values(tempFgci));
+        
+        let newStartWeek = finalProdStartWeek;
+        let offset = 0;
 
-        if (minFgOi >= 0) {
-             finalProdStartWeek = tempStartWeek;
-             finalLines = lines;
-             finalOffset = 0;
-             break;
+        if (minFgOi < 0) {
+            offset = Math.ceil(Math.abs(minFgOi) / capacity);
+            newStartWeek = finalProdStartWeek - offset;
         }
-
-        const offset = Math.ceil(Math.abs(minFgOi) / capacity);
-        const newStartWeek = tempStartWeek - offset;
 
         if (newStartWeek >= earliestProductionStartWeek) {
             finalProdStartWeek = newStartWeek;
@@ -610,13 +546,15 @@ export const CcProdPlanner = ({
         } else {
             lines++;
         }
+
         if (lines > 20) break; // Safety break
     }
 
 
     if (snapshotWeek <= finalProdStartWeek) {
         const capacity = getMaxWeeklyOutput(finalLines);
-        finalPlan = distributePlan(totalDemandToProduce, finalProdStartWeek, capacity);
+        const totalToProduce = totalPoFcQty - Object.values(initialProducedData).reduce((s, q) => s + q, 0);
+        finalPlan = distributePlan(totalToProduce, finalProdStartWeek, capacity);
     } else { // Snapshot week is after determined production start
         // 1. Simulate what should have been produced
         const idealCapacity = getMaxWeeklyOutput(finalLines);

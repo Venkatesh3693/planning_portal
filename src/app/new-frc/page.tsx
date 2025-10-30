@@ -19,7 +19,6 @@ import { ArrowLeft } from 'lucide-react';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { runTentativePlanForHorizon } from '@/lib/tna-calculator';
 import type { ProjectionRow, Size, Order, SizeBreakdown } from '@/lib/types';
 import { getWeek } from 'date-fns';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell, TableFooter as TableFoot } from '@/components/ui/table';
@@ -62,74 +61,10 @@ function NewFrcForm({ orderId }: { orderId: string }) {
             return;
         }
 
-        const firstSnapshot = order.fcVsFcDetails.reduce((earliest, current) => 
-            earliest.snapshotWeek < current.snapshotWeek ? earliest : current
-        );
-
-        const weeklyTotals: Record<string, number> = {};
-        Object.entries(firstSnapshot.forecasts).forEach(([week, data]) => {
-            weeklyTotals[week] = (data.total?.po || 0) + (data.total?.fc || 0);
-        });
-
-        const { plan } = runTentativePlanForHorizon(firstSnapshot.snapshotWeek, null, weeklyTotals, order, 0);
+        // Logic to calculate projections is removed as runTentativePlanForHorizon is deprecated.
+        // This will be replaced by a more advanced planner.
+        setProjections([]);
         
-        const planWeeks = Object.keys(plan).map(w => parseInt(w.slice(1))).sort((a, b) => a - b);
-        const firstProductionWeek = planWeeks.find(w => plan[`W${w}`] > 0);
-
-        if (!firstProductionWeek) {
-            setProjections([]);
-            return;
-        }
-
-        const firstCkWeek = firstProductionWeek - 1;
-        const projectionBomItems = (order.bom || []).filter(item => item.forecastType === 'Projection');
-        const maxPrjLeadTimeWeeks = Math.ceil(Math.max(...projectionBomItems.map(item => item.leadTime), 0) / 7);
-        const firstProjectionWeek = firstCkWeek - maxPrjLeadTimeWeeks;
-
-        const calculatedProjections: ProjectionRow[] = [];
-        let currentProjectionWeek = firstProjectionWeek;
-        let projectionIndex = 1;
-
-        while (currentProjectionWeek < 52) {
-            const currentCkWeek = currentProjectionWeek + maxPrjLeadTimeWeeks;
-            const coverageStart = currentCkWeek + 1;
-            const coverageEnd = currentCkWeek + 4;
-            
-            let projectionQty = 0;
-            for (let w = coverageStart; w <= coverageEnd; w++) {
-                projectionQty += plan[`W${w}`] || 0;
-            }
-            
-            projectionQty = Math.round(projectionQty);
-
-            if (projectionQty > 0) {
-                calculatedProjections.push({
-                    prjNumber: `PRJ-${order.ocn}-${projectionIndex.toString().padStart(2, '0')}`,
-                    prjWeek: `W${currentProjectionWeek}`,
-                    prjCoverage: `W${coverageStart}-W${coverageEnd}`,
-                    ckWeek: `W${currentCkWeek}`,
-                    prjQty: projectionQty,
-                    frcNumber: '',
-                    frcWeek: '',
-                    frcCoverage: '',
-                    frcQty: 0,
-                    cutOrderQty: 0,
-                    cutOrderPending: 0
-                });
-            }
-
-            projectionIndex++;
-            const hasMorePlan = Object.keys(plan).some(w => parseInt(w.slice(1)) > coverageEnd && plan[w] > 0);
-            if (!hasMorePlan || currentProjectionWeek > 52) break;
-
-            currentProjectionWeek += 4;
-        }
-
-        setProjections(calculatedProjections);
-        if (calculatedProjections.length > 0) {
-            setSelectedPrjNumber(calculatedProjections[0].prjNumber);
-        }
-
     }, [order]);
     
     const selectedProjection = useMemo(() => {
