@@ -96,11 +96,6 @@ export function Header({
                   </DropdownMenuSubTrigger>
                   <DropdownMenuPortal>
                     <DropdownMenuSubContent>
-                      {appMode === 'gut' && (
-                        <Link href="/tentative-plan">
-                          <DropdownMenuItem>Tentative plan</DropdownMenuItem>
-                        </Link>
-                      )}
                       <Link href="/plan-log">
                         <DropdownMenuItem>Plan Log</DropdownMenuItem>
                       </Link>
