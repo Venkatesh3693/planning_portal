@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useMemo, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useSchedule } from '@/context/schedule-provider';
 import { Header } from '@/components/layout/header';
@@ -15,16 +15,18 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import type { Order } from '@/lib/types';
+import CcPlanTable from '@/components/cc-plan/plan-table';
 
 
 function CcPlanPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const selectedCc = searchParams.get('cc');
+    const [selectedSnapshotWeek, setSelectedSnapshotWeek] = useState<number | null>(null);
+
     const { orders, isScheduleLoaded, appMode } = useSchedule();
     
     const ccOptions = useMemo(() => {
@@ -35,13 +37,39 @@ function CcPlanPageContent() {
                 ccSet.add(o.ocn);
             }
         });
-        return Array.from(ccSet);
+        return Array.from(ccSet).sort();
     }, [orders, isScheduleLoaded]);
 
     const ordersForCc = useMemo(() => {
         if (!selectedCc) return [];
         return orders.filter(o => o.ocn === selectedCc && o.orderType === 'Forecasted');
     }, [selectedCc, orders]);
+
+    const snapshotOptions = useMemo(() => {
+        if (ordersForCc.length === 0) return [];
+        const weekSet = new Set<number>();
+        ordersForCc.forEach(order => {
+            order.fcVsFcDetails?.forEach(snapshot => {
+                weekSet.add(snapshot.snapshotWeek);
+            });
+        });
+        return Array.from(weekSet).sort((a,b) => b-a); // descending
+    }, [ordersForCc]);
+    
+    useEffect(() => {
+        // Auto-select the latest snapshot when CC changes or options load
+        if (snapshotOptions.length > 0 && selectedSnapshotWeek === null) {
+            setSelectedSnapshotWeek(snapshotOptions[0]);
+        }
+         if (selectedCc && snapshotOptions.length > 0) {
+            const latestSnapshot = snapshotOptions[0];
+            if (selectedSnapshotWeek !== latestSnapshot) {
+                setSelectedSnapshotWeek(latestSnapshot);
+            }
+        } else {
+            setSelectedSnapshotWeek(null);
+        }
+    }, [selectedCc, snapshotOptions]);
 
     const handleCcChange = (cc: string) => {
         router.push(`/cc-plan?cc=${cc}`);
@@ -87,38 +115,51 @@ function CcPlanPageContent() {
                  <div className="flex justify-between items-center mb-4 flex-shrink-0">
                     <div>
                         <h1 className="text-2xl font-bold">CC Plan</h1>
-                         <div className="flex items-center gap-2 mt-2">
-                            <Label htmlFor="cc-select" className="text-muted-foreground">CC No:</Label>
-                             <Select value={selectedCc || ''} onValueChange={handleCcChange}>
-                                <SelectTrigger className="w-[250px]" id="cc-select">
-                                    <SelectValue placeholder="Select a CC" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {ccOptions.map(cc => (
-                                        <SelectItem key={cc} value={cc}>{cc}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                         <div className="flex items-center gap-4 mt-2">
+                            <div className="flex items-center gap-2">
+                                <Label htmlFor="cc-select" className="text-muted-foreground">CC No:</Label>
+                                 <Select value={selectedCc || ''} onValueChange={handleCcChange}>
+                                    <SelectTrigger className="w-[180px]" id="cc-select">
+                                        <SelectValue placeholder="Select a CC" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {ccOptions.map(cc => (
+                                            <SelectItem key={cc} value={cc}>{cc}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            {selectedCc && snapshotOptions.length > 0 && (
+                                <div className="flex items-center gap-2">
+                                    <Label htmlFor="snapshot-select" className="text-muted-foreground">Snapshot Week:</Label>
+                                     <Select 
+                                        value={selectedSnapshotWeek !== null ? String(selectedSnapshotWeek) : ''}
+                                        onValueChange={(val) => setSelectedSnapshotWeek(Number(val))}
+                                     >
+                                        <SelectTrigger className="w-[180px]" id="snapshot-select">
+                                            <SelectValue placeholder="Select a Snapshot" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {snapshotOptions.map(week => (
+                                                <SelectItem key={week} value={String(week)}>Week {week}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
                 
-                <div className="space-y-4">
-                    {selectedCc ? (
-                        ordersForCc.length > 0 ? (
-                           // The content for the CC Plan page will be built here based on the selected CC.
-                           <div className="p-8 text-center text-muted-foreground border rounded-lg">
-                                CC: {selectedCc}. <br/>
-                                {ordersForCc.length} model(s) found.
-                           </div>
-                        ) : (
-                             <div className="p-8 text-center text-muted-foreground border rounded-lg">
-                                No orders found for CC: {selectedCc}
-                           </div>
-                        )
+                <div className="flex-1 min-h-0">
+                    {selectedCc && selectedSnapshotWeek !== null ? (
+                        <CcPlanTable 
+                            ordersForCc={ordersForCc} 
+                            selectedSnapshotWeek={selectedSnapshotWeek}
+                        />
                     ) : (
-                         <div className="p-8 text-center text-muted-foreground border rounded-lg">
-                            Please select a CC to view the plan.
+                         <div className="h-full flex items-center justify-center text-center text-muted-foreground border rounded-lg">
+                            <p>Please select a CC to view the plan.</p>
                         </div>
                     )}
                 </div>
