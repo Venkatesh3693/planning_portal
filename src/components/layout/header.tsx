@@ -90,22 +90,6 @@ export function Header({
                   </DropdownMenuSub>
                 )}
 
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <span>Plan</span>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuPortal>
-                    <DropdownMenuSubContent>
-                      <Link href="/plan-log">
-                        <DropdownMenuItem>Plan Log</DropdownMenuItem>
-                      </Link>
-                       <Link href="/model-plan-log">
-                          <DropdownMenuItem>Model plan log</DropdownMenuItem>
-                      </Link>
-                    </DropdownMenuSubContent>
-                  </DropdownMenuPortal>
-                </DropdownMenuSub>
-
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
