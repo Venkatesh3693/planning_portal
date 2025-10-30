@@ -446,8 +446,10 @@ export const calculateFgoiForSingleScenario = (
     let lastWeekInventory = openingInventory;
 
     for (const week of weeks) {
-        const producedLastWeek = produced[week] || 0;
-        const planLastWeek = plan[week] || 0;
+        const weekNum = parseInt(week.slice(1));
+        const prevWeek = `W${weekNum - 1}`;
+        const producedLastWeek = produced[prevWeek] || 0;
+        const planLastWeek = plan[prevWeek] || 0;
         const demandThisWeek = demand[week] || 0;
         
         const currentInventory = lastWeekInventory + producedLastWeek + planLastWeek - demandThisWeek;
@@ -467,8 +469,8 @@ export const CcProdPlanner = ({
     const modelWiseDemand: Record<string, Record<string, number>> = {};
 
     const totalPoFcQty = ordersForCc.reduce((total, order) => {
-        if (!modelWiseDemand[order.style]) {
-            modelWiseDemand[order.style] = {};
+        if (!modelWiseDemand[order.color]) {
+            modelWiseDemand[order.color] = {};
         }
         const snapshot = order.fcVsFcDetails?.find(s => s.snapshotWeek === snapshotWeek);
         if (!snapshot) return total;
@@ -477,7 +479,7 @@ export const CcProdPlanner = ({
         Object.entries(snapshot.forecasts).forEach(([week, data]) => {
             const weekTotal = (data.total?.po || 0) + (data.total?.fc || 0);
             weeklyDemand[week] = (weeklyDemand[week] || 0) + weekTotal;
-            modelWiseDemand[order.style][week] = (modelWiseDemand[order.style][week] || 0) + weekTotal;
+            modelWiseDemand[order.color][week] = (modelWiseDemand[order.color][week] || 0) + weekTotal;
             orderTotal += weekTotal;
         });
         return total + orderTotal;
@@ -521,11 +523,12 @@ export const CcProdPlanner = ({
 
     let finalPlan: Record<string, number> = {};
     let finalProduced: Record<string, number> = { ...initialProducedData };
+    
+    let lines = 1;
     let finalLines = 1;
     let finalOffset = 0;
     let finalProdStartWeek = firstPoFcWeek - 1;
 
-    let lines = 1;
     while (true) {
         const capacity = getMaxWeeklyOutput(lines);
         if (capacity <= 0) break;
@@ -623,3 +626,4 @@ export const CcProdPlanner = ({
         modelWiseDemand,
     };
 };
+

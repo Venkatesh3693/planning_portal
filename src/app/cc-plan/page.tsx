@@ -41,7 +41,7 @@ const ModelWisePlanTable = ({ planResult }: { planResult: any }) => {
                         <Table className="whitespace-nowrap">
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead className="sticky left-0 z-20 bg-muted w-[120px]">Model</TableHead>
+                                    <TableHead className="sticky left-0 z-20 bg-muted w-[120px]">Color</TableHead>
                                     <TableHead className="sticky left-[120px] z-20 bg-muted w-[150px]">Metric</TableHead>
                                     {allWeeks.map((week: string) => (
                                         <TableHead key={week} className="text-center">{week}</TableHead>
@@ -53,7 +53,7 @@ const ModelWisePlanTable = ({ planResult }: { planResult: any }) => {
                                 {models.map((modelName, modelIndex) => (
                                     <React.Fragment key={modelName}>
                                         <TableRow className={modelIndex > 0 ? 'border-t-4 border-border' : ''}>
-                                            <TableCell rowSpan={4} className="sticky left-0 z-10 bg-background align-top font-semibold pt-6 border-b">{modelName}</TableCell>
+                                            <TableCell rowSpan={4} className="sticky left-0 z-10 bg-background align-top font-semibold pt-6 border-b w-[120px]">{modelName}</TableCell>
                                             <TableCell className="sticky left-[120px] z-10 bg-background font-medium border-b">PO + FC</TableCell>
                                             {allWeeks.map((week: string) => <TableCell key={`${week}-po`} className="text-center border-b">-</TableCell>)}
                                             <TableCell className="sticky right-0 z-10 bg-background text-center font-bold border-b">-</TableCell>
