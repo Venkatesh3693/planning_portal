@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import type { Order } from '@/lib/types';
 import CcPlanTable from '@/components/cc-plan/plan-table';
+import { CcProdPlanner } from '@/lib/tna-calculator';
 
 
 function CcPlanPageContent() {
@@ -57,11 +58,7 @@ function CcPlanPageContent() {
     }, [ordersForCc]);
     
     useEffect(() => {
-        // Auto-select the latest snapshot when CC changes or options load
-        if (snapshotOptions.length > 0 && selectedSnapshotWeek === null) {
-            setSelectedSnapshotWeek(snapshotOptions[0]);
-        }
-         if (selectedCc && snapshotOptions.length > 0) {
+        if (selectedCc && snapshotOptions.length > 0) {
             const latestSnapshot = snapshotOptions[0];
             if (selectedSnapshotWeek !== latestSnapshot) {
                 setSelectedSnapshotWeek(latestSnapshot);
@@ -74,6 +71,17 @@ function CcPlanPageContent() {
     const handleCcChange = (cc: string) => {
         router.push(`/cc-plan?cc=${cc}`);
     };
+
+    const planData = useMemo(() => {
+        if (!selectedCc || !selectedSnapshotWeek || ordersForCc.length === 0) {
+            return null;
+        }
+        return CcProdPlanner({
+            ordersForCc: ordersForCc,
+            snapshotWeek: selectedSnapshotWeek,
+            producedData: {}, // Passing empty for now as per logic
+        });
+    }, [selectedCc, selectedSnapshotWeek, ordersForCc]);
 
     if (appMode === 'gup') {
         return (
@@ -152,14 +160,11 @@ function CcPlanPageContent() {
                 </div>
                 
                 <div className="overflow-x-auto">
-                    {selectedCc && selectedSnapshotWeek !== null ? (
-                        <CcPlanTable 
-                            ordersForCc={ordersForCc} 
-                            selectedSnapshotWeek={selectedSnapshotWeek}
-                        />
+                    {selectedCc && selectedSnapshotWeek !== null && planData ? (
+                        <CcPlanTable planResult={planData} />
                     ) : (
                          <div className="h-48 flex items-center justify-center text-center text-muted-foreground border rounded-lg">
-                            <p>Please select a CC to view the plan.</p>
+                            <p>{selectedCc ? "Select a snapshot week to view the plan." : "Please select a CC to view the plan."}</p>
                         </div>
                     )}
                 </div>
