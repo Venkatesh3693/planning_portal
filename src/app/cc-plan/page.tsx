@@ -60,7 +60,7 @@ const ModelWisePlanTable = ({ models, allWeeks }: { models: { name: string; week
                                 return (
                                     <React.Fragment key={model.name}>
                                         <TableRow className={modelIndex > 0 ? 'border-t-4 border-border' : ''}>
-                                            <TableCell rowSpan={4} className="sticky left-0 z-10 bg-background align-top font-semibold pt-6 border-b">{model.name}</TableCell>
+                                            <TableCell rowSpan={4} className="sticky left-0 z-10 bg-background align-top font-semibold pt-6 border-b w-[120px]">{model.name}</TableCell>
                                             <TableCell className="sticky left-[120px] z-10 bg-background font-medium border-b">PO + FC</TableCell>
                                             {allWeeks.map(week => (
                                                 <TableCell key={week} className="text-center border-b">
