@@ -18,18 +18,104 @@ import {
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import type { Order } from '@/lib/types';
+import type { Order, Size } from '@/lib/types';
 import CcPlanTable from '@/components/cc-plan/plan-table';
 import { CcProdPlanner, calculateFgoiForSingleScenario } from '@/lib/tna-calculator';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { SIZES } from '@/lib/data';
+
+type ModelPlanQuantities = {
+    produced: Record<string, number>;
+    plan: Record<string, number>;
+};
+
+const allocateProduction = (
+    mainPlan: CcWisePlanResult,
+    modelDemands: Record<string, Record<string, number>>,
+    allWeeks: string[]
+): Record<string, ModelPlanQuantities> => {
+    const modelNames = Object.keys(modelDemands);
+    
+    // Initialize results
+    const modelQuantities: Record<string, ModelPlanQuantities> = {};
+    modelNames.forEach(name => {
+        modelQuantities[name] = { produced: {}, plan: {} };
+    });
+
+    const calculateAllModelFgoi = () => {
+        const allFgoi: Record<string, Record<string, number>> = {};
+        modelNames.forEach(name => {
+            const demand = modelDemands[name] || {};
+            const { produced, plan } = modelQuantities[name];
+            allFgoi[name] = calculateFgoiForSingleScenario(allWeeks, demand, plan, produced, 0);
+        });
+        return allFgoi;
+    };
+
+    const findWinningModel = (weekIndex: number, allModelFgoi: Record<string, Record<string, number>>): string | null => {
+        let potentialWinners = [...modelNames];
+        
+        for (let i = weekIndex; i < allWeeks.length; i++) {
+            const currentWeek = allWeeks[i];
+            
+            let lowestFgoi = Infinity;
+            potentialWinners.forEach(name => {
+                const fgoi = allModelFgoi[name][currentWeek] ?? 0;
+                if (fgoi < lowestFgoi) {
+                    lowestFgoi = fgoi;
+                }
+            });
+
+            const winners = potentialWinners.filter(name => (allModelFgoi[name][currentWeek] ?? 0) === lowestFgoi);
+
+            if (winners.length === 1) {
+                return winners[0];
+            }
+            potentialWinners = winners; // For the next iteration of tie-breaking
+        }
+        return potentialWinners.length > 0 ? potentialWinners[0] : null; // Default to first if tie persists
+    };
+
+
+    allWeeks.forEach((week, weekIndex) => {
+        const ccProducedQty = mainPlan.producedData[week] || 0;
+        const ccPlanQty = mainPlan.planData[week] || 0;
+
+        // Allocate Produced Qty
+        if (ccProducedQty > 0) {
+            const currentFgoiState = calculateAllModelFgoi();
+            const winner = findWinningModel(weekIndex, currentFgoiState);
+            if (winner) {
+                modelQuantities[winner].produced[week] = (modelQuantities[winner].produced[week] || 0) + ccProducedQty;
+            }
+        }
+        
+        // Allocate Plan Qty if no Produced Qty was allocated this week
+        else if (ccPlanQty > 0) {
+             const currentFgoiState = calculateAllModelFgoi();
+             const winner = findWinningModel(weekIndex, currentFgoiState);
+             if (winner) {
+                modelQuantities[winner].plan[week] = (modelQuantities[winner].plan[week] || 0) + ccPlanQty;
+            }
+        }
+    });
+
+    return modelQuantities;
+};
 
 const ModelWisePlanTable = ({ planResult }: { planResult: any }) => {
     const { allWeeks, modelWiseDemand } = planResult;
-    const models = Object.keys(modelWiseDemand || {});
+    const modelNames = Object.keys(modelWiseDemand || {});
+    
+    const modelProduction = useMemo(() => {
+        if (!planResult || !modelWiseDemand) return {};
+        return allocateProduction(planResult, modelWiseDemand, allWeeks);
+    }, [planResult, modelWiseDemand, allWeeks]);
 
-    if (!models || models.length === 0) {
+
+    if (!modelNames || modelNames.length === 0) {
         return null;
     }
 
@@ -50,12 +136,17 @@ const ModelWisePlanTable = ({ planResult }: { planResult: any }) => {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {models.map((modelName, modelIndex) => {
+                                {modelNames.map((modelName, modelIndex) => {
                                     const weeklyDemand = planResult.modelWiseDemand[modelName] || {};
                                     const poFcTotal = Object.values(weeklyDemand).reduce((sum: number, val: any) => sum + val, 0);
 
-                                    const producedQty: Record<string, number> = {};
-                                    const planQty: Record<string, number> = {};
+                                    const producedQty = modelProduction[modelName]?.produced || {};
+                                    const planQty = modelProduction[modelName]?.plan || {};
+                                    
+                                    const producedQtyTotal = Object.values(producedQty).reduce((sum: number, val: any) => sum + val, 0);
+                                    const planQtyTotal = Object.values(planQty).reduce((sum: number, val: any) => sum + val, 0);
+
+
                                     const fgoiData = calculateFgoiForSingleScenario(allWeeks, weeklyDemand, planQty, producedQty, 0);
                                     const fgOiMin = useMemo(() => {
                                         const fgoiValues = Object.values(fgoiData);
@@ -64,8 +155,8 @@ const ModelWisePlanTable = ({ planResult }: { planResult: any }) => {
                                     
                                     const metrics = [
                                         { name: 'PO + FC', data: weeklyDemand, total: poFcTotal },
-                                        { name: 'Produced Qty', data: {}, total: 0 },
-                                        { name: 'Plan Qty', data: {}, total: 0 },
+                                        { name: 'Produced Qty', data: producedQty, total: producedQtyTotal },
+                                        { name: 'Plan Qty', data: planQty, total: planQtyTotal },
                                         { name: 'FG OI', data: fgoiData, total: fgOiMin, isMin: true },
                                     ];
 
