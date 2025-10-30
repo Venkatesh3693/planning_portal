@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import type { Order } from '@/lib/types';
 import CcPlanTable from '@/components/cc-plan/plan-table';
-import { CcProdPlanner } from '@/lib/tna-calculator';
+import { CcProdPlanner, calculateFgoiForSingleScenario } from '@/lib/tna-calculator';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
@@ -32,7 +32,7 @@ const ModelWisePlanTable = ({ planResult }: { planResult: any }) => {
     if (!models || models.length === 0) {
         return null;
     }
-    
+
     return (
         <div className="mt-8">
             <h2 className="text-xl font-bold mb-4">Model-wise Plan</h2>
@@ -43,7 +43,7 @@ const ModelWisePlanTable = ({ planResult }: { planResult: any }) => {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead className="sticky left-0 z-20 bg-muted w-[120px]">Color</TableHead>
-                                    <TableHead className="sticky left-[120px] z-20 bg-muted w-[150px]">Metric</TableHead>
+                                    <TableHead className="sticky z-20 bg-muted w-[150px]">Metric</TableHead>
                                     {allWeeks.map((week: string) => (
                                         <TableHead key={week} className="text-center">{week}</TableHead>
                                     ))}
@@ -51,31 +51,50 @@ const ModelWisePlanTable = ({ planResult }: { planResult: any }) => {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {models.map((modelName, modelIndex) => (
-                                    <React.Fragment key={modelName}>
-                                        <TableRow className={modelIndex > 0 ? 'border-t-4 border-border' : ''}>
-                                            <TableCell rowSpan={4} className="sticky left-0 z-10 bg-background align-top font-semibold pt-6 border-b w-[120px]">{modelName}</TableCell>
-                                            <TableCell className="sticky left-[120px] z-10 bg-background font-medium border-b">PO + FC</TableCell>
-                                            {allWeeks.map((week: string) => <TableCell key={`${week}-po`} className="text-center border-b">-</TableCell>)}
-                                            <TableCell className="sticky right-0 z-10 bg-background text-center font-bold border-b">-</TableCell>
-                                        </TableRow>
-                                        <TableRow>
-                                            <TableCell className="sticky left-[120px] z-10 bg-muted/50 font-medium border-b">Produced Qty</TableCell>
-                                            {allWeeks.map((week: string) => <TableCell key={`${week}-prod`} className="text-center border-b">-</TableCell>)}
-                                            <TableCell className="sticky right-0 z-10 bg-muted/50 text-center font-bold border-b">-</TableCell>
-                                        </TableRow>
-                                        <TableRow>
-                                            <TableCell className="sticky left-[120px] z-10 bg-background font-medium border-b">Plan Qty</TableCell>
-                                            {allWeeks.map((week: string) => <TableCell key={`${week}-plan`} className="text-center border-b">-</TableCell>)}
-                                            <TableCell className="sticky right-0 z-10 bg-background text-center font-bold border-b">-</TableCell>
-                                        </TableRow>
-                                        <TableRow>
-                                            <TableCell className="sticky left-[120px] z-10 bg-muted/50 font-medium border-b">FG OI</TableCell>
-                                            {allWeeks.map((week: string) => <TableCell key={`${week}-fgoi`} className="text-center border-b">-</TableCell>)}
-                                            <TableCell className="sticky right-0 z-10 bg-muted/50 text-center font-bold border-b">-</TableCell>
-                                        </TableRow>
-                                    </React.Fragment>
-                                ))}
+                                {models.map((modelName, modelIndex) => {
+                                    const weeklyDemand = planResult.modelWiseDemand[modelName] || {};
+                                    const poFcTotal = Object.values(weeklyDemand).reduce((sum: number, val: any) => sum + val, 0);
+
+                                    const producedQty: Record<string, number> = {};
+                                    const planQty: Record<string, number> = {};
+                                    const fgoiData = calculateFgoiForSingleScenario(allWeeks, weeklyDemand, planQty, producedQty, 0);
+                                    const fgOiMin = useMemo(() => {
+                                        const fgoiValues = Object.values(fgoiData);
+                                        return fgoiValues.length > 0 ? Math.min(...fgoiValues) : 0;
+                                    }, [fgoiData]);
+
+                                    return (
+                                        <React.Fragment key={modelName}>
+                                            <TableRow className={modelIndex > 0 ? 'border-t-4 border-border' : ''}>
+                                                <TableCell rowSpan={4} className="sticky left-0 z-10 bg-background align-top font-semibold pt-6 border-b w-[120px]">{modelName}</TableCell>
+                                                <TableCell className="sticky z-10 bg-background font-medium border-b">PO + FC</TableCell>
+                                                {allWeeks.map((week: string) => <TableCell key={`${week}-po`} className="text-center border-b">{(weeklyDemand[week] || 0) > 0 ? weeklyDemand[week].toLocaleString() : '-'}</TableCell>)}
+                                                <TableCell className="sticky right-0 z-10 bg-background text-center font-bold border-b">{poFcTotal.toLocaleString()}</TableCell>
+                                            </TableRow>
+                                            <TableRow>
+                                                <TableCell className="sticky z-10 bg-muted/50 font-medium border-b">Produced Qty</TableCell>
+                                                {allWeeks.map((week: string) => <TableCell key={`${week}-prod`} className="text-center border-b">-</TableCell>)}
+                                                <TableCell className="sticky right-0 z-10 bg-muted/50 text-center font-bold border-b">-</TableCell>
+                                            </TableRow>
+                                            <TableRow>
+                                                <TableCell className="sticky z-10 bg-background font-medium border-b">Plan Qty</TableCell>
+                                                {allWeeks.map((week: string) => <TableCell key={`${week}-plan`} className="text-center border-b">-</TableCell>)}
+                                                <TableCell className="sticky right-0 z-10 bg-background text-center font-bold border-b">-</TableCell>
+                                            </TableRow>
+                                            <TableRow>
+                                                <TableCell className="sticky z-10 bg-muted/50 font-medium border-b">FG OI</TableCell>
+                                                {allWeeks.map((week: string) => (
+                                                    <TableCell key={`${week}-fgoi`} className={cn("text-center border-b font-semibold", (fgoiData[week] || 0) < 0 && 'text-destructive')}>
+                                                        {(fgoiData[week] !== undefined) ? Math.round(fgoiData[week]).toLocaleString() : '-'}
+                                                    </TableCell>
+                                                ))}
+                                                <TableCell className={cn("sticky right-0 z-10 bg-muted/50 text-center font-bold border-b", (fgOiMin || 0) < 0 && 'text-destructive')}>
+                                                    {Math.round(fgOiMin).toLocaleString()}
+                                                </TableCell>
+                                            </TableRow>
+                                        </React.Fragment>
+                                    );
+                                })}
                             </TableBody>
                         </Table>
                     </div>
