@@ -19,18 +19,18 @@ export default function CcPlanTable({ planResult }: CcPlanTableProps) {
         weeklyDemand: poFcData,
         producedData,
         planData,
-        fgciData,
+        fgoiData,
     } = planResult;
 
     const { poFcTotal, producedQtyTotal, planQtyTotal, fgOiMin } = useMemo(() => {
         const poFcTotal = Object.values(poFcData).reduce((sum, val) => sum + val, 0);
         const producedQtyTotal = Object.values(producedData).reduce((sum, val) => sum + val, 0);
         const planQtyTotal = Object.values(planData).reduce((sum, val) => sum + val, 0);
-        const fgOiValues = Object.values(fgciData);
-        const fgOiMin = fgOiValues.length > 0 ? Math.min(...fgOiValues) : 0;
+        const fgoiValues = Object.values(fgoiData);
+        const fgOiMin = fgoiValues.length > 0 ? Math.min(...fgoiValues) : 0;
         
         return { poFcTotal, producedQtyTotal, planQtyTotal, fgOiMin };
-    }, [poFcData, producedData, planData, fgciData]);
+    }, [poFcData, producedData, planData, fgoiData]);
 
 
     if (weekHeaders.length === 0) {
@@ -94,9 +94,9 @@ export default function CcPlanTable({ planResult }: CcPlanTableProps) {
                                 {weekHeaders.map(week => (
                                     <TableCell 
                                         key={week} 
-                                        className={cn("text-center font-semibold", (fgciData[week] || 0) < 0 && 'text-destructive')}
+                                        className={cn("text-center font-semibold", (fgoiData[week] || 0) < 0 && 'text-destructive')}
                                     >
-                                        {fgciData[week] !== undefined ? Math.round(fgciData[week]).toLocaleString() : '-'}
+                                        {fgoiData[week] !== undefined ? Math.round(fgoiData[week]).toLocaleString() : '-'}
                                     </TableCell>
                                 ))}
                                 <TableCell 
