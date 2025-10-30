@@ -627,3 +627,159 @@ export const CcProdPlanner = ({
     };
 };
 
+type ModelPlanQuantities = {
+    produced: Record<string, number>;
+    plan: Record<string, number>;
+};
+
+export const initialAllocation = (
+    mainPlan: CcWisePlanResult,
+    modelDemands: Record<string, Record<string, number>>,
+    allWeeks: string[]
+): Record<string, ModelPlanQuantities> => {
+    const modelNames = Object.keys(modelDemands);
+    
+    // Initialize results
+    const modelQuantities: Record<string, ModelPlanQuantities> = {};
+    modelNames.forEach(name => {
+        modelQuantities[name] = { produced: {}, plan: {} };
+    });
+
+    const calculateAllModelFgoi = () => {
+        const allFgoi: Record<string, Record<string, number>> = {};
+        modelNames.forEach(name => {
+            const demand = modelDemands[name] || {};
+            const { produced, plan } = modelQuantities[name];
+            allFgoi[name] = calculateFgoiForSingleScenario(allWeeks, demand, plan, produced, 0);
+        });
+        return allFgoi;
+    };
+
+    const findWinningModel = (weekIndex: number, allModelFgoi: Record<string, Record<string, number>>): string | null => {
+        let potentialWinners = [...modelNames];
+        
+        for (let i = weekIndex; i < allWeeks.length; i++) {
+            const currentWeek = allWeeks[i];
+            
+            let lowestFgoi = Infinity;
+            potentialWinners.forEach(name => {
+                const fgoi = allModelFgoi[name][currentWeek] ?? 0;
+                if (fgoi < lowestFgoi) {
+                    lowestFgoi = fgoi;
+                }
+            });
+
+            const winners = potentialWinners.filter(name => (allModelFgoi[name][currentWeek] ?? 0) === lowestFgoi);
+
+            if (winners.length === 1) {
+                return winners[0];
+            }
+            potentialWinners = winners; // For the next iteration of tie-breaking
+        }
+        return potentialWinners.length > 0 ? potentialWinners[0] : null; // Default to first if tie persists
+    };
+
+
+    allWeeks.forEach((week, weekIndex) => {
+        const ccProducedQty = mainPlan.producedData[week] || 0;
+        const ccPlanQty = mainPlan.planData[week] || 0;
+
+        // Allocate Produced Qty
+        if (ccProducedQty > 0) {
+            const currentFgoiState = calculateAllModelFgoi();
+            const winner = findWinningModel(weekIndex, currentFgoiState);
+            if (winner) {
+                modelQuantities[winner].produced[week] = (modelQuantities[winner].produced[week] || 0) + ccProducedQty;
+            }
+        }
+        
+        // Allocate Plan Qty if no Produced Qty was allocated this week
+        else if (ccPlanQty > 0) {
+             const currentFgoiState = calculateAllModelFgoi();
+             const winner = findWinningModel(weekIndex, currentFgoiState);
+             if (winner) {
+                modelQuantities[winner].plan[week] = (modelQuantities[winner].plan[week] || 0) + ccPlanQty;
+            }
+        }
+    });
+
+    return modelQuantities;
+};
+
+export const correctAllocationForNegativeFgoi = (
+    initialQuantities: Record<string, ModelPlanQuantities>,
+    modelDemands: Record<string, Record<string, number>>,
+    allWeeks: string[]
+): Record<string, ModelPlanQuantities> => {
+    const correctedQuantities = JSON.parse(JSON.stringify(initialQuantities));
+    const modelNames = Object.keys(modelDemands);
+
+    for (const week of allWeeks) {
+        // Calculate FG OI for all models based on the current state of correctedQuantities
+        const fgoiState: Record<string, Record<string, number>> = {};
+        modelNames.forEach(name => {
+            fgoiState[name] = calculateFgoiForSingleScenario(
+                allWeeks,
+                modelDemands[name],
+                correctedQuantities[name].plan,
+                correctedQuantities[name].produced,
+                0
+            );
+        });
+
+        // Check for any negative FG OI in the current week
+        const deficits: Record<string, number> = {};
+        let totalDeficit = 0;
+        modelNames.forEach(name => {
+            const fgoi = fgoiState[name][week] || 0;
+            if (fgoi < 0) {
+                deficits[name] = -fgoi;
+                totalDeficit += -fgoi;
+            }
+        });
+
+        if (totalDeficit <= 0) continue; // No correction needed for this week
+
+        // Find the model that originally received an allocation
+        let sourceModel: string | null = null;
+        let sourceType: 'produced' | 'plan' | null = null;
+
+        for (const name of modelNames) {
+            if ((correctedQuantities[name].produced[week] || 0) > 0) {
+                sourceModel = name;
+                sourceType = 'produced';
+                break;
+            }
+            if ((correctedQuantities[name].plan[week] || 0) > 0) {
+                sourceModel = name;
+                sourceType = 'plan';
+                break;
+            }
+        }
+        
+        if (sourceModel && sourceType) {
+            const availableToRedistribute = correctedQuantities[sourceModel][sourceType][week] || 0;
+            const quantityToMove = Math.min(totalDeficit, availableToRedistribute);
+
+            // Deduct from the source model
+            correctedQuantities[sourceModel][sourceType][week] -= quantityToMove;
+
+            // Distribute to models with deficits
+            let movedAmount = 0;
+            Object.entries(deficits).forEach(([deficitModel, amount]) => {
+                const share = Math.min(amount, quantityToMove - movedAmount);
+                if (share > 0) {
+                    correctedQuantities[deficitModel][sourceType!][week] = (correctedQuantities[deficitModel][sourceType!][week] || 0) + share;
+                    movedAmount += share;
+                }
+            });
+
+            // If there's any remainder due to rounding or availability, give it back to the source
+            if(movedAmount < quantityToMove) {
+                 correctedQuantities[sourceModel][sourceType][week] += (quantityToMove - movedAmount);
+            }
+        }
+    }
+
+    return correctedQuantities;
+};
