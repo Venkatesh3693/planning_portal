@@ -88,62 +88,64 @@ export default function CcPlanTable({ ordersForCc, selectedSnapshotWeek }: CcPla
 
     if (weekHeaders.length === 0) {
         return (
-            <div className="h-full flex items-center justify-center text-center text-muted-foreground border rounded-lg">
+            <div className="h-48 flex items-center justify-center text-center text-muted-foreground border rounded-lg">
                 <p>No forecast data available for this CC and Snapshot Week combination.</p>
             </div>
         );
     }
     
     return (
-        <Card className="h-full flex flex-col">
-            <CardContent className="p-0 flex-1 overflow-auto">
-                <Table className="whitespace-nowrap">
-                    <TableHeader className="sticky top-0 bg-muted/50 z-10">
-                        <TableRow>
-                            <TableHead className="sticky left-0 bg-muted/50 z-20 w-[150px]">Metric</TableHead>
+        <Card>
+            <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                    <Table className="whitespace-nowrap">
+                        <TableHeader>
+                            <TableRow className="bg-muted/50 hover:bg-muted/50">
+                                <TableHead className="sticky left-0 bg-muted/50 z-10 w-[150px]">Metric</TableHead>
+                                {weekHeaders.map(week => (
+                                    <TableHead key={week} className="text-center">{week}</TableHead>
+                                ))}
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            <TableRow>
+                                <TableCell className="sticky left-0 bg-background z-10 font-medium">PO + FC</TableCell>
+                                {weekHeaders.map(week => (
+                                    <TableCell key={week} className="text-center">
+                                        {(poFcData[week] || 0) > 0 ? (poFcData[week] || 0).toLocaleString() : '-'}
+                                    </TableCell>
+                                ))}
+                            </TableRow>
+                            <TableRow>
+                                <TableCell className="sticky left-0 bg-background z-10 font-medium">Produced Qty</TableCell>
+                                {weekHeaders.map(week => (
+                                    <TableCell key={week} className="text-center">
+                                        {(producedQtyData[week] || 0) > 0 ? (producedQtyData[week] || 0).toLocaleString() : '-'}
+                                    </TableCell>
+                                ))}
+                            </TableRow>
+                            <TableRow>
+                                <TableCell className="sticky left-0 bg-background z-10 font-medium">Plan Qty</TableCell>
                             {weekHeaders.map(week => (
-                                <TableHead key={week} className="text-center">{week}</TableHead>
-                            ))}
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        <TableRow>
-                            <TableCell className="sticky left-0 bg-background z-10 font-medium">PO + FC</TableCell>
-                            {weekHeaders.map(week => (
-                                <TableCell key={week} className="text-center">
-                                    {(poFcData[week] || 0) > 0 ? (poFcData[week] || 0).toLocaleString() : '-'}
-                                </TableCell>
-                            ))}
-                        </TableRow>
-                        <TableRow>
-                            <TableCell className="sticky left-0 bg-background z-10 font-medium">Produced Qty</TableCell>
-                            {weekHeaders.map(week => (
-                                <TableCell key={week} className="text-center">
-                                    {(producedQtyData[week] || 0) > 0 ? (producedQtyData[week] || 0).toLocaleString() : '-'}
-                                </TableCell>
-                            ))}
-                        </TableRow>
-                        <TableRow>
-                            <TableCell className="sticky left-0 bg-background z-10 font-medium">Plan Qty</TableCell>
-                           {weekHeaders.map(week => (
-                                <TableCell key={week} className="text-center">
-                                    {(planQtyData[week] || 0) > 0 ? (planQtyData[week] || 0).toLocaleString() : '-'}
-                                </TableCell>
-                            ))}
-                        </TableRow>
-                         <TableRow>
-                            <TableCell className="sticky left-0 bg-background z-10 font-medium">FG OI</TableCell>
-                            {weekHeaders.map(week => (
-                                <TableCell 
-                                    key={week} 
-                                    className={cn("text-center font-semibold", (fgOiData[week] || 0) < 0 && 'text-destructive')}
-                                >
-                                    {fgOiData[week] !== undefined ? Math.round(fgOiData[week]).toLocaleString() : '-'}
-                                </TableCell>
-                            ))}
-                        </TableRow>
-                    </TableBody>
-                </Table>
+                                    <TableCell key={week} className="text-center">
+                                        {(planQtyData[week] || 0) > 0 ? (planQtyData[week] || 0).toLocaleString() : '-'}
+                                    </TableCell>
+                                ))}
+                            </TableRow>
+                            <TableRow>
+                                <TableCell className="sticky left-0 bg-background z-10 font-medium">FG OI</TableCell>
+                                {weekHeaders.map(week => (
+                                    <TableCell 
+                                        key={week} 
+                                        className={cn("text-center font-semibold", (fgOiData[week] || 0) < 0 && 'text-destructive')}
+                                    >
+                                        {fgOiData[week] !== undefined ? Math.round(fgOiData[week]).toLocaleString() : '-'}
+                                    </TableCell>
+                                ))}
+                            </TableRow>
+                        </TableBody>
+                    </Table>
+                </div>
             </CardContent>
         </Card>
     )

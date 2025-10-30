@@ -151,14 +151,14 @@ function CcPlanPageContent() {
                     </div>
                 </div>
                 
-                <div className="flex-1 min-h-0">
+                <div className="overflow-x-auto">
                     {selectedCc && selectedSnapshotWeek !== null ? (
                         <CcPlanTable 
                             ordersForCc={ordersForCc} 
                             selectedSnapshotWeek={selectedSnapshotWeek}
                         />
                     ) : (
-                         <div className="h-full flex items-center justify-center text-center text-muted-foreground border rounded-lg">
+                         <div className="h-48 flex items-center justify-center text-center text-muted-foreground border rounded-lg">
                             <p>Please select a CC to view the plan.</p>
                         </div>
                     )}
