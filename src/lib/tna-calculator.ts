@@ -535,7 +535,11 @@ export const CcProdPlanner = ({
         return total + Object.values(snapshot.forecasts).reduce((sum, weekData) => sum + (weekData.total?.po || 0) + (weekData.total?.fc || 0), 0);
     }, 0);
 
-    const allDemandWeeks = Object.keys(weeklyDemand).map(w => parseInt(w.slice(1))).sort((a,b) => a-b);
+    const allDemandWeeks = Object.keys(weeklyDemand)
+        .filter(w => weeklyDemand[w] > 0)
+        .map(w => parseInt(w.slice(1)))
+        .sort((a,b) => a-b);
+
     if (allDemandWeeks.length === 0) {
         return { weeklyDemand: {}, producedData: {}, planData: {}, allWeeks: [], fgciData: {} };
     }
@@ -570,25 +574,19 @@ export const CcProdPlanner = ({
     const totalProducedQty = Object.values(initialProducedData).reduce((sum, qty) => sum + qty, 0);
     const totalDemandToProduce = totalPoFcQty - totalProducedQty;
     
-    const getTentativeProdStartWeek = (capacity: number) => {
-        const tempPlan = distributePlan(totalDemandToProduce, firstPoFcWeek - 1, capacity);
-        const firstPlanWeekKey = Object.keys(tempPlan).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)))[0];
-        return firstPlanWeekKey ? parseInt(firstPlanWeekKey.slice(1)) : firstPoFcWeek;
-    };
-    
     let finalPlan: Record<string, number> = {};
     let finalProduced: Record<string, number> = { ...initialProducedData };
     let finalLines = 1;
     let finalOffset = 0;
     let finalProdStartWeek = firstPoFcWeek - 1;
 
-    if (snapshotWeek <= getTentativeProdStartWeek(getMaxWeeklyOutput(1))) {
+    if (snapshotWeek <= finalProdStartWeek) {
         let lines = 1;
         while(true) {
             const capacity = getMaxWeeklyOutput(lines);
             if (capacity <= 0) break;
             
-            const tempPlan = distributePlan(totalDemandToProduce, firstPoFcWeek - 1, capacity);
+            const tempPlan = distributePlan(totalDemandToProduce, finalProdStartWeek, capacity);
             const allWeeksForSim = [...new Set([...Object.keys(weeklyDemand), ...Object.keys(tempPlan)])].sort((a,b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
             const tempFgci = calculateFgciForSingleScenario(allWeeksForSim, weeklyDemand, tempPlan, {}, 0);
             const minFgOi = Math.min(0, ...Object.values(tempFgci));
@@ -596,12 +594,11 @@ export const CcProdPlanner = ({
             if (minFgOi >= 0) {
                  finalPlan = tempPlan;
                  finalLines = lines;
-                 finalProdStartWeek = firstPoFcWeek - 1;
                  break;
             }
 
             const offset = Math.ceil(Math.abs(minFgOi) / capacity);
-            const newStartWeek = (firstPoFcWeek - 1) - offset;
+            const newStartWeek = finalProdStartWeek - offset;
 
             if (newStartWeek >= earliestProductionStartWeek) {
                 finalProdStartWeek = newStartWeek;
@@ -616,7 +613,7 @@ export const CcProdPlanner = ({
         }
     } else { // Snapshot week is after tentative production start
         const initialCapacity = getMaxWeeklyOutput(1);
-        const tentativeStartWeek = getTentativeProdStartWeek(initialCapacity);
+        const tentativeStartWeek = firstPoFcWeek -1;
         const originalPlan = distributePlan(totalDemandToProduce, tentativeStartWeek, initialCapacity);
 
         Object.keys(originalPlan).forEach(weekStr => {
@@ -637,7 +634,7 @@ export const CcProdPlanner = ({
             const futurePlan = distributePlan(futureDemandToProduce, snapshotWeek, capacity);
             const allWeeksForSim = [...new Set([...Object.keys(weeklyDemand), ...Object.keys(finalProduced), ...Object.keys(futurePlan)])].sort((a,b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
             const fgciSim = calculateFgciForSingleScenario(allWeeksForSim, weeklyDemand, futurePlan, finalProduced, 0);
-            const minFgOiFuture = Math.min(0, ...allWeeksForSim.filter(w => parseInt(w.slice(1)) >= snapshotWeek).map(w => fgciSim[w]));
+            const minFgOiFuture = Math.min(0, ...allWeeksForSim.filter(w => parseInt(w.slice(1)) >= snapshotWeek).map(w => fgciSim[w] || 0));
 
             if (minFgOiFuture >= 0) {
                 finalPlan = futurePlan;
