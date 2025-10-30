@@ -27,7 +27,7 @@ const calculateFgOi = (
         const weekNum = parseInt(week.replace('W', ''), 10);
         const prevWeekKey = `W${weekNum - 1}`;
         
-        // FG OI[w] = FG OI[w-1] - PO+FC[w] + Produced[w-1] + Plan[w-1]
+        // FG OI[w] = FG OI[w-1] - PO + FC [w] + Produced[w-1] + Plan[w-1]
         const inventory = lastWeekOi
             - (poFcData[week] || 0)
             + (producedData[prevWeekKey] || 0)
@@ -41,7 +41,17 @@ const calculateFgOi = (
 
 
 export default function CcPlanTable({ ordersForCc, selectedSnapshotWeek }: CcPlanTableProps) {
-    const { weekHeaders, poFcData, producedQtyData, planQtyData, fgOiData } = useMemo(() => {
+    const { 
+        weekHeaders, 
+        poFcData, 
+        producedQtyData, 
+        planQtyData, 
+        fgOiData, 
+        poFcTotal,
+        producedQtyTotal,
+        planQtyTotal,
+        fgOiMin,
+    } = useMemo(() => {
         const poFcData: Record<string, number> = {};
         const producedQtyData: Record<string, number> = {}; // Placeholder
         const planQtyData: Record<string, number> = {}; // Placeholder
@@ -61,7 +71,7 @@ export default function CcPlanTable({ ordersForCc, selectedSnapshotWeek }: CcPla
 
         const sortedWeeks = Array.from(allWeeks).sort((a, b) => a - b);
         if (sortedWeeks.length === 0) {
-            return { weekHeaders: [], poFcData: {}, producedQtyData: {}, planQtyData: {}, fgOiData: {} };
+            return { weekHeaders: [], poFcData: {}, producedQtyData: {}, planQtyData: {}, fgOiData: {}, poFcTotal: 0, producedQtyTotal: 0, planQtyTotal: 0, fgOiMin: 0 };
         }
         
         // Create a contiguous list of week headers
@@ -80,15 +90,23 @@ export default function CcPlanTable({ ordersForCc, selectedSnapshotWeek }: CcPla
 
         // Calculate FG OI
         const fgOiData = calculateFgOi(weekHeaders, poFcData, producedQtyData, planQtyData);
+        
+        // Calculate totals and minimums
+        const poFcTotal = Object.values(poFcData).reduce((sum, val) => sum + val, 0);
+        const producedQtyTotal = Object.values(producedQtyData).reduce((sum, val) => sum + val, 0);
+        const planQtyTotal = Object.values(planQtyData).reduce((sum, val) => sum + val, 0);
+        const fgOiValues = Object.values(fgOiData);
+        const fgOiMin = fgOiValues.length > 0 ? Math.min(...fgOiValues) : 0;
 
-        return { weekHeaders, poFcData, producedQtyData, planQtyData, fgOiData };
+
+        return { weekHeaders, poFcData, producedQtyData, planQtyData, fgOiData, poFcTotal, producedQtyTotal, planQtyTotal, fgOiMin };
 
     }, [ordersForCc, selectedSnapshotWeek]);
 
 
     if (weekHeaders.length === 0) {
         return (
-            <div className="h-48 flex items-center justify-center text-center text-muted-foreground border rounded-lg">
+            <div className="flex h-48 items-center justify-center rounded-lg border text-center text-muted-foreground">
                 <p>No forecast data available for this CC and Snapshot Week combination.</p>
             </div>
         );
@@ -101,39 +119,49 @@ export default function CcPlanTable({ ordersForCc, selectedSnapshotWeek }: CcPla
                     <Table className="whitespace-nowrap">
                         <TableHeader>
                             <TableRow className="bg-muted/50 hover:bg-muted/50">
-                                <TableHead className="sticky left-0 bg-muted/50 z-10 w-[150px]">Metric</TableHead>
+                                <TableHead className="sticky left-0 z-10 w-[150px] bg-muted/50">Metric</TableHead>
                                 {weekHeaders.map(week => (
                                     <TableHead key={week} className="text-center">{week}</TableHead>
                                 ))}
+                                <TableHead className="sticky right-0 z-10 bg-muted/50 text-center font-bold">Total / Min</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             <TableRow>
-                                <TableCell className="sticky left-0 bg-background z-10 font-medium">PO + FC</TableCell>
+                                <TableCell className="sticky left-0 z-10 bg-background font-medium">PO + FC</TableCell>
                                 {weekHeaders.map(week => (
                                     <TableCell key={week} className="text-center">
                                         {(poFcData[week] || 0) > 0 ? (poFcData[week] || 0).toLocaleString() : '-'}
                                     </TableCell>
                                 ))}
+                                <TableCell className="sticky right-0 z-10 bg-background text-center font-bold">
+                                    {(poFcTotal || 0).toLocaleString()}
+                                </TableCell>
                             </TableRow>
                             <TableRow>
-                                <TableCell className="sticky left-0 bg-background z-10 font-medium">Produced Qty</TableCell>
+                                <TableCell className="sticky left-0 z-10 bg-background font-medium">Produced Qty</TableCell>
                                 {weekHeaders.map(week => (
                                     <TableCell key={week} className="text-center">
                                         {(producedQtyData[week] || 0) > 0 ? (producedQtyData[week] || 0).toLocaleString() : '-'}
                                     </TableCell>
                                 ))}
+                                <TableCell className="sticky right-0 z-10 bg-background text-center font-bold">
+                                    {(producedQtyTotal || 0).toLocaleString()}
+                                </TableCell>
                             </TableRow>
                             <TableRow>
-                                <TableCell className="sticky left-0 bg-background z-10 font-medium">Plan Qty</TableCell>
+                                <TableCell className="sticky left-0 z-10 bg-background font-medium">Plan Qty</TableCell>
                             {weekHeaders.map(week => (
                                     <TableCell key={week} className="text-center">
                                         {(planQtyData[week] || 0) > 0 ? (planQtyData[week] || 0).toLocaleString() : '-'}
                                     </TableCell>
                                 ))}
+                                <TableCell className="sticky right-0 z-10 bg-background text-center font-bold">
+                                    {(planQtyTotal || 0).toLocaleString()}
+                                </TableCell>
                             </TableRow>
                             <TableRow>
-                                <TableCell className="sticky left-0 bg-background z-10 font-medium">FG OI</TableCell>
+                                <TableCell className="sticky left-0 z-10 bg-background font-medium">FG OI</TableCell>
                                 {weekHeaders.map(week => (
                                     <TableCell 
                                         key={week} 
@@ -142,6 +170,14 @@ export default function CcPlanTable({ ordersForCc, selectedSnapshotWeek }: CcPla
                                         {fgOiData[week] !== undefined ? Math.round(fgOiData[week]).toLocaleString() : '-'}
                                     </TableCell>
                                 ))}
+                                <TableCell 
+                                    className={cn(
+                                        "sticky right-0 z-10 bg-background text-center font-bold",
+                                        (fgOiMin || 0) < 0 && 'text-destructive'
+                                    )}
+                                >
+                                    {Math.round(fgOiMin).toLocaleString()}
+                                </TableCell>
                             </TableRow>
                         </TableBody>
                     </Table>
