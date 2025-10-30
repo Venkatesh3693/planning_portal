@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Suspense, useMemo, useState, useEffect } from 'react';
@@ -20,6 +21,7 @@ import { Label } from '@/components/ui/label';
 import type { Order } from '@/lib/types';
 import CcPlanTable from '@/components/cc-plan/plan-table';
 import { CcProdPlanner } from '@/lib/tna-calculator';
+import { Card, CardContent } from '@/components/ui/card';
 
 
 function CcPlanPageContent() {
@@ -158,6 +160,29 @@ function CcPlanPageContent() {
                         </div>
                     </div>
                 </div>
+
+                {planData && (
+                    <Card className="mb-4">
+                        <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm p-4">
+                            <div className="p-3 bg-muted rounded-md">
+                                <div className="font-medium text-muted-foreground text-xs">Earliest Start Week</div>
+                                <div className="font-semibold text-base">W{planData.earliestProductionStartWeek ?? 'N/A'}</div>
+                            </div>
+                             <div className="p-3 bg-muted rounded-md">
+                                <div className="font-medium text-muted-foreground text-xs">Production Start Week</div>
+                                <div className="font-semibold text-base">W{planData.productionStartWeek ?? 'N/A'}</div>
+                            </div>
+                             <div className="p-3 bg-muted rounded-md">
+                                <div className="font-medium text-muted-foreground text-xs">Offset</div>
+                                <div className="font-semibold text-base">{planData.offset ?? 0} weeks</div>
+                            </div>
+                            <div className="p-3 bg-muted rounded-md">
+                                <div className="font-medium text-muted-foreground text-xs">Lines</div>
+                                <div className="font-semibold text-base">{planData.lines ?? 0}</div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
                 
                 <div className="overflow-x-auto">
                     {selectedCc && selectedSnapshotWeek !== null && planData ? (
