@@ -21,6 +21,68 @@ import type { Order } from '@/lib/types';
 import CcPlanTable from '@/components/cc-plan/plan-table';
 import { CcProdPlanner } from '@/lib/tna-calculator';
 import { Card, CardContent } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { cn } from '@/lib/utils';
+
+const ModelWisePlanTable = ({ planResult }: { planResult: any }) => {
+    const { allWeeks, modelWiseDemand } = planResult;
+    const models = Object.keys(modelWiseDemand || {});
+
+    if (!models || models.length === 0) {
+        return null;
+    }
+    
+    return (
+        <div className="mt-8">
+            <h2 className="text-xl font-bold mb-4">Model-wise Plan</h2>
+            <Card>
+                <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                        <Table className="whitespace-nowrap">
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="sticky left-0 z-20 bg-muted w-[120px]">Model</TableHead>
+                                    <TableHead className="sticky left-[120px] z-20 bg-muted w-[150px]">Metric</TableHead>
+                                    {allWeeks.map((week: string) => (
+                                        <TableHead key={week} className="text-center">{week}</TableHead>
+                                    ))}
+                                    <TableHead className="sticky right-0 z-20 bg-muted text-center font-bold w-[120px]">Total / Min</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {models.map((modelName, modelIndex) => (
+                                    <React.Fragment key={modelName}>
+                                        <TableRow className={modelIndex > 0 ? 'border-t-4 border-border' : ''}>
+                                            <TableCell rowSpan={4} className="sticky left-0 z-10 bg-background align-top font-semibold pt-6 border-b">{modelName}</TableCell>
+                                            <TableCell className="sticky left-[120px] z-10 bg-background font-medium border-b">PO + FC</TableCell>
+                                            {allWeeks.map((week: string) => <TableCell key={`${week}-po`} className="text-center border-b">-</TableCell>)}
+                                            <TableCell className="sticky right-0 z-10 bg-background text-center font-bold border-b">-</TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                            <TableCell className="sticky left-[120px] z-10 bg-muted/50 font-medium border-b">Produced Qty</TableCell>
+                                            {allWeeks.map((week: string) => <TableCell key={`${week}-prod`} className="text-center border-b">-</TableCell>)}
+                                            <TableCell className="sticky right-0 z-10 bg-muted/50 text-center font-bold border-b">-</TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                            <TableCell className="sticky left-[120px] z-10 bg-background font-medium border-b">Plan Qty</TableCell>
+                                            {allWeeks.map((week: string) => <TableCell key={`${week}-plan`} className="text-center border-b">-</TableCell>)}
+                                            <TableCell className="sticky right-0 z-10 bg-background text-center font-bold border-b">-</TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                            <TableCell className="sticky left-[120px] z-10 bg-muted/50 font-medium border-b">FG OI</TableCell>
+                                            {allWeeks.map((week: string) => <TableCell key={`${week}-fgoi`} className="text-center border-b">-</TableCell>)}
+                                            <TableCell className="sticky right-0 z-10 bg-muted/50 text-center font-bold border-b">-</TableCell>
+                                        </TableRow>
+                                    </React.Fragment>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    )
+};
 
 
 function CcPlanPageContent() {
@@ -183,9 +245,12 @@ function CcPlanPageContent() {
                     </Card>
                 )}
                 
-                <div className="space-y-8 overflow-x-auto">
+                <div className="space-y-8 overflow-y-auto">
                     {selectedCc && selectedSnapshotWeek !== null && planData ? (
-                        <CcPlanTable planResult={planData} />
+                        <>
+                            <CcPlanTable planResult={planData} />
+                            <ModelWisePlanTable planResult={planData} />
+                        </>
                     ) : (
                          <div className="h-48 flex items-center justify-center text-center text-muted-foreground border rounded-lg">
                             <p>{selectedCc ? "Select a snapshot week to view the plan." : "Please select a CC to view the plan."}</p>

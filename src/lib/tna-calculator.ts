@@ -426,6 +426,7 @@ export type CcWisePlanResult = {
     earliestProductionStartWeek?: number;
     offset?: number;
     lines?: number;
+    modelWiseDemand?: Record<string, Record<string, number>>;
 };
 
 type CcProdPlannerArgs = {
@@ -445,11 +446,8 @@ export const calculateFgoiForSingleScenario = (
     let lastWeekInventory = openingInventory;
 
     for (const week of weeks) {
-        const weekNum = parseInt(week.slice(1));
-        const lastWeekKey = `W${weekNum - 1}`;
-        
-        const producedLastWeek = produced[lastWeekKey] || 0;
-        const planLastWeek = plan[lastWeekKey] || 0;
+        const producedLastWeek = produced[week] || 0;
+        const planLastWeek = plan[week] || 0;
         const demandThisWeek = demand[week] || 0;
         
         const currentInventory = lastWeekInventory + producedLastWeek + planLastWeek - demandThisWeek;
@@ -466,13 +464,23 @@ export const CcProdPlanner = ({
     producedData: initialProducedData,
 }: CcProdPlannerArgs): CcWisePlanResult => {
     const weeklyDemand: Record<string, number> = {};
+    const modelWiseDemand: Record<string, Record<string, number>> = {};
+
     const totalPoFcQty = ordersForCc.reduce((total, order) => {
+        if (!modelWiseDemand[order.style]) {
+            modelWiseDemand[order.style] = {};
+        }
         const snapshot = order.fcVsFcDetails?.find(s => s.snapshotWeek === snapshotWeek);
         if (!snapshot) return total;
+        
+        let orderTotal = 0;
         Object.entries(snapshot.forecasts).forEach(([week, data]) => {
-            weeklyDemand[week] = (weeklyDemand[week] || 0) + ((data.total?.po || 0) + (data.total?.fc || 0));
+            const weekTotal = (data.total?.po || 0) + (data.total?.fc || 0);
+            weeklyDemand[week] = (weeklyDemand[week] || 0) + weekTotal;
+            modelWiseDemand[order.style][week] = (modelWiseDemand[order.style][week] || 0) + weekTotal;
+            orderTotal += weekTotal;
         });
-        return total + Object.values(snapshot.forecasts).reduce((sum, weekData) => sum + (weekData.total?.po || 0) + (weekData.total?.fc || 0), 0);
+        return total + orderTotal;
     }, 0);
 
     const allDemandWeeks = Object.keys(weeklyDemand)
@@ -481,7 +489,7 @@ export const CcProdPlanner = ({
         .sort((a,b) => a-b);
 
     if (allDemandWeeks.length === 0) {
-        return { weeklyDemand: {}, producedData: {}, planData: {}, allWeeks: [], fgoiData: {} };
+        return { weeklyDemand: {}, producedData: {}, planData: {}, allWeeks: [], fgoiData: {}, modelWiseDemand: {} };
     }
     
     const firstPoFcWeek = allDemandWeeks[0];
@@ -612,5 +620,6 @@ export const CcProdPlanner = ({
         earliestProductionStartWeek,
         offset: finalOffset,
         lines: finalLines,
+        modelWiseDemand,
     };
 };
