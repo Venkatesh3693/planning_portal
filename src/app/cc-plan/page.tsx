@@ -173,14 +173,14 @@ const ModelWisePlanTable = ({ planResult }: { planResult: any }) => {
                                                          {metricIndex === 0 && <div className='text-xs font-normal text-muted-foreground pl-4'>{metric.name}</div>}
                                                     </TableCell>
                                                     {allWeeks.map((week: string) => (
-                                                        <TableCell key={`${week}-${metric.name}`} className={cn("text-center", metric.name === 'FG OI' && (metric.data[week] || 0) < 0 && 'text-destructive font-semibold')}>
+                                                        <TableCell key={`${week}-${metric.name}`} className={cn("text-center", metric.name === 'FG OI' && (metric.data[week] || 0) < 0 && 'text-destructive font-semibold', metric.name === 'Produced Qty' && 'text-green-600 font-semibold')}>
                                                           { (metric.data[week] !== undefined && metric.data[week] !== 0)
                                                             ? (metric.isMin ? Math.round(metric.data[week]) : metric.data[week]).toLocaleString() 
                                                             : '-'
                                                           }
                                                         </TableCell>
                                                     ))}
-                                                     <TableCell className={cn("sticky right-0 z-10 text-center font-bold", metricIndex > 0 ? 'bg-muted' : 'bg-background', metric.name === 'FG OI' && (metric.total || 0) < 0 && 'text-destructive')}>
+                                                     <TableCell className={cn("sticky right-0 z-10 text-center font-bold", metricIndex > 0 ? 'bg-muted' : 'bg-background', metric.name === 'FG OI' && (metric.total || 0) < 0 && 'text-destructive', metric.name === 'Produced Qty' && 'text-green-600')}>
                                                         {metric.isMin ? Math.round(metric.total).toLocaleString() : metric.total.toLocaleString()}
                                                     </TableCell>
                                                  </TableRow>
