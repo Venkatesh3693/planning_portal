@@ -118,7 +118,7 @@ export default function CcPlanTable({ ordersForCc, selectedSnapshotWeek }: CcPla
                 <div className="overflow-x-auto">
                     <Table className="whitespace-nowrap">
                         <TableHeader>
-                            <TableRow className="bg-muted/50 hover:bg-muted/50">
+                            <TableRow>
                                 <TableHead className="sticky left-0 z-10 w-[150px] bg-muted/50">Metric</TableHead>
                                 {weekHeaders.map(week => (
                                     <TableHead key={week} className="text-center">{week}</TableHead>
@@ -139,13 +139,13 @@ export default function CcPlanTable({ ordersForCc, selectedSnapshotWeek }: CcPla
                                 </TableCell>
                             </TableRow>
                             <TableRow>
-                                <TableCell className="sticky left-0 z-10 bg-background font-medium">Produced Qty</TableCell>
+                                <TableCell className="sticky left-0 z-10 bg-muted/30 font-medium">Produced Qty</TableCell>
                                 {weekHeaders.map(week => (
                                     <TableCell key={week} className="text-center">
                                         {(producedQtyData[week] || 0) > 0 ? (producedQtyData[week] || 0).toLocaleString() : '-'}
                                     </TableCell>
                                 ))}
-                                <TableCell className="sticky right-0 z-10 bg-background text-center font-bold">
+                                <TableCell className="sticky right-0 z-10 bg-muted/30 text-center font-bold">
                                     {(producedQtyTotal || 0).toLocaleString()}
                                 </TableCell>
                             </TableRow>
@@ -161,7 +161,7 @@ export default function CcPlanTable({ ordersForCc, selectedSnapshotWeek }: CcPla
                                 </TableCell>
                             </TableRow>
                             <TableRow>
-                                <TableCell className="sticky left-0 z-10 bg-background font-medium">FG OI</TableCell>
+                                <TableCell className="sticky left-0 z-10 bg-muted/30 font-medium">FG OI</TableCell>
                                 {weekHeaders.map(week => (
                                     <TableCell 
                                         key={week} 
@@ -172,7 +172,7 @@ export default function CcPlanTable({ ordersForCc, selectedSnapshotWeek }: CcPla
                                 ))}
                                 <TableCell 
                                     className={cn(
-                                        "sticky right-0 z-10 bg-background text-center font-bold",
+                                        "sticky right-0 z-10 bg-muted/30 text-center font-bold",
                                         (fgOiMin || 0) < 0 && 'text-destructive'
                                     )}
                                 >
