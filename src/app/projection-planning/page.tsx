@@ -51,7 +51,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
-import { MessageSquare, CornerUpLeft, Trash2, MoreHorizontal, Check, Snooze, CheckCircle2 } from 'lucide-react';
+import { MessageSquare, CornerUpLeft, Trash2, MoreHorizontal, Check, Clock, CheckCircle2 } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
@@ -401,7 +401,7 @@ export default function ProjectionPlanningPage() {
                                         </Button>
                                     </AlertDialogTrigger>
                                     <Button variant="ghost" size="icon" className="text-amber-600 hover:text-amber-700">
-                                        <Snooze className="h-5 w-5" />
+                                        <Clock className="h-5 w-5" />
                                     </Button>
                                 </div>
                             )}
