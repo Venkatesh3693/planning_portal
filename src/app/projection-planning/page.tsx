@@ -1,8 +1,10 @@
 
+
 'use client';
 
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -121,12 +123,22 @@ export default function ProjectionPlanningPage() {
     const [isSheetOpen, setIsSheetOpen] = useState(false);
     
     // States for filtering in the sheet
-    const [filterCc, setFilterCc] = useState<string | null>(null);
-    const [filterColor, setFilterColor] = useState<string | null>(null);
+    const searchParams = useSearchParams();
+    const ccNoFromUrl = searchParams.get('ccNo');
+    const colorFromUrl = searchParams.get('color');
+
+    const [filterCc, setFilterCc] = useState<string | null>(ccNoFromUrl);
+    const [filterColor, setFilterColor] = useState<string | null>(colorFromUrl);
     const [filterPrj, setFilterPrj] = useState<string | null>(null);
 
     const [newComment, setNewComment] = useState('');
     const [replyingTo, setReplyingTo] = useState<{ remarkId: string; user: string } | null>(null);
+
+    useEffect(() => {
+      setFilterCc(ccNoFromUrl);
+      setFilterColor(colorFromUrl);
+      setFilterPrj(null);
+    }, [ccNoFromUrl, colorFromUrl]);
 
     // Dropdown options based on filters
     const ccOptions = useMemo(() => [...new Set(projectionData.map(p => p.ccNo))], [projectionData]);
@@ -236,6 +248,18 @@ export default function ProjectionPlanningPage() {
         }
         return filtered;
     }, [projectionData, filterCc, filterColor, filterPrj]);
+
+    const filteredProjectionsForTable = useMemo(() => {
+      if (!ccNoFromUrl && !colorFromUrl) return projectionData;
+      let filtered = projectionData;
+      if (ccNoFromUrl) {
+          filtered = filtered.filter(p => p.ccNo === ccNoFromUrl);
+      }
+      if (colorFromUrl) {
+          filtered = filtered.filter(p => p.model.split(' / ')[1] === colorFromUrl);
+      }
+      return filtered;
+  }, [projectionData, ccNoFromUrl, colorFromUrl]);
 
     const remarksToShow = useMemo(() => {
         return filteredProjectionsForSheet.flatMap(p => p.remarks || []);
@@ -360,8 +384,8 @@ export default function ProjectionPlanningPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {projectionData.length > 0 ? (
-                    projectionData.map((row) => (
+                  {filteredProjectionsForTable.length > 0 ? (
+                    filteredProjectionsForTable.map((row) => (
                       <TableRow key={row.prjNumber}>
                         <TableCell>{row.ccNo}</TableCell>
                         <TableCell>{row.model}</TableCell>
