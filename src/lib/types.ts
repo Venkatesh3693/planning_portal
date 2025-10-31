@@ -209,6 +209,14 @@ export type CutOrderRecord = {
     carryoverQty: number;
 };
 
+export type Remark = {
+  id: string;
+  user: string;
+  text: string;
+  date: string;
+  replies?: Remark[];
+};
+
 export type ProjectionRow = {
     prjNumber: string;
     prjWeek: string;
@@ -226,5 +234,5 @@ export type ProjectionRow = {
     ccNo: string;
     model: string;
     status: string;
-    remarks: string;
+    remarks: Remark[];
 };

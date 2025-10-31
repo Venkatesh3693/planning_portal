@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Header } from '@/components/layout/header';
@@ -30,16 +31,32 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useSchedule } from '@/context/schedule-provider';
 import { useMemo, useState, useEffect }from 'react';
 import { PrjGenerator } from '@/lib/tna-calculator';
-import type { Order, ProjectionRow } from '@/lib/types';
-import { getWeek } from 'date-fns';
+import type { Order, ProjectionRow, Remark } from '@/lib/types';
+import { getWeek, format } from 'date-fns';
+import { 
+  Sheet, 
+  SheetContent, 
+  SheetHeader, 
+  SheetTitle,
+  SheetDescription,
+  SheetFooter
+} from '@/components/ui/sheet';
+import { Button } from '@/components/ui/button';
+import { MessageSquare } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Separator } from '@/components/ui/separator';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 
 export default function ProjectionPlanningPage() {
     const { orders, isScheduleLoaded } = useSchedule();
+    const [projectionData, setProjectionData] = useState<ProjectionRow[]>([]);
     const [projectionStatuses, setProjectionStatuses] = useState<Record<string, string>>({});
+    const [selectedProjection, setSelectedProjection] = useState<ProjectionRow | null>(null);
+    const [newComment, setNewComment] = useState('');
 
-    const projectionData = useMemo(() => {
-        if (!isScheduleLoaded) return [];
+    useEffect(() => {
+        if (!isScheduleLoaded) return;
 
         const ccGroups = orders.reduce((acc, order) => {
             if (order.orderType === 'Forecasted' && order.ocn) {
@@ -51,7 +68,8 @@ export default function ProjectionPlanningPage() {
             return acc;
         }, {} as Record<string, Order[]>);
 
-        return Object.values(ccGroups).flatMap(ccOrders => PrjGenerator(ccOrders));
+        const allProjections = Object.values(ccGroups).flatMap(ccOrders => PrjGenerator(ccOrders));
+        setProjectionData(allProjections);
 
     }, [orders, isScheduleLoaded]);
 
@@ -83,6 +101,27 @@ export default function ProjectionPlanningPage() {
             ...prev,
             [prjNumber]: newStatus,
         }));
+    };
+
+    const handleSaveComment = () => {
+      if (!selectedProjection || !newComment.trim()) return;
+      const newRemark: Remark = {
+        id: crypto.randomUUID(),
+        user: 'User', // Mock user
+        text: newComment.trim(),
+        date: new Date().toISOString(),
+      };
+
+      const updatedProjections = projectionData.map(p => {
+        if (p.prjNumber === selectedProjection.prjNumber) {
+          return { ...p, remarks: [...p.remarks, newRemark] };
+        }
+        return p;
+      });
+
+      setProjectionData(updatedProjections);
+      setSelectedProjection(prev => prev ? { ...prev, remarks: [...prev.remarks, newRemark] } : null);
+      setNewComment('');
     };
 
     const STATUS_OPTIONS = ['Planned', 'Unplanned', 'In-housed', 'Delay'];
@@ -123,7 +162,7 @@ export default function ProjectionPlanningPage() {
                     <TableHead>PRJ Coverage weeks</TableHead>
                     <TableHead className="text-right">PRJ Qty</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Remarks</TableHead>
+                    <TableHead className="text-center">Remarks</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -154,7 +193,11 @@ export default function ProjectionPlanningPage() {
                                 </SelectContent>
                             </Select>
                         </TableCell>
-                        <TableCell>{row.remarks}</TableCell>
+                        <TableCell className="text-center">
+                          <Button variant="ghost" size="icon" onClick={() => setSelectedProjection(row)}>
+                            <MessageSquare className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))
                   ) : (
@@ -170,6 +213,50 @@ export default function ProjectionPlanningPage() {
           </Card>
         </div>
       </main>
+
+       <Sheet open={!!selectedProjection} onOpenChange={(isOpen) => !isOpen && setSelectedProjection(null)}>
+        <SheetContent className="sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>Remarks for {selectedProjection?.prjNumber}</SheetTitle>
+            <SheetDescription>
+              Add and view comments for this projection.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="py-4 space-y-4 h-full flex flex-col">
+            <div className="flex-1 space-y-4 overflow-y-auto pr-2">
+              {selectedProjection?.remarks && selectedProjection.remarks.length > 0 ? (
+                selectedProjection.remarks.map((remark) => (
+                   <div key={remark.id} className="flex items-start gap-3">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback>{remark.user.charAt(0)}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-semibold">{remark.user}</p>
+                           <p className="text-xs text-muted-foreground">
+                            {format(new Date(remark.date), 'MMM d, h:mm a')}
+                          </p>
+                        </div>
+                        <p className="text-sm bg-muted p-2 rounded-md mt-1">{remark.text}</p>
+                      </div>
+                   </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground text-center pt-8">No remarks yet.</p>
+              )}
+            </div>
+            <Separator />
+            <div className="space-y-2">
+              <Textarea
+                placeholder="Type your comment here..."
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+              />
+              <Button onClick={handleSaveComment} disabled={!newComment.trim()}>Save Comment</Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

@@ -846,7 +846,7 @@ export const PrjGenerator = (ordersForCc: Order[]): ProjectionRow[] => {
                     prjQty: prjQty,
                     ckWeek: `W${currentCkWeek}`,
                     status: 'Planned', // Static for now
-                    remarks: '', // Static for now
+                    remarks: [], // Initialize as empty array
                     // FRC fields will be populated later
                     frcNumber: '',
                     frcWeek: '',
