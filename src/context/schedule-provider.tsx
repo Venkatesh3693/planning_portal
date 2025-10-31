@@ -230,6 +230,23 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isScheduleLoaded) return;
 
+    // Group orders by CC to generate projections
+    const ccGroups = orders.reduce((acc, order) => {
+        if (order.orderType === 'Forecasted' && order.ocn) {
+            if (!acc[order.ocn]) acc[order.ocn] = [];
+            acc[order.ocn].push(order);
+        }
+        return acc;
+    }, {} as Record<string, Order[]>);
+
+    const allProjections = Object.values(ccGroups).flatMap(ccOrders => PrjGenerator(ccOrders));
+
+    const projectionTotalsByOrder = allProjections.reduce((acc, prj) => {
+        const orderId = `${prj.ccNo}-${prj.model.replace(' / ', '-')}`;
+        acc[orderId] = (acc[orderId] || 0) + prj.prjQty;
+        return acc;
+    }, {} as Record<string, number>);
+
     const cutOrderTotalsByOrder = cutOrderRecords.reduce((acc, co) => {
         if (!acc[co.orderId]) {
             acc[co.orderId] = { total: 0 };
@@ -246,34 +263,8 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
       return acc;
     }, {} as Record<string, number>);
     
-    // Group hydrated orders by CC
-    const ccGroups = staticOrders.reduce((acc, order) => {
-        if (order.orderType === 'Forecasted' && order.ocn) {
-            const override = orderOverrides[order.id] || {};
-            const hydratedOrder = {
-              ...order,
-              displayColor: override.displayColor || order.displayColor,
-              sewingRampUpScheme: override.sewingRampUpScheme || order.sewingRampUpScheme,
-              tna: override.tna || order.tna,
-              bom: override.bom || order.bom,
-              fcVsFcDetails: override.fcVsFcDetails || order.fcVsFcDetails,
-            };
-            if (!acc[order.ocn]) acc[order.ocn] = [];
-            acc[order.ocn].push(hydratedOrder);
-        }
-        return acc;
-    }, {} as Record<string, Order[]>);
-    
-    const allProjections = Object.values(ccGroups).flatMap(ccOrders => PrjGenerator(ccOrders));
-    
-    const projectionTotalsByOrder = allProjections.reduce((acc, prj) => {
-        const orderId = `${prj.ccNo}-${prj.model.replace(' / ', '-')}`;
-        acc[orderId] = (acc[orderId] || 0) + prj.prjQty;
-        return acc;
-    }, {} as Record<string, number>);
 
-
-    const newOrders = staticOrders.map((baseOrder) => {
+    const newOrders = orders.map((baseOrder) => {
       const override = orderOverrides[baseOrder.id] || {};
       const hydratedTna: Tna = { ...(baseOrder.tna as Tna) };
 
