@@ -1,15 +1,13 @@
 
 "use client";
 
-import { Factory, PanelLeftOpen, PanelRightOpen, Settings } from 'lucide-react';
+import { Factory, PanelLeftOpen, PanelRightOpen, Settings, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuPortal, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuPortal, DropdownMenuSeparator, DropdownMenuRadioGroup, DropdownMenuRadioItem } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useSchedule } from '@/context/schedule-provider';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-
 
 type HeaderProps = {
   isOrdersPanelVisible?: boolean;
@@ -49,12 +47,20 @@ export function Header({
             </Link>
           </div>
           <div className="flex items-center gap-4">
-            <Tabs value={appMode} onValueChange={(value) => setAppMode(value as 'gup' | 'gut')}>
-              <TabsList>
-                <TabsTrigger value="gup">GUP</TabsTrigger>
-                <TabsTrigger value="gut">GUT</TabsTrigger>
-              </TabsList>
-            </Tabs>
+             <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-[100px] justify-between">
+                  <span>{appMode.toUpperCase()}</span>
+                  <ChevronDown/>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuRadioGroup value={appMode} onValueChange={(value) => setAppMode(value as 'gup' | 'gut')}>
+                  <DropdownMenuRadioItem value="gup">GUP</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="gut">GUT</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="ring-offset-background focus-visible:ring-0 focus-visible:ring-offset-0">
