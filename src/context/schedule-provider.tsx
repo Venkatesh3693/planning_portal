@@ -1,9 +1,8 @@
 
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, Dispatch, SetStateAction, useMemo, useCallback } from 'react';
-import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem, Size, FcComposition, FcSnapshot, SyntheticPoRecord, CutOrderRecord, SizeBreakdown, ProjectionRow, FrcRow } from '@/lib/types';
+import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem, Size, FcComposition, FcSnapshot, SyntheticPoRecord, CutOrderRecord, SizeBreakdown, ProjectionRow, FrcRow, Remark } from '@/lib/types';
 import { ORDERS as staticOrders, PROCESSES, ORDER_COLORS, SIZES } from '@/lib/data';
 import { addDays, startOfToday, isAfter, getWeek } from 'date-fns';
 import { getProcessBatchSize, getPackingBatchSize, PrjGenerator, FrcGenerator } from '@/lib/tna-calculator';
@@ -257,14 +256,20 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     }
 
     const projectionTotalsByOrder = allProjections.reduce((acc, prj) => {
-        const orderId = `${prj.ccNo}-${prj.model.replace(' / ', '-')}`;
-        acc[orderId] = (acc[orderId] || 0) + prj.prjQty;
-        return acc;
+      const order = orders.find(o => o.ocn === prj.ccNo && `${o.style} / ${o.color}` === prj.model);
+      if (order) {
+        acc[order.id] = (acc[order.id] || 0) + prj.prjQty;
+      }
+      return acc;
     }, {} as Record<string, number>);
     
+    
     const frcTotalsByOrder = FrcGenerator(allProjections, orders).reduce((acc, frc) => {
-        const orderId = `${frc.ccNo}-${frc.model.replace(' / ', '-')}`;
-        acc[orderId] = (acc[orderId] || 0) + frc.frcQty;
+        const orderKey = `${frc.ccNo}-${frc.model.split(' / ')[1]}`;
+        const orderId = orders.find(o => o.ocn === frc.ccNo && o.color === frc.model.split(' / ')[1])?.id;
+        if (orderId) {
+            acc[orderId] = (acc[orderId] || 0) + frc.frcQty;
+        }
         return acc;
     }, {} as Record<string, number>);
 
