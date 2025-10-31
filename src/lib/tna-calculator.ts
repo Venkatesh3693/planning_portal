@@ -878,91 +878,92 @@ export const FrcGenerator = (projections: ProjectionRow[], ordersForCc: Order[])
         acc[key] = order;
         return acc;
     }, {} as Record<string, Order>);
-
-    projections.forEach(prj => {
-        const order = ordersByModelColor[prj.model];
-        if (!order || !order.bom || !order.fcVsFcDetails) {
-            frcRows.push({ ...prj, frcNumber: prj.prjNumber.replace('PRJ', 'FRC'), frcQty: prj.prjQty });
-            return;
+    
+    const projectionsByModel = projections.reduce((acc, prj) => {
+        if (!acc[prj.model]) {
+            acc[prj.model] = [];
         }
-
-        const frcLeadTimeDays = Math.max(0, ...order.bom.filter(item => item.forecastType === 'FRC').map(item => item.leadTime));
-        const frcLeadTimeWeeks = Math.ceil(frcLeadTimeDays / 7);
-
-        const ckWeekNum = parseInt(prj.ckWeek.replace('W', ''));
-        const frcWeekNum = ckWeekNum - frcLeadTimeWeeks;
-
-        // Find the closest available snapshot for the calculated FRC week
-        const allSnapshotWeeks = [...new Set(order.fcVsFcDetails.flatMap(s => s.snapshotWeek))].sort((a, b) => a - b);
-        const snapshotForFrcWeek = allSnapshotWeeks.find(w => w === frcWeekNum) || allSnapshotWeeks.filter(w => w < frcWeekNum).pop() || allSnapshotWeeks[0];
-
-        const snapshotData = order.fcVsFcDetails.find(s => s.snapshotWeek === snapshotForFrcWeek);
-        if (!snapshotData) {
-            frcRows.push({ ...prj, frcNumber: prj.prjNumber.replace('PRJ', 'FRC'), frcQty: prj.prjQty, frcWeek: `W${frcWeekNum}` });
-            return;
-        }
-
-        const demandWeeks = Object.keys(snapshotData.forecasts)
-            .map(w => parseInt(w.replace('W', '')))
-            .sort((a, b) => a - b);
+        acc[prj.model].push(prj);
+        return acc;
+    }, {} as Record<string, ProjectionRow[]>);
+    
+    
+    Object.keys(projectionsByModel).forEach(model => {
+        const modelProjections = projectionsByModel[model].sort((a, b) => a.prjNumber.localeCompare(b.prjNumber));
+        const order = ordersByModelColor[model];
+        if (!order || !order.bom || !order.fcVsFcDetails) return;
         
-        let firstDemandWeek: number | null = null;
+        let cumulativeFrcQty = 0;
+        let previousCumulativeBreakdown: Record<Size, number> = SIZES.reduce((acc, s) => ({...acc, [s]: 0}), {} as Record<Size, number>);
 
-        for (const weekNum of demandWeeks) {
-            const weekData = snapshotData.forecasts[`W${weekNum}`];
-            const totalDemand = (weekData?.total?.po || 0) + (weekData?.total?.fc || 0);
-            if (totalDemand > 0) {
-                firstDemandWeek = weekNum;
-                break;
+        modelProjections.forEach(prj => {
+            const frcLeadTimeDays = Math.max(0, ...order.bom.filter(item => item.forecastType === 'FRC').map(item => item.leadTime));
+            const frcLeadTimeWeeks = Math.ceil(frcLeadTimeDays / 7);
+
+            const ckWeekNum = parseInt(prj.ckWeek.replace('W', ''));
+            const frcWeekNum = ckWeekNum - frcLeadTimeWeeks;
+
+            const allSnapshotWeeks = [...new Set(order.fcVsFcDetails!.flatMap(s => s.snapshotWeek))].sort((a, b) => a - b);
+            const snapshotForFrcWeek = allSnapshotWeeks.find(w => w === frcWeekNum) || allSnapshotWeeks.filter(w => w < frcWeekNum).pop() || allSnapshotWeeks[0];
+            const snapshotData = order.fcVsFcDetails!.find(s => s.snapshotWeek === snapshotForFrcWeek);
+
+            if (!snapshotData) {
+                frcRows.push({ ...prj, frcNumber: prj.prjNumber.replace('PRJ', 'FRC'), frcQty: prj.prjQty, frcWeek: `W${frcWeekNum}`, sizes: {} as Record<Size, number> });
+                return;
             }
-        }
-        
-        if (firstDemandWeek === null) {
-            frcRows.push({ ...prj, frcNumber: prj.prjNumber.replace('PRJ', 'FRC'), frcQty: prj.prjQty, frcWeek: `W${frcWeekNum}` });
-            return;
-        }
-
-        const frcBreakdown: Record<Size, number> = SIZES.reduce((acc, size) => ({ ...acc, [size]: 0 }), {} as Record<Size, number>);
-        let cumulativeQty = 0;
-        let coverageStartWeek = `W${firstDemandWeek}`;
-        let coverageEndWeek = '';
-
-        for (const weekNum of demandWeeks) {
-            if (weekNum < firstDemandWeek) continue;
-
-            const weekData = snapshotData.forecasts[`W${weekNum}`];
-            if (!weekData) continue;
             
-            for (const size of SIZES) {
-                if (cumulativeQty >= prj.prjQty) break;
-                
-                const sizeDemand = (weekData[size]?.po || 0) + (weekData[size]?.fc || 0);
-                if (sizeDemand > 0) {
-                    const needed = prj.prjQty - cumulativeQty;
-                    if (sizeDemand >= needed) {
-                        frcBreakdown[size] = (frcBreakdown[size] || 0) + needed;
-                        cumulativeQty += needed;
-                        coverageEndWeek = `W${weekNum}`;
-                        break;
-                    } else {
-                        frcBreakdown[size] = (frcBreakdown[size] || 0) + sizeDemand;
-                        cumulativeQty += sizeDemand;
-                        coverageEndWeek = `W${weekNum}`;
+            cumulativeFrcQty += prj.prjQty;
+
+            const demandWeeks = Object.keys(snapshotData.forecasts).map(w => parseInt(w.replace('W', ''))).sort((a, b) => a - b);
+
+            const newCumulativeBreakdown: Record<Size, number> = SIZES.reduce((acc, s) => ({...acc, [s]: 0}), {} as Record<Size, number>);
+            let runningTotal = 0;
+            let coverageStartWeek = '';
+            let coverageEndWeek = '';
+
+            for (const weekNum of demandWeeks) {
+                const weekKey = `W${weekNum}`;
+                const weekData = snapshotData.forecasts[weekKey];
+                if (!weekData) continue;
+
+                if (coverageStartWeek === '') coverageStartWeek = weekKey;
+                coverageEndWeek = weekKey;
+
+                for (const size of SIZES) {
+                    if (runningTotal >= cumulativeFrcQty) break;
+                    
+                    const sizeDemand = (weekData[size]?.po || 0) + (weekData[size]?.fc || 0);
+                    if (sizeDemand > 0) {
+                        const needed = cumulativeFrcQty - runningTotal;
+                        const toAdd = Math.min(needed, sizeDemand);
+                        
+                        newCumulativeBreakdown[size] = (newCumulativeBreakdown[size] || 0) + toAdd;
+                        runningTotal += toAdd;
                     }
                 }
+                if (runningTotal >= cumulativeFrcQty) break;
             }
-            if (cumulativeQty >= prj.prjQty) break;
-        }
 
-        frcRows.push({
-            ...prj,
-            frcNumber: prj.prjNumber.replace('PRJ', 'FRC'),
-            frcQty: prj.prjQty,
-            frcWeek: `W${frcWeekNum}`,
-            frcCoverage: `${coverageStartWeek}-${coverageEndWeek}`,
-            sizes: frcBreakdown,
+            // Calculate the breakdown for THIS FRC only
+            const currentFrcBreakdown: Record<Size, number> = {} as Record<Size, number>;
+            SIZES.forEach(size => {
+                currentFrcBreakdown[size] = Math.round((newCumulativeBreakdown[size] || 0) - (previousCumulativeBreakdown[size] || 0));
+            });
+
+            frcRows.push({
+                ...prj,
+                frcNumber: prj.prjNumber.replace('PRJ', 'FRC'),
+                frcQty: prj.prjQty,
+                frcWeek: `W${frcWeekNum}`,
+                frcCoverage: `${coverageStartWeek}-${coverageEndWeek}`,
+                sizes: currentFrcBreakdown,
+            });
+            
+            // Update the previous cumulative breakdown for the next iteration
+            previousCumulativeBreakdown = newCumulativeBreakdown;
         });
     });
 
-    return frcRows;
+
+    return frcRows.sort((a, b) => a.frcNumber.localeCompare(b.frcNumber));
 };
