@@ -46,9 +46,10 @@ import { MessageSquare, CornerUpLeft } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
 
 
-const RemarkItem = ({ remark, onReply, level = 0 }: { remark: Remark; onReply: (remarkId: string) => void; level?: number; }) => {
+const RemarkItem = ({ remark, onReply, level = 0 }: { remark: Remark; onReply: (remark: Remark) => void; level?: number; }) => {
   return (
     <div className={cn("flex items-start gap-3", level > 0 && "ml-6")}>
       <Avatar className="h-8 w-8">
@@ -62,7 +63,7 @@ const RemarkItem = ({ remark, onReply, level = 0 }: { remark: Remark; onReply: (
           </p>
         </div>
         <p className="text-sm bg-muted p-2 rounded-md mt-1">{remark.text}</p>
-        <Button variant="ghost" size="sm" className="mt-1 h-auto p-1 text-xs" onClick={() => onReply(remark.id)}>
+        <Button variant="ghost" size="sm" className="mt-1 h-auto p-1 text-xs" onClick={() => onReply(remark)}>
           <CornerUpLeft className="mr-1 h-3 w-3" />
           Reply
         </Button>
@@ -290,7 +291,7 @@ export default function ProjectionPlanningPage() {
             <div className="flex-1 space-y-4 overflow-y-auto pr-2">
               {selectedProjection?.remarks && selectedProjection.remarks.length > 0 ? (
                 selectedProjection.remarks.map((remark) => (
-                   <RemarkItem key={remark.id} remark={remark} onReply={() => handleSetReplyingTo(remark)} />
+                   <RemarkItem key={remark.id} remark={remark} onReply={handleSetReplyingTo} />
                 ))
               ) : (
                 <p className="text-sm text-muted-foreground text-center pt-8">No remarks yet.</p>
