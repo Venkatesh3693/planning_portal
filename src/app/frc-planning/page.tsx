@@ -228,8 +228,7 @@ export default function FrcPlanningPage() {
 
           <Card className="flex-1 flex flex-col">
             <CardContent className="p-0 flex-1 flex flex-col">
-              <AlertDialog onOpenChange={(isOpen) => !isOpen && setProjectionToApprove(null)}>
-                {activeFilters.length > 0 && (
+              {activeFilters.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2 p-4 border-b">
                     <span className="text-sm font-medium">Active Filters:</span>
                     {activeFilters.map(({type, value, label}) => (
@@ -241,7 +240,8 @@ export default function FrcPlanningPage() {
                       </Badge>
                     ))}
                   </div>
-                )}
+              )}
+              <AlertDialog onOpenChange={(isOpen) => !isOpen && setProjectionToApprove(null)}>
                 <div className="overflow-y-auto">
                   <Table>
                     <TableHeader>
@@ -390,3 +390,5 @@ export default function FrcPlanningPage() {
     </div>
   );
 }
+
+    
