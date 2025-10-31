@@ -22,7 +22,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { SIZES } from '@/lib/data';
 
-export default function CutOrderIssuePage() {
+export default function CutOrderDetailsPage() {
     return (
         <div className="flex h-screen flex-col">
             <Header />

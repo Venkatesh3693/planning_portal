@@ -122,7 +122,7 @@ export function Header({
                       <DropdownMenuPortal>
                         <DropdownMenuSubContent>
                           <Link href="/cut-order-issue">
-                            <DropdownMenuItem>Cut Order Issue</DropdownMenuItem>
+                            <DropdownMenuItem>Cut Order details</DropdownMenuItem>
                           </Link>
                           <Link href="/capacity-allocation">
                             <DropdownMenuItem>Capacity Allocation</DropdownMenuItem>
