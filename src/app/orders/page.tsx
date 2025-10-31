@@ -1154,25 +1154,19 @@ const ForecastedOrderRow = forwardRef<
       </TableCell>
       
       <TableCell className="text-right font-bold">
-        {(order.totalProjectionQty) ? (
-            <Link href={`/material-planning?orderId=${order.id}`} passHref>
-                <span className="text-primary cursor-pointer hover:underline">
-                    {(order.totalProjectionQty || 0).toLocaleString()}
-                </span>
-            </Link>
-        ) : (
-          <span>-</span>
-        )}
+        <Link href={`/material-planning?orderId=${order.id}`} passHref>
+            <span className="text-primary cursor-pointer hover:underline">
+                {(order.totalProjectionQty || 0).toLocaleString()}
+            </span>
+        </Link>
       </TableCell>
       
       <TableCell className="text-right font-bold">
-        {(order.totalFrcQty) ? (
-              <span className="text-primary cursor-pointer hover:underline">
-                  {(order.totalFrcQty || 0).toLocaleString()}
-              </span>
-        ) : (
-          <span>-</span>
-        )}
+        <Link href={`/frc-planning?orderId=${order.id}`} passHref>
+          <span className="text-primary cursor-pointer hover:underline">
+              {(order.totalFrcQty || 0).toLocaleString()}
+          </span>
+        </Link>
       </TableCell>
 
       <TableCell className="text-right font-bold">
@@ -1298,8 +1292,8 @@ export default function OrdersPage() {
                         <TableHead>Model no.</TableHead>
                         <TableHead className="text-right">Selection Quantity</TableHead>
                         <TableHead className="text-right">PO + FC</TableHead>
-                        <TableHead className="text-right">Projection</TableHead>
-                        <TableHead className="text-right">FRC</TableHead>
+                        <TableHead className="text-right">PRJ Qty</TableHead>
+                        <TableHead className="text-right">FRC Qty</TableHead>
                         <TableHead className="text-right">Confirmed PO</TableHead>
                         <TableHead className="text-right">Cut Order</TableHead>
                         <TableHead className="text-right">Produced</TableHead>
