@@ -78,9 +78,9 @@ export default function ProjectionPlanningPage() {
                     <TableHead>Model / Color</TableHead>
                     <TableHead>PRJ #</TableHead>
                     <TableHead>PRJ Week</TableHead>
+                    <TableHead>CK week</TableHead>
                     <TableHead>PRJ Coverage weeks</TableHead>
                     <TableHead className="text-right">PRJ Qty</TableHead>
-                    <TableHead>CK week</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Remarks</TableHead>
                   </TableRow>
@@ -93,9 +93,9 @@ export default function ProjectionPlanningPage() {
                         <TableCell>{row.model}</TableCell>
                         <TableCell>{row.prjNumber}</TableCell>
                         <TableCell>{row.prjWeek}</TableCell>
+                        <TableCell>{row.ckWeek}</TableCell>
                         <TableCell>{row.prjCoverage}</TableCell>
                         <TableCell className="text-right font-medium">{row.prjQty.toLocaleString()}</TableCell>
-                        <TableCell>{row.ckWeek}</TableCell>
                         <TableCell></TableCell>
                         <TableCell>{row.remarks}</TableCell>
                       </TableRow>
