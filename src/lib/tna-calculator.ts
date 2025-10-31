@@ -627,7 +627,7 @@ export const CcProdPlanner = ({
     };
 };
 
-type ModelPlanQuantities = {
+export type ModelPlanQuantities = {
     produced: Record<string, number>;
     plan: Record<string, number>;
 };
@@ -714,8 +714,10 @@ export const correctAllocationForNegativeFgoi = (
     const correctedQuantities = JSON.parse(JSON.stringify(initialQuantities));
     const modelNames = Object.keys(modelDemands);
 
-    for (const week of allWeeks) {
-        // Calculate FG OI for all models based on the current state of correctedQuantities
+    for (let i = 0; i < allWeeks.length; i++) {
+        const week = allWeeks[i];
+        
+        // Recalculate the entire FG OI state in every iteration to ensure accuracy
         const fgoiState: Record<string, Record<string, number>> = {};
         modelNames.forEach(name => {
             fgoiState[name] = calculateFgoiForSingleScenario(
@@ -727,7 +729,6 @@ export const correctAllocationForNegativeFgoi = (
             );
         });
 
-        // Check for any negative FG OI in the current week
         const deficits: Record<string, number> = {};
         let totalDeficit = 0;
         modelNames.forEach(name => {
@@ -740,44 +741,57 @@ export const correctAllocationForNegativeFgoi = (
 
         if (totalDeficit <= 0) continue; // No correction needed for this week
 
-        // Find the model that originally received an allocation
+        const actionWeekIndex = i - 1;
+        if (actionWeekIndex < 0) continue; // Cannot correct the first week
+        
+        const actionWeek = allWeeks[actionWeekIndex];
+        
         let sourceModel: string | null = null;
         let sourceType: 'produced' | 'plan' | null = null;
+        let availableToRedistribute = 0;
 
         for (const name of modelNames) {
-            if ((correctedQuantities[name].produced[week] || 0) > 0) {
+            const producedQty = correctedQuantities[name].produced[actionWeek] || 0;
+            const planQty = correctedQuantities[name].plan[actionWeek] || 0;
+            if (producedQty > 0) {
                 sourceModel = name;
                 sourceType = 'produced';
+                availableToRedistribute = producedQty;
                 break;
             }
-            if ((correctedQuantities[name].plan[week] || 0) > 0) {
+            if (planQty > 0) {
                 sourceModel = name;
                 sourceType = 'plan';
+                availableToRedistribute = planQty;
                 break;
             }
         }
-        
+
         if (sourceModel && sourceType) {
-            const availableToRedistribute = correctedQuantities[sourceModel][sourceType][week] || 0;
             const quantityToMove = Math.min(totalDeficit, availableToRedistribute);
-
-            // Deduct from the source model
-            correctedQuantities[sourceModel][sourceType][week] -= quantityToMove;
-
+            
+            // Deduct from the source
+            correctedQuantities[sourceModel][sourceType][actionWeek] -= quantityToMove;
+            
             // Distribute to models with deficits
             let movedAmount = 0;
             Object.entries(deficits).forEach(([deficitModel, amount]) => {
                 const share = Math.min(amount, quantityToMove - movedAmount);
                 if (share > 0) {
-                    correctedQuantities[deficitModel][sourceType!][week] = (correctedQuantities[deficitModel][sourceType!][week] || 0) + share;
+                    correctedQuantities[deficitModel][sourceType!][actionWeek] = 
+                        (correctedQuantities[deficitModel][sourceType!][actionWeek] || 0) + share;
                     movedAmount += share;
                 }
             });
 
-            // If there's any remainder due to rounding or availability, give it back to the source
-            if(movedAmount < quantityToMove) {
-                 correctedQuantities[sourceModel][sourceType][week] += (quantityToMove - movedAmount);
+            // If there's any remainder due to rounding or other logic, give it back to the source model
+             if (movedAmount < quantityToMove) {
+                correctedQuantities[sourceModel][sourceType][actionWeek] += (quantityToMove - movedAmount);
             }
+
+            // Since we made a change, we should re-check the same week 'i' in the next loop iteration
+            // to see if the fix was sufficient or created other issues.
+            i--; 
         }
     }
 
