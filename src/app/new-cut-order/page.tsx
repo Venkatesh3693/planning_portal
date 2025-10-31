@@ -18,7 +18,31 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowLeft } from 'lucide-react';
-import { CcProdPlanner } from '@/lib/tna-calculator';
+import type { Order } from '@/lib/types';
+
+
+const getAvailableStartWeeks = (orders: Order[], selectedCc: string, selectedColor: string, allWeeks: string[]) => {
+    if (!selectedCc || !selectedColor) return allWeeks;
+
+    const relevantOrders = orders.filter(o => o.ocn === selectedCc && o.color === selectedColor);
+    if (relevantOrders.length === 0) return allWeeks;
+
+    const orderForPlanning = relevantOrders[0];
+    const latestSnapshot = orderForPlanning.fcVsFcDetails
+        ?.sort((a,b) => b.snapshotWeek - a.snapshotWeek)[0];
+
+    if (!latestSnapshot) return allWeeks;
+
+    const firstDemandWeek = Object.keys(latestSnapshot.forecasts)
+        .map(w => parseInt(w.slice(1)))
+        .sort((a,b) => a-b)[0];
+    
+    const productionStartWeek = firstDemandWeek ? firstDemandWeek - 3 : undefined;
+
+    if (!productionStartWeek) return allWeeks;
+
+    return allWeeks.filter(w => parseInt(w.slice(1)) >= productionStartWeek);
+};
 
 
 export default function NewCutOrderPage() {
@@ -67,36 +91,8 @@ export default function NewCutOrderPage() {
             setSelectedColor('');
         }
     }, [selectedCc, colorOptions, selectedColor]);
-
-    const availableStartWeeks = useMemo(() => {
-        if (!selectedCc || !selectedColor) return weekOptions;
-        
-        const relevantOrders = orders.filter(o => o.ocn === selectedCc && o.color === selectedColor);
-        if (relevantOrders.length === 0) return weekOptions;
-
-        const orderForPlanning = relevantOrders[0];
-        
-        const latestSnapshotWeek = orderForPlanning.fcVsFcDetails
-            ?.map(s => s.snapshotWeek)
-            ?.sort((a,b) => b-a)[0];
-
-        if (!latestSnapshotWeek) return weekOptions;
-
-        const snapshot = orderForPlanning.fcVsFcDetails?.find(s => s.snapshotWeek === latestSnapshotWeek);
-        if (!snapshot) return weekOptions;
-
-        const firstDemandWeek = Object.keys(snapshot.forecasts)
-            .map(w => parseInt(w.slice(1)))
-            .sort((a,b) => a-b)[0];
-        
-        const productionStartWeek = firstDemandWeek ? firstDemandWeek - 3 : undefined;
-
-        if (!productionStartWeek) return weekOptions;
-
-        return weekOptions.filter(w => parseInt(w.slice(1)) >= productionStartWeek);
-
-    }, [selectedCc, selectedColor, orders, weekOptions]);
-
+    
+    const availableStartWeeks = getAvailableStartWeeks(orders, selectedCc, selectedColor, weekOptions);
 
     return (
         <div className="flex h-screen flex-col">
