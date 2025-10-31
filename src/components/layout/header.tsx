@@ -108,6 +108,25 @@ export function Header({
                         </DropdownMenuSubContent>
                       </DropdownMenuPortal>
                     </DropdownMenuSub>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <span>Production Planning</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuPortal>
+                        <DropdownMenuSubContent>
+                          <Link href="/cut-order-issue">
+                            <DropdownMenuItem>Cut Order Issue</DropdownMenuItem>
+                          </Link>
+                          <Link href="/capacity-allocation">
+                            <DropdownMenuItem>Capacity Allocation</DropdownMenuItem>
+                          </Link>
+                          <Link href="/line-plan">
+                            <DropdownMenuItem>Line plan</DropdownMenuItem>
+                          </Link>
+                        </DropdownMenuSubContent>
+                      </DropdownMenuPortal>
+                    </DropdownMenuSub>
                   </>
                 )}
 
