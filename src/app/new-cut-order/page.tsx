@@ -25,6 +25,13 @@ export default function NewCutOrderPage() {
     const [selectedColor, setSelectedColor] = useState('');
     const [startWeek, setStartWeek] = useState('');
     const [endWeek, setEndWeek] = useState('');
+    const [coNumber, setCoNumber] = useState('');
+
+    useEffect(() => {
+        // Generate a random CO number on component mount
+        const randomNum = Math.floor(100000 + Math.random() * 900000);
+        setCoNumber(`CO-${randomNum}`);
+    }, []);
 
     const ccOptions = useMemo(() => {
         if (!isScheduleLoaded) return [];
@@ -99,13 +106,16 @@ export default function NewCutOrderPage() {
                     </div>
                 </div>
 
-                <Card className="max-w-2xl">
+                <Card>
                     <CardHeader>
-                        <CardTitle>Cut Order Criteria</CardTitle>
+                        <div className="flex justify-between items-center">
+                            <CardTitle>Cut Order Criteria</CardTitle>
+                            {coNumber && <span className="text-lg font-semibold text-muted-foreground">{coNumber}</span>}
+                        </div>
                         <CardDescription>Select the CC, Color and week range to generate the cut order for.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                             <div className="space-y-2">
                                 <Label htmlFor="cc-select">CC no.</Label>
                                 <Select value={selectedCc} onValueChange={setSelectedCc}>
