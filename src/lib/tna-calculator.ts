@@ -717,7 +717,6 @@ export const correctAllocationForNegativeFgoi = (
     for (let i = 0; i < allWeeks.length; i++) {
         const week = allWeeks[i];
         
-        // Recalculate the entire FG OI state in every iteration to ensure accuracy
         const fgoiState: Record<string, Record<string, number>> = {};
         modelNames.forEach(name => {
             fgoiState[name] = calculateFgoiForSingleScenario(
@@ -739,58 +738,51 @@ export const correctAllocationForNegativeFgoi = (
             }
         });
 
-        if (totalDeficit <= 0) continue; // No correction needed for this week
+        if (totalDeficit <= 0) continue;
 
-        const actionWeekIndex = i - 1;
-        if (actionWeekIndex < 0) continue; // Cannot correct the first week
-        
-        const actionWeek = allWeeks[actionWeekIndex];
-        
-        let sourceModel: string | null = null;
-        let sourceType: 'produced' | 'plan' | null = null;
-        let availableToRedistribute = 0;
+        // Search backwards for a donor week
+        for (let j = i - 1; j >= 0; j--) {
+            const actionWeek = allWeeks[j];
+            let sourceModel: string | null = null;
+            let sourceType: 'produced' | 'plan' | null = null;
+            let availableToRedistribute = 0;
 
-        for (const name of modelNames) {
-            const producedQty = correctedQuantities[name].produced[actionWeek] || 0;
-            const planQty = correctedQuantities[name].plan[actionWeek] || 0;
-            if (producedQty > 0) {
-                sourceModel = name;
-                sourceType = 'produced';
-                availableToRedistribute = producedQty;
-                break;
-            }
-            if (planQty > 0) {
-                sourceModel = name;
-                sourceType = 'plan';
-                availableToRedistribute = planQty;
-                break;
-            }
-        }
-
-        if (sourceModel && sourceType) {
-            const quantityToMove = Math.min(totalDeficit, availableToRedistribute);
-            
-            // Deduct from the source
-            correctedQuantities[sourceModel][sourceType][actionWeek] -= quantityToMove;
-            
-            // Distribute to models with deficits
-            let movedAmount = 0;
-            Object.entries(deficits).forEach(([deficitModel, amount]) => {
-                const share = Math.min(amount, quantityToMove - movedAmount);
-                if (share > 0) {
-                    correctedQuantities[deficitModel][sourceType!][actionWeek] = 
-                        (correctedQuantities[deficitModel][sourceType!][actionWeek] || 0) + share;
-                    movedAmount += share;
+            // Find a week with production that's large enough
+            for (const name of modelNames) {
+                const producedQty = correctedQuantities[name].produced[actionWeek] || 0;
+                if (producedQty >= totalDeficit) {
+                    sourceModel = name;
+                    sourceType = 'produced';
+                    availableToRedistribute = producedQty;
+                    break;
                 }
-            });
+                const planQty = correctedQuantities[name].plan[actionWeek] || 0;
+                 if (planQty >= totalDeficit) {
+                    sourceModel = name;
+                    sourceType = 'plan';
+                    availableToRedistribute = planQty;
+                    break;
+                }
+            }
 
-            // If there's any remainder due to rounding or other logic, give it back to the source model
-             if (movedAmount < quantityToMove) {
-                correctedQuantities[sourceModel][sourceType][actionWeek] += (quantityToMove - movedAmount);
+            if (sourceModel && sourceType) {
+                const quantityToMove = totalDeficit;
+                
+                // Deduct from the source
+                correctedQuantities[sourceModel][sourceType][actionWeek] -= quantityToMove;
+                
+                // Distribute to models with deficits
+                Object.entries(deficits).forEach(([deficitModel, amount]) => {
+                    correctedQuantities[deficitModel][sourceType!][actionWeek] = 
+                        (correctedQuantities[deficitModel][sourceType!][actionWeek] || 0) + amount;
+                });
+                
+                // Deficit for week 'i' is fixed, so break the inner backward search
+                // and let the outer loop continue from the next week.
+                break; 
             }
         }
     }
 
     return correctedQuantities;
 };
-
