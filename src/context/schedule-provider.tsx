@@ -47,6 +47,7 @@ type ScheduleContextType = {
   addCutOrderRecord: (record: CutOrderRecord) => void;
   projectionData: ProjectionRow[];
   frcData: FrcRow[];
+  updateFrcRemarks: (frcNumber: string, action: 'add' | 'delete' | 'reply', remark: Remark, parentId?: string) => void;
 };
 
 const ScheduleContext = createContext<ScheduleContextType | undefined>(undefined);
@@ -184,6 +185,10 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
             const storedEndDate = new Date(storedData.timelineEndDate);
             if (isAfter(storedEndDate, maxEndDate)) maxEndDate = storedEndDate;
         }
+
+        if(storedData.frcData) {
+          setFrcData(storedData.frcData.map((f: FrcRow) => ({...f, remarks: f.remarks || []})));
+        }
       }
 
       setTimelineEndDate(addDays(maxEndDate, 3));
@@ -245,8 +250,11 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     const allProjections = Object.values(ccGroups).flatMap(ccOrders => PrjGenerator(ccOrders));
     setProjectionData(allProjections);
     
-    const allFrcs = FrcGenerator(allProjections, orders);
-    setFrcData(allFrcs);
+    // Check if FRC data is already loaded and has remarks, to avoid overwriting them.
+    if (!frcData || frcData.length === 0 || !frcData.some(f => f.remarks && f.remarks.length > 0)) {
+       const allFrcs = FrcGenerator(allProjections, orders);
+       setFrcData(allFrcs);
+    }
 
     const projectionTotalsByOrder = allProjections.reduce((acc, prj) => {
         const orderId = `${prj.ccNo}-${prj.model.replace(' / ', '-')}`;
@@ -254,7 +262,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         return acc;
     }, {} as Record<string, number>);
     
-    const frcTotalsByOrder = allFrcs.reduce((acc, frc) => {
+    const frcTotalsByOrder = FrcGenerator(allProjections, orders).reduce((acc, frc) => {
         const orderId = `${frc.ccNo}-${frc.model.replace(' / ', '-')}`;
         acc[orderId] = (acc[orderId] || 0) + frc.frcQty;
         return acc;
@@ -328,13 +336,14 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         timelineEndDate,
         splitOrderProcesses,
         cutOrderRecords,
+        frcData,
       };
       const serializedState = JSON.stringify(stateToSave);
       localStorage.setItem(STORE_KEY, serializedState);
     } catch (err) {
       console.error("Could not save schedule to localStorage", err);
     }
-  }, [appMode, scheduledProcesses, sewingLines, orderOverrides, productionPlans, timelineEndDate, splitOrderProcesses, cutOrderRecords, isScheduleLoaded]);
+  }, [appMode, scheduledProcesses, sewingLines, orderOverrides, productionPlans, timelineEndDate, splitOrderProcesses, cutOrderRecords, frcData, isScheduleLoaded]);
 
   const setAppMode = useCallback((mode: AppMode) => {
     setAppModeState(mode);
@@ -482,6 +491,41 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     setCutOrderRecords(prev => [...prev, record]);
   }, []);
 
+    const updateFrcRemarks = useCallback((frcNumber: string, action: 'add' | 'delete' | 'reply', remark: Remark, parentId?: string) => {
+        setFrcData(prevData => {
+            return prevData.map(frc => {
+                if (frc.frcNumber === frcNumber && action === 'add') {
+                    return { ...frc, remarks: [...(frc.remarks || []), remark] };
+                }
+                if (action === 'reply' || action === 'delete') {
+                    const updateReplies = (remarks: Remark[]): Remark[] => {
+                        return remarks.map(r => {
+                            if (r.id === parentId && action === 'reply') {
+                                return { ...r, replies: [...(r.replies || []), remark] };
+                            }
+                            if (action === 'delete' && r.id === parentId) { // simplified for demo, deletes top-level
+                                return null;
+                            }
+                            if (r.replies) {
+                                return { ...r, replies: updateReplies(r.replies) };
+                            }
+                            return r;
+                        }).filter(Boolean) as Remark[];
+                    };
+                    
+                    if (action === 'delete' && !parentId) { // Top level delete
+                        const updatedRemarks = (frc.remarks || []).filter(r => r.id !== remark.id);
+                        return { ...frc, remarks: updatedRemarks };
+                    }
+                    
+                    const newRemarks = updateReplies(frc.remarks || []);
+                    return { ...frc, remarks: newRemarks };
+                }
+                return frc;
+            });
+        });
+    }, []);
+
   const sewingRampUpSchemes = useMemo(() => 
     Object.entries(orderOverrides).reduce((acc, [orderId, override]) => {
       if (override.sewingRampUpScheme) {
@@ -533,6 +577,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     addCutOrderRecord,
     projectionData,
     frcData,
+    updateFrcRemarks,
   };
 
   return (
