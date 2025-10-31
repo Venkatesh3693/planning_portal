@@ -96,7 +96,7 @@ export default function ProjectionPlanningPage() {
                         <TableCell>{row.prjCoverage}</TableCell>
                         <TableCell className="text-right font-medium">{row.prjQty.toLocaleString()}</TableCell>
                         <TableCell>{row.ckWeek}</TableCell>
-                        <TableCell>{row.status}</TableCell>
+                        <TableCell></TableCell>
                         <TableCell>{row.remarks}</TableCell>
                       </TableRow>
                     ))
