@@ -921,12 +921,27 @@ export const FrcGenerator = (projections: ProjectionRow[], ordersForCc: Order[])
             let coverageStartWeek = '';
             let coverageEndWeek = '';
 
+            const firstDemandWeekWithPoFc = demandWeeks.find(w => {
+                 const weekData = snapshotData.forecasts[`W${w}`];
+                 if (!weekData) return false;
+                 return ((weekData.total?.po || 0) + (weekData.total?.fc || 0)) > 0;
+            });
+
+            if (firstDemandWeekWithPoFc === undefined) { // No demand found
+                frcRows.push({ ...prj, frcNumber: prj.prjNumber.replace('PRJ', 'FRC'), frcQty: prj.prjQty, frcWeek: `W${frcWeekNum}`, frcCoverage: 'N/A', sizes: {} as Record<Size, number> });
+                return;
+            }
+            
+            coverageStartWeek = `W${firstDemandWeekWithPoFc}`;
+
+
             for (const weekNum of demandWeeks) {
+                if (weekNum < firstDemandWeekWithPoFc) continue;
+
                 const weekKey = `W${weekNum}`;
                 const weekData = snapshotData.forecasts[weekKey];
                 if (!weekData) continue;
-
-                if (coverageStartWeek === '') coverageStartWeek = weekKey;
+                
                 coverageEndWeek = weekKey;
 
                 for (const size of SIZES) {
