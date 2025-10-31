@@ -63,10 +63,12 @@ const RemarkItem = ({ remark, onReply, level = 0 }: { remark: Remark; onReply: (
           </p>
         </div>
         <p className="text-sm bg-muted p-2 rounded-md mt-1">{remark.text}</p>
-        <Button variant="ghost" size="sm" className="mt-1 h-auto p-1 text-xs" onClick={() => onReply(remark)}>
-          <CornerUpLeft className="mr-1 h-3 w-3" />
-          Reply
-        </Button>
+        {level === 0 && (
+          <Button variant="ghost" size="sm" className="mt-1 h-auto p-1 text-xs" onClick={() => onReply(remark)}>
+            <CornerUpLeft className="mr-1 h-3 w-3" />
+            Reply
+          </Button>
+        )}
         {remark.replies && remark.replies.length > 0 && (
           <div className="mt-3 space-y-3 border-l-2 pl-3">
             {remark.replies.map(reply => (
