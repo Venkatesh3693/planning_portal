@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Header } from '@/components/layout/header';
@@ -42,11 +41,12 @@ import {
   SheetFooter
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { MessageSquare, CornerUpLeft, Trash2 } from 'lucide-react';
+import { MessageSquare, CornerUpLeft, Trash2, MoreHorizontal } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 
 const RemarkItem = ({ remark, onReply, onDelete, level = 0 }: { remark: Remark; onReply: (remark: Remark) => void; onDelete: (remarkId: string) => void; level?: number; }) => {
@@ -57,10 +57,27 @@ const RemarkItem = ({ remark, onReply, onDelete, level = 0 }: { remark: Remark; 
       </Avatar>
       <div className="flex-1 group">
         <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold">{remark.user}</p>
-          <p className="text-xs text-muted-foreground">
-            {format(new Date(remark.date), 'MMM d, h:mm a')}
-          </p>
+            <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold">{remark.user}</p>
+                 <p className="text-xs text-muted-foreground">
+                    {format(new Date(remark.date), 'MMM d, h:mm a')}
+                 </p>
+            </div>
+          
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100">
+                        <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                    <DropdownMenuItem onClick={() => onDelete(remark.id)} className="text-destructive">
+                         <Trash2 className="mr-2 h-4 w-4" />
+                         Delete
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+
         </div>
         <p className="text-sm bg-muted p-2 rounded-md mt-1">{remark.text}</p>
         <div className="flex items-center gap-2">
@@ -70,10 +87,6 @@ const RemarkItem = ({ remark, onReply, onDelete, level = 0 }: { remark: Remark; 
                 Reply
               </Button>
             )}
-            <Button variant="ghost" size="sm" className="mt-1 h-auto p-1 text-xs text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => onDelete(remark.id)}>
-              <Trash2 className="mr-1 h-3 w-3" />
-              Delete
-            </Button>
         </div>
         {remark.replies && remark.replies.length > 0 && (
           <div className="mt-3 space-y-3 border-l-2 pl-3">
@@ -179,9 +192,9 @@ export default function ProjectionPlanningPage() {
 
         let updatedRemarks;
         if (replyingTo) {
-            updatedRemarks = addReplyRecursively(selectedProjection.remarks);
+            updatedRemarks = addReplyRecursively(selectedProjection.remarks || []);
         } else {
-            updatedRemarks = [...selectedProjection.remarks, newRemark];
+            updatedRemarks = [...(selectedProjection.remarks || []), newRemark];
             remarksUpdated = true;
         }
         
@@ -211,7 +224,7 @@ export default function ProjectionPlanningPage() {
                 });
         };
 
-        const updatedRemarks = deleteRecursively(selectedProjection.remarks);
+        const updatedRemarks = deleteRecursively(selectedProjection.remarks || []);
         const updatedProjection = { ...selectedProjection, remarks: updatedRemarks };
 
         setProjectionData(prevData =>
