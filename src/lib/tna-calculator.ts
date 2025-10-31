@@ -742,48 +742,34 @@ export const correctAllocationForNegativeFgoi = (
 
         // Search backwards for a donor week
         for (let j = i - 1; j >= 0; j--) {
-            const actionWeek = allWeeks[j];
-            let sourceModel: string | null = null;
-            let sourceType: 'produced' | 'plan' | null = null;
-            let availableToRedistribute = 0;
+            const donorWeek = allWeeks[j];
+            let foundDonor = false;
 
-            const allAllocationsInWeek = modelNames.map(name => ({
-                name,
-                produced: correctedQuantities[name].produced[actionWeek] || 0,
-                plan: correctedQuantities[name].plan[actionWeek] || 0,
-            }));
-            
-            const viableDonor = allAllocationsInWeek.find(alloc => (alloc.produced + alloc.plan) >= totalDeficit);
+            for (const sourceModel of modelNames) {
+                 const planQtyInDonorWeek = correctedQuantities[sourceModel].plan[donorWeek] || 0;
+                 const producedQtyInDonorWeek = correctedQuantities[sourceModel].produced[donorWeek] || 0;
 
-            if (viableDonor) {
-                if (viableDonor.produced >= totalDeficit) {
-                    sourceModel = viableDonor.name;
-                    sourceType = 'produced';
-                } else if (viableDonor.plan >= totalDeficit) {
-                    sourceModel = viableDonor.name;
-                    sourceType = 'plan';
-                } else if (viableDonor.produced + viableDonor.plan >= totalDeficit) {
-                    // This case is more complex, for now we will assume a single source is enough.
-                }
+                 if (planQtyInDonorWeek >= totalDeficit) {
+                    correctedQuantities[sourceModel].plan[donorWeek] -= totalDeficit;
+                    
+                    const deficitModel = Object.keys(deficits)[0]; // simple distribution
+                    correctedQuantities[deficitModel].plan[donorWeek] = (correctedQuantities[deficitModel].plan[donorWeek] || 0) + totalDeficit;
+                    
+                    foundDonor = true;
+                    break;
+                 } else if (producedQtyInDonorWeek >= totalDeficit) {
+                    correctedQuantities[sourceModel].produced[donorWeek] -= totalDeficit;
+                     
+                    const deficitModel = Object.keys(deficits)[0];
+                    correctedQuantities[deficitModel].produced[donorWeek] = (correctedQuantities[deficitModel].produced[donorWeek] || 0) + totalDeficit;
+                     
+                    foundDonor = true;
+                    break;
+                 }
             }
 
-
-            if (sourceModel && sourceType) {
-                const quantityToMove = totalDeficit;
-                
-                // Deduct from the source
-                correctedQuantities[sourceModel][sourceType][actionWeek] -= quantityToMove;
-                
-                // Distribute to models with deficits
-                // We'll give the entire moved quantity to the first model with a deficit
-                // A more advanced logic could distribute proportionally
-                const deficitModel = Object.keys(deficits)[0];
-                if (deficitModel) {
-                     correctedQuantities[deficitModel][sourceType][actionWeek] = 
-                        (correctedQuantities[deficitModel][sourceType][actionWeek] || 0) + quantityToMove;
-                }
-                
-                break; 
+            if(foundDonor) {
+                break; // Exit the backward search once a donor is found and allocation is done
             }
         }
     }
@@ -830,14 +816,16 @@ export const PrjGenerator = (ordersForCc: Order[]): ProjectionRow[] => {
             prjCount++;
             const prjWeek = currentCkWeek - prjLeadTimeWeeks;
             const prjCoverageStartWeek = currentCkWeek + 1;
-            const prjCoverageEndWeek = currentCkWeek + 3;
+            const prjCoverageEndWeek = currentCkWeek + 4; // Changed from +3 to +4
 
             // Find a valid snapshot week for PRJ calculation
             const availableSnapshotForPrj = allSnapshotWeeks.find(w => w === prjWeek) || allSnapshotWeeks.filter(w => w < prjWeek).pop() || allSnapshotWeeks[0];
             
             const prjPlanData = CcProdPlanner({ ordersForCc, snapshotWeek: availableSnapshotForPrj, producedData: {} });
-            const modelPlanData = initialAllocation(prjPlanData, prjPlanData.modelWiseDemand || {}, prjPlanData.allWeeks);
-            const correctedModelPlanData = correctAllocationForNegativeFgoi(modelPlanData, prjPlanData.modelWiseDemand || {}, prjPlanData.allWeeks);
+            if (!prjPlanData.modelWiseDemand) continue;
+
+            const modelPlanData = initialAllocation(prjPlanData, prjPlanData.modelWiseDemand, prjPlanData.allWeeks);
+            const correctedModelPlanData = correctAllocationForNegativeFgoi(modelPlanData, prjPlanData.modelWiseDemand, prjPlanData.allWeeks);
 
             const modelColorPlan = correctedModelPlanData[modelOrder.color]?.plan || {};
             
@@ -870,7 +858,7 @@ export const PrjGenerator = (ordersForCc: Order[]): ProjectionRow[] => {
             }
 
             // Prepare for next iteration
-            currentCkWeek += 3;
+            currentCkWeek += 4; // Changed from +3 to +4
             if (currentCkWeek > Math.max(...allSnapshotWeeks) + 52) break; // Stop if we go too far into the future
         }
     });
