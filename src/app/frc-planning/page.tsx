@@ -23,35 +23,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { SIZES } from '@/lib/data';
 import { useSchedule } from '@/context/schedule-provider';
 import { useMemo, useState, useEffect } from 'react';
-import { PrjGenerator, FrcGenerator } from '@/lib/tna-calculator';
 import type { Order, FrcRow } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { MessageSquare } from 'lucide-react';
 
 
 export default function FrcPlanningPage() {
-  const { orders, isScheduleLoaded } = useSchedule();
-  const [frcData, setFrcData] = useState<FrcRow[]>([]);
+  const { frcData, isScheduleLoaded } = useSchedule();
   
-  useEffect(() => {
-    if (!isScheduleLoaded) return;
-
-    const ccGroups = orders.reduce((acc, order) => {
-        if (order.orderType === 'Forecasted' && order.ocn) {
-            if (!acc[order.ocn]) {
-                acc[order.ocn] = [];
-            }
-            acc[order.ocn].push(order);
-        }
-        return acc;
-    }, {} as Record<string, Order[]>);
-
-    const allProjections = Object.values(ccGroups).flatMap(ccOrders => PrjGenerator(ccOrders));
-    const allFrcs = FrcGenerator(allProjections, orders);
-    setFrcData(allFrcs);
-
-  }, [orders, isScheduleLoaded]);
-
   return (
     <div className="flex h-screen flex-col">
       <Header />
@@ -97,7 +76,7 @@ export default function FrcPlanningPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {frcData.length > 0 ? (
+                  {isScheduleLoaded && frcData.length > 0 ? (
                     frcData.map(row => (
                       <TableRow key={row.frcNumber}>
                         <TableCell>{row.ccNo}</TableCell>
@@ -127,7 +106,7 @@ export default function FrcPlanningPage() {
                   ) : (
                     <TableRow>
                       <TableCell colSpan={12 + SIZES.length} className="h-24 text-center">
-                        No FRC data available.
+                        {isScheduleLoaded ? 'No FRC data available.' : 'Loading FRC data...'}
                       </TableCell>
                     </TableRow>
                   )}

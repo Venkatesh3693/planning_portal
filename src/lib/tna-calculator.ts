@@ -866,19 +866,15 @@ export const PrjGenerator = (ordersForCc: Order[]): ProjectionRow[] => {
     return allProjections.sort((a,b) => a.prjNumber.localeCompare(b.prjNumber));
 };
 
-export const FrcGenerator = (projections: ProjectionRow[], ordersForCc: Order[]): FrcRow[] => {
-    if (!projections || projections.length === 0 || !ordersForCc || ordersForCc.length === 0) {
+export const FrcGenerator = (projections: ProjectionRow[], orders: Order[]): FrcRow[] => {
+    if (!projections || projections.length === 0 || !orders || orders.length === 0) {
         return [];
     }
 
     const frcRows: FrcRow[] = [];
 
-    const ordersByModelColor = ordersForCc.reduce((acc, order) => {
-        const key = `${order.style} / ${order.color}`;
-        acc[key] = order;
-        return acc;
-    }, {} as Record<string, Order>);
-    
+    const ordersMap = new Map(orders.map(o => [`${o.style} / ${o.color}`, o]));
+
     const projectionsByModel = projections.reduce((acc, prj) => {
         if (!acc[prj.model]) {
             acc[prj.model] = [];
@@ -890,7 +886,8 @@ export const FrcGenerator = (projections: ProjectionRow[], ordersForCc: Order[])
     
     Object.keys(projectionsByModel).forEach(model => {
         const modelProjections = projectionsByModel[model].sort((a, b) => a.prjNumber.localeCompare(b.prjNumber));
-        const order = ordersByModelColor[model];
+        const order = ordersMap.get(model);
+
         if (!order || !order.bom || !order.fcVsFcDetails) return;
         
         let cumulativeFrcQty = 0;
@@ -908,19 +905,14 @@ export const FrcGenerator = (projections: ProjectionRow[], ordersForCc: Order[])
             const snapshotData = order.fcVsFcDetails!.find(s => s.snapshotWeek === snapshotForFrcWeek);
 
             if (!snapshotData) {
-                frcRows.push({ ...prj, frcNumber: prj.prjNumber.replace('PRJ', 'FRC'), frcQty: prj.prjQty, frcWeek: `W${frcWeekNum}`, sizes: {} as Record<Size, number> });
+                frcRows.push({ ...prj, frcNumber: prj.prjNumber.replace('PRJ', 'FRC'), frcQty: prj.prjQty, frcWeek: `W${frcWeekNum}`, sizes: {} as Record<Size, number>, remarks: [] });
                 return;
             }
             
             cumulativeFrcQty += prj.prjQty;
 
             const demandWeeks = Object.keys(snapshotData.forecasts).map(w => parseInt(w.replace('W', ''))).sort((a, b) => a - b);
-
-            const newCumulativeBreakdown: Record<Size, number> = SIZES.reduce((acc, s) => ({...acc, [s]: 0}), {} as Record<Size, number>);
-            let runningTotal = 0;
-            let coverageStartWeek = '';
-            let coverageEndWeek = '';
-
+            
             const firstDemandWeekWithPoFc = demandWeeks.find(w => {
                  const weekData = snapshotData.forecasts[`W${w}`];
                  if (!weekData) return false;
@@ -928,11 +920,14 @@ export const FrcGenerator = (projections: ProjectionRow[], ordersForCc: Order[])
             });
 
             if (firstDemandWeekWithPoFc === undefined) { // No demand found
-                frcRows.push({ ...prj, frcNumber: prj.prjNumber.replace('PRJ', 'FRC'), frcQty: prj.prjQty, frcWeek: `W${frcWeekNum}`, frcCoverage: 'N/A', sizes: {} as Record<Size, number> });
+                frcRows.push({ ...prj, frcNumber: prj.prjNumber.replace('PRJ', 'FRC'), frcQty: prj.prjQty, frcWeek: `W${frcWeekNum}`, frcCoverage: 'N/A', sizes: {} as Record<Size, number>, remarks: [] });
                 return;
             }
-            
-            coverageStartWeek = `W${firstDemandWeekWithPoFc}`;
+
+            const newCumulativeBreakdown: Record<Size, number> = SIZES.reduce((acc, s) => ({...acc, [s]: 0}), {} as Record<Size, number>);
+            let runningTotal = 0;
+            let coverageStartWeek = `W${firstDemandWeekWithPoFc}`;
+            let coverageEndWeek = '';
 
 
             for (const weekNum of demandWeeks) {
@@ -972,6 +967,7 @@ export const FrcGenerator = (projections: ProjectionRow[], ordersForCc: Order[])
                 frcWeek: `W${frcWeekNum}`,
                 frcCoverage: `${coverageStartWeek}-${coverageEndWeek}`,
                 sizes: currentFrcBreakdown,
+                remarks: [],
             });
             
             // Update the previous cumulative breakdown for the next iteration

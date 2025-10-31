@@ -3,10 +3,10 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, Dispatch, SetStateAction, useMemo, useCallback } from 'react';
-import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem, Size, FcComposition, FcSnapshot, SyntheticPoRecord, CutOrderRecord, SizeBreakdown, ProjectionRow } from '@/lib/types';
+import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem, Size, FcComposition, FcSnapshot, SyntheticPoRecord, CutOrderRecord, SizeBreakdown, ProjectionRow, FrcRow } from '@/lib/types';
 import { ORDERS as staticOrders, PROCESSES, ORDER_COLORS, SIZES } from '@/lib/data';
 import { addDays, startOfToday, isAfter, getWeek } from 'date-fns';
-import { getProcessBatchSize, getPackingBatchSize, PrjGenerator } from '@/lib/tna-calculator';
+import { getProcessBatchSize, getPackingBatchSize, PrjGenerator, FrcGenerator } from '@/lib/tna-calculator';
 
 const STORE_KEY = 'stitchplan_schedule_v4';
 const FIRM_PO_WINDOW = 3;
@@ -45,6 +45,8 @@ type ScheduleContextType = {
   setSyntheticPoRecords: Dispatch<SetStateAction<SyntheticPoRecord[]>>;
   cutOrderRecords: CutOrderRecord[];
   addCutOrderRecord: (record: CutOrderRecord) => void;
+  projectionData: ProjectionRow[];
+  frcData: FrcRow[];
 };
 
 const ScheduleContext = createContext<ScheduleContextType | undefined>(undefined);
@@ -146,6 +148,8 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   const [isScheduleLoaded, setIsScheduleLoaded] = useState(false);
   const [syntheticPoRecords, setSyntheticPoRecords] = useState<SyntheticPoRecord[]>([]);
   const [cutOrderRecords, setCutOrderRecords] = useState<CutOrderRecord[]>([]);
+  const [projectionData, setProjectionData] = useState<ProjectionRow[]>([]);
+  const [frcData, setFrcData] = useState<FrcRow[]>([]);
 
   useEffect(() => {
     try {
@@ -230,7 +234,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isScheduleLoaded) return;
 
-    // Group orders by CC to generate projections
     const ccGroups = orders.reduce((acc, order) => {
         if (order.orderType === 'Forecasted' && order.ocn) {
             if (!acc[order.ocn]) acc[order.ocn] = [];
@@ -240,12 +243,23 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     }, {} as Record<string, Order[]>);
 
     const allProjections = Object.values(ccGroups).flatMap(ccOrders => PrjGenerator(ccOrders));
+    setProjectionData(allProjections);
+    
+    const allFrcs = FrcGenerator(allProjections, orders);
+    setFrcData(allFrcs);
 
     const projectionTotalsByOrder = allProjections.reduce((acc, prj) => {
         const orderId = `${prj.ccNo}-${prj.model.replace(' / ', '-')}`;
         acc[orderId] = (acc[orderId] || 0) + prj.prjQty;
         return acc;
     }, {} as Record<string, number>);
+    
+    const frcTotalsByOrder = allFrcs.reduce((acc, frc) => {
+        const orderId = `${frc.ccNo}-${frc.model.replace(' / ', '-')}`;
+        acc[orderId] = (acc[orderId] || 0) + frc.frcQty;
+        return acc;
+    }, {} as Record<string, number>);
+
 
     const cutOrderTotalsByOrder = cutOrderRecords.reduce((acc, co) => {
         if (!acc[co.orderId]) {
@@ -290,7 +304,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
 
       if (intermediateOrder.orderType === 'Forecasted') {
         intermediateOrder.totalProjectionQty = projectionTotalsByOrder[intermediateOrder.id] || 0;
-        intermediateOrder.totalFrcQty = 0; // FRC logic to be added
+        intermediateOrder.totalFrcQty = frcTotalsByOrder[intermediateOrder.id] || 0;
         intermediateOrder.confirmedPoQty = poTotalsByOrder[intermediateOrder.id] || 0;
         intermediateOrder.cutOrder = cutOrderTotalsByOrder[intermediateOrder.id] || { total: 0 };
       }
@@ -517,6 +531,8 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     setSyntheticPoRecords,
     cutOrderRecords,
     addCutOrderRecord,
+    projectionData,
+    frcData,
   };
 
   return (
