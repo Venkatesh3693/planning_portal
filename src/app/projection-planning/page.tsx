@@ -10,6 +10,16 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Card, CardContent } from '@/components/ui/card';
+
 
 export default function ProjectionPlanningPage() {
   return (
@@ -32,8 +42,35 @@ export default function ProjectionPlanningPage() {
         <div className="space-y-4">
           <h1 className="text-2xl font-bold">Projection Planning</h1>
           <p className="text-muted-foreground">
-            This page is under construction.
+            View and manage your material projections.
           </p>
+
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>CC no.</TableHead>
+                    <TableHead>Model / Color</TableHead>
+                    <TableHead>PRJ #</TableHead>
+                    <TableHead>PRJ Week</TableHead>
+                    <TableHead>PRJ Coverage weeks</TableHead>
+                    <TableHead className="text-right">PRJ Qty</TableHead>
+                    <TableHead>CK week</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Remarks</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow>
+                    <TableCell colSpan={9} className="h-24 text-center">
+                      No projection data available.
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
         </div>
       </main>
     </div>
