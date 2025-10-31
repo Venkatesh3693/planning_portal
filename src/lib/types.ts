@@ -236,3 +236,17 @@ export type ProjectionRow = {
     status: string;
     remarks: Remark[];
 };
+
+export type FrcRow = {
+    ccNo: string;
+    model: string;
+    prjNumber: string;
+    frcNumber: string;
+    frcWeek: string;
+    ckWeek: string;
+    frcCoverage: string;
+    sizes: Record<Size, number>;
+    frcQty: number;
+    status: string;
+    remarks: Remark[];
+};

@@ -1,6 +1,6 @@
 
 
-import type { Order, Process, TnaProcess, RampUpEntry, ScheduledProcess, SewingOperation, Size, FcComposition, FcSnapshot, ProjectionRow } from './types';
+import type { Order, Process, TnaProcess, RampUpEntry, ScheduledProcess, SewingOperation, Size, FcComposition, FcSnapshot, ProjectionRow, FrcRow } from './types';
 import { WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE, SIZES, PROCESSES as allProcesses } from './data';
 import { addDays, subDays, getDay, format, startOfDay, differenceInMinutes, isBefore, isAfter } from 'date-fns';
 import { calculateStartDateTime, subBusinessDays } from './utils';
@@ -864,4 +864,105 @@ export const PrjGenerator = (ordersForCc: Order[]): ProjectionRow[] => {
     });
 
     return allProjections.sort((a,b) => a.prjNumber.localeCompare(b.prjNumber));
+};
+
+export const FrcGenerator = (projections: ProjectionRow[], ordersForCc: Order[]): FrcRow[] => {
+    if (!projections || projections.length === 0 || !ordersForCc || ordersForCc.length === 0) {
+        return [];
+    }
+
+    const frcRows: FrcRow[] = [];
+
+    const ordersByModelColor = ordersForCc.reduce((acc, order) => {
+        const key = `${order.style} / ${order.color}`;
+        acc[key] = order;
+        return acc;
+    }, {} as Record<string, Order>);
+
+    projections.forEach(prj => {
+        const order = ordersByModelColor[prj.model];
+        if (!order || !order.bom || !order.fcVsFcDetails) {
+            frcRows.push({ ...prj, frcNumber: prj.prjNumber.replace('PRJ', 'FRC'), frcQty: prj.prjQty });
+            return;
+        }
+
+        const frcLeadTimeDays = Math.max(0, ...order.bom.filter(item => item.forecastType === 'FRC').map(item => item.leadTime));
+        const frcLeadTimeWeeks = Math.ceil(frcLeadTimeDays / 7);
+
+        const ckWeekNum = parseInt(prj.ckWeek.replace('W', ''));
+        const frcWeekNum = ckWeekNum - frcLeadTimeWeeks;
+
+        // Find the closest available snapshot for the calculated FRC week
+        const allSnapshotWeeks = [...new Set(order.fcVsFcDetails.flatMap(s => s.snapshotWeek))].sort((a, b) => a - b);
+        const snapshotForFrcWeek = allSnapshotWeeks.find(w => w === frcWeekNum) || allSnapshotWeeks.filter(w => w < frcWeekNum).pop() || allSnapshotWeeks[0];
+
+        const snapshotData = order.fcVsFcDetails.find(s => s.snapshotWeek === snapshotForFrcWeek);
+        if (!snapshotData) {
+            frcRows.push({ ...prj, frcNumber: prj.prjNumber.replace('PRJ', 'FRC'), frcQty: prj.prjQty, frcWeek: `W${frcWeekNum}` });
+            return;
+        }
+
+        const demandWeeks = Object.keys(snapshotData.forecasts)
+            .map(w => parseInt(w.replace('W', '')))
+            .sort((a, b) => a - b);
+        
+        let firstDemandWeek: number | null = null;
+
+        for (const weekNum of demandWeeks) {
+            const weekData = snapshotData.forecasts[`W${weekNum}`];
+            const totalDemand = (weekData?.total?.po || 0) + (weekData?.total?.fc || 0);
+            if (totalDemand > 0) {
+                firstDemandWeek = weekNum;
+                break;
+            }
+        }
+        
+        if (firstDemandWeek === null) {
+            frcRows.push({ ...prj, frcNumber: prj.prjNumber.replace('PRJ', 'FRC'), frcQty: prj.prjQty, frcWeek: `W${frcWeekNum}` });
+            return;
+        }
+
+        const frcBreakdown: Record<Size, number> = SIZES.reduce((acc, size) => ({ ...acc, [size]: 0 }), {} as Record<Size, number>);
+        let cumulativeQty = 0;
+        let coverageStartWeek = `W${firstDemandWeek}`;
+        let coverageEndWeek = '';
+
+        for (const weekNum of demandWeeks) {
+            if (weekNum < firstDemandWeek) continue;
+
+            const weekData = snapshotData.forecasts[`W${weekNum}`];
+            if (!weekData) continue;
+            
+            for (const size of SIZES) {
+                if (cumulativeQty >= prj.prjQty) break;
+                
+                const sizeDemand = (weekData[size]?.po || 0) + (weekData[size]?.fc || 0);
+                if (sizeDemand > 0) {
+                    const needed = prj.prjQty - cumulativeQty;
+                    if (sizeDemand >= needed) {
+                        frcBreakdown[size] = (frcBreakdown[size] || 0) + needed;
+                        cumulativeQty += needed;
+                        coverageEndWeek = `W${weekNum}`;
+                        break;
+                    } else {
+                        frcBreakdown[size] = (frcBreakdown[size] || 0) + sizeDemand;
+                        cumulativeQty += sizeDemand;
+                        coverageEndWeek = `W${weekNum}`;
+                    }
+                }
+            }
+            if (cumulativeQty >= prj.prjQty) break;
+        }
+
+        frcRows.push({
+            ...prj,
+            frcNumber: prj.prjNumber.replace('PRJ', 'FRC'),
+            frcQty: prj.prjQty,
+            frcWeek: `W${frcWeekNum}`,
+            frcCoverage: `${coverageStartWeek}-${coverageEndWeek}`,
+            sizes: frcBreakdown,
+        });
+    });
+
+    return frcRows;
 };

@@ -21,8 +21,37 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent } from '@/components/ui/card';
 import { SIZES } from '@/lib/data';
+import { useSchedule } from '@/context/schedule-provider';
+import { useMemo, useState, useEffect } from 'react';
+import { PrjGenerator, FrcGenerator } from '@/lib/tna-calculator';
+import type { Order, FrcRow } from '@/lib/types';
+import { Button } from '@/components/ui/button';
+import { MessageSquare } from 'lucide-react';
+
 
 export default function FrcPlanningPage() {
+  const { orders, isScheduleLoaded } = useSchedule();
+  const [frcData, setFrcData] = useState<FrcRow[]>([]);
+  
+  useEffect(() => {
+    if (!isScheduleLoaded) return;
+
+    const ccGroups = orders.reduce((acc, order) => {
+        if (order.orderType === 'Forecasted' && order.ocn) {
+            if (!acc[order.ocn]) {
+                acc[order.ocn] = [];
+            }
+            acc[order.ocn].push(order);
+        }
+        return acc;
+    }, {} as Record<string, Order[]>);
+
+    const allProjections = Object.values(ccGroups).flatMap(ccOrders => PrjGenerator(ccOrders));
+    const allFrcs = FrcGenerator(allProjections, orders);
+    setFrcData(allFrcs);
+
+  }, [orders, isScheduleLoaded]);
+
   return (
     <div className="flex h-screen flex-col">
       <Header />
@@ -68,11 +97,40 @@ export default function FrcPlanningPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow>
-                    <TableCell colSpan={12 + SIZES.length} className="h-24 text-center">
-                      No FRC data available.
-                    </TableCell>
-                  </TableRow>
+                  {frcData.length > 0 ? (
+                    frcData.map(row => (
+                      <TableRow key={row.frcNumber}>
+                        <TableCell>{row.ccNo}</TableCell>
+                        <TableCell>{row.model}</TableCell>
+                        <TableCell>{row.prjNumber}</TableCell>
+                        <TableCell>{row.frcNumber}</TableCell>
+                        <TableCell>{row.frcWeek}</TableCell>
+                        <TableCell>{row.ckWeek}</TableCell>
+                        <TableCell>{row.frcCoverage}</TableCell>
+                        {SIZES.map(size => (
+                          <TableCell key={size} className="text-right">
+                            {(row.sizes?.[size] || 0) > 0 ? (row.sizes?.[size] || 0).toLocaleString() : '-'}
+                          </TableCell>
+                        ))}
+                        <TableCell className="text-right font-medium">{row.frcQty.toLocaleString()}</TableCell>
+                        <TableCell>{row.status}</TableCell>
+                        <TableCell>
+                          {/* Approve button to be added */}
+                        </TableCell>
+                         <TableCell className="text-center">
+                          <Button variant="ghost" size="icon">
+                            <MessageSquare className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={12 + SIZES.length} className="h-24 text-center">
+                        No FRC data available.
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
