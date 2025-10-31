@@ -55,8 +55,7 @@ export default function CutOrderIssuePage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>CO #</TableHead>
-                                    <TableHead>CO Issue Week</TableHead>
-                                    <TableHead>CO End Week</TableHead>
+                                    <TableHead>CO Coverage</TableHead>
                                     {SIZES.map(size => (
                                       <TableHead key={size} className="text-right">{size}</TableHead>
                                     ))}
@@ -67,7 +66,7 @@ export default function CutOrderIssuePage() {
                             </TableHeader>
                             <TableBody>
                                 <TableRow>
-                                    <TableCell colSpan={SIZES.length + 6} className="h-24 text-center">
+                                    <TableCell colSpan={SIZES.length + 5} className="h-24 text-center">
                                         No cut orders have been issued yet.
                                     </TableCell>
                                 </TableRow>
