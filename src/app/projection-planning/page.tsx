@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent } from '@/components/ui/card';
 import { useSchedule } from '@/context/schedule-provider';
-import { useMemo, useState, useEffect }from 'react';
+import { useMemo, useState, useEffect, useCallback }from 'react';
 import { PrjGenerator } from '@/lib/tna-calculator';
 import type { Order, ProjectionRow, Remark } from '@/lib/types';
 import { getWeek, format } from 'date-fns';
@@ -42,10 +42,41 @@ import {
   SheetFooter
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, CornerUpLeft } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+
+
+const RemarkItem = ({ remark, onReply, level = 0 }: { remark: Remark; onReply: (remarkId: string) => void; level?: number; }) => {
+  return (
+    <div className={cn("flex items-start gap-3", level > 0 && "ml-6")}>
+      <Avatar className="h-8 w-8">
+        <AvatarFallback>{remark.user.charAt(0)}</AvatarFallback>
+      </Avatar>
+      <div className="flex-1">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold">{remark.user}</p>
+          <p className="text-xs text-muted-foreground">
+            {format(new Date(remark.date), 'MMM d, h:mm a')}
+          </p>
+        </div>
+        <p className="text-sm bg-muted p-2 rounded-md mt-1">{remark.text}</p>
+        <Button variant="ghost" size="sm" className="mt-1 h-auto p-1 text-xs" onClick={() => onReply(remark.id)}>
+          <CornerUpLeft className="mr-1 h-3 w-3" />
+          Reply
+        </Button>
+        {remark.replies && remark.replies.length > 0 && (
+          <div className="mt-3 space-y-3 border-l-2 pl-3">
+            {remark.replies.map(reply => (
+              <RemarkItem key={reply.id} remark={reply} onReply={onReply} level={level + 1} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 
 export default function ProjectionPlanningPage() {
@@ -54,6 +85,8 @@ export default function ProjectionPlanningPage() {
     const [projectionStatuses, setProjectionStatuses] = useState<Record<string, string>>({});
     const [selectedProjection, setSelectedProjection] = useState<ProjectionRow | null>(null);
     const [newComment, setNewComment] = useState('');
+    const [replyingTo, setReplyingTo] = useState<{ remarkId: string; user: string } | null>(null);
+
 
     useEffect(() => {
         if (!isScheduleLoaded) return;
@@ -95,33 +128,64 @@ export default function ProjectionPlanningPage() {
         }
     }, [projectionData]);
 
-
-    const handleStatusChange = (prjNumber: string, newStatus: string) => {
-        setProjectionStatuses(prev => ({
-            ...prev,
-            [prjNumber]: newStatus,
-        }));
+    const handleOpenRemarks = (projection: ProjectionRow) => {
+      setSelectedProjection(projection);
+      setNewComment('');
+      setReplyingTo(null);
     };
 
+    const handleCloseRemarks = () => {
+      setSelectedProjection(null);
+    }
+
+    const handleSetReplyingTo = useCallback((remark: Remark) => {
+        setReplyingTo({ remarkId: remark.id, user: remark.user });
+    }, []);
+
     const handleSaveComment = () => {
-      if (!selectedProjection || !newComment.trim()) return;
-      const newRemark: Remark = {
-        id: crypto.randomUUID(),
-        user: 'User', // Mock user
-        text: newComment.trim(),
-        date: new Date().toISOString(),
-      };
+        if (!selectedProjection || !newComment.trim()) return;
 
-      const updatedProjections = projectionData.map(p => {
-        if (p.prjNumber === selectedProjection.prjNumber) {
-          return { ...p, remarks: [...p.remarks, newRemark] };
+        const newRemark: Remark = {
+            id: crypto.randomUUID(),
+            user: 'User', // Mock user
+            text: newComment.trim(),
+            date: new Date().toISOString(),
+            replies: [],
+        };
+        
+        let remarksUpdated = false;
+
+        const addReplyRecursively = (remarks: Remark[]): Remark[] => {
+            return remarks.map(remark => {
+                if (remark.id === replyingTo?.remarkId) {
+                    remarksUpdated = true;
+                    return { ...remark, replies: [...(remark.replies || []), newRemark] };
+                }
+                if (remark.replies && remark.replies.length > 0) {
+                    return { ...remark, replies: addReplyRecursively(remark.replies) };
+                }
+                return remark;
+            });
+        };
+
+        let updatedRemarks;
+        if (replyingTo) {
+            updatedRemarks = addReplyRecursively(selectedProjection.remarks);
+        } else {
+            updatedRemarks = [...selectedProjection.remarks, newRemark];
+            remarksUpdated = true;
         }
-        return p;
-      });
-
-      setProjectionData(updatedProjections);
-      setSelectedProjection(prev => prev ? { ...prev, remarks: [...prev.remarks, newRemark] } : null);
-      setNewComment('');
+        
+        if (remarksUpdated) {
+            const updatedProjection = { ...selectedProjection, remarks: updatedRemarks };
+            setProjectionData(prevData =>
+                prevData.map(p => (p.prjNumber === selectedProjection.prjNumber ? updatedProjection : p))
+            );
+            setSelectedProjection(updatedProjection);
+        }
+        
+        setNewComment('');
+        setReplyingTo(null);
     };
 
     const STATUS_OPTIONS = ['Planned', 'Unplanned', 'In-housed', 'Delay'];
@@ -179,7 +243,7 @@ export default function ProjectionPlanningPage() {
                         <TableCell>
                            <Select
                                 value={projectionStatuses[row.prjNumber] || ''}
-                                onValueChange={(newStatus) => handleStatusChange(row.prjNumber, newStatus)}
+                                onValueChange={(newStatus) => setProjectionStatuses(prev => ({...prev, [row.prjNumber]: newStatus}))}
                             >
                                 <SelectTrigger className="w-[120px]">
                                     <SelectValue placeholder="Select Status" />
@@ -194,7 +258,7 @@ export default function ProjectionPlanningPage() {
                             </Select>
                         </TableCell>
                         <TableCell className="text-center">
-                          <Button variant="ghost" size="icon" onClick={() => setSelectedProjection(row)}>
+                          <Button variant="ghost" size="icon" onClick={() => handleOpenRemarks(row)}>
                             <MessageSquare className="h-4 w-4" />
                           </Button>
                         </TableCell>
@@ -214,7 +278,7 @@ export default function ProjectionPlanningPage() {
         </div>
       </main>
 
-       <Sheet open={!!selectedProjection} onOpenChange={(isOpen) => !isOpen && setSelectedProjection(null)}>
+       <Sheet open={!!selectedProjection} onOpenChange={(isOpen) => !isOpen && handleCloseRemarks()}>
         <SheetContent className="sm:max-w-md">
           <SheetHeader>
             <SheetTitle>Remarks for {selectedProjection?.prjNumber}</SheetTitle>
@@ -222,24 +286,11 @@ export default function ProjectionPlanningPage() {
               Add and view comments for this projection.
             </SheetDescription>
           </SheetHeader>
-          <div className="py-4 space-y-4 h-full flex flex-col">
+          <div className="py-4 space-y-4 h-[calc(100%-8rem)] flex flex-col">
             <div className="flex-1 space-y-4 overflow-y-auto pr-2">
               {selectedProjection?.remarks && selectedProjection.remarks.length > 0 ? (
                 selectedProjection.remarks.map((remark) => (
-                   <div key={remark.id} className="flex items-start gap-3">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback>{remark.user.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm font-semibold">{remark.user}</p>
-                           <p className="text-xs text-muted-foreground">
-                            {format(new Date(remark.date), 'MMM d, h:mm a')}
-                          </p>
-                        </div>
-                        <p className="text-sm bg-muted p-2 rounded-md mt-1">{remark.text}</p>
-                      </div>
-                   </div>
+                   <RemarkItem key={remark.id} remark={remark} onReply={() => handleSetReplyingTo(remark)} />
                 ))
               ) : (
                 <p className="text-sm text-muted-foreground text-center pt-8">No remarks yet.</p>
@@ -247,8 +298,14 @@ export default function ProjectionPlanningPage() {
             </div>
             <Separator />
             <div className="space-y-2">
+                {replyingTo && (
+                    <div className="text-xs text-muted-foreground p-2 bg-muted rounded-md flex justify-between items-center">
+                       <span>Replying to {replyingTo.user}</span>
+                       <Button variant="ghost" size="sm" className="h-auto p-0 text-xs" onClick={() => setReplyingTo(null)}>Cancel</Button>
+                    </div>
+                )}
               <Textarea
-                placeholder="Type your comment here..."
+                placeholder={replyingTo ? `Reply to ${replyingTo.user}...` : "Type your comment here..."}
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
               />
