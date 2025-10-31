@@ -1162,7 +1162,7 @@ const ForecastedOrderRow = forwardRef<
       </TableCell>
       
       <TableCell className="text-right font-bold">
-        <Link href={`/frc-planning?ccNos=${order.ocn}&models=${order.style} / ${order.color}`} passHref>
+        <Link href={`/frc-planning?ccNos=${order.ocn}&models=${encodeURIComponent(order.style + ' / ' + order.color)}`} passHref>
           <span className="text-primary cursor-pointer hover:underline">
               {(order.totalFrcQty || 0).toLocaleString()}
           </span>

@@ -3,6 +3,7 @@
 
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -108,6 +109,7 @@ const RemarkItem = ({ remark, onReply, onDelete, level = 0 }: { remark: Remark; 
 
 export default function FrcPlanningPage() {
   const { frcData, isScheduleLoaded, updateFrcRemarks } = useSchedule();
+  const searchParams = useSearchParams();
   const [remarksSheetOpen, setRemarksSheetOpen] = useState(false);
   
   const [activeFrcForRemarks, setActiveFrcForRemarks] = useState<FrcRow | null>(null);
@@ -124,6 +126,19 @@ export default function FrcPlanningPage() {
   const [approvedProjections, setApprovedProjections] = useState<Set<string>>(new Set());
   const [projectionToApprove, setProjectionToApprove] = useState<FrcRow | null>(null);
   const [projectionStatuses, setProjectionStatuses] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const ccNosFromUrl = searchParams.get('ccNos');
+    const modelsFromUrl = searchParams.get('models');
+
+    const newFilters: FrcFilters = {
+      ccNos: ccNosFromUrl ? ccNosFromUrl.split(',') : [],
+      models: modelsFromUrl ? modelsFromUrl.split(',').map(m => decodeURIComponent(m)) : [],
+      frcWeekRange: { start: null, end: null },
+      ckWeekRange: { start: null, end: null },
+    };
+    setFilters(newFilters);
+  }, [searchParams]);
 
 
   const filteredFrcData = useMemo(() => {
