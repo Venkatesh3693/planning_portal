@@ -1,7 +1,7 @@
 
 
-import type { Order, Process, TnaProcess, RampUpEntry, ScheduledProcess, SewingOperation, Size, FcComposition, FcSnapshot } from './types';
-import { WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE, SIZES } from './data';
+import type { Order, Process, TnaProcess, RampUpEntry, ScheduledProcess, SewingOperation, Size, FcComposition, FcSnapshot, ProjectionRow } from './types';
+import { WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE, SIZES, PROCESSES as allProcesses } from './data';
 import { addDays, subDays, getDay, format, startOfDay, differenceInMinutes, isBefore, isAfter } from 'date-fns';
 import { calculateStartDateTime, subBusinessDays } from './utils';
 
@@ -716,7 +716,7 @@ export const correctAllocationForNegativeFgoi = (
 
     for (let i = 0; i < allWeeks.length; i++) {
         const week = allWeeks[i];
-        
+
         const fgoiState: Record<string, Record<string, number>> = {};
         modelNames.forEach(name => {
             fgoiState[name] = calculateFgoiForSingleScenario(
@@ -747,23 +747,26 @@ export const correctAllocationForNegativeFgoi = (
             let sourceType: 'produced' | 'plan' | null = null;
             let availableToRedistribute = 0;
 
-            // Find a week with production that's large enough
-            for (const name of modelNames) {
-                const producedQty = correctedQuantities[name].produced[actionWeek] || 0;
-                if (producedQty >= totalDeficit) {
-                    sourceModel = name;
+            const allAllocationsInWeek = modelNames.map(name => ({
+                name,
+                produced: correctedQuantities[name].produced[actionWeek] || 0,
+                plan: correctedQuantities[name].plan[actionWeek] || 0,
+            }));
+            
+            const viableDonor = allAllocationsInWeek.find(alloc => (alloc.produced + alloc.plan) >= totalDeficit);
+
+            if (viableDonor) {
+                if (viableDonor.produced >= totalDeficit) {
+                    sourceModel = viableDonor.name;
                     sourceType = 'produced';
-                    availableToRedistribute = producedQty;
-                    break;
-                }
-                const planQty = correctedQuantities[name].plan[actionWeek] || 0;
-                 if (planQty >= totalDeficit) {
-                    sourceModel = name;
+                } else if (viableDonor.plan >= totalDeficit) {
+                    sourceModel = viableDonor.name;
                     sourceType = 'plan';
-                    availableToRedistribute = planQty;
-                    break;
+                } else if (viableDonor.produced + viableDonor.plan >= totalDeficit) {
+                    // This case is more complex, for now we will assume a single source is enough.
                 }
             }
+
 
             if (sourceModel && sourceType) {
                 const quantityToMove = totalDeficit;
@@ -772,17 +775,105 @@ export const correctAllocationForNegativeFgoi = (
                 correctedQuantities[sourceModel][sourceType][actionWeek] -= quantityToMove;
                 
                 // Distribute to models with deficits
-                Object.entries(deficits).forEach(([deficitModel, amount]) => {
-                    correctedQuantities[deficitModel][sourceType!][actionWeek] = 
-                        (correctedQuantities[deficitModel][sourceType!][actionWeek] || 0) + amount;
-                });
+                // We'll give the entire moved quantity to the first model with a deficit
+                // A more advanced logic could distribute proportionally
+                const deficitModel = Object.keys(deficits)[0];
+                if (deficitModel) {
+                     correctedQuantities[deficitModel][sourceType][actionWeek] = 
+                        (correctedQuantities[deficitModel][sourceType][actionWeek] || 0) + quantityToMove;
+                }
                 
-                // Deficit for week 'i' is fixed, so break the inner backward search
-                // and let the outer loop continue from the next week.
                 break; 
             }
         }
     }
 
     return correctedQuantities;
+};
+
+export const PrjGenerator = (ordersForCc: Order[]): ProjectionRow[] => {
+    const allProjections: ProjectionRow[] = [];
+
+    if (!ordersForCc || ordersForCc.length === 0) {
+        return [];
+    }
+
+    const uniqueModels = ordersForCc.reduce((acc, order) => {
+        const key = `${order.ocn}-${order.color}`;
+        if (!acc[key]) {
+            acc[key] = order;
+        }
+        return acc;
+    }, {} as Record<string, Order>);
+
+
+    Object.values(uniqueModels).forEach((modelOrder, modelIndex) => {
+        if (!modelOrder.bom) return;
+
+        const prjLeadTimeDays = Math.max(0, ...modelOrder.bom.filter(item => item.forecastType === 'Projection').map(item => item.leadTime));
+        const prjLeadTimeWeeks = Math.ceil(prjLeadTimeDays / 7);
+
+        const allSnapshotWeeks = ordersForCc
+            .flatMap(o => o.fcVsFcDetails?.map(f => f.snapshotWeek) || [])
+            .sort((a, b) => a - b);
+        
+        if (allSnapshotWeeks.length === 0) return;
+        const firstSnapshotWeek = allSnapshotWeeks[0];
+
+        const firstPlan = CcProdPlanner({ ordersForCc, snapshotWeek: firstSnapshotWeek, producedData: {} });
+        if (!firstPlan.productionStartWeek) return;
+
+        let currentCkWeek = firstPlan.productionStartWeek - 1;
+        let prjCount = 0;
+
+        for (let i = 0; i < 52; i++) { // Loop for a year of projections as a safeguard
+            prjCount++;
+            const prjWeek = currentCkWeek - prjLeadTimeWeeks;
+            const prjCoverageStartWeek = currentCkWeek + 1;
+            const prjCoverageEndWeek = currentCkWeek + 3;
+
+            // Find a valid snapshot week for PRJ calculation
+            const availableSnapshotForPrj = allSnapshotWeeks.find(w => w === prjWeek) || allSnapshotWeeks.filter(w => w < prjWeek).pop() || allSnapshotWeeks[0];
+            
+            const prjPlanData = CcProdPlanner({ ordersForCc, snapshotWeek: availableSnapshotForPrj, producedData: {} });
+            const modelPlanData = initialAllocation(prjPlanData, prjPlanData.modelWiseDemand || {}, prjPlanData.allWeeks);
+            const correctedModelPlanData = correctAllocationForNegativeFgoi(modelPlanData, prjPlanData.modelWiseDemand || {}, prjPlanData.allWeeks);
+
+            const modelColorPlan = correctedModelPlanData[modelOrder.color]?.plan || {};
+            
+            let prjQty = 0;
+            for (let w = prjCoverageStartWeek; w <= prjCoverageEndWeek; w++) {
+                prjQty += modelColorPlan[`W${w}`] || 0;
+            }
+            
+            prjQty = Math.round(prjQty);
+
+            if (prjQty > 0) {
+                allProjections.push({
+                    prjNumber: `PRJ-${modelOrder.ocn}-${modelOrder.color.slice(0,2).toUpperCase()}-${String(prjCount).padStart(2, '0')}`,
+                    model: `${modelOrder.style} / ${modelOrder.color}`, // For display
+                    ccNo: modelOrder.ocn, // For display
+                    prjWeek: `W${prjWeek}`,
+                    prjCoverage: `W${prjCoverageStartWeek}-W${prjCoverageEndWeek}`,
+                    prjQty: prjQty,
+                    ckWeek: `W${currentCkWeek}`,
+                    status: 'Planned', // Static for now
+                    remarks: '', // Static for now
+                    // FRC fields will be populated later
+                    frcNumber: '',
+                    frcWeek: '',
+                    frcCoverage: '',
+                    frcQty: 0,
+                    cutOrderQty: 0,
+                    cutOrderPending: 0,
+                });
+            }
+
+            // Prepare for next iteration
+            currentCkWeek += 3;
+            if (currentCkWeek > Math.max(...allSnapshotWeeks) + 52) break; // Stop if we go too far into the future
+        }
+    });
+
+    return allProjections.sort((a,b) => a.prjNumber.localeCompare(b.prjNumber));
 };

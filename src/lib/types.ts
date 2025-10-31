@@ -222,4 +222,9 @@ export type ProjectionRow = {
     cutOrderQty: number;
     cutOrderPending: number;
     breakdown?: Record<string, Record<Size, number> & { total: number }>;
+    // New fields for display
+    ccNo: string;
+    model: string;
+    status: string;
+    remarks: string;
 };
