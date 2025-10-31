@@ -21,6 +21,8 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent } from '@/components/ui/card';
 import { SIZES } from '@/lib/data';
+import { Button } from '@/components/ui/button';
+import { PlusCircle } from 'lucide-react';
 
 export default function CutOrderDetailsPage() {
     return (
@@ -46,6 +48,14 @@ export default function CutOrderDetailsPage() {
                         <p className="text-muted-foreground">
                             Create and manage cut orders for production.
                         </p>
+                    </div>
+                     <div className="flex items-center gap-2">
+                        <Button asChild>
+                            <Link href="/new-cut-order">
+                                <PlusCircle className="mr-2 h-4 w-4" />
+                                New Cut Order
+                            </Link>
+                        </Button>
                     </div>
                 </div>
 
