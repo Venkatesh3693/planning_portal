@@ -47,6 +47,7 @@ import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Label } from '@/components/ui/label';
 
 
 const RemarkItem = ({ remark, onReply, onDelete, level = 0 }: { remark: Remark; onReply: (remark: Remark) => void; onDelete: (remarkId: string) => void; level?: number; }) => {
@@ -105,10 +106,30 @@ export default function ProjectionPlanningPage() {
     const { orders, isScheduleLoaded } = useSchedule();
     const [projectionData, setProjectionData] = useState<ProjectionRow[]>([]);
     const [projectionStatuses, setProjectionStatuses] = useState<Record<string, string>>({});
-    const [selectedProjection, setSelectedProjection] = useState<ProjectionRow | null>(null);
+    const [isSheetOpen, setIsSheetOpen] = useState(false);
+    
+    // States for filtering in the sheet
+    const [filterCc, setFilterCc] = useState<string | null>(null);
+    const [filterColor, setFilterColor] = useState<string | null>(null);
+    const [filterPrj, setFilterPrj] = useState<string | null>(null);
+
     const [newComment, setNewComment] = useState('');
     const [replyingTo, setReplyingTo] = useState<{ remarkId: string; user: string } | null>(null);
 
+    // Dropdown options based on filters
+    const ccOptions = useMemo(() => [...new Set(projectionData.map(p => p.ccNo))], [projectionData]);
+    const colorOptions = useMemo(() => {
+        if (!filterCc) return [];
+        const models = projectionData.filter(p => p.ccNo === filterCc).map(p => p.model.split(' / ')[1]);
+        return [...new Set(models)];
+    }, [projectionData, filterCc]);
+
+    const prjOptions = useMemo(() => {
+        if (!filterCc || !filterColor) return [];
+        return projectionData
+            .filter(p => p.ccNo === filterCc && p.model.split(' / ')[1] === filterColor)
+            .map(p => p.prjNumber);
+    }, [projectionData, filterCc, filterColor]);
 
     useEffect(() => {
         if (!isScheduleLoaded) return;
@@ -151,21 +172,56 @@ export default function ProjectionPlanningPage() {
     }, [projectionData]);
 
     const handleOpenRemarks = (projection: ProjectionRow) => {
-      setSelectedProjection(projection);
+      setFilterCc(projection.ccNo);
+      setFilterColor(projection.model.split(' / ')[1]);
+      setFilterPrj(projection.prjNumber);
+      setIsSheetOpen(true);
       setNewComment('');
       setReplyingTo(null);
     };
 
     const handleCloseRemarks = () => {
-      setSelectedProjection(null);
+      setIsSheetOpen(false);
+      setFilterCc(null);
+      setFilterColor(null);
+      setFilterPrj(null);
     }
 
     const handleSetReplyingTo = useCallback((remark: Remark) => {
         setReplyingTo({ remarkId: remark.id, user: remark.user });
     }, []);
+    
+    const handleCcFilterChange = (value: string) => {
+        setFilterCc(value);
+        setFilterColor(null);
+        setFilterPrj(null);
+    };
+    
+    const handleColorFilterChange = (value: string) => {
+        setFilterColor(value);
+        setFilterPrj(null);
+    };
+
+
+    const filteredProjectionsForSheet = useMemo(() => {
+        if (!filterCc) return [];
+        let filtered = projectionData.filter(p => p.ccNo === filterCc);
+        if (filterColor) {
+            filtered = filtered.filter(p => p.model.split(' / ')[1] === filterColor);
+        }
+        if (filterPrj) {
+            filtered = filtered.filter(p => p.prjNumber === filterPrj);
+        }
+        return filtered;
+    }, [projectionData, filterCc, filterColor, filterPrj]);
+
+    const remarksToShow = useMemo(() => {
+        return filteredProjectionsForSheet.flatMap(p => p.remarks || []);
+    }, [filteredProjectionsForSheet]);
+
 
     const handleSaveComment = () => {
-        if (!selectedProjection || !newComment.trim()) return;
+        if (!filterPrj || !newComment.trim()) return;
 
         const newRemark: Remark = {
             id: crypto.randomUUID(),
@@ -189,30 +245,30 @@ export default function ProjectionPlanningPage() {
                 return remark;
             });
         };
-
-        let updatedRemarks;
-        if (replyingTo) {
-            updatedRemarks = addReplyRecursively(selectedProjection.remarks || []);
-        } else {
-            updatedRemarks = [...(selectedProjection.remarks || []), newRemark];
-            remarksUpdated = true;
-        }
         
-        if (remarksUpdated) {
-            const updatedProjection = { ...selectedProjection, remarks: updatedRemarks };
-            setProjectionData(prevData =>
-                prevData.map(p => (p.prjNumber === selectedProjection.prjNumber ? updatedProjection : p))
-            );
-            setSelectedProjection(updatedProjection);
-        }
+        setProjectionData(prevData =>
+            prevData.map(p => {
+                if (p.prjNumber === filterPrj) {
+                    let updatedRemarks;
+                    if (replyingTo) {
+                        updatedRemarks = addReplyRecursively(p.remarks || []);
+                    } else {
+                        updatedRemarks = [...(p.remarks || []), newRemark];
+                        remarksUpdated = true;
+                    }
+                    if (remarksUpdated) {
+                       return { ...p, remarks: updatedRemarks };
+                    }
+                }
+                return p;
+            })
+        );
         
         setNewComment('');
         setReplyingTo(null);
     };
 
     const handleDeleteComment = (remarkIdToDelete: string) => {
-        if (!selectedProjection) return;
-
         const deleteRecursively = (remarks: Remark[]): Remark[] => {
             return remarks
                 .filter(remark => remark.id !== remarkIdToDelete)
@@ -224,13 +280,17 @@ export default function ProjectionPlanningPage() {
                 });
         };
 
-        const updatedRemarks = deleteRecursively(selectedProjection.remarks || []);
-        const updatedProjection = { ...selectedProjection, remarks: updatedRemarks };
-
-        setProjectionData(prevData =>
-            prevData.map(p => (p.prjNumber === selectedProjection.prjNumber ? updatedProjection : p))
+        setProjectionData(prevData => 
+            prevData.map(p => {
+                // This will update remarks for all projections being displayed in the sheet,
+                // which is what we want if we're showing multiple projections' remarks.
+                if (filteredProjectionsForSheet.some(fp => fp.prjNumber === p.prjNumber)) {
+                    const updatedRemarks = deleteRecursively(p.remarks || []);
+                    return { ...p, remarks: updatedRemarks };
+                }
+                return p;
+            })
         );
-        setSelectedProjection(updatedProjection);
     };
 
 
@@ -324,39 +384,69 @@ export default function ProjectionPlanningPage() {
         </div>
       </main>
 
-       <Sheet open={!!selectedProjection} onOpenChange={(isOpen) => !isOpen && handleCloseRemarks()}>
-        <SheetContent className="sm:max-w-md">
+       <Sheet open={isSheetOpen} onOpenChange={(isOpen) => !isOpen && handleCloseRemarks()}>
+        <SheetContent className="sm:max-w-xl w-full flex flex-col">
           <SheetHeader>
-            <SheetTitle>Remarks for {selectedProjection?.prjNumber}</SheetTitle>
+            <SheetTitle>Remarks</SheetTitle>
             <SheetDescription>
-              Add and view comments for this projection.
+              View and add comments for projections. Use filters to narrow down the remarks.
             </SheetDescription>
           </SheetHeader>
-          <div className="py-4 space-y-4 h-[calc(100%-8rem)] flex flex-col">
-            <div className="flex-1 space-y-4 overflow-y-auto pr-2">
-              {selectedProjection?.remarks && selectedProjection.remarks.length > 0 ? (
-                selectedProjection.remarks.map((remark) => (
+          
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 border-y py-4">
+              <div className="space-y-1">
+                <Label htmlFor="cc-filter">CC No.</Label>
+                <Select value={filterCc || ''} onValueChange={handleCcFilterChange}>
+                    <SelectTrigger id="cc-filter"><SelectValue placeholder="Select CC" /></SelectTrigger>
+                    <SelectContent>
+                        {ccOptions.map(cc => <SelectItem key={cc} value={cc}>{cc}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="color-filter">Color</Label>
+                 <Select value={filterColor || ''} onValueChange={handleColorFilterChange} disabled={!filterCc}>
+                    <SelectTrigger id="color-filter"><SelectValue placeholder="Select Color" /></SelectTrigger>
+                    <SelectContent>
+                        {colorOptions.map(color => <SelectItem key={color} value={color}>{color}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="prj-filter">PRJ #</Label>
+                <Select value={filterPrj || ''} onValueChange={(v) => setFilterPrj(v)} disabled={!filterColor}>
+                    <SelectTrigger id="prj-filter"><SelectValue placeholder="Select PRJ" /></SelectTrigger>
+                    <SelectContent>
+                         {prjOptions.map(prj => <SelectItem key={prj} value={prj}>{prj}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+              </div>
+          </div>
+          
+          <div className="flex-1 space-y-4 overflow-y-auto pr-2 -mr-6 px-6">
+              {remarksToShow.length > 0 ? (
+                remarksToShow.map((remark) => (
                    <RemarkItem key={remark.id} remark={remark} onReply={handleSetReplyingTo} onDelete={handleDeleteComment} />
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground text-center pt-8">No remarks yet.</p>
+                <p className="text-sm text-muted-foreground text-center pt-8">No remarks yet for this selection.</p>
               )}
             </div>
-            <Separator />
-            <div className="space-y-2">
-                {replyingTo && (
-                    <div className="text-xs text-muted-foreground p-2 bg-muted rounded-md flex justify-between items-center">
-                       <span>Replying to {replyingTo.user}</span>
-                       <Button variant="ghost" size="sm" className="h-auto p-0 text-xs" onClick={() => setReplyingTo(null)}>Cancel</Button>
-                    </div>
-                )}
-              <Textarea
-                placeholder={replyingTo ? `Reply to ${replyingTo.user}...` : "Type your comment here..."}
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-              />
-              <Button onClick={handleSaveComment} disabled={!newComment.trim()}>Save Comment</Button>
-            </div>
+
+          <div className="space-y-2 mt-auto pt-4 border-t">
+              {replyingTo && (
+                  <div className="text-xs text-muted-foreground p-2 bg-muted rounded-md flex justify-between items-center">
+                     <span>Replying to {replyingTo.user}</span>
+                     <Button variant="ghost" size="sm" className="h-auto p-0 text-xs" onClick={() => setReplyingTo(null)}>Cancel</Button>
+                  </div>
+              )}
+            <Textarea
+              placeholder={!filterPrj ? "Select a specific PRJ # to add a comment" : (replyingTo ? `Reply to ${replyingTo.user}...` : "Type your comment here...")}
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              disabled={!filterPrj}
+            />
+            <Button onClick={handleSaveComment} disabled={!newComment.trim() || !filterPrj}>Save Comment</Button>
           </div>
         </SheetContent>
       </Sheet>
