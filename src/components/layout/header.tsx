@@ -3,7 +3,7 @@
 
 import { Factory, PanelLeftOpen, PanelRightOpen, Settings } from 'lucide-react';
 import Link from 'next/link';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuPortal } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuPortal, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -92,6 +92,22 @@ export function Header({
                     <Link href="/cc-plan">
                       <DropdownMenuItem>CC Plan</DropdownMenuItem>
                     </Link>
+                    <DropdownMenuSeparator />
+                     <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <span>Material Planning</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuPortal>
+                        <DropdownMenuSubContent>
+                          <Link href="/projection-planning">
+                            <DropdownMenuItem>Projection Planning</DropdownMenuItem>
+                          </Link>
+                          <Link href="/frc-planning">
+                            <DropdownMenuItem>FRC Planning</DropdownMenuItem>
+                          </Link>
+                        </DropdownMenuSubContent>
+                      </DropdownMenuPortal>
+                    </DropdownMenuSub>
                   </>
                 )}
 
