@@ -243,6 +243,7 @@ export default function NewCutOrderPage() {
                              <Table>
                                 <TableHeader>
                                     <TableRow>
+                                        <TableHead>Sizes</TableHead>
                                         {SIZES.map(size => (
                                             <TableHead key={size} className="text-right">{size}</TableHead>
                                         ))}
@@ -251,6 +252,7 @@ export default function NewCutOrderPage() {
                                 </TableHeader>
                                 <TableBody>
                                     <TableRow>
+                                        <TableCell className="font-medium">FRC Qty</TableCell>
                                         {SIZES.map(size => (
                                             <TableCell key={size} className="text-right">
                                                 {(frcAvailability[size] || 0).toLocaleString()}
@@ -269,5 +271,3 @@ export default function NewCutOrderPage() {
         </div>
     );
 }
-
-    
