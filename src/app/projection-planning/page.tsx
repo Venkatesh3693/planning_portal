@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent } from '@/components/ui/card';
 import { useSchedule } from '@/context/schedule-provider';
-import { useMemo, useState, useEffect, useCallback }from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { PrjGenerator } from '@/lib/tna-calculator';
 import type { Order, ProjectionRow, Remark } from '@/lib/types';
 import { getWeek, format } from 'date-fns';
@@ -37,13 +37,22 @@ import {
   SheetContent, 
   SheetHeader, 
   SheetTitle,
-  SheetDescription,
-  SheetFooter
+  SheetDescription
 } from '@/components/ui/sheet';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
-import { MessageSquare, CornerUpLeft, Trash2, MoreHorizontal } from 'lucide-react';
+import { MessageSquare, CornerUpLeft, Trash2, MoreHorizontal, Check, Snooze, CheckCircle2 } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
-import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -106,6 +115,9 @@ export default function ProjectionPlanningPage() {
     const { orders, isScheduleLoaded } = useSchedule();
     const [projectionData, setProjectionData] = useState<ProjectionRow[]>([]);
     const [projectionStatuses, setProjectionStatuses] = useState<Record<string, string>>({});
+    const [approvedProjections, setApprovedProjections] = useState<Set<string>>(new Set());
+    const [projectionToApprove, setProjectionToApprove] = useState<ProjectionRow | null>(null);
+
     const [isSheetOpen, setIsSheetOpen] = useState(false);
     
     // States for filtering in the sheet
@@ -170,6 +182,16 @@ export default function ProjectionPlanningPage() {
             setProjectionStatuses(initialStatuses);
         }
     }, [projectionData]);
+    
+    const handleConfirmApproval = () => {
+        if (!projectionToApprove) return;
+        setApprovedProjections(prev => new Set(prev).add(projectionToApprove.prjNumber));
+        setProjectionStatuses(prev => ({
+            ...prev,
+            [projectionToApprove.prjNumber]: 'Planned'
+        }));
+        setProjectionToApprove(null);
+    };
 
     const handleOpenRemarks = (projection: ProjectionRow) => {
       setFilterCc(projection.ccNo);
@@ -321,6 +343,7 @@ export default function ProjectionPlanningPage() {
 
           <Card>
             <CardContent className="p-0">
+             <AlertDialog onOpenChange={(isOpen) => !isOpen && setProjectionToApprove(null)}>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -332,6 +355,7 @@ export default function ProjectionPlanningPage() {
                     <TableHead>PRJ Coverage weeks</TableHead>
                     <TableHead className="text-right">PRJ Qty</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Approve</TableHead>
                     <TableHead className="text-center">Remarks</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -363,6 +387,25 @@ export default function ProjectionPlanningPage() {
                                 </SelectContent>
                             </Select>
                         </TableCell>
+                        <TableCell>
+                            {approvedProjections.has(row.prjNumber) ? (
+                                <div className="flex items-center gap-2 text-green-600 font-semibold">
+                                    <CheckCircle2 className="h-5 w-5" />
+                                    <span>Approved</span>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-1">
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" onClick={() => setProjectionToApprove(row)}>
+                                            <Check className="h-5 w-5" />
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <Button variant="ghost" size="icon" className="text-amber-600 hover:text-amber-700">
+                                        <Snooze className="h-5 w-5" />
+                                    </Button>
+                                </div>
+                            )}
+                        </TableCell>
                         <TableCell className="text-center">
                           <Button variant="ghost" size="icon" onClick={() => handleOpenRemarks(row)}>
                             <MessageSquare className="h-4 w-4" />
@@ -372,13 +415,28 @@ export default function ProjectionPlanningPage() {
                     ))
                   ) : (
                     <TableRow>
-                        <TableCell colSpan={9} className="h-24 text-center">
+                        <TableCell colSpan={10} className="h-24 text-center">
                         No projection data available.
                         </TableCell>
                     </TableRow>
                   )}
                 </TableBody>
               </Table>
+              <AlertDialogContent>
+                  <AlertDialogHeader>
+                      <AlertDialogTitle>Confirm Approval</AlertDialogTitle>
+                      <AlertDialogDescription>
+                          Are you sure you want to approve projection {projectionToApprove?.prjNumber}? This will set its status to "Planned".
+                      </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleConfirmApproval}>
+                          Yes, Approve
+                      </AlertDialogAction>
+                  </AlertDialogFooter>
+              </AlertDialogContent>
+             </AlertDialog>
             </CardContent>
           </Card>
         </div>
