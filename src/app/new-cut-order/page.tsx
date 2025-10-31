@@ -18,6 +18,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowLeft } from 'lucide-react';
+import { CcProdPlanner } from '@/lib/tna-calculator';
+
 
 export default function NewCutOrderPage() {
     const { orders, isScheduleLoaded } = useSchedule();
@@ -65,6 +67,36 @@ export default function NewCutOrderPage() {
             setSelectedColor('');
         }
     }, [selectedCc, colorOptions, selectedColor]);
+
+    const availableStartWeeks = useMemo(() => {
+        if (!selectedCc || !selectedColor) return weekOptions;
+        
+        const relevantOrders = orders.filter(o => o.ocn === selectedCc && o.color === selectedColor);
+        if (relevantOrders.length === 0) return weekOptions;
+
+        const orderForPlanning = relevantOrders[0];
+        
+        const latestSnapshotWeek = orderForPlanning.fcVsFcDetails
+            ?.map(s => s.snapshotWeek)
+            ?.sort((a,b) => b-a)[0];
+
+        if (!latestSnapshotWeek) return weekOptions;
+
+        const snapshot = orderForPlanning.fcVsFcDetails?.find(s => s.snapshotWeek === latestSnapshotWeek);
+        if (!snapshot) return weekOptions;
+
+        const firstDemandWeek = Object.keys(snapshot.forecasts)
+            .map(w => parseInt(w.slice(1)))
+            .sort((a,b) => a-b)[0];
+        
+        const productionStartWeek = firstDemandWeek ? firstDemandWeek - 3 : undefined;
+
+        if (!productionStartWeek) return weekOptions;
+
+        return weekOptions.filter(w => parseInt(w.slice(1)) >= productionStartWeek);
+
+    }, [selectedCc, selectedColor, orders, weekOptions]);
+
 
     return (
         <div className="flex h-screen flex-col">
@@ -149,7 +181,7 @@ export default function NewCutOrderPage() {
                                         <SelectValue placeholder="Select start week" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {weekOptions.map(week => (
+                                        {availableStartWeeks.map(week => (
                                             <SelectItem key={week} value={week}>{week}</SelectItem>
                                         ))}
                                     </SelectContent>
