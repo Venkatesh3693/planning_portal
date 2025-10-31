@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Header } from '@/components/layout/header';
@@ -53,12 +52,14 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
-import { MessageSquare, CornerUpLeft, Trash2, MoreHorizontal, Check, Clock, CheckCircle2 } from 'lucide-react';
+import { MessageSquare, CornerUpLeft, Trash2, MoreHorizontal, Check, Clock, CheckCircle2, X } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
+import { FilterPopover, type ProjectionFilters } from '@/components/projection-planning/filter-popover';
+import { Badge } from '@/components/ui/badge';
 
 
 const RemarkItem = ({ remark, onReply, onDelete, level = 0 }: { remark: Remark; onReply: (remark: Remark) => void; onDelete: (remarkId: string) => void; level?: number; }) => {
@@ -127,33 +128,40 @@ export default function ProjectionPlanningPage() {
     const ccNoFromUrl = searchParams.get('ccNo');
     const colorFromUrl = searchParams.get('color');
 
-    const [filterCc, setFilterCc] = useState<string | null>(ccNoFromUrl);
-    const [filterColor, setFilterColor] = useState<string | null>(colorFromUrl);
     const [filterPrj, setFilterPrj] = useState<string | null>(null);
 
     const [newComment, setNewComment] = useState('');
     const [replyingTo, setReplyingTo] = useState<{ remarkId: string; user: string } | null>(null);
+    
+    const [filters, setFilters] = useState<ProjectionFilters>({
+      ccNos: [],
+      models: [],
+    });
 
     useEffect(() => {
-      setFilterCc(ccNoFromUrl);
-      setFilterColor(colorFromUrl);
-      setFilterPrj(null);
-    }, [ccNoFromUrl, colorFromUrl]);
+      const ccNosFromUrl = searchParams.get('ccNo');
+      const modelsFromUrl = searchParams.get('color');
+      const newFilters: ProjectionFilters = {
+        ccNos: ccNosFromUrl ? ccNosFromUrl.split(',') : [],
+        models: modelsFromUrl ? modelsFromUrl.split(',').map(m => decodeURIComponent(m)) : [],
+      };
+      setFilters(newFilters);
+    }, [searchParams]);
 
     // Dropdown options based on filters
     const ccOptions = useMemo(() => [...new Set(projectionData.map(p => p.ccNo))], [projectionData]);
     const colorOptions = useMemo(() => {
-        if (!filterCc) return [];
-        const models = projectionData.filter(p => p.ccNo === filterCc).map(p => p.model.split(' / ')[1]);
+        if (filters.ccNos.length === 0) return [];
+        const models = projectionData.filter(p => filters.ccNos.includes(p.ccNo)).map(p => p.model.split(' / ')[1]);
         return [...new Set(models)];
-    }, [projectionData, filterCc]);
+    }, [projectionData, filters.ccNos]);
 
     const prjOptions = useMemo(() => {
-        if (!filterCc || !filterColor) return [];
+        if (filters.ccNos.length === 0 || filters.models.length === 0) return [];
         return projectionData
-            .filter(p => p.ccNo === filterCc && p.model.split(' / ')[1] === filterColor)
+            .filter(p => filters.ccNos.includes(p.ccNo) && filters.models.includes(p.model.split(' / ')[1]))
             .map(p => p.prjNumber);
-    }, [projectionData, filterCc, filterColor]);
+    }, [projectionData, filters.ccNos, filters.models]);
 
     useEffect(() => {
         if (!isScheduleLoaded) return;
@@ -206,8 +214,7 @@ export default function ProjectionPlanningPage() {
     };
 
     const handleOpenRemarks = (projection: ProjectionRow) => {
-      setFilterCc(projection.ccNo);
-      setFilterColor(projection.model.split(' / ')[1]);
+      setFilters({ ccNos: [projection.ccNo], models: [projection.model.split(' / ')[1]] });
       setFilterPrj(projection.prjNumber);
       setIsSheetOpen(true);
       setNewComment('');
@@ -216,8 +223,7 @@ export default function ProjectionPlanningPage() {
 
     const handleCloseRemarks = () => {
       setIsSheetOpen(false);
-      setFilterCc(null);
-      setFilterColor(null);
+      setFilters({ccNos: [], models: []});
       setFilterPrj(null);
     }
 
@@ -225,41 +231,36 @@ export default function ProjectionPlanningPage() {
         setReplyingTo({ remarkId: remark.id, user: remark.user });
     }, []);
     
-    const handleCcFilterChange = (value: string) => {
-        setFilterCc(value);
-        setFilterColor(null);
+    const handleCcFilterChange = (value: string[]) => {
+        setFilters({ ccNos: value, models: [] });
         setFilterPrj(null);
     };
     
-    const handleColorFilterChange = (value: string) => {
-        setFilterColor(value);
+    const handleColorFilterChange = (value: string[]) => {
+        setFilters(prev => ({...prev, models: value}));
         setFilterPrj(null);
     };
 
 
     const filteredProjectionsForSheet = useMemo(() => {
-        if (!filterCc) return [];
-        let filtered = projectionData.filter(p => p.ccNo === filterCc);
-        if (filterColor) {
-            filtered = filtered.filter(p => p.model.split(' / ')[1] === filterColor);
+        if (filters.ccNos.length === 0) return [];
+        let filtered = projectionData.filter(p => filters.ccNos.includes(p.ccNo));
+        if (filters.models.length > 0) {
+            filtered = filtered.filter(p => filters.models.includes(p.model.split(' / ')[1]));
         }
         if (filterPrj) {
             filtered = filtered.filter(p => p.prjNumber === filterPrj);
         }
         return filtered;
-    }, [projectionData, filterCc, filterColor, filterPrj]);
+    }, [projectionData, filters, filterPrj]);
 
     const filteredProjectionsForTable = useMemo(() => {
-      if (!ccNoFromUrl && !colorFromUrl) return projectionData;
-      let filtered = projectionData;
-      if (ccNoFromUrl) {
-          filtered = filtered.filter(p => p.ccNo === ccNoFromUrl);
-      }
-      if (colorFromUrl) {
-          filtered = filtered.filter(p => p.model.split(' / ')[1] === colorFromUrl);
-      }
-      return filtered;
-  }, [projectionData, ccNoFromUrl, colorFromUrl]);
+        return projectionData.filter(row => {
+            const ccMatch = filters.ccNos.length === 0 || filters.ccNos.includes(row.ccNo);
+            const modelMatch = filters.models.length === 0 || filters.models.some(m => row.model.includes(m));
+            return ccMatch && modelMatch;
+        });
+    }, [projectionData, filters]);
 
     const remarksToShow = useMemo(() => {
         return filteredProjectionsForSheet.flatMap(p => p.remarks || []);
@@ -328,8 +329,6 @@ export default function ProjectionPlanningPage() {
 
         setProjectionData(prevData => 
             prevData.map(p => {
-                // This will update remarks for all projections being displayed in the sheet,
-                // which is what we want if we're showing multiple projections' remarks.
                 if (filteredProjectionsForSheet.some(fp => fp.prjNumber === p.prjNumber)) {
                     const updatedRemarks = deleteRecursively(p.remarks || []);
                     return { ...p, remarks: updatedRemarks };
@@ -342,11 +341,30 @@ export default function ProjectionPlanningPage() {
 
     const STATUS_OPTIONS = ['Planned', 'Unplanned', 'In-housed', 'Delay'];
 
+    const activeFilters = useMemo(() => {
+        const active: { type: string, value: string, label: string }[] = [];
+        filters.ccNos.forEach(v => active.push({ type: 'ccNo', value: v, label: v }));
+        filters.models.forEach(v => active.push({ type: 'model', value: v, label: v }));
+        return active;
+    }, [filters]);
+
+    const removeFilter = (type: string, value: string) => {
+        const newFilters = { ...filters };
+        if (type === 'ccNo') {
+            newFilters.ccNos = newFilters.ccNos.filter(v => v !== value);
+            if (newFilters.ccNos.length === 0) newFilters.models = [];
+        } else if (type === 'model') {
+            newFilters.models = newFilters.models.filter(v => v !== value);
+        }
+        setFilters(newFilters);
+    };
+
+
   return (
     <div className="flex h-screen flex-col">
       <Header />
-      <main className="flex-1 p-4 sm:p-6 lg:p-8">
-        <Breadcrumb className="mb-4">
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 flex flex-col">
+        <Breadcrumb className="mb-4 flex-shrink-0">
           <BreadcrumbList>
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
@@ -359,108 +377,128 @@ export default function ProjectionPlanningPage() {
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
-        <div className="space-y-4">
-          <h1 className="text-2xl font-bold">Projection Planning</h1>
-          <p className="text-muted-foreground">
-            View and manage your material projections.
-          </p>
+        <div className="space-y-4 flex-1 flex flex-col">
+            <div className="flex justify-between items-center flex-shrink-0">
+                <div>
+                    <h1 className="text-2xl font-bold">Projection Planning</h1>
+                    <p className="text-muted-foreground">
+                        View and manage your material projections.
+                    </p>
+                </div>
+                 <FilterPopover allProjectionData={projectionData} filters={filters} onFiltersChange={setFilters} />
+            </div>
 
-          <Card>
-            <CardContent className="p-0">
-             <AlertDialog onOpenChange={(isOpen) => !isOpen && setProjectionToApprove(null)}>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>CC no.</TableHead>
-                    <TableHead>Model / Color</TableHead>
-                    <TableHead>PRJ #</TableHead>
-                    <TableHead>PRJ Week</TableHead>
-                    <TableHead>CK week</TableHead>
-                    <TableHead>PRJ Coverage weeks</TableHead>
-                    <TableHead className="text-right">PRJ Qty</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Approve</TableHead>
-                    <TableHead className="text-center">Remarks</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredProjectionsForTable.length > 0 ? (
-                    filteredProjectionsForTable.map((row) => (
-                      <TableRow key={row.prjNumber}>
-                        <TableCell>{row.ccNo}</TableCell>
-                        <TableCell>{row.model}</TableCell>
-                        <TableCell>{row.prjNumber}</TableCell>
-                        <TableCell>{row.prjWeek}</TableCell>
-                        <TableCell>{row.ckWeek}</TableCell>
-                        <TableCell>{row.prjCoverage}</TableCell>
-                        <TableCell className="text-right font-medium">{row.prjQty.toLocaleString()}</TableCell>
-                        <TableCell>
-                           <Select
-                                value={projectionStatuses[row.prjNumber] || ''}
-                                onValueChange={(newStatus) => setProjectionStatuses(prev => ({...prev, [row.prjNumber]: newStatus}))}
-                            >
-                                <SelectTrigger className="w-[120px]">
-                                    <SelectValue placeholder="Select Status" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {STATUS_OPTIONS.map(option => (
-                                        <SelectItem key={option} value={option}>
-                                            {option}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </TableCell>
-                        <TableCell>
-                            {approvedProjections.has(row.prjNumber) ? (
-                                <div className="flex items-center gap-2 text-green-600 font-semibold">
-                                    <CheckCircle2 className="h-5 w-5" />
-                                    <span>Approved</span>
-                                </div>
-                            ) : (
-                                <div className="flex items-center gap-1">
-                                    <AlertDialogTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" onClick={() => setProjectionToApprove(row)}>
-                                            <Check className="h-5 w-5" />
-                                        </Button>
-                                    </AlertDialogTrigger>
-                                    <Button variant="ghost" size="icon" className="text-amber-600 hover:text-amber-700">
-                                        <Clock className="h-5 w-5" />
-                                    </Button>
-                                </div>
-                            )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Button variant="ghost" size="icon" onClick={() => handleOpenRemarks(row)}>
-                            <MessageSquare className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
+          <Card className="flex-1 flex flex-col">
+            <CardContent className="p-0 flex-1 flex flex-col">
+              {activeFilters.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2 p-4 border-b">
+                    <span className="text-sm font-medium">Active Filters:</span>
+                    {activeFilters.map(({type, value, label}) => (
+                      <Badge key={`${type}-${value}`} variant="secondary" className="gap-1">
+                        {label}
+                        <button onClick={() => removeFilter(type, value)} className="rounded-full hover:bg-muted-foreground/20">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+              )}
+              <AlertDialog onOpenChange={(isOpen) => !isOpen && setProjectionToApprove(null)}>
+                <div className="overflow-y-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>CC no.</TableHead>
+                        <TableHead>Model / Color</TableHead>
+                        <TableHead>PRJ #</TableHead>
+                        <TableHead>PRJ Week</TableHead>
+                        <TableHead>CK week</TableHead>
+                        <TableHead>PRJ Coverage weeks</TableHead>
+                        <TableHead className="text-right">PRJ Qty</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Approve</TableHead>
+                        <TableHead className="text-center">Remarks</TableHead>
                       </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                        <TableCell colSpan={10} className="h-24 text-center">
-                        No projection data available.
-                        </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-              <AlertDialogContent>
-                  <AlertDialogHeader>
-                      <AlertDialogTitle>Confirm Approval</AlertDialogTitle>
-                      <AlertDialogDescription>
-                          Are you sure you want to approve projection {projectionToApprove?.prjNumber}? This will set its status to "Planned".
-                      </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleConfirmApproval}>
-                          Yes, Approve
-                      </AlertDialogAction>
-                  </AlertDialogFooter>
-              </AlertDialogContent>
-             </AlertDialog>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredProjectionsForTable.length > 0 ? (
+                        filteredProjectionsForTable.map((row) => (
+                          <TableRow key={row.prjNumber}>
+                            <TableCell>{row.ccNo}</TableCell>
+                            <TableCell>{row.model}</TableCell>
+                            <TableCell>{row.prjNumber}</TableCell>
+                            <TableCell>{row.prjWeek}</TableCell>
+                            <TableCell>{row.ckWeek}</TableCell>
+                            <TableCell>{row.prjCoverage}</TableCell>
+                            <TableCell className="text-right font-medium">{row.prjQty.toLocaleString()}</TableCell>
+                            <TableCell>
+                               <Select
+                                    value={projectionStatuses[row.prjNumber] || ''}
+                                    onValueChange={(newStatus) => setProjectionStatuses(prev => ({...prev, [row.prjNumber]: newStatus}))}
+                                >
+                                    <SelectTrigger className="w-[120px]">
+                                        <SelectValue placeholder="Select Status" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {STATUS_OPTIONS.map(option => (
+                                            <SelectItem key={option} value={option}>
+                                                {option}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </TableCell>
+                            <TableCell>
+                                {approvedProjections.has(row.prjNumber) ? (
+                                    <div className="flex items-center gap-2 text-green-600 font-semibold">
+                                        <CheckCircle2 className="h-5 w-5" />
+                                        <span>Approved</span>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-1">
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="text-green-600 hover:text-green-700" onClick={() => setProjectionToApprove(row)}>
+                                                <Check className="h-5 w-5" />
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <Button variant="ghost" size="icon" className="text-amber-600 hover:text-amber-700">
+                                            <Clock className="h-5 w-5" />
+                                        </Button>
+                                    </div>
+                                )}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Button variant="ghost" size="icon" onClick={() => handleOpenRemarks(row)}>
+                                <MessageSquare className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                            <TableCell colSpan={10} className="h-24 text-center">
+                            No projection data available.
+                            </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+                  <AlertDialogContent>
+                      <AlertDialogHeader>
+                          <AlertDialogTitle>Confirm Approval</AlertDialogTitle>
+                          <AlertDialogDescription>
+                              Are you sure you want to approve projection {projectionToApprove?.prjNumber}? This will set its status to "Planned".
+                          </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleConfirmApproval}>
+                              Yes, Approve
+                          </AlertDialogAction>
+                      </AlertDialogFooter>
+                  </AlertDialogContent>
+              </AlertDialog>
             </CardContent>
           </Card>
         </div>
@@ -478,7 +516,7 @@ export default function ProjectionPlanningPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 border-y py-4">
               <div className="space-y-1">
                 <Label htmlFor="cc-filter">CC No.</Label>
-                <Select value={filterCc || ''} onValueChange={handleCcFilterChange}>
+                <Select value={filters.ccNos[0] || ''} onValueChange={(val) => handleCcFilterChange(val ? [val] : [])}>
                     <SelectTrigger id="cc-filter"><SelectValue placeholder="Select CC" /></SelectTrigger>
                     <SelectContent>
                         {ccOptions.map(cc => <SelectItem key={cc} value={cc}>{cc}</SelectItem>)}
@@ -487,7 +525,7 @@ export default function ProjectionPlanningPage() {
               </div>
               <div className="space-y-1">
                 <Label htmlFor="color-filter">Color</Label>
-                 <Select value={filterColor || ''} onValueChange={handleColorFilterChange} disabled={!filterCc}>
+                 <Select value={filters.models[0] || ''} onValueChange={(val) => handleColorFilterChange(val ? [val] : [])} disabled={filters.ccNos.length === 0}>
                     <SelectTrigger id="color-filter"><SelectValue placeholder="Select Color" /></SelectTrigger>
                     <SelectContent>
                         {colorOptions.map(color => <SelectItem key={color} value={color}>{color}</SelectItem>)}
@@ -496,7 +534,7 @@ export default function ProjectionPlanningPage() {
               </div>
               <div className="space-y-1">
                 <Label htmlFor="prj-filter">PRJ #</Label>
-                <Select value={filterPrj || ''} onValueChange={(v) => setFilterPrj(v)} disabled={!filterColor}>
+                <Select value={filterPrj || ''} onValueChange={(v) => setFilterPrj(v)} disabled={filters.models.length === 0}>
                     <SelectTrigger id="prj-filter"><SelectValue placeholder="Select PRJ" /></SelectTrigger>
                     <SelectContent>
                          {prjOptions.map(prj => <SelectItem key={prj} value={prj}>{prj}</SelectItem>)}
