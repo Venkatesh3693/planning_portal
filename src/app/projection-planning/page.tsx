@@ -42,20 +42,20 @@ import {
   SheetFooter
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { MessageSquare, CornerUpLeft } from 'lucide-react';
+import { MessageSquare, CornerUpLeft, Trash2 } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 
 
-const RemarkItem = ({ remark, onReply, level = 0 }: { remark: Remark; onReply: (remark: Remark) => void; level?: number; }) => {
+const RemarkItem = ({ remark, onReply, onDelete, level = 0 }: { remark: Remark; onReply: (remark: Remark) => void; onDelete: (remarkId: string) => void; level?: number; }) => {
   return (
     <div className={cn("flex items-start gap-3", level > 0 && "ml-6")}>
       <Avatar className="h-8 w-8">
         <AvatarFallback>{remark.user.charAt(0)}</AvatarFallback>
       </Avatar>
-      <div className="flex-1">
+      <div className="flex-1 group">
         <div className="flex items-center justify-between">
           <p className="text-sm font-semibold">{remark.user}</p>
           <p className="text-xs text-muted-foreground">
@@ -63,16 +63,22 @@ const RemarkItem = ({ remark, onReply, level = 0 }: { remark: Remark; onReply: (
           </p>
         </div>
         <p className="text-sm bg-muted p-2 rounded-md mt-1">{remark.text}</p>
-        {level === 0 && (
-          <Button variant="ghost" size="sm" className="mt-1 h-auto p-1 text-xs" onClick={() => onReply(remark)}>
-            <CornerUpLeft className="mr-1 h-3 w-3" />
-            Reply
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+            {level === 0 && (
+              <Button variant="ghost" size="sm" className="mt-1 h-auto p-1 text-xs" onClick={() => onReply(remark)}>
+                <CornerUpLeft className="mr-1 h-3 w-3" />
+                Reply
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" className="mt-1 h-auto p-1 text-xs text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => onDelete(remark.id)}>
+              <Trash2 className="mr-1 h-3 w-3" />
+              Delete
+            </Button>
+        </div>
         {remark.replies && remark.replies.length > 0 && (
           <div className="mt-3 space-y-3 border-l-2 pl-3">
             {remark.replies.map(reply => (
-              <RemarkItem key={reply.id} remark={reply} onReply={onReply} level={level + 1} />
+              <RemarkItem key={reply.id} remark={reply} onReply={onReply} onDelete={onDelete} level={level + 1} />
             ))}
           </div>
         )}
@@ -191,6 +197,30 @@ export default function ProjectionPlanningPage() {
         setReplyingTo(null);
     };
 
+    const handleDeleteComment = (remarkIdToDelete: string) => {
+        if (!selectedProjection) return;
+
+        const deleteRecursively = (remarks: Remark[]): Remark[] => {
+            return remarks
+                .filter(remark => remark.id !== remarkIdToDelete)
+                .map(remark => {
+                    if (remark.replies && remark.replies.length > 0) {
+                        return { ...remark, replies: deleteRecursively(remark.replies) };
+                    }
+                    return remark;
+                });
+        };
+
+        const updatedRemarks = deleteRecursively(selectedProjection.remarks);
+        const updatedProjection = { ...selectedProjection, remarks: updatedRemarks };
+
+        setProjectionData(prevData =>
+            prevData.map(p => (p.prjNumber === selectedProjection.prjNumber ? updatedProjection : p))
+        );
+        setSelectedProjection(updatedProjection);
+    };
+
+
     const STATUS_OPTIONS = ['Planned', 'Unplanned', 'In-housed', 'Delay'];
 
   return (
@@ -293,7 +323,7 @@ export default function ProjectionPlanningPage() {
             <div className="flex-1 space-y-4 overflow-y-auto pr-2">
               {selectedProjection?.remarks && selectedProjection.remarks.length > 0 ? (
                 selectedProjection.remarks.map((remark) => (
-                   <RemarkItem key={remark.id} remark={remark} onReply={handleSetReplyingTo} />
+                   <RemarkItem key={remark.id} remark={remark} onReply={handleSetReplyingTo} onDelete={handleDeleteComment} />
                 ))
               ) : (
                 <p className="text-sm text-muted-foreground text-center pt-8">No remarks yet.</p>
