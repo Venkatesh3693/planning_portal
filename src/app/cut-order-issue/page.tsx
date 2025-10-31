@@ -36,13 +36,13 @@ export default function CutOrderIssuePage() {
                         </BreadcrumbItem>
                         <BreadcrumbSeparator />
                         <BreadcrumbItem>
-                            <BreadcrumbPage>Cut Order Issue</BreadcrumbPage>
+                            <BreadcrumbPage>Cut order details</BreadcrumbPage>
                         </BreadcrumbItem>
                     </BreadcrumbList>
                 </Breadcrumb>
                  <div className="flex justify-between items-center mb-4 flex-shrink-0">
                     <div>
-                        <h1 className="text-2xl font-bold">Cut Order Issue</h1>
+                        <h1 className="text-2xl font-bold">Cut order details</h1>
                         <p className="text-muted-foreground">
                             Create and manage cut orders for production.
                         </p>
@@ -54,6 +54,8 @@ export default function CutOrderIssuePage() {
                         <Table>
                             <TableHeader>
                                 <TableRow>
+                                    <TableHead>CC no.</TableHead>
+                                    <TableHead>Color</TableHead>
                                     <TableHead>CO #</TableHead>
                                     <TableHead>CO Coverage</TableHead>
                                     {SIZES.map(size => (
@@ -66,7 +68,7 @@ export default function CutOrderIssuePage() {
                             </TableHeader>
                             <TableBody>
                                 <TableRow>
-                                    <TableCell colSpan={SIZES.length + 5} className="h-24 text-center">
+                                    <TableCell colSpan={SIZES.length + 7} className="h-24 text-center">
                                         No cut orders have been issued yet.
                                     </TableCell>
                                 </TableRow>
