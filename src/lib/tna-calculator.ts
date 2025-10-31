@@ -788,12 +788,9 @@ export const correctAllocationForNegativeFgoi = (
              if (movedAmount < quantityToMove) {
                 correctedQuantities[sourceModel][sourceType][actionWeek] += (quantityToMove - movedAmount);
             }
-
-            // Since we made a change, we should re-check the same week 'i' in the next loop iteration
-            // to see if the fix was sufficient or created other issues.
-            i--; 
         }
     }
 
     return correctedQuantities;
 };
+
