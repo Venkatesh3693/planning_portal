@@ -17,8 +17,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowLeft } from 'lucide-react';
-import type { Order } from '@/lib/types';
+import type { Order, SizeBreakdown } from '@/lib/types';
+import { SIZES } from '@/lib/data';
 
 
 const getAvailableStartWeeks = (orders: Order[], selectedCc: string, selectedColor: string, allWeeks: string[]) => {
@@ -46,7 +48,7 @@ const getAvailableStartWeeks = (orders: Order[], selectedCc: string, selectedCol
 
 
 export default function NewCutOrderPage() {
-    const { orders, isScheduleLoaded } = useSchedule();
+    const { orders, isScheduleLoaded, frcData } = useSchedule();
     const [selectedCc, setSelectedCc] = useState('');
     const [selectedColor, setSelectedColor] = useState('');
     const [startWeek, setStartWeek] = useState('');
@@ -94,11 +96,40 @@ export default function NewCutOrderPage() {
     
     const availableStartWeeks = getAvailableStartWeeks(orders, selectedCc, selectedColor, weekOptions);
 
+    const frcAvailability = useMemo(() => {
+        if (!selectedCc || !selectedColor || !startWeek) return null;
+
+        const order = orders.find(o => o.ocn === selectedCc && o.color === selectedColor);
+        if (!order) return null;
+
+        const startWeekNum = parseInt(startWeek.replace('W', ''));
+        const modelString = `${order.style} / ${order.color}`;
+
+        const relevantFrcs = frcData.filter(frc => 
+            frc.ccNo === selectedCc && 
+            frc.model === modelString &&
+            parseInt(frc.ckWeek.replace('W', '')) < startWeekNum
+        );
+
+        const totalAvailable: SizeBreakdown = SIZES.reduce((acc, size) => ({...acc, [size]: 0}), { total: 0 });
+
+        relevantFrcs.forEach(frc => {
+            SIZES.forEach(size => {
+                totalAvailable[size] = (totalAvailable[size] || 0) + (frc.sizes?.[size] || 0);
+            });
+            totalAvailable.total += frc.frcQty || 0;
+        });
+        
+        return totalAvailable;
+
+    }, [selectedCc, selectedColor, startWeek, frcData, orders]);
+
+
     return (
         <div className="flex h-screen flex-col">
             <Header />
-            <main className="flex-1 p-4 sm:p-6 lg:p-8 flex flex-col">
-                <Breadcrumb className="mb-4 flex-shrink-0">
+            <main className="flex-1 p-4 sm:p-6 lg:p-8 flex flex-col space-y-6">
+                <Breadcrumb className="flex-shrink-0">
                     <BreadcrumbList>
                         <BreadcrumbItem>
                             <BreadcrumbLink asChild>
@@ -117,7 +148,7 @@ export default function NewCutOrderPage() {
                         </BreadcrumbItem>
                     </BreadcrumbList>
                 </Breadcrumb>
-                 <div className="flex justify-between items-center mb-4 flex-shrink-0">
+                 <div className="flex justify-between items-center flex-shrink-0">
                     <div>
                         <h1 className="text-2xl font-bold">Create New Cut Order</h1>
                         <p className="text-muted-foreground">
@@ -199,7 +230,44 @@ export default function NewCutOrderPage() {
                         </div>
                     </CardContent>
                 </Card>
+
+                {frcAvailability && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>FRC Availability</CardTitle>
+                            <CardDescription>
+                                Total available FRC quantity with a CK week before the selected Cut Order Start Week ({startWeek}).
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                             <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        {SIZES.map(size => (
+                                            <TableHead key={size} className="text-right">{size}</TableHead>
+                                        ))}
+                                        <TableHead className="text-right font-bold">Total</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    <TableRow>
+                                        {SIZES.map(size => (
+                                            <TableCell key={size} className="text-right">
+                                                {(frcAvailability[size] || 0).toLocaleString()}
+                                            </TableCell>
+                                        ))}
+                                        <TableCell className="text-right font-bold">
+                                            {frcAvailability.total.toLocaleString()}
+                                        </TableCell>
+                                    </TableRow>
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                )}
             </main>
         </div>
     );
 }
+
+    
