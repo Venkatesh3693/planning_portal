@@ -130,12 +130,6 @@ function CutOrderPageContent() {
                         </p>
                     </div>
                      <div className="flex items-center gap-2">
-                        <Button asChild>
-                           <Link href={`/new-cut-order?orderId=${orderId}`}>
-                                <PlusCircle className="mr-2 h-4 w-4" />
-                                New CO
-                           </Link>
-                        </Button>
                         <Button variant="outline" asChild>
                             <Link href="/orders">
                                 <ArrowLeft className="mr-2 h-4 w-4" />
