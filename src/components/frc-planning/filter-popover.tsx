@@ -74,8 +74,14 @@ export function FilterPopover({ allFrcData, filters, onFiltersChange }: FilterPo
     });
   };
   
-  const hasActiveFilters = filters.ccNos.length > 0 || filters.models.length > 0 || filters.frcWeekRange.start !== null || filters.frcWeekRange.end !== null || filters.ckWeekRange.start !== null || filters.ckWeekRange.end !== null;
-  const numActiveFilters = [filters.ccNos.length, filters.models.length, filters.frcWeekRange.start, filters.frcWeekRange.end, filters.ckWeekRange.start, filters.ckWeekRange.end].filter(f => f !== null && f !== 0 && (Array.isArray(f) ? f.length > 0 : true)).length;
+  const numActiveFilters = useMemo(() => {
+      let count = 0;
+      if (filters.ccNos.length > 0) count++;
+      if (filters.models.length > 0) count++;
+      if (filters.frcWeekRange.start !== null || filters.frcWeekRange.end !== null) count++;
+      if (filters.ckWeekRange.start !== null || filters.ckWeekRange.end !== null) count++;
+      return count;
+  }, [filters]);
 
 
   return (
@@ -137,7 +143,7 @@ export function FilterPopover({ allFrcData, filters, onFiltersChange }: FilterPo
                 </div>
             </div>
           </div>
-           {hasActiveFilters && (
+           {numActiveFilters > 0 && (
             <Button variant="ghost" onClick={handleClearFilters} className="w-full justify-start text-destructive hover:text-destructive px-0">
               <X className="mr-2 h-4 w-4" />
               Clear all filters
