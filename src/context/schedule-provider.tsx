@@ -6,7 +6,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, Dispa
 import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem, Size, FcComposition, FcSnapshot, SyntheticPoRecord, CutOrderRecord, SizeBreakdown, ProjectionRow } from '@/lib/types';
 import { ORDERS as staticOrders, PROCESSES, ORDER_COLORS, SIZES } from '@/lib/data';
 import { addDays, startOfToday, isAfter, getWeek } from 'date-fns';
-import { getProcessBatchSize, getPackingBatchSize } from '@/lib/tna-calculator';
+import { getProcessBatchSize, getPackingBatchSize, PrjGenerator } from '@/lib/tna-calculator';
 
 const STORE_KEY = 'stitchplan_schedule_v4';
 const FIRM_PO_WINDOW = 3;
@@ -134,16 +134,6 @@ const generateSyntheticPos = (orders: Order[]): SyntheticPoRecord[] => {
     });
 };
 
-const calculateProjectionTotalsForOrder = (order: Order): { totalProjectionQty: number; totalFrcQty: number } => {
-    if (!order || order.orderType !== 'Forecasted' || !order.fcVsFcDetails || order.fcVsFcDetails.length === 0) {
-        return { totalProjectionQty: 0, totalFrcQty: 0 };
-    }
-    // This function's logic is removed as requested by the user.
-    // It will be replaced with a more advanced planner later.
-    return { totalProjectionQty: 0, totalFrcQty: 0 };
-}
-
-
 export function ScheduleProvider({ children }: { children: ReactNode }) {
   const [appMode, setAppModeState] = useState<AppMode>('gup');
   const [orders, setOrders] = useState<Order[]>([]);
@@ -219,11 +209,8 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
       // Final order state with all dynamic data calculated
       const finalOrders = initialOrdersWithOverrides.map(order => {
           if (order.orderType === 'Forecasted') {
-              const { totalProjectionQty, totalFrcQty } = calculateProjectionTotalsForOrder(order);
               return {
                   ...order,
-                  totalProjectionQty,
-                  totalFrcQty,
                   confirmedPoQty: poTotalsByOrder[order.id] || 0,
               };
           }
@@ -243,7 +230,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isScheduleLoaded) return;
 
-    // This effect now correctly handles all dynamic data updates for orders.
     const cutOrderTotalsByOrder = cutOrderRecords.reduce((acc, co) => {
         if (!acc[co.orderId]) {
             acc[co.orderId] = { total: 0 };
@@ -259,6 +245,33 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
       acc[po.orderId] = (acc[po.orderId] || 0) + po.quantities.total;
       return acc;
     }, {} as Record<string, number>);
+    
+    // Group hydrated orders by CC
+    const ccGroups = staticOrders.reduce((acc, order) => {
+        if (order.orderType === 'Forecasted' && order.ocn) {
+            const override = orderOverrides[order.id] || {};
+            const hydratedOrder = {
+              ...order,
+              displayColor: override.displayColor || order.displayColor,
+              sewingRampUpScheme: override.sewingRampUpScheme || order.sewingRampUpScheme,
+              tna: override.tna || order.tna,
+              bom: override.bom || order.bom,
+              fcVsFcDetails: override.fcVsFcDetails || order.fcVsFcDetails,
+            };
+            if (!acc[order.ocn]) acc[order.ocn] = [];
+            acc[order.ocn].push(hydratedOrder);
+        }
+        return acc;
+    }, {} as Record<string, Order[]>);
+    
+    const allProjections = Object.values(ccGroups).flatMap(ccOrders => PrjGenerator(ccOrders));
+    
+    const projectionTotalsByOrder = allProjections.reduce((acc, prj) => {
+        const orderId = `${prj.ccNo}-${prj.model.replace(' / ', '-')}`;
+        acc[orderId] = (acc[orderId] || 0) + prj.prjQty;
+        return acc;
+    }, {} as Record<string, number>);
+
 
     const newOrders = staticOrders.map((baseOrder) => {
       const override = orderOverrides[baseOrder.id] || {};
@@ -285,9 +298,8 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
       };
 
       if (intermediateOrder.orderType === 'Forecasted') {
-        const { totalProjectionQty, totalFrcQty } = calculateProjectionTotalsForOrder(intermediateOrder);
-        intermediateOrder.totalProjectionQty = totalProjectionQty;
-        intermediateOrder.totalFrcQty = totalFrcQty;
+        intermediateOrder.totalProjectionQty = projectionTotalsByOrder[intermediateOrder.id] || 0;
+        intermediateOrder.totalFrcQty = 0; // FRC logic to be added
         intermediateOrder.confirmedPoQty = poTotalsByOrder[intermediateOrder.id] || 0;
         intermediateOrder.cutOrder = cutOrderTotalsByOrder[intermediateOrder.id] || { total: 0 };
       }
