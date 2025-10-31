@@ -48,7 +48,7 @@ const getAvailableStartWeeks = (orders: Order[], selectedCc: string, selectedCol
 
 
 export default function NewCutOrderPage() {
-    const { orders, isScheduleLoaded, frcData } = useSchedule();
+    const { orders, isScheduleLoaded, frcData, cutOrderRecords } = useSchedule();
     const [selectedCc, setSelectedCc] = useState('');
     const [selectedColor, setSelectedColor] = useState('');
     const [startWeek, setStartWeek] = useState('');
@@ -123,6 +123,38 @@ export default function NewCutOrderPage() {
         return totalAvailable;
 
     }, [selectedCc, selectedColor, startWeek, frcData, orders]);
+
+    const pastCutOrders = useMemo(() => {
+        const result: SizeBreakdown = SIZES.reduce((acc, size) => ({...acc, [size]: 0}), { total: 0 });
+        if (!selectedCc || !selectedColor || !startWeek) return result;
+
+        const startWeekNum = parseInt(startWeek.replace('W', ''));
+        const relevantOrder = orders.find(o => o.ocn === selectedCc && o.color === selectedColor);
+        if (!relevantOrder) return result;
+
+        cutOrderRecords.forEach(co => {
+            if (co.orderId === relevantOrder.id) {
+                const coStartWeek = parseInt(co.coWeekCoverage.split('-')[0].replace('W', ''));
+                if (coStartWeek < startWeekNum) {
+                    SIZES.forEach(size => {
+                        result[size] = (result[size] || 0) + (co.quantities[size] || 0);
+                    });
+                    result.total += co.quantities.total || 0;
+                }
+            }
+        });
+        return result;
+    }, [selectedCc, selectedColor, startWeek, orders, cutOrderRecords]);
+
+    const availableQty = useMemo(() => {
+        if (!frcAvailability) return null;
+        const result: SizeBreakdown = { total: 0 };
+        SIZES.forEach(size => {
+            result[size] = (frcAvailability[size] || 0) - (pastCutOrders[size] || 0);
+        });
+        result.total = frcAvailability.total - pastCutOrders.total;
+        return result;
+    }, [frcAvailability, pastCutOrders]);
 
 
     return (
@@ -261,6 +293,30 @@ export default function NewCutOrderPage() {
                                         <TableCell className="text-right font-bold">
                                             {frcAvailability.total.toLocaleString()}
                                         </TableCell>
+                                    </TableRow>
+                                     <TableRow>
+                                        <TableCell className="font-medium">Past CO</TableCell>
+                                        {SIZES.map(size => (
+                                            <TableCell key={size} className="text-right text-destructive">
+                                                ({(pastCutOrders[size] || 0).toLocaleString()})
+                                            </TableCell>
+                                        ))}
+                                        <TableCell className="text-right font-bold text-destructive">
+                                            ({pastCutOrders.total.toLocaleString()})
+                                        </TableCell>
+                                    </TableRow>
+                                     <TableRow className="bg-muted/50 font-semibold">
+                                        <TableCell className="font-medium">Avail. Qty</TableCell>
+                                        {availableQty && SIZES.map(size => (
+                                            <TableCell key={size} className="text-right">
+                                                {(availableQty[size] || 0).toLocaleString()}
+                                            </TableCell>
+                                        ))}
+                                        {availableQty && (
+                                            <TableCell className="text-right font-bold">
+                                                {availableQty.total.toLocaleString()}
+                                            </TableCell>
+                                        )}
                                     </TableRow>
                                 </TableBody>
                             </Table>
