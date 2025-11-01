@@ -95,9 +95,7 @@ export function Header({
                         </DropdownMenuSubContent>
                       </DropdownMenuPortal>
                     </DropdownMenuSub>
-                    <Link href="/cc-plan">
-                      <DropdownMenuItem>CC Plan</DropdownMenuItem>
-                    </Link>
+                    
                     <DropdownMenuSeparator />
                      <DropdownMenuSub>
                       <DropdownMenuSubTrigger>
@@ -121,6 +119,9 @@ export function Header({
                       </DropdownMenuSubTrigger>
                       <DropdownMenuPortal>
                         <DropdownMenuSubContent>
+                          <Link href="/cc-plan">
+                            <DropdownMenuItem>CC Plan</DropdownMenuItem>
+                          </Link>
                           <Link href="/cut-order-issue">
                             <DropdownMenuItem>Cut Order details</DropdownMenuItem>
                           </Link>
