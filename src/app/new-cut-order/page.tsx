@@ -214,11 +214,15 @@ export default function NewCutOrderPage() {
     }, [selectedCc, orders]);
 
     const ccPlan = useMemo(() => {
-        if (ordersForCc.length === 0) return null;
-        const latestSnapshot = ordersForCc[0].fcVsFcDetails?.sort((a,b) => b.snapshotWeek - a.snapshotWeek)[0];
-        if (!latestSnapshot) return null;
-        return CcProdPlanner({ ordersForCc, snapshotWeek: latestSnapshot.snapshotWeek, producedData: {} });
-    }, [ordersForCc]);
+        if (ordersForCc.length === 0 || !startWeek) return null;
+        const snapshotWeekNum = parseInt(startWeek.replace('W', ''));
+        if (isNaN(snapshotWeekNum)) return null;
+
+        const relevantSnapshot = ordersForCc[0].fcVsFcDetails?.find(s => s.snapshotWeek === snapshotWeekNum);
+        if (!relevantSnapshot) return null;
+        
+        return CcProdPlanner({ ordersForCc, snapshotWeek: snapshotWeekNum, producedData: {} });
+    }, [ordersForCc, startWeek]);
     
     const productionCapacity = useMemo(() => {
         if (!ccPlan || !startWeek || !endWeek) return 0;
@@ -519,4 +523,5 @@ export default function NewCutOrderPage() {
     );
 
     
+
 
