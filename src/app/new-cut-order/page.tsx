@@ -23,6 +23,7 @@ import { ArrowLeft } from 'lucide-react';
 import type { Order, SizeBreakdown, SyntheticPoRecord } from '@/lib/types';
 import { SIZES } from '@/lib/data';
 import { cn } from '@/lib/utils';
+import { CcProdPlanner } from '@/lib/tna-calculator';
 
 
 const getAvailableStartWeeks = (orders: Order[], selectedCc: string, selectedColor: string, allWeeks: string[]) => {
@@ -207,6 +208,36 @@ export default function NewCutOrderPage() {
         return result;
     }, [availableQty, coQty]);
 
+    const ordersForCc = useMemo(() => {
+        if (!selectedCc) return [];
+        return orders.filter(o => o.ocn === selectedCc);
+    }, [selectedCc, orders]);
+
+    const ccPlan = useMemo(() => {
+        if (ordersForCc.length === 0) return null;
+        const latestSnapshot = ordersForCc[0].fcVsFcDetails?.sort((a,b) => b.snapshotWeek - a.snapshotWeek)[0];
+        if (!latestSnapshot) return null;
+        return CcProdPlanner({ ordersForCc, snapshotWeek: latestSnapshot.snapshotWeek, producedData: {} });
+    }, [ordersForCc]);
+    
+    const productionCapacity = useMemo(() => {
+        if (!ccPlan || !startWeek || !endWeek) return 0;
+        const start = parseInt(startWeek.replace('W', ''));
+        const end = parseInt(endWeek.replace('W', ''));
+        if (isNaN(start) || isNaN(end) || start > end) return 0;
+        
+        let capacity = 0;
+        for (let i = start; i <= end; i++) {
+            capacity += ccPlan.planData[`W${i}`] || 0;
+        }
+        return Math.round(capacity);
+
+    }, [ccPlan, startWeek, endWeek]);
+
+    const carryoverQty = useMemo(() => {
+        return productionCapacity - coQty.total;
+    }, [productionCapacity, coQty.total]);
+
 
     return (
         <div className="flex h-screen flex-col">
@@ -313,6 +344,30 @@ export default function NewCutOrderPage() {
                         </div>
                     </CardContent>
                 </Card>
+                
+                {startWeek && endWeek && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Production Summary</CardTitle>
+                        </CardHeader>
+                        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                            <div className="p-4 bg-muted rounded-md">
+                                <div className="text-sm text-muted-foreground">Production Capacity</div>
+                                <div className="text-2xl font-bold">{productionCapacity.toLocaleString()}</div>
+                            </div>
+                            <div className="p-4 bg-muted rounded-md">
+                                <div className="text-sm text-muted-foreground">CO Qty</div>
+                                <div className="text-2xl font-bold">{coQty.total.toLocaleString()}</div>
+                            </div>
+                            <div className="p-4 bg-muted rounded-md">
+                                <div className="text-sm text-muted-foreground">Carryover Qty</div>
+                                <div className={cn("text-2xl font-bold", carryoverQty < 0 && 'text-destructive')}>
+                                    {carryoverQty.toLocaleString()}
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
                 {frcAvailability && (
                     <Card>
@@ -464,3 +519,4 @@ export default function NewCutOrderPage() {
     );
 
     
+
