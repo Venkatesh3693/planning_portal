@@ -23,7 +23,7 @@ import { ArrowLeft } from 'lucide-react';
 import type { Order, SizeBreakdown, SyntheticPoRecord } from '@/lib/types';
 import { SIZES } from '@/lib/data';
 import { cn } from '@/lib/utils';
-import { CcProdPlanner } from '@/lib/tna-calculator';
+import { CcProdPlanner, initialAllocation, correctAllocationForNegativeFgoi } from '@/lib/tna-calculator';
 
 
 const getAvailableStartWeeks = (orders: Order[], selectedCc: string, selectedColor: string, allWeeks: string[]) => {
@@ -217,26 +217,35 @@ export default function NewCutOrderPage() {
         if (ordersForCc.length === 0 || !startWeek) return null;
         const snapshotWeekNum = parseInt(startWeek.replace('W', ''));
         if (isNaN(snapshotWeekNum)) return null;
-
-        const relevantSnapshot = ordersForCc[0].fcVsFcDetails?.find(s => s.snapshotWeek === snapshotWeekNum);
-        if (!relevantSnapshot) return null;
         
         return CcProdPlanner({ ordersForCc, snapshotWeek: snapshotWeekNum, producedData: {} });
     }, [ordersForCc, startWeek]);
+
+    const modelWiseProductionPlan = useMemo(() => {
+        if (!ccPlan || !ccPlan.modelWiseDemand) return {};
+        const { allWeeks, modelWiseDemand } = ccPlan;
+        const initialPlan = initialAllocation(ccPlan, modelWiseDemand, allWeeks);
+        const correctedPlan = correctAllocationForNegativeFgoi(initialPlan, modelWiseDemand, allWeeks);
+        return correctedPlan;
+    }, [ccPlan]);
     
     const productionCapacity = useMemo(() => {
-        if (!ccPlan || !startWeek || !endWeek) return 0;
+        if (!modelWiseProductionPlan || !selectedColor || !startWeek || !endWeek) return 0;
+        
+        const colorPlan = modelWiseProductionPlan[selectedColor]?.plan;
+        if (!colorPlan) return 0;
+
         const start = parseInt(startWeek.replace('W', ''));
         const end = parseInt(endWeek.replace('W', ''));
         if (isNaN(start) || isNaN(end) || start > end) return 0;
         
         let capacity = 0;
         for (let i = start; i <= end; i++) {
-            capacity += ccPlan.planData[`W${i}`] || 0;
+            capacity += colorPlan[`W${i}`] || 0;
         }
         return Math.round(capacity);
 
-    }, [ccPlan, startWeek, endWeek]);
+    }, [modelWiseProductionPlan, selectedColor, startWeek, endWeek]);
 
     const carryoverQty = useMemo(() => {
         return productionCapacity - coQty.total;
@@ -523,5 +532,6 @@ export default function NewCutOrderPage() {
     );
 
     
+
 
 
