@@ -15,6 +15,35 @@ export type Machine = {
   isMoveable: boolean;
 };
 
+export type SewingMachine = Omit<Machine, 'processIds'> & {
+  processIds: ['sewing'];
+  lineId: string; // The sewing line this machine belongs to
+};
+
+export type SewingLine = {
+  id: string;
+  name: string;
+  machines: SewingMachine[];
+};
+
+export type MachineRequirement = {
+  machineType: string;
+  required: number;
+  allocated: number;
+};
+
+export type SewingLineGroup = {
+  id: string;
+  name: string;
+  ccNo: string;
+  allocatedLines: {
+    lineId: string;
+    isPartial: boolean;
+    allocatedMachines: SewingMachine[];
+  }[];
+  machineRequirements: MachineRequirement[];
+};
+
 export type Process = {
   id: string;
   name: string;
