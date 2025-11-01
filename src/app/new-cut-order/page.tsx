@@ -400,6 +400,8 @@ export default function NewCutOrderPage() {
                                             />
                                         </TableHead>
                                         <TableHead>PO #</TableHead>
+                                        <TableHead>EHD Week</TableHead>
+                                        <TableHead>Destination</TableHead>
                                         {SIZES.map(size => (
                                             <TableHead key={size} className="text-right">{size}</TableHead>
                                         ))}
@@ -416,6 +418,8 @@ export default function NewCutOrderPage() {
                                                 />
                                             </TableCell>
                                             <TableCell className="font-medium">{po.poNumber}</TableCell>
+                                            <TableCell>{po.originalEhdWeek}</TableCell>
+                                            <TableCell>{po.destination}</TableCell>
                                             {SIZES.map(size => (
                                                 <TableCell key={size} className="text-right">
                                                     {(po.quantities[size] || 0) > 0 ? (po.quantities[size] || 0).toLocaleString() : '-'}
@@ -434,4 +438,5 @@ export default function NewCutOrderPage() {
             </main>
         </div>
     );
-}
+
+    
