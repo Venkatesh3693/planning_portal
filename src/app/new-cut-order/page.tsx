@@ -180,6 +180,22 @@ export default function NewCutOrderPage() {
         );
     };
 
+    const coQty = useMemo(() => {
+        const result: SizeBreakdown = SIZES.reduce((acc, size) => ({...acc, [size]: 0}), { total: 0 });
+        if (selectedPoNumbers.length === 0) return result;
+
+        const selectedPos = eligiblePos.filter(po => selectedPoNumbers.includes(po.poNumber));
+
+        selectedPos.forEach(po => {
+            SIZES.forEach(size => {
+                result[size] = (result[size] || 0) + (po.quantities[size] || 0);
+            });
+            result.total += po.quantities.total || 0;
+        });
+
+        return result;
+    }, [selectedPoNumbers, eligiblePos]);
+
 
     return (
         <div className="flex h-screen flex-col">
@@ -341,6 +357,17 @@ export default function NewCutOrderPage() {
                                                 {availableQty.total.toLocaleString()}
                                             </TableCell>
                                         )}
+                                    </TableRow>
+                                     <TableRow>
+                                        <TableCell className="font-medium">CO Qty</TableCell>
+                                        {SIZES.map(size => (
+                                            <TableCell key={size} className="text-right">
+                                                {(coQty[size] || 0).toLocaleString()}
+                                            </TableCell>
+                                        ))}
+                                        <TableCell className="text-right font-bold">
+                                            {coQty.total.toLocaleString()}
+                                        </TableCell>
                                     </TableRow>
                                 </TableBody>
                             </Table>
