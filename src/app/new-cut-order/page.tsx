@@ -18,8 +18,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Checkbox } from '@/components/ui/checkbox';
 import { ArrowLeft } from 'lucide-react';
-import type { Order, SizeBreakdown } from '@/lib/types';
+import type { Order, SizeBreakdown, SyntheticPoRecord } from '@/lib/types';
 import { SIZES } from '@/lib/data';
 
 
@@ -48,12 +49,13 @@ const getAvailableStartWeeks = (orders: Order[], selectedCc: string, selectedCol
 
 
 export default function NewCutOrderPage() {
-    const { orders, isScheduleLoaded, frcData, cutOrderRecords } = useSchedule();
+    const { orders, isScheduleLoaded, frcData, cutOrderRecords, syntheticPoRecords } = useSchedule();
     const [selectedCc, setSelectedCc] = useState('');
     const [selectedColor, setSelectedColor] = useState('');
     const [startWeek, setStartWeek] = useState('');
     const [endWeek, setEndWeek] = useState('');
     const [coNumber, setCoNumber] = useState('');
+    const [selectedPoNumbers, setSelectedPoNumbers] = useState<string[]>([]);
 
     useEffect(() => {
         // Generate a random CO number on component mount
@@ -155,6 +157,28 @@ export default function NewCutOrderPage() {
         result.total = frcAvailability.total - pastCutOrders.total;
         return result;
     }, [frcAvailability, pastCutOrders]);
+    
+    const eligiblePos = useMemo(() => {
+        if (!selectedCc || !selectedColor || !startWeek) return [];
+        
+        const startWeekNum = parseInt(startWeek.replace('W', ''));
+        const order = orders.find(o => o.ocn === selectedCc && o.color === selectedColor);
+        if (!order) return [];
+
+        return syntheticPoRecords.filter(po => {
+            const ehdWeekNum = parseInt(po.originalEhdWeek.replace('W', ''));
+            return po.orderId === order.id && ehdWeekNum >= startWeekNum;
+        });
+
+    }, [selectedCc, selectedColor, startWeek, syntheticPoRecords, orders]);
+    
+    const handlePoSelection = (poNumber: string) => {
+        setSelectedPoNumbers(prev => 
+            prev.includes(poNumber) 
+                ? prev.filter(p => p !== poNumber)
+                : [...prev, poNumber]
+        );
+    };
 
 
     return (
@@ -318,6 +342,63 @@ export default function NewCutOrderPage() {
                                             </TableCell>
                                         )}
                                     </TableRow>
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {eligiblePos.length > 0 && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Eligible Purchase Orders</CardTitle>
+                            <CardDescription>
+                                Select the POs to include in this cut order. Only POs with an EHD on or after {startWeek} are shown.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                             <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="w-[50px]">
+                                            <Checkbox 
+                                                checked={selectedPoNumbers.length > 0 && selectedPoNumbers.length === eligiblePos.length}
+                                                onCheckedChange={(checked) => {
+                                                    if (checked) {
+                                                        setSelectedPoNumbers(eligiblePos.map(po => po.poNumber));
+                                                    } else {
+                                                        setSelectedPoNumbers([]);
+                                                    }
+                                                }}
+                                            />
+                                        </TableHead>
+                                        <TableHead>PO #</TableHead>
+                                        {SIZES.map(size => (
+                                            <TableHead key={size} className="text-right">{size}</TableHead>
+                                        ))}
+                                        <TableHead className="text-right font-bold">Total PO Qty</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {eligiblePos.map(po => (
+                                        <TableRow key={po.poNumber} data-state={selectedPoNumbers.includes(po.poNumber) ? 'selected' : ''}>
+                                            <TableCell>
+                                                <Checkbox 
+                                                    checked={selectedPoNumbers.includes(po.poNumber)}
+                                                    onCheckedChange={() => handlePoSelection(po.poNumber)}
+                                                />
+                                            </TableCell>
+                                            <TableCell className="font-medium">{po.poNumber}</TableCell>
+                                            {SIZES.map(size => (
+                                                <TableCell key={size} className="text-right">
+                                                    {(po.quantities[size] || 0) > 0 ? (po.quantities[size] || 0).toLocaleString() : '-'}
+                                                </TableCell>
+                                            ))}
+                                            <TableCell className="text-right font-bold">
+                                                {po.quantities.total.toLocaleString()}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
                                 </TableBody>
                             </Table>
                         </CardContent>
