@@ -22,6 +22,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ArrowLeft } from 'lucide-react';
 import type { Order, SizeBreakdown, SyntheticPoRecord } from '@/lib/types';
 import { SIZES } from '@/lib/data';
+import { cn } from '@/lib/utils';
 
 
 const getAvailableStartWeeks = (orders: Order[], selectedCc: string, selectedColor: string, allWeeks: string[]) => {
@@ -196,6 +197,16 @@ export default function NewCutOrderPage() {
         return result;
     }, [selectedPoNumbers, eligiblePos]);
 
+    const balFrc = useMemo(() => {
+        if (!availableQty) return null;
+        const result: SizeBreakdown = { total: 0 };
+        SIZES.forEach(size => {
+            result[size] = (availableQty[size] || 0) - (coQty[size] || 0);
+        });
+        result.total = availableQty.total - coQty.total;
+        return result;
+    }, [availableQty, coQty]);
+
 
     return (
         <div className="flex h-screen flex-col">
@@ -369,6 +380,19 @@ export default function NewCutOrderPage() {
                                             {coQty.total.toLocaleString()}
                                         </TableCell>
                                     </TableRow>
+                                    {balFrc && (
+                                        <TableRow className="bg-muted/50 font-semibold">
+                                            <TableCell className="font-medium">Bal. FRC</TableCell>
+                                            {SIZES.map(size => (
+                                                <TableCell key={size} className={cn("text-right", (balFrc[size] || 0) < 0 && 'text-destructive')}>
+                                                    {(balFrc[size] || 0).toLocaleString()}
+                                                </TableCell>
+                                            ))}
+                                            <TableCell className={cn("text-right font-bold", balFrc.total < 0 && 'text-destructive')}>
+                                                {balFrc.total.toLocaleString()}
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
                                 </TableBody>
                             </Table>
                         </CardContent>
