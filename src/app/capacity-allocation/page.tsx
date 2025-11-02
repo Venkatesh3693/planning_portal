@@ -100,6 +100,7 @@ export default function CapacityAllocationPage() {
     const { orders, sewingLines, setSewingLines, sewingLineGroups, setSewingLineGroups } = useSchedule();
     const [selectedCc, setSelectedCc] = useState('');
     const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+    const [isCreatingGroup, setIsCreatingGroup] = useState(false);
 
     const [lineForReallocation, setLineForReallocation] = useState<SewingLine | null>(null);
     const { toast } = useToast();
@@ -118,12 +119,17 @@ export default function CapacityAllocationPage() {
     
     const activeGroupMachineTotals = useMemo(() => {
         if (!activeGroup) return {};
-         return activeGroup.allocatedLines.flatMap(l => l.allocatedMachines).reduce((acc, machine) => {
+         const allocatedMachines = activeGroup.allocatedLines.flatMap(l => {
+            const line = sewingLines.find(sl => sl.id === l.lineId);
+            return line ? line.machines.filter(m => l.allocatedMachines.some(am => am.id === m.id)) : [];
+        });
+
+         return allocatedMachines.reduce((acc, machine) => {
             const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name] || machine.name;
             acc[machineType] = (acc[machineType] || 0) + 1;
             return acc;
         }, {} as Record<string, number>);
-    }, [activeGroup]);
+    }, [activeGroup, sewingLines]);
 
 
     const handleCreateGroup = () => {
@@ -157,6 +163,7 @@ export default function CapacityAllocationPage() {
         setSewingLineGroups([...sewingLineGroups, newGroup]);
         setSelectedCc('');
         setActiveGroupId(newGroup.id);
+        setIsCreatingGroup(false);
     };
 
     const handleDeleteGroup = (groupId: string) => {
@@ -306,31 +313,40 @@ export default function CapacityAllocationPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
                     {/* Left Column: Groups & Unallocated */}
                     <div className="lg:col-span-1 flex flex-col gap-6">
-                        <Card>
-                             <CardHeader>
-                                <CardTitle>Create New Line Group</CardTitle>
-                             </CardHeader>
-                             <CardContent className="space-y-4">
-                                <div className="space-y-2">
-                                    <Label>Group Name</Label>
-                                    <p className="text-lg font-semibold text-muted-foreground p-2 border rounded-md h-10">SLG-{sewingLineGroups.length + 1}</p>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="cc-select">Assign CC No.</Label>
-                                    <Select value={selectedCc} onValueChange={setSelectedCc}>
-                                        <SelectTrigger id="cc-select">
-                                            <SelectValue placeholder="Select a CC" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {ccOptions.map(cc => <SelectItem key={cc} value={cc}>{cc}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <Button onClick={handleCreateGroup} disabled={!selectedCc} className="w-full">
-                                    <PlusCircle className="mr-2" /> Create Group
-                                </Button>
-                             </CardContent>
-                        </Card>
+                        {!isCreatingGroup ? (
+                            <Button onClick={() => setIsCreatingGroup(true)} className="w-full">
+                                <PlusCircle className="mr-2" /> Create New Line Group
+                            </Button>
+                        ) : (
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Create New Line Group</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="space-y-2">
+                                        <Label>Group Name</Label>
+                                        <p className="text-lg font-semibold text-muted-foreground p-2 border rounded-md h-10">SLG-{sewingLineGroups.length + 1}</p>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="cc-select">Assign CC No.</Label>
+                                        <Select value={selectedCc} onValueChange={setSelectedCc}>
+                                            <SelectTrigger id="cc-select">
+                                                <SelectValue placeholder="Select a CC" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {ccOptions.map(cc => <SelectItem key={cc} value={cc}>{cc}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="flex justify-end gap-2">
+                                        <Button variant="ghost" onClick={() => setIsCreatingGroup(false)}>Cancel</Button>
+                                        <Button onClick={handleCreateGroup} disabled={!selectedCc}>
+                                            Create Group
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
                         <Card className="flex-1 flex flex-col">
                              <CardHeader>
                                 <CardTitle>Unallocated Lines</CardTitle>
@@ -407,7 +423,10 @@ export default function CapacityAllocationPage() {
                                                 activeGroup.allocatedLines.map(alloc => {
                                                     const line = sewingLines.find(l => l.id === alloc.lineId);
                                                     if (!line) return null;
-                                                    const machineCounts = alloc.allocatedMachines.reduce((acc, m) => {
+                                                    
+                                                    const machinesInLine = line.machines.filter(m => alloc.allocatedMachines.some(am => am.id === m.id));
+
+                                                    const machineCounts = machinesInLine.reduce((acc, m) => {
                                                         const type = MACHINE_NAME_ABBREVIATIONS[m.name] || m.name;
                                                         acc[type] = (acc[type] || 0) + 1;
                                                         return acc;
