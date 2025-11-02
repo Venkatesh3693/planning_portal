@@ -23,6 +23,7 @@ import type { Order, SewingLine, SewingMachine, SewingLineGroup, MachineRequirem
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import LineReallocationDialog from '@/components/capacity/line-reallocation-dialog';
+import { useToast } from '@/hooks/use-toast';
 
 
 const RequirementsTable = ({ requirements, machineTotals }: { requirements: MachineRequirement[], machineTotals: Record<string, number> }) => {
@@ -101,6 +102,7 @@ export default function CapacityAllocationPage() {
     const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
 
     const [lineForReallocation, setLineForReallocation] = useState<SewingLine | null>(null);
+    const { toast } = useToast();
     
     const { unallocatedLines, bufferLine } = useMemo(() => {
         const allocatedLineIds = new Set(sewingLineGroups.flatMap(g => g.allocatedLines.map(l => l.lineId)));
@@ -263,9 +265,11 @@ export default function CapacityAllocationPage() {
     };
 
     const handleSaveConfiguration = () => {
-        // The saving is handled by the useEffect in the provider, 
-        // this is more of a placeholder for potential explicit save actions in the future
-        console.log("Configuration saved via context provider.");
+        // The saving is handled by the useEffect in the provider, but we can show a toast
+        toast({
+          title: "Configuration Saved",
+          description: "Your sewing line group settings have been saved successfully.",
+        });
     };
 
     return (
