@@ -15,7 +15,6 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PlusCircle, Trash2, ChevronRight } from 'lucide-react';
@@ -80,7 +79,6 @@ const UnallocatedLineCard = ({ line, onAllocate, activeGroup }: { line: SewingLi
 export default function CapacityAllocationPage() {
     const { orders } = useSchedule();
     const [lineGroups, setLineGroups] = useState<SewingLineGroup[]>([]);
-    const [newGroupName, setNewGroupName] = useState('');
     const [selectedCc, setSelectedCc] = useState('');
     const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
 
@@ -117,10 +115,12 @@ export default function CapacityAllocationPage() {
     const activeGroup = useMemo(() => lineGroups.find(g => g.id === activeGroupId), [lineGroups, activeGroupId]);
 
     const handleCreateGroup = () => {
-        if (!newGroupName.trim() || !selectedCc) return;
+        if (!selectedCc) return;
         
         const order = orders.find(o => o.ocn === selectedCc);
         if (!order) return;
+
+        const newGroupName = `SLG-${lineGroups.length + 1}`;
 
         const operations = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
         const machineCounts = operations.reduce((acc, op) => {
@@ -144,7 +144,6 @@ export default function CapacityAllocationPage() {
         };
 
         setLineGroups([...lineGroups, newGroup]);
-        setNewGroupName('');
         setSelectedCc('');
         setActiveGroupId(newGroup.id);
     };
@@ -293,8 +292,8 @@ export default function CapacityAllocationPage() {
                              </CardHeader>
                              <CardContent className="space-y-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="new-group-name">Group Name</Label>
-                                    <Input id="new-group-name" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} placeholder="e.g., AW-25 High Volume" />
+                                    <Label>Group Name</Label>
+                                    <p className="text-lg font-semibold text-muted-foreground p-2 border rounded-md h-10">SLG-{lineGroups.length + 1}</p>
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="cc-select">Assign CC No.</Label>
@@ -307,7 +306,7 @@ export default function CapacityAllocationPage() {
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <Button onClick={handleCreateGroup} disabled={!newGroupName.trim() || !selectedCc} className="w-full">
+                                <Button onClick={handleCreateGroup} disabled={!selectedCc} className="w-full">
                                     <PlusCircle className="mr-2" /> Create Group
                                 </Button>
                              </CardContent>
