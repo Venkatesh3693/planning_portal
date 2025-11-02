@@ -307,9 +307,6 @@ export default function CapacityAllocationPage() {
                         <Button variant="outline" size="sm" onClick={() => setIsCreatingGroup(true)}>
                             <PlusCircle className="mr-2 h-4 w-4" /> Create New Line Group
                         </Button>
-                        <Button size="sm" onClick={handleSaveConfiguration}>
-                            <Save className="mr-2 h-4 w-4" /> Save Configuration
-                        </Button>
                     </div>
                 </div>
 
@@ -406,9 +403,14 @@ export default function CapacityAllocationPage() {
                         
                         {activeGroup && (
                             <Card className="flex-1 flex flex-col">
-                                 <CardHeader>
-                                    <CardTitle>Details for {activeGroup.name}</CardTitle>
-                                    <CardDescription>CC No: {activeGroup.ccNo}</CardDescription>
+                                 <CardHeader className="flex flex-row items-center justify-between">
+                                    <div>
+                                        <CardTitle>Details for {activeGroup.name}</CardTitle>
+                                        <CardDescription>CC No: {activeGroup.ccNo}</CardDescription>
+                                    </div>
+                                    <Button size="sm" onClick={handleSaveConfiguration}>
+                                        <Save className="mr-2 h-4 w-4" /> Save Configuration
+                                    </Button>
                                  </CardHeader>
                                  <CardContent className="flex-1 flex flex-col gap-6">
                                     <div>
