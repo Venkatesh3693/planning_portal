@@ -266,7 +266,7 @@ export default function NewCutOrderPage() {
                         <BreadcrumbSeparator />
                         <BreadcrumbItem>
                              <BreadcrumbLink asChild>
-                                <Link href="/cut-order-details">Cut order details</Link>
+                                <Link href="/cut-order-issue">Cut order details</Link>
                             </BreadcrumbLink>
                         </BreadcrumbItem>
                         <BreadcrumbSeparator />
@@ -535,3 +535,6 @@ export default function NewCutOrderPage() {
 
 
 
+
+
+    
