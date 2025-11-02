@@ -10,19 +10,44 @@ export const UNITS: Unit[] = [
   { id: 'u3', name: 'Unit 3' },
 ];
 
+const sewingMachineTypes = [
+    'Single Needle Lock Stitch',
+    'Over Lock Machine',
+    'Flat Lock Machine',
+    'Chain Stitch Machine',
+    'Bar Tack Machine',
+];
+
+const generateSewingMachines = (): Machine[] => {
+    const sewingMachines: Machine[] = [];
+    const machinesPerLine = 25;
+    const numLines = 7;
+
+    for (let i = 1; i <= numLines; i++) {
+        for (let j = 1; j <= machinesPerLine; j++) {
+            const machineType = sewingMachineTypes[Math.floor(Math.random() * sewingMachineTypes.length)];
+            sewingMachines.push({
+                id: `sm-${i}-${j}`,
+                name: `${machineType}-${j}`,
+                processIds: ['sewing'],
+                unitId: `u${(i % 3) + 1}`,
+                isMoveable: Math.random() > 0.3, // 70% are moveable
+            });
+        }
+    }
+    return sewingMachines;
+}
+
 export const MACHINES: Machine[] = [
   { id: 'm1', name: 'Cutting Machine Alpha', processIds: ['cutting'], unitId: 'u1', isMoveable: false },
+  { id: 'm7', name: 'Cutting Machine Beta', processIds: ['cutting'], unitId: 'u3', isMoveable: false },
   { id: 'm2', name: 'Printing Station 1', processIds: ['printing'], unitId: 'u1', isMoveable: false },
   { id: 'm10', name: 'Printing Station 2', processIds: ['printing'], unitId: 'u1', isMoveable: false },
   { id: 'm3', name: 'Embroidery Station 1', processIds: ['embroidery'], unitId: 'u2', isMoveable: false },
   { id: 'm11', name: 'Embroidery Station 2', processIds: ['embroidery'], unitId: 'u2', isMoveable: false },
-  { id: 'm4', name: 'Sewing Station 1', processIds: ['sewing'], unitId: 'u2', isMoveable: true },
-  { id: 'm5', name: 'Sewing Station 2', processIds: ['sewing'], unitId: 'u2', isMoveable: true },
-  { id: 'm7', name: 'Cutting Machine Beta', processIds: ['cutting'], unitId: 'u3', isMoveable: false },
-  { id: 'm8', name: 'Sewing Station 3', processIds: ['sewing'], unitId: 'u3', isMoveable: true },
-  { id: 'm9', name: 'Sewing Station 4', processIds: ['sewing'], unitId: 'u3', isMoveable: false },
   { id: 'm12', name: 'Packing table 1', processIds: ['packing'], unitId: 'u3', isMoveable: false },
   { id: 'm13', name: 'Packing table 2', processIds: ['packing'], unitId: 'u3', isMoveable: false },
+  ...generateSewingMachines(),
 ];
 
 export const ORDER_COLORS = [

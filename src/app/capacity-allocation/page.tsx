@@ -22,6 +22,7 @@ import { PlusCircle, Trash2, ChevronRight } from 'lucide-react';
 import { MACHINES, SEWING_OPERATIONS_BY_STYLE, MACHINE_NAME_ABBREVIATIONS } from '@/lib/data';
 import type { Order, SewingLine, SewingMachine, SewingLineGroup, MachineRequirement } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 
 
 const RequirementsTable = ({ requirements }: { requirements: MachineRequirement[] }) => {
@@ -47,6 +48,35 @@ const RequirementsTable = ({ requirements }: { requirements: MachineRequirement[
     );
 };
 
+const UnallocatedLineCard = ({ line, onAllocate, activeGroup }: { line: SewingLine, onAllocate: (line: SewingLine) => void, activeGroup: SewingLineGroup | undefined }) => {
+    const machineCounts = useMemo(() => {
+        return line.machines.reduce((acc, machine) => {
+            const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name.replace(/\s\d+$|\s(Alpha|Beta)$/, '')] || machine.name.replace(/\s\d+$|\s(Alpha|Beta)$/, '');
+            acc[machineType] = (acc[machineType] || 0) + 1;
+            return acc;
+        }, {} as Record<string, number>);
+    }, [line.machines]);
+
+    return (
+        <div className="p-3 rounded-md border">
+            <div className="flex items-center justify-between mb-2">
+                <div>
+                    <p className="font-medium">{line.name}</p>
+                    <p className="text-xs text-muted-foreground">{line.machines.length} Machines</p>
+                </div>
+                 <Button size="sm" variant="outline" onClick={() => onAllocate(line)} disabled={!activeGroup}>
+                    Allocate
+                </Button>
+            </div>
+            <div className="flex flex-wrap gap-1">
+                {Object.entries(machineCounts).map(([type, count]) => (
+                    <Badge key={type} variant="secondary" className="font-normal">{type}: {count}</Badge>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 export default function CapacityAllocationPage() {
     const { orders } = useSchedule();
     const [lineGroups, setLineGroups] = useState<SewingLineGroup[]>([]);
@@ -56,7 +86,7 @@ export default function CapacityAllocationPage() {
 
     const allSewingMachines: SewingMachine[] = useMemo(() => {
         return MACHINES.filter(m => m.processIds.includes('sewing')).map(m => {
-            const lineName = m.name.replace(/ \d+$/, '');
+            const lineName = m.name.replace(/-\d+$/, '');
             return {
                 ...m,
                 lineId: lineName,
@@ -144,7 +174,7 @@ export default function CapacityAllocationPage() {
             remainingRequirements.forEach(req => {
                 if (req.required > 0) {
                     const machineTypeAbbr = req.machineType;
-                    const matchingMachines = availableMachinesInLine.filter(m => (MACHINE_NAME_ABBREVIATIONS[m.name.replace(/\s\d+$|\s(Alpha|Beta)$/, '')] || m.name.replace(/\s\d+$|\s(Alpha|Beta)$/, '')) === machineTypeAbbr);
+                    const matchingMachines = availableMachinesInLine.filter(m => (MACHINE_NAME_ABBREVIATIONS[m.name.replace(/-\d+$/, '')] || m.name.replace(/-\d+$/, '')) === machineTypeAbbr);
                     const machinesNeeded = req.required;
                     const allocatedFromThisType = matchingMachines.slice(0, machinesNeeded);
                     machinesToAllocate.push(...allocatedFromThisType);
@@ -177,7 +207,7 @@ export default function CapacityAllocationPage() {
             // Recalculate total allocated machines
             const totalAllocatedMachines = updatedAllocatedLines.flatMap(l => l.allocatedMachines);
             const newAllocatedCounts = totalAllocatedMachines.reduce((acc, machine) => {
-                const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name.replace(/\s\d+$|\s(Alpha|Beta)$/, '')] || machine.name.replace(/\s\d+$|\s(Alpha|Beta)$/, '');
+                const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name.replace(/-\d+$/, '')] || machine.name.replace(/-\d+$/, '');
                 acc[machineType] = (acc[machineType] || 0) + 1;
                 return acc;
             }, {} as Record<string, number>);
@@ -203,7 +233,7 @@ export default function CapacityAllocationPage() {
              // Recalculate total allocated machines
             const totalAllocatedMachines = updatedAllocatedLines.flatMap(l => l.allocatedMachines);
             const newAllocatedCounts = totalAllocatedMachines.reduce((acc, machine) => {
-                const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name.replace(/\s\d+$|\s(Alpha|Beta)$/, '')] || machine.name.replace(/\s\d+$|\s(Alpha|Beta)$/, '');
+                const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name.replace(/-\d+$/, '')] || machine.name.replace(/-\d+$/, '');
                 acc[machineType] = (acc[machineType] || 0) + 1;
                 return acc;
             }, {} as Record<string, number>);
@@ -287,15 +317,7 @@ export default function CapacityAllocationPage() {
                                 <div className="space-y-2">
                                     {unallocatedLines.length > 0 ? (
                                         unallocatedLines.map(line => (
-                                            <div key={line.id} className="p-3 rounded-md border flex items-center justify-between">
-                                                <div>
-                                                    <p className="font-medium">{line.name}</p>
-                                                    <p className="text-xs text-muted-foreground">{line.machines.length} Machines</p>
-                                                </div>
-                                                 <Button size="sm" variant="outline" onClick={() => allocateLine(line)} disabled={!activeGroup}>
-                                                    Allocate
-                                                </Button>
-                                            </div>
+                                            <UnallocatedLineCard key={line.id} line={line} onAllocate={allocateLine} activeGroup={activeGroup} />
                                         ))
                                     ) : (
                                         <p className="text-sm text-muted-foreground text-center py-8">All sewing lines are allocated.</p>
