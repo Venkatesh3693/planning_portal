@@ -144,7 +144,6 @@ export default function CapacityAllocationPage() {
         const machineRequirements: MachineRequirement[] = Object.entries(machineCounts).map(([type, count]) => ({
             machineType: type,
             required: count,
-            allocated: 0,
         }));
         
         const newGroup: SewingLineGroup = {
@@ -270,6 +269,7 @@ export default function CapacityAllocationPage() {
           title: "Configuration Saved",
           description: "Your sewing line group settings have been saved successfully.",
         });
+        setActiveGroupId(null);
     };
 
     return (
@@ -369,7 +369,7 @@ export default function CapacityAllocationPage() {
                                 {sewingLineGroups.length > 0 ? (
                                     <div className="space-y-2">
                                         {sewingLineGroups.map(group => (
-                                            <div key={group.id} className={cn("p-3 rounded-md border flex items-center justify-between cursor-pointer", activeGroupId === group.id && "ring-2 ring-primary border-primary")} onClick={() => setActiveGroupId(group.id)}>
+                                            <div key={group.id} className={cn("p-3 rounded-md border flex items-center justify-between cursor-pointer", activeGroupId === group.id && "ring-2 ring-primary border-primary")} onClick={() => setActiveGroupId(prevId => prevId === group.id ? null : group.id)}>
                                                 <div>
                                                     <p className="font-semibold">{group.name}</p>
                                                     <p className="text-sm text-muted-foreground">CC: {group.ccNo}</p>
@@ -407,11 +407,22 @@ export default function CapacityAllocationPage() {
                                                 activeGroup.allocatedLines.map(alloc => {
                                                     const line = sewingLines.find(l => l.id === alloc.lineId);
                                                     if (!line) return null;
+                                                    const machineCounts = alloc.allocatedMachines.reduce((acc, m) => {
+                                                        const type = MACHINE_NAME_ABBREVIATIONS[m.name] || m.name;
+                                                        acc[type] = (acc[type] || 0) + 1;
+                                                        return acc;
+                                                    }, {} as Record<string, number>)
+
                                                     return (
-                                                        <div key={alloc.lineId} className="p-3 rounded-md border bg-background flex items-center justify-between">
+                                                        <div key={alloc.lineId} className="p-3 rounded-md border bg-background flex items-start justify-between">
                                                             <div>
                                                                 <p className="font-medium">{line.name} {alloc.isPartial && <span className="text-xs font-normal text-muted-foreground">(Partial)</span>}</p>
                                                                 <p className="text-xs text-muted-foreground">{alloc.allocatedMachines.length} / {line.machines.length} Machines Allocated</p>
+                                                                <div className="flex flex-wrap gap-1 mt-2">
+                                                                    {Object.entries(machineCounts).map(([type, count]) => (
+                                                                        <Badge key={type} variant="secondary" className="font-normal">{type}: {count}</Badge>
+                                                                    ))}
+                                                                </div>
                                                             </div>
                                                             <Button size="sm" variant="destructive" onClick={() => deallocateLine(alloc.lineId)}>
                                                                 Deallocate
