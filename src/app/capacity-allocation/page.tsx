@@ -303,8 +303,11 @@ export default function CapacityAllocationPage() {
                             Create line groups, assign CCs, and allocate sewing lines.
                         </p>
                     </div>
-                     <div>
-                        <Button onClick={handleSaveConfiguration}>
+                     <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setIsCreatingGroup(true)}>
+                            <PlusCircle className="mr-2 h-4 w-4" /> Create New Line Group
+                        </Button>
+                        <Button size="sm" onClick={handleSaveConfiguration}>
                             <Save className="mr-2 h-4 w-4" /> Save Configuration
                         </Button>
                     </div>
@@ -313,11 +316,7 @@ export default function CapacityAllocationPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
                     {/* Left Column: Groups & Unallocated */}
                     <div className="lg:col-span-1 flex flex-col gap-6">
-                        {!isCreatingGroup ? (
-                            <Button onClick={() => setIsCreatingGroup(true)} className="w-full">
-                                <PlusCircle className="mr-2" /> Create New Line Group
-                            </Button>
-                        ) : (
+                        {isCreatingGroup && (
                             <Card>
                                 <CardHeader>
                                     <CardTitle>Create New Line Group</CardTitle>
