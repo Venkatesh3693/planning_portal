@@ -279,6 +279,20 @@ export default function CapacityAllocationPage() {
         setActiveGroupId(null);
     };
 
+    const calculateGroupMachineTotals = (group: SewingLineGroup) => {
+      if (!group) return {};
+      const allocatedMachines = group.allocatedLines.flatMap(l => {
+          const line = sewingLines.find(sl => sl.id === l.lineId);
+          return line ? line.machines.filter(m => l.allocatedMachines.some(am => am.id === m.id)) : [];
+      });
+
+       return allocatedMachines.reduce((acc, machine) => {
+          const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name] || machine.name;
+          acc[machineType] = (acc[machineType] || 0) + 1;
+          return acc;
+      }, {} as Record<string, number>);
+    };
+
     return (
         <div className="flex h-screen flex-col">
             <Header />
@@ -380,20 +394,30 @@ export default function CapacityAllocationPage() {
                             <CardContent>
                                 {sewingLineGroups.length > 0 ? (
                                     <div className="space-y-2">
-                                        {sewingLineGroups.map(group => (
-                                            <div key={group.id} className={cn("p-3 rounded-md border flex items-center justify-between cursor-pointer", activeGroupId === group.id && "ring-2 ring-primary border-primary")} onClick={() => setActiveGroupId(prevId => prevId === group.id ? null : group.id)}>
-                                                <div>
-                                                    <p className="font-semibold">{group.name}</p>
-                                                    <p className="text-sm text-muted-foreground">CC: {group.ccNo}</p>
+                                        {sewingLineGroups.map(group => {
+                                            const groupMachineTotals = calculateGroupMachineTotals(group);
+                                            return (
+                                                <div key={group.id} className={cn("p-3 rounded-md border flex flex-col cursor-pointer", activeGroupId === group.id && "ring-2 ring-primary border-primary")} onClick={() => setActiveGroupId(prevId => prevId === group.id ? null : group.id)}>
+                                                    <div className="flex items-center justify-between">
+                                                        <div>
+                                                            <p className="font-semibold">{group.name}</p>
+                                                            <p className="text-sm text-muted-foreground">CC: {group.ccNo}</p>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <Button variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={(e) => { e.stopPropagation(); handleDeleteGroup(group.id); }}>
+                                                                <Trash2 />
+                                                            </Button>
+                                                            <ChevronRight className={cn("h-5 w-5 text-muted-foreground transition-transform", activeGroupId === group.id && "text-primary")} />
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-1 mt-2">
+                                                        {Object.entries(groupMachineTotals).map(([type, count]) => (
+                                                            <Badge key={type} variant="secondary" className="font-normal">{type}: {count}</Badge>
+                                                        ))}
+                                                    </div>
                                                 </div>
-                                                <div className="flex items-center gap-2">
-                                                    <Button variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={(e) => { e.stopPropagation(); handleDeleteGroup(group.id); }}>
-                                                        <Trash2 />
-                                                    </Button>
-                                                    <ChevronRight className={cn("h-5 w-5 text-muted-foreground transition-transform", activeGroupId === group.id && "text-primary")} />
-                                                </div>
-                                            </div>
-                                        ))}
+                                            )
+                                        })}
                                     </div>
                                 ) : (
                                      <p className="text-sm text-muted-foreground text-center py-8">No line groups created yet.</p>
