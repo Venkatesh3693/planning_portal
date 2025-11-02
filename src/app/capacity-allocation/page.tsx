@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useSchedule } from '@/context/schedule-provider';
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
@@ -17,11 +17,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PlusCircle, Trash2, ChevronRight } from 'lucide-react';
-import { MACHINES, SEWING_OPERATIONS_BY_STYLE, MACHINE_NAME_ABBREVIATIONS } from '@/lib/data';
+import { PlusCircle, Trash2, ChevronRight, Edit } from 'lucide-react';
+import { SEWING_OPERATIONS_BY_STYLE, MACHINE_NAME_ABBREVIATIONS } from '@/lib/data';
 import type { Order, SewingLine, SewingMachine, SewingLineGroup, MachineRequirement } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import LineReallocationDialog from '@/components/capacity/line-reallocation-dialog';
 
 
 const RequirementsTable = ({ requirements }: { requirements: MachineRequirement[] }) => {
@@ -47,7 +48,7 @@ const RequirementsTable = ({ requirements }: { requirements: MachineRequirement[
     );
 };
 
-const UnallocatedLineCard = ({ line, onAllocate, activeGroup }: { line: SewingLine, onAllocate: (line: SewingLine) => void, activeGroup: SewingLineGroup | undefined }) => {
+const UnallocatedLineCard = ({ line, onAllocate, onEdit, activeGroup }: { line: SewingLine, onAllocate: (line: SewingLine) => void, onEdit: (line: SewingLine) => void, activeGroup: SewingLineGroup | undefined }) => {
     const machineCounts = useMemo(() => {
         return line.machines.reduce((acc, machine) => {
             const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name] || machine.name;
@@ -63,9 +64,14 @@ const UnallocatedLineCard = ({ line, onAllocate, activeGroup }: { line: SewingLi
                     <p className="font-medium">{line.name}</p>
                     <p className="text-xs text-muted-foreground">{line.machines.length} Machines</p>
                 </div>
-                 <Button size="sm" variant="outline" onClick={() => onAllocate(line)} disabled={!activeGroup}>
-                    Allocate
-                </Button>
+                 <div className="flex items-center gap-1">
+                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onEdit(line)}>
+                        <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => onAllocate(line)} disabled={!activeGroup}>
+                        Allocate
+                    </Button>
+                 </div>
             </div>
             <div className="flex flex-wrap gap-1">
                 {Object.entries(machineCounts).map(([type, count]) => (
@@ -77,39 +83,21 @@ const UnallocatedLineCard = ({ line, onAllocate, activeGroup }: { line: SewingLi
 }
 
 export default function CapacityAllocationPage() {
-    const { orders } = useSchedule();
+    const { orders, sewingLines, setSewingLines } = useSchedule();
     const [lineGroups, setLineGroups] = useState<SewingLineGroup[]>([]);
     const [selectedCc, setSelectedCc] = useState('');
     const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
 
-    const allSewingMachines: SewingMachine[] = useMemo(() => {
-        return MACHINES.filter(m => m.processIds.includes('sewing')).map((m, index) => {
-            const lineName = `L${Math.floor(index / 25) + 1}`;
-            return {
-                ...m,
-                lineId: lineName,
-            } as SewingMachine
-        });
-    }, []);
-
-    const sewingLines = useMemo(() => {
-        const lines: Record<string, SewingLine> = {};
-        allSewingMachines.forEach(machine => {
-            if (!lines[machine.lineId]) {
-                lines[machine.lineId] = {
-                    id: machine.lineId,
-                    name: machine.lineId,
-                    machines: []
-                };
-            }
-            lines[machine.lineId].machines.push(machine);
-        });
-        return Object.values(lines);
-    }, [allSewingMachines]);
+    const [lineForReallocation, setLineForReallocation] = useState<SewingLine | null>(null);
     
-    const unallocatedLines = useMemo(() => {
+    const { unallocatedLines, bufferLine } = useMemo(() => {
         const allocatedLineIds = new Set(lineGroups.flatMap(g => g.allocatedLines.map(l => l.lineId)));
-        return sewingLines.filter(line => !allocatedLineIds.has(line.id));
+        const allUnallocatedLines = sewingLines.filter(line => !allocatedLineIds.has(line.id));
+
+        const buffer = allUnallocatedLines.find(l => l.id === 'buffer');
+        const regularLines = allUnallocatedLines.filter(l => l.id !== 'buffer');
+        
+        return { unallocatedLines: regularLines, bufferLine: buffer };
     }, [sewingLines, lineGroups]);
 
     const activeGroup = useMemo(() => lineGroups.find(g => g.id === activeGroupId), [lineGroups, activeGroupId]);
@@ -166,7 +154,7 @@ export default function CapacityAllocationPage() {
                 required: req.required - req.allocated
             }));
 
-            const availableMachinesInLine = line.machines.slice(); // Create a copy to mutate
+            const availableMachinesInLine = line.machines.slice();
             let machinesToAllocate: SewingMachine[] = [];
             let isPartial = false;
 
@@ -179,7 +167,7 @@ export default function CapacityAllocationPage() {
                     const machinesNeeded = req.required;
                     const allocatedFromThisType = matchingMachines.slice(0, machinesNeeded);
                     machinesToAllocate.push(...allocatedFromThisType);
-                    // Remove allocated machines from available pool
+                    
                     allocatedFromThisType.forEach(am => {
                         const index = availableMachinesInLine.findIndex(m => m.id === am.id);
                         if (index > -1) availableMachinesInLine.splice(index, 1);
@@ -187,15 +175,13 @@ export default function CapacityAllocationPage() {
                 }
             });
             
-            // Check if we allocated all machines from the line or just some
             isPartial = machinesToAllocate.length > 0 && machinesToAllocate.length < line.machines.length;
             
             if (machinesToAllocate.length === 0) {
-                // If no specific machines were needed but we're allocating a full line
                 machinesToAllocate = [...line.machines];
                 isPartial = false;
             } else if (!isPartial && machinesToAllocate.length > 0) {
-                 machinesToAllocate = [...line.machines]; // Ensure all machines are included for a full line
+                 machinesToAllocate = [...line.machines]; 
             }
 
             const newAllocatedLine = {
@@ -206,7 +192,6 @@ export default function CapacityAllocationPage() {
             
             const updatedAllocatedLines = [...group.allocatedLines, newAllocatedLine];
 
-            // Recalculate total allocated machines
             const totalAllocatedMachines = updatedAllocatedLines.flatMap(l => l.allocatedMachines);
             const newAllocatedCounts = totalAllocatedMachines.reduce((acc, machine) => {
                 const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name] || machine.name;
@@ -232,7 +217,6 @@ export default function CapacityAllocationPage() {
 
             const updatedAllocatedLines = group.allocatedLines.filter(l => l.lineId !== lineId);
 
-             // Recalculate total allocated machines
             const totalAllocatedMachines = updatedAllocatedLines.flatMap(l => l.allocatedMachines);
             const newAllocatedCounts = totalAllocatedMachines.reduce((acc, machine) => {
                 const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name] || machine.name;
@@ -256,6 +240,39 @@ export default function CapacityAllocationPage() {
             .map(o => o.ocn)
             .filter((value, index, self) => self.indexOf(value) === index);
     }, [orders, lineGroups]);
+    
+    const handleReallocationSave = (sourceLineId: string, updatedMachines: SewingMachine[]) => {
+        setSewingLines(prevLines => {
+            let machinePool = [...(prevLines.find(l => l.id === sourceLineId)?.machines || [])];
+            let targetLines = prevLines.filter(l => l.id !== sourceLineId);
+
+            updatedMachines.forEach(movedMachine => {
+                // Find and remove from original line in the pool
+                const poolIndex = machinePool.findIndex(m => m.id === movedMachine.id);
+                if (poolIndex > -1) {
+                    machinePool.splice(poolIndex, 1);
+                }
+                
+                // Add to new line
+                const targetLineIndex = targetLines.findIndex(l => l.id === movedMachine.lineId);
+                if (targetLineIndex > -1) {
+                    targetLines[targetLineIndex].machines.push(movedMachine);
+                } else {
+                    // This case handles moving to a completely new line if logic allows
+                    const newTargetLine = prevLines.find(l => l.id === movedMachine.lineId);
+                    if(newTargetLine) {
+                         newTargetLine.machines.push(movedMachine);
+                    }
+                }
+            });
+
+            // The source line now contains only the machines that weren't moved
+            const finalSourceLine = { id: sourceLineId, name: prevLines.find(l=>l.id === sourceLineId)!.name, machines: machinePool };
+
+            return [...targetLines, finalSourceLine];
+        });
+        setLineForReallocation(null);
+    };
 
     return (
         <div className="flex h-screen flex-col">
@@ -317,13 +334,22 @@ export default function CapacityAllocationPage() {
                              </CardHeader>
                              <CardContent className="flex-1 overflow-y-auto">
                                 <div className="space-y-2">
+                                    {bufferLine && (
+                                        <UnallocatedLineCard 
+                                            key={bufferLine.id} 
+                                            line={bufferLine} 
+                                            onAllocate={() => {}} 
+                                            onEdit={setLineForReallocation} 
+                                            activeGroup={activeGroup} 
+                                        />
+                                    )}
                                     {unallocatedLines.length > 0 ? (
                                         unallocatedLines.map(line => (
-                                            <UnallocatedLineCard key={line.id} line={line} onAllocate={allocateLine} activeGroup={activeGroup} />
+                                            <UnallocatedLineCard key={line.id} line={line} onAllocate={allocateLine} onEdit={setLineForReallocation} activeGroup={activeGroup} />
                                         ))
-                                    ) : (
+                                    ) : !bufferLine ? (
                                         <p className="text-sm text-muted-foreground text-center py-8">All sewing lines are allocated.</p>
-                                    )}
+                                    ) : null}
                                 </div>
                              </CardContent>
                         </Card>
@@ -401,6 +427,15 @@ export default function CapacityAllocationPage() {
                     </div>
                 </div>
             </main>
+            {lineForReallocation && (
+                <LineReallocationDialog
+                    line={lineForReallocation}
+                    allLines={sewingLines}
+                    isOpen={!!lineForReallocation}
+                    onOpenChange={(isOpen) => !isOpen && setLineForReallocation(null)}
+                    onSave={handleReallocationSave}
+                />
+            )}
         </div>
     );
 }

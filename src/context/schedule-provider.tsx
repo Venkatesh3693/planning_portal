@@ -2,12 +2,12 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, Dispatch, SetStateAction, useMemo, useCallback } from 'react';
-import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem, Size, FcComposition, FcSnapshot, SyntheticPoRecord, CutOrderRecord, SizeBreakdown, ProjectionRow, FrcRow, Remark } from '@/lib/types';
-import { ORDERS as staticOrders, PROCESSES, ORDER_COLORS, SIZES } from '@/lib/data';
+import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem, Size, FcComposition, FcSnapshot, SyntheticPoRecord, CutOrderRecord, SizeBreakdown, ProjectionRow, FrcRow, Remark, SewingLine, Machine as IMachine } from '@/lib/types';
+import { ORDERS as staticOrders, PROCESSES, ORDER_COLORS, SIZES, MACHINES as staticMachines } from '@/lib/data';
 import { addDays, startOfToday, isAfter, getWeek } from 'date-fns';
 import { getProcessBatchSize, getPackingBatchSize, PrjGenerator, FrcGenerator } from '@/lib/tna-calculator';
 
-const STORE_KEY = 'stitchplan_schedule_v4';
+const STORE_KEY = 'stitchplan_schedule_v5';
 const FIRM_PO_WINDOW = 3;
 
 type AppMode = 'gup' | 'gut';
@@ -22,15 +22,13 @@ type ScheduleContextType = {
   orders: Order[];
   scheduledProcesses: ScheduledProcess[];
   setScheduledProcesses: Dispatch<SetStateAction<ScheduledProcess[]>>;
-  sewingRampUpSchemes: SewingRampUpSchemes;
-  updateSewingRampUpScheme: (orderId: string, scheme: RampUpEntry[]) => void;
   updateOrderTna: (orderId: string, newTnaProcesses: TnaProcess[]) => void;
   updateOrderColor: (orderId: string, color: string) => void;
   updateOrderMinRunDays: (orderId: string, minRunDays: Record<string, number>) => void;
   updateOrderBom: (orderId: string, componentName: string, field: keyof BomItem, value: any) => void;
   updatePoEhd: (orderId: string, poNumber: string, newWeek: string) => void;
-  sewingLines: SewingLines;
-  setSewingLines: (orderId: string, lines: number) => void;
+  sewingLines: SewingLine[];
+  setSewingLines: Dispatch<SetStateAction<SewingLine[]>>;
   productionPlans: ProductionPlans;
   updateProductionPlan: (orderId: string, plan: Record<string, number>) => void;
   timelineEndDate: Date;
@@ -47,6 +45,9 @@ type ScheduleContextType = {
   projectionData: ProjectionRow[];
   frcData: FrcRow[];
   updateFrcRemarks: (frcNumber: string, action: 'add' | 'delete' | 'reply', remark: Remark, parentId?: string) => void;
+  machines: IMachine[];
+  setMachines: Dispatch<SetStateAction<IMachine[]>>;
+  updateSewingRampUpScheme: (orderId: string, scheme: RampUpEntry[]) => void;
 };
 
 const ScheduleContext = createContext<ScheduleContextType | undefined>(undefined);
@@ -140,7 +141,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   const [appMode, setAppModeState] = useState<AppMode>('gup');
   const [orders, setOrders] = useState<Order[]>([]);
   const [scheduledProcesses, setScheduledProcesses] = useState<ScheduledProcess[]>([]);
-  const [sewingLines, setSewingLinesState] = useState<SewingLines>({});
+  const [sewingLines, setSewingLines] = useState<SewingLine[]>([]);
   const [orderOverrides, setOrderOverrides] = useState<StoredOrderOverrides>({});
   const [productionPlans, setProductionPlans] = useState<ProductionPlans>({});
   const [splitOrderProcesses, setSplitOrderProcesses] = useState<Record<string, boolean>>({});
@@ -150,6 +151,8 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   const [cutOrderRecords, setCutOrderRecords] = useState<CutOrderRecord[]>([]);
   const [projectionData, setProjectionData] = useState<ProjectionRow[]>([]);
   const [frcData, setFrcData] = useState<FrcRow[]>([]);
+  const [machines, setMachines] = useState<IMachine[]>(staticMachines);
+
 
   useEffect(() => {
     try {
@@ -161,7 +164,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         const storedData = JSON.parse(serializedState);
         
         if (storedData.appMode) setAppModeState(storedData.appMode);
-        setSewingLinesState(storedData.sewingLines || {});
         setProductionPlans(storedData.productionPlans || {});
         loadedOverrides = storedData.orderOverrides || {};
         setOrderOverrides(loadedOverrides);
@@ -188,11 +190,15 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         if(storedData.frcData) {
           setFrcData(storedData.frcData.map((f: FrcRow) => ({...f, remarks: f.remarks || []})));
         }
+
+        if(storedData.machines) {
+          setMachines(storedData.machines);
+        }
+
       }
 
       setTimelineEndDate(addDays(maxEndDate, 3));
 
-      // Initial hydration of orders from static data + overrides
       const initialOrdersWithOverrides = staticOrders.map((baseOrder, index) => {
         const override = loadedOverrides[baseOrder.id] || {};
         return {
@@ -205,7 +211,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         };
       });
 
-      // Generate synthetic POs from the initially hydrated orders
       const newPos = generateSyntheticPos(initialOrdersWithOverrides);
       setSyntheticPoRecords(newPos);
       
@@ -214,7 +219,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
           return acc;
       }, {} as Record<string, number>);
 
-      // Final order state with all dynamic data calculated
       const finalOrders = initialOrdersWithOverrides.map(order => {
           if (order.orderType === 'Forecasted') {
               return {
@@ -230,10 +234,31 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error("Could not load schedule from localStorage", err);
       setOrders(staticOrders);
+      setMachines(staticMachines);
     } finally {
       setIsScheduleLoaded(true);
     }
   }, []);
+
+  useEffect(() => {
+    // Generate sewing lines from machines state
+    const allSewingMachines = machines.filter(m => m.processIds.includes('sewing'));
+    const linesMap: Record<string, SewingLine> = {};
+
+    allSewingMachines.forEach((machine, index) => {
+      const lineId = machine.isMoveable ? 'buffer' : `L${Math.floor(index / 25) + 1}`;
+      if (!linesMap[lineId]) {
+        linesMap[lineId] = {
+          id: lineId,
+          name: lineId === 'buffer' ? 'Buffer' : `Line ${lineId.replace('L', '')}`,
+          machines: []
+        };
+      }
+      linesMap[lineId].machines.push({ ...machine, lineId, processIds: ['sewing'] });
+    });
+    setSewingLines(Object.values(linesMap).sort((a,b) => a.id.localeCompare(b.id)));
+  }, [machines]);
+
 
   useEffect(() => {
     if (!isScheduleLoaded) return;
@@ -249,7 +274,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     const allProjections = Object.values(ccGroups).flatMap(ccOrders => PrjGenerator(ccOrders));
     setProjectionData(allProjections);
     
-    // Check if FRC data is already loaded and has remarks, to avoid overwriting them.
     if (!frcData || frcData.length === 0 || !frcData.some(f => f.remarks && f.remarks.length > 0)) {
        const allFrcs = FrcGenerator(allProjections, orders);
        setFrcData(allFrcs);
@@ -265,7 +289,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     
     
     const frcTotalsByOrder = FrcGenerator(allProjections, orders).reduce((acc, frc) => {
-        const orderKey = `${frc.ccNo}-${frc.model.split(' / ')[1]}`;
         const orderId = orders.find(o => o.ocn === frc.ccNo && o.color === frc.model.split(' / ')[1])?.id;
         if (orderId) {
             acc[orderId] = (acc[orderId] || 0) + frc.frcQty;
@@ -335,20 +358,20 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
       const stateToSave = {
         appMode,
         scheduledProcesses,
-        sewingLines,
         orderOverrides,
         productionPlans,
         timelineEndDate,
         splitOrderProcesses,
         cutOrderRecords,
         frcData,
+        machines,
       };
       const serializedState = JSON.stringify(stateToSave);
       localStorage.setItem(STORE_KEY, serializedState);
     } catch (err) {
       console.error("Could not save schedule to localStorage", err);
     }
-  }, [appMode, scheduledProcesses, sewingLines, orderOverrides, productionPlans, timelineEndDate, splitOrderProcesses, cutOrderRecords, frcData, isScheduleLoaded]);
+  }, [appMode, scheduledProcesses, orderOverrides, productionPlans, timelineEndDate, splitOrderProcesses, cutOrderRecords, frcData, machines, isScheduleLoaded]);
 
   const setAppMode = useCallback((mode: AppMode) => {
     setAppModeState(mode);
@@ -475,10 +498,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   }, [syntheticPoRecords, orders]);
 
 
-  const setSewingLines = useCallback((orderId: string, lines: number) => {
-    setSewingLinesState(prev => ({ ...prev, [orderId]: lines }));
-  }, []);
-
   const updateProductionPlan = useCallback((orderId: string, plan: Record<string, number>) => {
     setProductionPlans(prev => ({ ...prev, [orderId]: plan }));
   }, []);
@@ -508,7 +527,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
                             if (r.id === parentId && action === 'reply') {
                                 return { ...r, replies: [...(r.replies || []), remark] };
                             }
-                            if (action === 'delete' && r.id === parentId) { // simplified for demo, deletes top-level
+                            if (action === 'delete' && r.id === parentId) { 
                                 return null;
                             }
                             if (r.replies) {
@@ -531,42 +550,45 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         });
     }, []);
 
-  const sewingRampUpSchemes = useMemo(() => 
+  const sewingLinesForGantt: SewingLines = useMemo(() =>
     Object.entries(orderOverrides).reduce((acc, [orderId, override]) => {
-      if (override.sewingRampUpScheme) {
-        acc[orderId] = override.sewingRampUpScheme;
-      }
+      // This is a placeholder, actual sewingLines state is now derived from machines
       return acc;
-    }, {} as SewingRampUpSchemes),
+    }, {} as SewingLines),
   [orderOverrides]);
 
   const { processBatchSizes, packingBatchSizes } = useMemo(() => {
     const pbs: Record<string, number> = {};
     const qbs: Record<string, number> = {};
+    const sewingLinesByOrder = orders.reduce((acc, order) => {
+      // This is a placeholder as `sewingLines` context is now an array
+      // In a real scenario, we might need a map from order ID to number of allocated lines
+      acc[order.id] = 1; 
+      return acc;
+    }, {} as Record<string, number>);
+
     orders.forEach(order => {
-        const numLines = sewingLines[order.id] || 1;
+        const numLines = sewingLinesByOrder[order.id] || 1;
         pbs[order.id] = getProcessBatchSize(order, PROCESSES, numLines);
         qbs[order.id] = getPackingBatchSize(order, PROCESSES);
     });
     return { processBatchSizes: pbs, packingBatchSizes: qbs };
-  }, [orders, sewingLines]);
+  }, [orders]);
 
 
-  const value = { 
+  const value: ScheduleContextType = { 
     appMode,
     setAppMode,
     orders,
     scheduledProcesses, 
     setScheduledProcesses, 
-    sewingRampUpSchemes,
-    updateSewingRampUpScheme,
     updateOrderTna,
     updateOrderColor,
     updateOrderMinRunDays,
     updateOrderBom,
     updatePoEhd,
-    sewingLines,
-    setSewingLines,
+    sewingLines, // now the derived array
+    setSewingLines, // now the state setter for the array
     productionPlans,
     updateProductionPlan,
     timelineEndDate,
@@ -583,6 +605,9 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     projectionData,
     frcData,
     updateFrcRemarks,
+    machines,
+    setMachines,
+    updateSewingRampUpScheme,
   };
 
   return (

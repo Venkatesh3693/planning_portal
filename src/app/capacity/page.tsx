@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
-import { UNITS, MACHINES, PROCESSES } from '@/lib/data';
+import { UNITS, PROCESSES } from '@/lib/data';
 import type { Machine, Process, Unit } from '@/lib/types';
 import {
   Table,
@@ -47,7 +47,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { X, PlusCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useSchedule } from '@/context/schedule-provider';
 
 type MachineGroup = {
@@ -72,8 +71,7 @@ type ReallocationState = {
 
 
 export default function CapacityPage() {
-  const { appMode } = useSchedule();
-  const [machines, setMachines] = useState<Machine[]>(MACHINES);
+  const { appMode, machines, setMachines } = useSchedule();
   const [reallocationState, setReallocationState] = useState<ReallocationState | null>(null);
 
   const [selectedProcesses, setSelectedProcesses] = useState<string[]>([]);
@@ -180,49 +178,47 @@ export default function CapacityPage() {
     const { machineName, allocations } = reallocationState;
     
     setMachines(prevMachines => {
-      let updatedMachines = [...prevMachines];
-      
-      // First, remove all moveable machines of this type from all units to create a pool
-      const machinePool = updatedMachines.filter(m => 
-        m.name.startsWith(machineName) && m.isMoveable
-      );
-      updatedMachines = updatedMachines.filter(m => 
-        !m.name.startsWith(machineName) || !m.isMoveable
-      );
+        let updatedMachines = [...prevMachines];
+        
+        // Pool of all movable machines of this type
+        const machinePool: Machine[] = [];
+        // All other machines that are not of this type or not movable
+        const remainingMachines: Machine[] = [];
 
-      // Now, distribute the machines from the pool to the units as per the new allocations
-      const finalMachines = [...updatedMachines];
-      let poolIndex = 0;
+        updatedMachines.forEach(m => {
+            const machineType = m.name.replace(/\s\d+$|\s(Alpha|Beta)$/, '');
+            if (machineType === machineName && m.isMoveable) {
+                machinePool.push(m);
+            } else {
+                remainingMachines.push(m);
+            }
+        });
+        
+        let poolIndex = 0;
+        allocations.forEach(({ unitId, quantity }) => {
+            if (!unitId || quantity === 0) return;
 
-      allocations.forEach(({ unitId, quantity }) => {
-        if (!unitId || quantity === 0) return;
-
-        for (let i = 0; i < quantity; i++) {
-          if (poolIndex < machinePool.length) {
-            const machineToPlace = { ...machinePool[poolIndex], unitId: unitId };
-            finalMachines.push(machineToPlace);
+            for (let i = 0; i < quantity; i++) {
+                if (poolIndex < machinePool.length) {
+                    const machineToPlace = { ...machinePool[poolIndex], unitId: unitId };
+                    remainingMachines.push(machineToPlace);
+                    poolIndex++;
+                }
+            }
+        });
+        
+        // Add back any un-allocated movable machines to their original unit
+        while (poolIndex < machinePool.length) {
+            remainingMachines.push(machinePool[poolIndex]);
             poolIndex++;
-          }
         }
-      });
-      
-      // Add back any remaining (un-allocated) moveable machines to their original unit to be safe
-      // Although ideally the pool should be empty
-      while(poolIndex < machinePool.length) {
-        finalMachines.push(machinePool[poolIndex]);
-        poolIndex++;
-      }
-      
-      // Also add back the fixed machines for this machine type
-      const fixedMachines = prevMachines.filter(m => m.name.startsWith(machineName) && !m.isMoveable);
-      finalMachines.push(...fixedMachines);
 
-
-      return finalMachines;
+        return remainingMachines;
     });
 
     setReallocationState(null);
   };
+
 
   const remainingQuantity = reallocationState?.allocations[0]?.quantity ?? 0;
   const isReallocationInvalid = remainingQuantity < 0 || reallocationState?.allocations.slice(1).some(a => !a.unitId && a.quantity > 0);
@@ -402,13 +398,12 @@ export default function CapacityPage() {
 
                         {reallocationState.allocations.map((alloc, index) => (
                           <div key={index} className="grid grid-cols-[1fr_100px_40px] items-center gap-x-4 px-4">
-                            {index === 0 ? (
-                              <Input
+                            <Input
                                 readOnly
                                 value={UNITS.find(u => u.id === alloc.unitId)?.name || 'Source Unit'}
-                                className="border-none bg-transparent shadow-none px-0"
+                                className={cn("border-none bg-transparent shadow-none px-0", index > 0 && "hidden")}
                               />
-                            ) : (
+                            {index > 0 && (
                               <Select
                                 value={alloc.unitId}
                                 onValueChange={(unitId) => handleAllocationChange(index, { ...alloc, unitId })}
