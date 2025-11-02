@@ -2,7 +2,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, Dispatch, SetStateAction, useMemo, useCallback } from 'react';
-import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem, Size, FcComposition, FcSnapshot, SyntheticPoRecord, CutOrderRecord, SizeBreakdown, ProjectionRow, FrcRow, Remark, SewingLine, Machine as IMachine } from '@/lib/types';
+import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem, Size, FcComposition, FcSnapshot, SyntheticPoRecord, CutOrderRecord, SizeBreakdown, ProjectionRow, FrcRow, Remark, SewingLine, Machine as IMachine, SewingLineGroup } from '@/lib/types';
 import { ORDERS as staticOrders, PROCESSES, ORDER_COLORS, SIZES, MACHINES as staticMachines } from '@/lib/data';
 import { addDays, startOfToday, isAfter, getWeek } from 'date-fns';
 import { getProcessBatchSize, getPackingBatchSize, PrjGenerator, FrcGenerator } from '@/lib/tna-calculator';
@@ -29,6 +29,8 @@ type ScheduleContextType = {
   updatePoEhd: (orderId: string, poNumber: string, newWeek: string) => void;
   sewingLines: SewingLine[];
   setSewingLines: Dispatch<SetStateAction<SewingLine[]>>;
+  sewingLineGroups: SewingLineGroup[];
+  setSewingLineGroups: Dispatch<SetStateAction<SewingLineGroup[]>>;
   productionPlans: ProductionPlans;
   updateProductionPlan: (orderId: string, plan: Record<string, number>) => void;
   timelineEndDate: Date;
@@ -142,6 +144,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [scheduledProcesses, setScheduledProcesses] = useState<ScheduledProcess[]>([]);
   const [sewingLines, setSewingLines] = useState<SewingLine[]>([]);
+  const [sewingLineGroups, setSewingLineGroups] = useState<SewingLineGroup[]>([]);
   const [orderOverrides, setOrderOverrides] = useState<StoredOrderOverrides>({});
   const [productionPlans, setProductionPlans] = useState<ProductionPlans>({});
   const [splitOrderProcesses, setSplitOrderProcesses] = useState<Record<string, boolean>>({});
@@ -193,6 +196,10 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
 
         if(storedData.machines) {
           setMachines(storedData.machines);
+        }
+        
+        if(storedData.sewingLineGroups) {
+          setSewingLineGroups(storedData.sewingLineGroups);
         }
 
       }
@@ -365,13 +372,14 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         cutOrderRecords,
         frcData,
         machines,
+        sewingLineGroups,
       };
       const serializedState = JSON.stringify(stateToSave);
       localStorage.setItem(STORE_KEY, serializedState);
     } catch (err) {
       console.error("Could not save schedule to localStorage", err);
     }
-  }, [appMode, scheduledProcesses, orderOverrides, productionPlans, timelineEndDate, splitOrderProcesses, cutOrderRecords, frcData, machines, isScheduleLoaded]);
+  }, [appMode, scheduledProcesses, orderOverrides, productionPlans, timelineEndDate, splitOrderProcesses, cutOrderRecords, frcData, machines, sewingLineGroups, isScheduleLoaded]);
 
   const setAppMode = useCallback((mode: AppMode) => {
     setAppModeState(mode);
@@ -589,6 +597,8 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     updatePoEhd,
     sewingLines, // now the derived array
     setSewingLines, // now the state setter for the array
+    sewingLineGroups,
+    setSewingLineGroups,
     productionPlans,
     updateProductionPlan,
     timelineEndDate,

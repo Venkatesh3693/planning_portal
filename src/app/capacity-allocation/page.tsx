@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PlusCircle, Trash2, ChevronRight, Edit } from 'lucide-react';
+import { PlusCircle, Trash2, ChevronRight, Edit, Save } from 'lucide-react';
 import { SEWING_OPERATIONS_BY_STYLE, MACHINE_NAME_ABBREVIATIONS, sewingMachineTypes } from '@/lib/data';
 import type { Order, SewingLine, SewingMachine, SewingLineGroup, MachineRequirement } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -25,21 +25,32 @@ import { Badge } from '@/components/ui/badge';
 import LineReallocationDialog from '@/components/capacity/line-reallocation-dialog';
 
 
-const RequirementsTable = ({ requirements }: { requirements: MachineRequirement[] }) => {
-    if (requirements.length === 0) {
+const RequirementsTable = ({ requirements, machineTotals }: { requirements: MachineRequirement[], machineTotals: Record<string, number> }) => {
+    const allMachineTypes = useMemo(() => {
+        const types = new Set([...requirements.map(r => r.machineType), ...Object.keys(machineTotals)]);
+        return Array.from(types).sort();
+    }, [requirements, machineTotals]);
+
+    if (allMachineTypes.length === 0) {
         return <p className="text-sm text-muted-foreground">Select a CC to view machine requirements.</p>;
     }
 
     return (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {requirements.map(req => {
-                const isMet = req.allocated >= req.required;
+            {allMachineTypes.map(type => {
+                const req = requirements.find(r => r.machineType === type);
+                const required = req?.required || 0;
+                const allocated = machineTotals[type] || 0;
+                const isMet = allocated >= required;
+                
+                if (required === 0 && allocated === 0) return null;
+
                 return (
-                    <div key={req.machineType} className={cn("p-3 rounded-lg border", isMet ? "bg-green-100 dark:bg-green-900/40 border-green-300" : "bg-amber-100 dark:bg-amber-900/40 border-amber-300")}>
-                        <div className="text-sm font-medium text-muted-foreground">{req.machineType}</div>
+                    <div key={type} className={cn("p-3 rounded-lg border", isMet ? "bg-green-100 dark:bg-green-900/40 border-green-300" : "bg-amber-100 dark:bg-amber-900/40 border-amber-300")}>
+                        <div className="text-sm font-medium text-muted-foreground">{type}</div>
                         <div className="flex items-baseline gap-2">
-                             <span className="text-xl font-bold">{req.allocated}</span>
-                             <span className="text-sm">/ {req.required}</span>
+                             <span className="text-xl font-bold">{allocated}</span>
+                             <span className="text-sm">/ {required}</span>
                         </div>
                     </div>
                 )
@@ -85,24 +96,33 @@ const UnallocatedLineCard = ({ line, onAllocate, onEdit, activeGroup }: { line: 
 }
 
 export default function CapacityAllocationPage() {
-    const { orders, sewingLines, setSewingLines } = useSchedule();
-    const [lineGroups, setLineGroups] = useState<SewingLineGroup[]>([]);
+    const { orders, sewingLines, setSewingLines, sewingLineGroups, setSewingLineGroups } = useSchedule();
     const [selectedCc, setSelectedCc] = useState('');
     const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
 
     const [lineForReallocation, setLineForReallocation] = useState<SewingLine | null>(null);
     
     const { unallocatedLines, bufferLine } = useMemo(() => {
-        const allocatedLineIds = new Set(lineGroups.flatMap(g => g.allocatedLines.map(l => l.lineId)));
+        const allocatedLineIds = new Set(sewingLineGroups.flatMap(g => g.allocatedLines.map(l => l.lineId)));
         const allUnallocatedLines = sewingLines.filter(line => !allocatedLineIds.has(line.id));
 
         const buffer = allUnallocatedLines.find(l => l.id === 'buffer');
         const regularLines = allUnallocatedLines.filter(l => l.id !== 'buffer');
         
         return { unallocatedLines: regularLines, bufferLine: buffer };
-    }, [sewingLines, lineGroups]);
+    }, [sewingLines, sewingLineGroups]);
 
-    const activeGroup = useMemo(() => lineGroups.find(g => g.id === activeGroupId), [lineGroups, activeGroupId]);
+    const activeGroup = useMemo(() => sewingLineGroups.find(g => g.id === activeGroupId), [sewingLineGroups, activeGroupId]);
+    
+    const activeGroupMachineTotals = useMemo(() => {
+        if (!activeGroup) return {};
+         return activeGroup.allocatedLines.flatMap(l => l.allocatedMachines).reduce((acc, machine) => {
+            const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name] || machine.name;
+            acc[machineType] = (acc[machineType] || 0) + 1;
+            return acc;
+        }, {} as Record<string, number>);
+    }, [activeGroup]);
+
 
     const handleCreateGroup = () => {
         if (!selectedCc) return;
@@ -110,7 +130,7 @@ export default function CapacityAllocationPage() {
         const order = orders.find(o => o.ocn === selectedCc);
         if (!order) return;
 
-        const newGroupName = `SLG-${lineGroups.length + 1}`;
+        const newGroupName = `SLG-${sewingLineGroups.length + 1}`;
 
         const operations = (SEWING_OPERATIONS_BY_STYLE[order.style] || []).filter(op => sewingMachineTypes.includes(op.machine));
         const machineCounts = operations.reduce((acc, op) => {
@@ -133,13 +153,13 @@ export default function CapacityAllocationPage() {
             machineRequirements: machineRequirements,
         };
 
-        setLineGroups([...lineGroups, newGroup]);
+        setSewingLineGroups([...sewingLineGroups, newGroup]);
         setSelectedCc('');
         setActiveGroupId(newGroup.id);
     };
 
     const handleDeleteGroup = (groupId: string) => {
-        setLineGroups(prev => prev.filter(g => g.id !== groupId));
+        setSewingLineGroups(prev => prev.filter(g => g.id !== groupId));
         if (activeGroupId === groupId) {
             setActiveGroupId(null);
         }
@@ -148,12 +168,12 @@ export default function CapacityAllocationPage() {
     const allocateLine = useCallback((line: SewingLine) => {
         if (!activeGroup) return;
 
-        setLineGroups(prevGroups => prevGroups.map(group => {
+        setSewingLineGroups(prevGroups => prevGroups.map(group => {
             if (group.id !== activeGroup.id) return group;
 
             const remainingRequirements = group.machineRequirements.map(req => ({
                 ...req,
-                required: req.required - req.allocated
+                required: req.required - (activeGroupMachineTotals[req.machineType] || 0)
             }));
 
             const availableMachinesInLine = line.machines.slice();
@@ -193,55 +213,31 @@ export default function CapacityAllocationPage() {
             };
             
             const updatedAllocatedLines = [...group.allocatedLines, newAllocatedLine];
-
-            const totalAllocatedMachines = updatedAllocatedLines.flatMap(l => l.allocatedMachines);
-            const newAllocatedCounts = totalAllocatedMachines.reduce((acc, machine) => {
-                const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name] || machine.name;
-                acc[machineType] = (acc[machineType] || 0) + 1;
-                return acc;
-            }, {} as Record<string, number>);
-
-            const updatedRequirements = group.machineRequirements.map(req => ({
-                ...req,
-                allocated: newAllocatedCounts[req.machineType] || 0,
-            }));
-
-            return { ...group, allocatedLines: updatedAllocatedLines, machineRequirements: updatedRequirements };
+            
+            return { ...group, allocatedLines: updatedAllocatedLines };
         }));
 
-    }, [activeGroup]);
+    }, [activeGroup, activeGroupMachineTotals, setSewingLineGroups]);
     
     const deallocateLine = useCallback((lineId: string) => {
         if (!activeGroup) return;
 
-        setLineGroups(prevGroups => prevGroups.map(group => {
+        setSewingLineGroups(prevGroups => prevGroups.map(group => {
             if (group.id !== activeGroup.id) return group;
 
             const updatedAllocatedLines = group.allocatedLines.filter(l => l.lineId !== lineId);
-
-            const totalAllocatedMachines = updatedAllocatedLines.flatMap(l => l.allocatedMachines);
-            const newAllocatedCounts = totalAllocatedMachines.reduce((acc, machine) => {
-                const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name] || machine.name;
-                acc[machineType] = (acc[machineType] || 0) + 1;
-                return acc;
-            }, {} as Record<string, number>);
-
-            const updatedRequirements = group.machineRequirements.map(req => ({
-                ...req,
-                allocated: newAllocatedCounts[req.machineType] || 0,
-            }));
             
-            return { ...group, allocatedLines: updatedAllocatedLines, machineRequirements: updatedRequirements };
+            return { ...group, allocatedLines: updatedAllocatedLines };
         }));
-    }, [activeGroup]);
+    }, [activeGroup, setSewingLineGroups]);
     
     const ccOptions = useMemo(() => {
-        const assignedCcs = new Set(lineGroups.map(g => g.ccNo));
+        const assignedCcs = new Set(sewingLineGroups.map(g => g.ccNo));
         return orders
             .filter(o => o.orderType === 'Forecasted' && o.ocn && !assignedCcs.has(o.ocn))
             .map(o => o.ocn)
             .filter((value, index, self) => self.indexOf(value) === index);
-    }, [orders, lineGroups]);
+    }, [orders, sewingLineGroups]);
     
     const handleReallocationSave = (targetLineId: string, movedMachines: SewingMachine[]) => {
         setSewingLines(prevLines => {
@@ -264,6 +260,12 @@ export default function CapacityAllocationPage() {
         });
 
         setLineForReallocation(null);
+    };
+
+    const handleSaveConfiguration = () => {
+        // The saving is handled by the useEffect in the provider, 
+        // this is more of a placeholder for potential explicit save actions in the future
+        console.log("Configuration saved via context provider.");
     };
 
     return (
@@ -290,6 +292,11 @@ export default function CapacityAllocationPage() {
                             Create line groups, assign CCs, and allocate sewing lines.
                         </p>
                     </div>
+                     <div>
+                        <Button onClick={handleSaveConfiguration}>
+                            <Save className="mr-2 h-4 w-4" /> Save Configuration
+                        </Button>
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
@@ -302,7 +309,7 @@ export default function CapacityAllocationPage() {
                              <CardContent className="space-y-4">
                                 <div className="space-y-2">
                                     <Label>Group Name</Label>
-                                    <p className="text-lg font-semibold text-muted-foreground p-2 border rounded-md h-10">SLG-{lineGroups.length + 1}</p>
+                                    <p className="text-lg font-semibold text-muted-foreground p-2 border rounded-md h-10">SLG-{sewingLineGroups.length + 1}</p>
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="cc-select">Assign CC No.</Label>
@@ -355,9 +362,9 @@ export default function CapacityAllocationPage() {
                                 <CardDescription>Select a group to view its details and allocated lines.</CardDescription>
                             </CardHeader>
                             <CardContent>
-                                {lineGroups.length > 0 ? (
+                                {sewingLineGroups.length > 0 ? (
                                     <div className="space-y-2">
-                                        {lineGroups.map(group => (
+                                        {sewingLineGroups.map(group => (
                                             <div key={group.id} className={cn("p-3 rounded-md border flex items-center justify-between cursor-pointer", activeGroupId === group.id && "ring-2 ring-primary border-primary")} onClick={() => setActiveGroupId(group.id)}>
                                                 <div>
                                                     <p className="font-semibold">{group.name}</p>
@@ -386,8 +393,8 @@ export default function CapacityAllocationPage() {
                                  </CardHeader>
                                  <CardContent className="flex-1 flex flex-col gap-6">
                                     <div>
-                                        <h3 className="font-semibold mb-2">Machine Requirements</h3>
-                                        <RequirementsTable requirements={activeGroup.machineRequirements} />
+                                        <h3 className="font-semibold mb-2">Machine Requirements vs. Allocated</h3>
+                                        <RequirementsTable requirements={activeGroup.machineRequirements} machineTotals={activeGroupMachineTotals} />
                                     </div>
                                     <div className="flex-1 flex flex-col">
                                         <h3 className="font-semibold mb-2">Allocated Lines</h3>

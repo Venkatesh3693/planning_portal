@@ -29,7 +29,6 @@ export type SewingLine = {
 export type MachineRequirement = {
   machineType: string;
   required: number;
-  allocated: number;
 };
 
 export type SewingLineGroup = {
