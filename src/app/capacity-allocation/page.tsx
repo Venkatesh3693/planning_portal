@@ -51,7 +51,7 @@ const RequirementsTable = ({ requirements }: { requirements: MachineRequirement[
 const UnallocatedLineCard = ({ line, onAllocate, activeGroup }: { line: SewingLine, onAllocate: (line: SewingLine) => void, activeGroup: SewingLineGroup | undefined }) => {
     const machineCounts = useMemo(() => {
         return line.machines.reduce((acc, machine) => {
-            const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name.replace(/\s\d+$|\s(Alpha|Beta)$/, '')] || machine.name.replace(/\s\d+$|\s(Alpha|Beta)$/, '');
+            const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name] || machine.name;
             acc[machineType] = (acc[machineType] || 0) + 1;
             return acc;
         }, {} as Record<string, number>);
@@ -85,8 +85,8 @@ export default function CapacityAllocationPage() {
     const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
 
     const allSewingMachines: SewingMachine[] = useMemo(() => {
-        return MACHINES.filter(m => m.processIds.includes('sewing')).map(m => {
-            const lineName = m.name.replace(/-\d+$/, '');
+        return MACHINES.filter(m => m.processIds.includes('sewing')).map((m, index) => {
+            const lineName = `L${Math.floor(index / 25) + 1}`;
             return {
                 ...m,
                 lineId: lineName,
@@ -174,7 +174,9 @@ export default function CapacityAllocationPage() {
             remainingRequirements.forEach(req => {
                 if (req.required > 0) {
                     const machineTypeAbbr = req.machineType;
-                    const matchingMachines = availableMachinesInLine.filter(m => (MACHINE_NAME_ABBREVIATIONS[m.name.replace(/-\d+$/, '')] || m.name.replace(/-\d+$/, '')) === machineTypeAbbr);
+                    const machineFullName = Object.keys(MACHINE_NAME_ABBREVIATIONS).find(key => MACHINE_NAME_ABBREVIATIONS[key] === machineTypeAbbr) || machineTypeAbbr;
+                    
+                    const matchingMachines = availableMachinesInLine.filter(m => m.name === machineFullName);
                     const machinesNeeded = req.required;
                     const allocatedFromThisType = matchingMachines.slice(0, machinesNeeded);
                     machinesToAllocate.push(...allocatedFromThisType);
@@ -187,12 +189,13 @@ export default function CapacityAllocationPage() {
             });
             
             // Check if we allocated all machines from the line or just some
-            isPartial = machinesToAllocate.length < line.machines.length;
+            isPartial = machinesToAllocate.length > 0 && machinesToAllocate.length < line.machines.length;
+            
             if (machinesToAllocate.length === 0) {
                 // If no specific machines were needed but we're allocating a full line
                 machinesToAllocate = [...line.machines];
                 isPartial = false;
-            } else if (!isPartial) {
+            } else if (!isPartial && machinesToAllocate.length > 0) {
                  machinesToAllocate = [...line.machines]; // Ensure all machines are included for a full line
             }
 
@@ -207,7 +210,7 @@ export default function CapacityAllocationPage() {
             // Recalculate total allocated machines
             const totalAllocatedMachines = updatedAllocatedLines.flatMap(l => l.allocatedMachines);
             const newAllocatedCounts = totalAllocatedMachines.reduce((acc, machine) => {
-                const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name.replace(/-\d+$/, '')] || machine.name.replace(/-\d+$/, '');
+                const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name] || machine.name;
                 acc[machineType] = (acc[machineType] || 0) + 1;
                 return acc;
             }, {} as Record<string, number>);
@@ -233,7 +236,7 @@ export default function CapacityAllocationPage() {
              // Recalculate total allocated machines
             const totalAllocatedMachines = updatedAllocatedLines.flatMap(l => l.allocatedMachines);
             const newAllocatedCounts = totalAllocatedMachines.reduce((acc, machine) => {
-                const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name.replace(/-\d+$/, '')] || machine.name.replace(/-\d+$/, '');
+                const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name] || machine.name;
                 acc[machineType] = (acc[machineType] || 0) + 1;
                 return acc;
             }, {} as Record<string, number>);

@@ -17,35 +17,37 @@ const sewingMachineTypes = [
     'Bar Tack Machine',
 ];
 
-// Seeded random number generator for consistent results
-const createSeededRandom = (seed: number) => {
-  let state = seed;
-  return () => {
-    state = (state * 9301 + 49297) % 233280;
-    return state / 233280;
-  };
-};
-
 const generateSewingMachines = (): Machine[] => {
     const sewingMachines: Machine[] = [];
-    const machinesPerLine = 25;
     const numLines = 7;
-    const seed = 12345; // Fixed seed for consistency
+    const machinesPerLine = 25; // Approx
+
+    const lineCompositions = [
+        { 'Single Needle Lock Stitch': 10, 'Over Lock Machine': 8, 'Flat Lock Machine': 4, 'Chain Stitch Machine': 2, 'Bar Tack Machine': 1 },
+        { 'Single Needle Lock Stitch': 12, 'Over Lock Machine': 7, 'Flat Lock Machine': 3, 'Chain Stitch Machine': 2, 'Bar Tack Machine': 1 },
+        { 'Single Needle Lock Stitch': 8, 'Over Lock Machine': 10, 'Flat Lock Machine': 5, 'Chain Stitch Machine': 1, 'Bar Tack Machine': 1 },
+        { 'Single Needle Lock Stitch': 15, 'Over Lock Machine': 5, 'Flat Lock Machine': 2, 'Chain Stitch Machine': 2, 'Bar Tack Machine': 1 },
+        { 'Single Needle Lock Stitch': 9, 'Over Lock Machine': 9, 'Flat Lock Machine': 4, 'Chain Stitch Machine': 2, 'Bar Tack Machine': 1 },
+        { 'Single Needle Lock Stitch': 11, 'Over Lock Machine': 6, 'Flat Lock Machine': 5, 'Chain Stitch Machine': 2, 'Bar Tack Machine': 1 },
+        { 'Single Needle Lock Stitch': 10, 'Over Lock Machine': 7, 'Flat Lock Machine': 3, 'Chain Stitch Machine': 3, 'Bar Tack Machine': 2 },
+    ];
 
     for (let i = 1; i <= numLines; i++) {
-        // Create a new seeded random generator for each line to ensure variety between lines
-        // but consistency for each line across renders.
-        const seededRandom = createSeededRandom(seed + i);
-        for (let j = 1; j <= machinesPerLine; j++) {
-            const machineType = sewingMachineTypes[Math.floor(seededRandom() * sewingMachineTypes.length)];
-            sewingMachines.push({
-                id: `sm-${i}-${j}`,
-                name: `${machineType}-${j}`,
-                processIds: ['sewing'],
-                unitId: `u${(i % 3) + 1}`,
-                isMoveable: seededRandom() > 0.3, // 70% are moveable
-            });
-        }
+        const lineName = `L${i}`;
+        const composition = lineCompositions[i-1];
+        let machineCounter = 0;
+        
+        Object.entries(composition).forEach(([machineType, count]) => {
+            for (let j = 0; j < count; j++) {
+                sewingMachines.push({
+                    id: `sm-${i}-${machineCounter++}`,
+                    name: machineType, // Simplified name
+                    processIds: ['sewing'],
+                    unitId: `u${(i % 3) + 1}`,
+                    isMoveable: Math.random() > 0.3,
+                });
+            }
+        });
     }
     return sewingMachines;
 }
@@ -627,6 +629,3 @@ export const SEWING_OPERATIONS_BY_STYLE: Record<string, SewingOperation[]> = {
 
 // Assuming an 8-hour work day
 export const WORK_DAY_MINUTES = 8 * 60;
-
-    
-    
