@@ -13,7 +13,6 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -22,59 +21,56 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { PlusCircle, X, ArrowRight } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { MACHINE_NAME_ABBREVIATIONS } from '@/lib/data';
 
 type ReallocationEntry = {
   id: number;
+  sourceLineId: string;
   machineType: string;
   quantity: number;
-  targetLineId: string;
 };
 
 type LineReallocationDialogProps = {
-  line: SewingLine;
+  targetLine: SewingLine;
   allLines: SewingLine[];
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (sourceLineId: string, movedMachines: SewingMachine[]) => void;
+  onSave: (targetLineId: string, movedMachines: SewingMachine[]) => void;
 };
 
 let nextId = 0;
 
 export default function LineReallocationDialog({
-  line,
+  targetLine,
   allLines,
   isOpen,
   onOpenChange,
   onSave,
 }: LineReallocationDialogProps) {
   const [reallocations, setReallocations] = useState<ReallocationEntry[]>([
-    { id: nextId++, machineType: '', quantity: 1, targetLineId: '' },
+    { id: nextId++, sourceLineId: '', machineType: '', quantity: 1 },
   ]);
 
-  const sourceMachineCounts = useMemo(() => {
-    return line.machines.reduce((acc, machine) => {
-        if(machine.isMoveable) {
-            acc[machine.name] = (acc[machine.name] || 0) + 1;
-        }
-        return acc;
-    }, {} as Record<string, number>);
-  }, [line]);
+  const sourceLineOptions = useMemo(() => {
+    return allLines.filter(l => l.id !== targetLine.id);
+  }, [allLines, targetLine]);
 
-  const remainingMachineCounts = useMemo(() => {
-      const remaining = { ...sourceMachineCounts };
-      reallocations.forEach(r => {
-          if (r.machineType && remaining[r.machineType]) {
-              remaining[r.machineType] -= r.quantity;
-          }
+  const sourceLineMachineCounts = useMemo(() => {
+      const counts: Record<string, Record<string, number>> = {};
+      sourceLineOptions.forEach(line => {
+          counts[line.id] = {};
+          line.machines.forEach(machine => {
+              if (machine.isMoveable) {
+                  counts[line.id][machine.name] = (counts[line.id][machine.name] || 0) + 1;
+              }
+          });
       });
-      return remaining;
-  }, [sourceMachineCounts, reallocations]);
+      return counts;
+  }, [sourceLineOptions]);
   
-  const moveableMachineTypes = Object.keys(sourceMachineCounts);
-
   const handleAddRow = () => {
-    setReallocations(prev => [...prev, { id: nextId++, machineType: '', quantity: 1, targetLineId: '' }]);
+    setReallocations(prev => [...prev, { id: nextId++, sourceLineId: '', machineType: '', quantity: 1 }]);
   };
   
   const handleRemoveRow = (id: number) => {
@@ -82,91 +78,116 @@ export default function LineReallocationDialog({
   };
   
   const handleUpdateRow = (id: number, field: keyof ReallocationEntry, value: string | number) => {
-      setReallocations(prev => prev.map(r => r.id === id ? {...r, [field]: value} : r));
+      setReallocations(prev => prev.map(r => {
+        if (r.id === id) {
+          const updated = { ...r, [field]: value };
+          if (field === 'sourceLineId') updated.machineType = ''; // Reset machine type if source line changes
+          return updated;
+        }
+        return r;
+      }));
   };
-
+  
   const isSaveDisabled = useMemo(() => {
-    return Object.values(remainingMachineCounts).some(v => v < 0) || reallocations.some(r => !r.machineType || !r.targetLineId || r.quantity <= 0);
-  }, [remainingMachineCounts, reallocations]);
+      return reallocations.some(r => !r.sourceLineId || !r.machineType || r.quantity <= 0) ||
+        reallocations.some(r => {
+            const available = sourceLineMachineCounts[r.sourceLineId]?.[r.machineType] || 0;
+            const requested = reallocations
+                .filter(re => re.sourceLineId === r.sourceLineId && re.machineType === r.machineType)
+                .reduce((sum, re) => sum + re.quantity, 0);
+            return requested > available;
+        });
+  }, [reallocations, sourceLineMachineCounts]);
+
 
   const handleSave = () => {
     const movedMachines: SewingMachine[] = [];
-    const sourceMachinesPool = [...line.machines.filter(m => m.isMoveable)];
-
-    reallocations.forEach(realloc => {
-        if (!realloc.machineType || !realloc.targetLineId || realloc.quantity <= 0) return;
-
-        for (let i = 0; i < realloc.quantity; i++) {
-            const machineIndex = sourceMachinesPool.findIndex(m => m.name === realloc.machineType);
-            if (machineIndex > -1) {
-                const [machineToMove] = sourceMachinesPool.splice(machineIndex, 1);
-                movedMachines.push({
-                    ...machineToMove,
-                    lineId: realloc.targetLineId,
-                });
-            }
-        }
+    const availableMachinesPool: Record<string, SewingMachine[]> = {};
+    
+    sourceLineOptions.forEach(line => {
+      availableMachinesPool[line.id] = [...line.machines.filter(m => m.isMoveable)];
     });
 
-    onSave(line.id, movedMachines);
+    for (const realloc of reallocations) {
+        if (!realloc.sourceLineId || !realloc.machineType || realloc.quantity <= 0) continue;
+
+        for (let i = 0; i < realloc.quantity; i++) {
+            const pool = availableMachinesPool[realloc.sourceLineId];
+            const machineIndex = pool.findIndex(m => m.name === realloc.machineType);
+            if (machineIndex > -1) {
+                const [machineToMove] = pool.splice(machineIndex, 1);
+                movedMachines.push(machineToMove);
+            }
+        }
+    }
+
+    onSave(targetLine.id, movedMachines);
     onOpenChange(false);
   };
   
   useEffect(() => {
     if(isOpen) {
-       setReallocations([{ id: nextId++, machineType: '', quantity: 1, targetLineId: '' }]);
+       setReallocations([{ id: nextId++, sourceLineId: '', machineType: '', quantity: 1 }]);
     }
   }, [isOpen]);
-  
-  const otherLines = allLines.filter(l => l.id !== line.id);
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl">
         <DialogHeader>
-          <DialogTitle>Re-allocate Machines from {line.name}</DialogTitle>
+          <DialogTitle>Re-allocate Machines to {targetLine.name}</DialogTitle>
           <DialogDescription>
-            Borrow movable machines from this line and move them to other lines.
+            Borrow movable machines from other lines and add them to this line.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-wrap gap-2 p-4 border rounded-lg bg-muted/50">
-            <span className="text-sm font-semibold">Available to move:</span>
-            {moveableMachineTypes.map(type => (
-                <Badge key={type} variant={remainingMachineCounts[type] < 0 ? 'destructive': 'secondary'}>
-                    {MACHINE_NAME_ABBREVIATIONS[type] || type}: {remainingMachineCounts[type] || 0} / {sourceMachineCounts[type]}
-                </Badge>
-            ))}
-        </div>
-
         <div className="space-y-4 py-4 max-h-[40vh] overflow-y-auto">
-          {reallocations.map(realloc => (
-            <div key={realloc.id} className="grid grid-cols-[1fr_80px_auto_1fr_40px] items-center gap-x-4 px-4">
-              <Select value={realloc.machineType} onValueChange={(val) => handleUpdateRow(realloc.id, 'machineType', val)}>
-                <SelectTrigger><SelectValue placeholder="Machine Type" /></SelectTrigger>
-                <SelectContent>
-                    {moveableMachineTypes.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Input
-                type="number"
-                min="1"
-                value={realloc.quantity}
-                onChange={(e) => handleUpdateRow(realloc.id, 'quantity', parseInt(e.target.value, 10) || 1)}
-                className="text-right"
-              />
-              <ArrowRight className="h-4 w-4 text-muted-foreground"/>
-              <Select value={realloc.targetLineId} onValueChange={(val) => handleUpdateRow(realloc.id, 'targetLineId', val)}>
-                <SelectTrigger><SelectValue placeholder="Target Line" /></SelectTrigger>
-                <SelectContent>
-                  {otherLines.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Button variant="ghost" size="icon" onClick={() => handleRemoveRow(realloc.id)} className="justify-self-center">
-                  <X className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
+          {reallocations.map(realloc => {
+            const availableTypes = Object.keys(sourceLineMachineCounts[realloc.sourceLineId] || {});
+            const availableCount = sourceLineMachineCounts[realloc.sourceLineId]?.[realloc.machineType] || 0;
+            const currentlyRequested = reallocations
+              .filter(r => r.sourceLineId === realloc.sourceLineId && r.machineType === realloc.machineType)
+              .reduce((sum, r) => sum + r.quantity, 0);
+
+            return (
+                <div key={realloc.id} className="grid grid-cols-[1fr_auto_1fr_80px_40px] items-center gap-x-4 px-4">
+                  <Select value={realloc.sourceLineId} onValueChange={(val) => handleUpdateRow(realloc.id, 'sourceLineId', val)}>
+                      <SelectTrigger><SelectValue placeholder="Source Line" /></SelectTrigger>
+                      <SelectContent>
+                          {sourceLineOptions.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                      </SelectContent>
+                  </Select>
+
+                  <ArrowRight className="h-4 w-4 text-muted-foreground"/>
+
+                  <Select value={realloc.machineType} onValueChange={(val) => handleUpdateRow(realloc.id, 'machineType', val)} disabled={!realloc.sourceLineId}>
+                      <SelectTrigger><SelectValue placeholder="Machine Type" /></SelectTrigger>
+                      <SelectContent>
+                          {availableTypes.map(type => <SelectItem key={type} value={type}>{MACHINE_NAME_ABBREVIATIONS[type] || type}</SelectItem>)}
+                      </SelectContent>
+                  </Select>
+
+                  <div className="relative">
+                     <Input
+                        type="number"
+                        min="1"
+                        max={availableCount}
+                        value={realloc.quantity}
+                        onChange={(e) => handleUpdateRow(realloc.id, 'quantity', parseInt(e.target.value, 10) || 1)}
+                        className="text-right"
+                      />
+                      {realloc.machineType && (
+                        <span className="absolute -bottom-4 right-1 text-xs text-muted-foreground">
+                            {availableCount - currentlyRequested} / {availableCount} left
+                        </span>
+                      )}
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => handleRemoveRow(realloc.id)} className="justify-self-center">
+                      <X className="h-4 w-4" />
+                  </Button>
+                </div>
+            );
+          })}
           <div className="px-4">
             <Button variant="link" size="sm" onClick={handleAddRow} className="p-0 h-auto">
               <PlusCircle className="mr-2 h-4 w-4" />
@@ -183,4 +204,3 @@ export default function LineReallocationDialog({
     </Dialog>
   );
 }
-

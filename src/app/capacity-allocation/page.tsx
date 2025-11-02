@@ -68,9 +68,11 @@ const UnallocatedLineCard = ({ line, onAllocate, onEdit, activeGroup }: { line: 
                     <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onEdit(line)}>
                         <Edit className="h-4 w-4" />
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => onAllocate(line)} disabled={!activeGroup}>
-                        Allocate
-                    </Button>
+                    {line.id !== 'buffer' && (
+                        <Button size="sm" variant="outline" onClick={() => onAllocate(line)} disabled={!activeGroup}>
+                            Allocate
+                        </Button>
+                    )}
                  </div>
             </div>
             <div className="flex flex-wrap gap-1">
@@ -241,36 +243,26 @@ export default function CapacityAllocationPage() {
             .filter((value, index, self) => self.indexOf(value) === index);
     }, [orders, lineGroups]);
     
-    const handleReallocationSave = (sourceLineId: string, updatedMachines: SewingMachine[]) => {
+    const handleReallocationSave = (targetLineId: string, movedMachines: SewingMachine[]) => {
         setSewingLines(prevLines => {
-            let machinePool = [...(prevLines.find(l => l.id === sourceLineId)?.machines || [])];
-            let targetLines = prevLines.filter(l => l.id !== sourceLineId);
+            const currentLines = JSON.parse(JSON.stringify(prevLines)) as SewingLine[];
+            
+            const machineIdsToMove = new Set(movedMachines.map(m => m.id));
 
-            updatedMachines.forEach(movedMachine => {
-                // Find and remove from original line in the pool
-                const poolIndex = machinePool.findIndex(m => m.id === movedMachine.id);
-                if (poolIndex > -1) {
-                    machinePool.splice(poolIndex, 1);
-                }
-                
-                // Add to new line
-                const targetLineIndex = targetLines.findIndex(l => l.id === movedMachine.lineId);
-                if (targetLineIndex > -1) {
-                    targetLines[targetLineIndex].machines.push(movedMachine);
-                } else {
-                    // This case handles moving to a completely new line if logic allows
-                    const newTargetLine = prevLines.find(l => l.id === movedMachine.lineId);
-                    if(newTargetLine) {
-                         newTargetLine.machines.push(movedMachine);
-                    }
-                }
+            // Remove machines from their original lines
+            currentLines.forEach(line => {
+                line.machines = line.machines.filter(m => !machineIdsToMove.has(m.id));
             });
 
-            // The source line now contains only the machines that weren't moved
-            const finalSourceLine = { id: sourceLineId, name: prevLines.find(l=>l.id === sourceLineId)!.name, machines: machinePool };
-
-            return [...targetLines, finalSourceLine];
+            // Add moved machines to the target line
+            const targetLine = currentLines.find(l => l.id === targetLineId);
+            if (targetLine) {
+                targetLine.machines.push(...movedMachines.map(m => ({ ...m, lineId: targetLineId })));
+            }
+            
+            return currentLines;
         });
+
         setLineForReallocation(null);
     };
 
@@ -429,7 +421,7 @@ export default function CapacityAllocationPage() {
             </main>
             {lineForReallocation && (
                 <LineReallocationDialog
-                    line={lineForReallocation}
+                    targetLine={lineForReallocation}
                     allLines={sewingLines}
                     isOpen={!!lineForReallocation}
                     onOpenChange={(isOpen) => !isOpen && setLineForReallocation(null)}
