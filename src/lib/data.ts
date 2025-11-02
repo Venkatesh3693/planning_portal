@@ -1,5 +1,4 @@
 
-
 import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail, FcSnapshot, FcComposition, ProjectionDetail, BomItem, ComponentStatusDetail, FrcDetail } from '@/lib/types';
 import { Scissors, Printer, Fingerprint, ExternalLink, MoveHorizontal, PackageCheck } from 'lucide-react';
 import { addDays, subDays, startOfToday, getWeek, isBefore } from 'date-fns';
@@ -18,20 +17,33 @@ const sewingMachineTypes = [
     'Bar Tack Machine',
 ];
 
+// Seeded random number generator for consistent results
+const createSeededRandom = (seed: number) => {
+  let state = seed;
+  return () => {
+    state = (state * 9301 + 49297) % 233280;
+    return state / 233280;
+  };
+};
+
 const generateSewingMachines = (): Machine[] => {
     const sewingMachines: Machine[] = [];
     const machinesPerLine = 25;
     const numLines = 7;
+    const seed = 12345; // Fixed seed for consistency
 
     for (let i = 1; i <= numLines; i++) {
+        // Create a new seeded random generator for each line to ensure variety between lines
+        // but consistency for each line across renders.
+        const seededRandom = createSeededRandom(seed + i);
         for (let j = 1; j <= machinesPerLine; j++) {
-            const machineType = sewingMachineTypes[Math.floor(Math.random() * sewingMachineTypes.length)];
+            const machineType = sewingMachineTypes[Math.floor(seededRandom() * sewingMachineTypes.length)];
             sewingMachines.push({
                 id: `sm-${i}-${j}`,
                 name: `${machineType}-${j}`,
                 processIds: ['sewing'],
                 unitId: `u${(i % 3) + 1}`,
-                isMoveable: Math.random() > 0.3, // 70% are moveable
+                isMoveable: seededRandom() > 0.3, // 70% are moveable
             });
         }
     }
@@ -616,4 +628,5 @@ export const SEWING_OPERATIONS_BY_STYLE: Record<string, SewingOperation[]> = {
 // Assuming an 8-hour work day
 export const WORK_DAY_MINUTES = 8 * 60;
 
+    
     
