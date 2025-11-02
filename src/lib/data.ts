@@ -1,5 +1,5 @@
 
-import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail, FcSnapshot, FcComposition, ProjectionDetail, BomItem, ComponentStatusDetail, FrcDetail } from '@/lib/types';
+import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail, FcSnapshot, FcComposition, ProjectionDetail, BomItem, ComponentStatusDetail, FrcDetail } from './types';
 import { Scissors, Printer, Fingerprint, ExternalLink, MoveHorizontal, PackageCheck } from 'lucide-react';
 import { addDays, subDays, startOfToday, getWeek, isBefore } from 'date-fns';
 
@@ -9,7 +9,7 @@ export const UNITS: Unit[] = [
   { id: 'u3', name: 'Unit 3' },
 ];
 
-const sewingMachineTypes = [
+export const sewingMachineTypes = [
     'Single Needle Lock Stitch',
     'Over Lock Machine',
     'Flat Lock Machine',

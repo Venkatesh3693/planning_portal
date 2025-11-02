@@ -18,7 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PlusCircle, Trash2, ChevronRight, Edit } from 'lucide-react';
-import { SEWING_OPERATIONS_BY_STYLE, MACHINE_NAME_ABBREVIATIONS } from '@/lib/data';
+import { SEWING_OPERATIONS_BY_STYLE, MACHINE_NAME_ABBREVIATIONS, sewingMachineTypes } from '@/lib/data';
 import type { Order, SewingLine, SewingMachine, SewingLineGroup, MachineRequirement } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -112,7 +112,7 @@ export default function CapacityAllocationPage() {
 
         const newGroupName = `SLG-${lineGroups.length + 1}`;
 
-        const operations = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
+        const operations = (SEWING_OPERATIONS_BY_STYLE[order.style] || []).filter(op => sewingMachineTypes.includes(op.machine));
         const machineCounts = operations.reduce((acc, op) => {
             const machineAbbr = MACHINE_NAME_ABBREVIATIONS[op.machine] || op.machine;
             acc[machineAbbr] = (acc[machineAbbr] || 0) + op.operators;
