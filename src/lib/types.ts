@@ -23,7 +23,7 @@ export type SewingMachine = Omit<Machine, 'processIds'> & {
 export type SewingLine = {
   id: string;
   name: string;
-  machines: SewingMachine[];
+  machines: Machine[];
 };
 
 export type MachineRequirement = {

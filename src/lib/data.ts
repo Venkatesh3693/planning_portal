@@ -1,5 +1,5 @@
 
-import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail, FcSnapshot, FcComposition, ProjectionDetail, BomItem, ComponentStatusDetail, FrcDetail } from './types';
+import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail, FcSnapshot, FcComposition, ProjectionDetail, BomItem, ComponentStatusDetail, FrcDetail, SewingLine } from './types';
 import { Scissors, Printer, Fingerprint, ExternalLink, MoveHorizontal, PackageCheck } from 'lucide-react';
 import { addDays, subDays, startOfToday, getWeek, isBefore } from 'date-fns';
 
@@ -17,10 +17,10 @@ export const sewingMachineTypes = [
     'Bar Tack Machine',
 ];
 
-const generateSewingMachines = (): Machine[] => {
-    const sewingMachines: Machine[] = [];
+const generateSewingLinesAndMachines = (): { lines: SewingLine[], machines: Machine[] } => {
+    const lines: SewingLine[] = [];
+    const machines: Machine[] = [];
     const numLines = 7;
-    const machinesPerLine = 25; // Approx
 
     const lineCompositions = [
         { 'Single Needle Lock Stitch': 10, 'Over Lock Machine': 8, 'Flat Lock Machine': 4, 'Chain Stitch Machine': 2, 'Bar Tack Machine': 1 },
@@ -33,24 +33,37 @@ const generateSewingMachines = (): Machine[] => {
     ];
 
     for (let i = 1; i <= numLines; i++) {
-        const lineName = `L${i}`;
+        const lineId = `L${i}`;
+        const line: SewingLine = {
+          id: lineId,
+          name: `Line ${i}`,
+          machines: []
+        };
+
         const composition = lineCompositions[i-1];
         let machineCounter = 0;
         
         Object.entries(composition).forEach(([machineType, count]) => {
             for (let j = 0; j < count; j++) {
-                sewingMachines.push({
+                const machine: Machine = {
                     id: `sm-${i}-${machineCounter++}`,
-                    name: machineType, // Simplified name
+                    name: `${machineType} ${i}-${j+1}`, // Unique name
                     processIds: ['sewing'],
                     unitId: `u${(i % 3) + 1}`,
                     isMoveable: Math.random() > 0.3,
-                });
+                };
+                machines.push(machine);
+                line.machines.push(machine);
             }
         });
+        lines.push(line);
     }
-    return sewingMachines;
+    return { lines, machines };
 }
+
+const { lines: sewingLinesData, machines: sewingMachinesData } = generateSewingLinesAndMachines();
+export const SEWING_LINES: SewingLine[] = sewingLinesData;
+
 
 export const MACHINES: Machine[] = [
   { id: 'm1', name: 'Cutting Machine Alpha', processIds: ['cutting'], unitId: 'u1', isMoveable: false },
@@ -61,7 +74,7 @@ export const MACHINES: Machine[] = [
   { id: 'm11', name: 'Embroidery Station 2', processIds: ['embroidery'], unitId: 'u2', isMoveable: false },
   { id: 'm12', name: 'Packing table 1', processIds: ['packing'], unitId: 'u3', isMoveable: false },
   { id: 'm13', name: 'Packing table 2', processIds: ['packing'], unitId: 'u3', isMoveable: false },
-  ...generateSewingMachines(),
+  ...sewingMachinesData,
 ];
 
 export const ORDER_COLORS = [

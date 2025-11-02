@@ -6,7 +6,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
-import { MACHINES, PROCESSES, WORK_DAY_MINUTES } from '@/lib/data';
+import { MACHINES, PROCESSES, WORK_DAY_MINUTES, SEWING_LINES } from '@/lib/data';
 import type { Order, ScheduledProcess, UnplannedBatch } from '@/lib/types';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -730,10 +730,22 @@ function GanttPageContent() {
 
   const selectableProcesses = PROCESSES.filter(p => p.id !== 'outsourcing');
 
-  const chartRows = MACHINES.filter(m => m.processIds.includes(selectedProcessId));
+  const chartRows = useMemo(() => {
+    if (selectedProcessId === 'sewing') {
+      return SEWING_LINES;
+    }
+    return MACHINES.filter(m => m.processIds.includes(selectedProcessId));
+  }, [selectedProcessId]);
+
 
   const chartProcesses = useMemo(() => {
     if (selectedProcessId === 'pab') return [];
+    
+    if (selectedProcessId === 'sewing') {
+      const lineMachineIds = new Set(SEWING_LINES.flatMap(line => line.machines.map(m => m.id)));
+      return scheduledProcesses.filter(sp => sp.processId === 'sewing');
+    }
+    
     return scheduledProcesses.filter(sp => sp.processId === selectedProcessId);
   }, [scheduledProcesses, selectedProcessId]);
   
@@ -800,7 +812,12 @@ function GanttPageContent() {
 
   const handleClearSchedule = () => {
     if (selectedProcessId === 'pab') return;
-    setScheduledProcesses(prev => prev.filter(p => p.processId !== selectedProcessId));
+    if (selectedProcessId === 'sewing') {
+      const sewingMachineIds = new Set(SEWING_LINES.flatMap(line => line.machines.map(m => m.id)));
+      setScheduledProcesses(prev => prev.filter(p => p.processId !== 'sewing'));
+    } else {
+      setScheduledProcesses(prev => prev.filter(p => p.processId !== selectedProcessId));
+    }
   };
 
   const isPabView = selectedProcessId === 'pab';
