@@ -2,25 +2,103 @@
 'use client';
 
 import * as React from 'react';
-import type { SewingLineGroup } from '@/lib/types';
-import { format, getMonth } from 'date-fns';
+import type { LinePlanRow } from '@/app/line-plan/page';
+import type { Order } from '@/lib/types';
+import { format, getMonth, getWeek, startOfWeek } from 'date-fns';
 import { cn } from '@/lib/utils';
-
-type Row = {
-  id: string;
-  name: string;
-};
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 type GanttChartProps = {
-  rows: Row[];
+  rows: LinePlanRow[];
   dates: Date[];
+  orders: Order[];
 };
 
 const ROW_HEIGHT_PX = 40;
 const CELL_WIDTH_PX = 60;
 const SIDEBAR_WIDTH_PX = 200;
 
-export default function LinePlanGanttChart({ rows, dates }: GanttChartProps) {
+const calculatePlanItems = (rows: LinePlanRow[], dates: Date[], orders: Order[]) => {
+    const items: React.ReactNode[] = [];
+
+    const dateToColumnIndex = new Map<string, number>();
+    dates.forEach((date, index) => {
+        dateToColumnIndex.set(format(date, 'yyyy-MM-dd'), index);
+    });
+
+    rows.forEach((row, rowIndex) => {
+        let weeklyLeftOffset = 0;
+        let lastProcessedWeek = -1;
+
+        Object.keys(row.planData).sort((a,b) => parseInt(a.slice(1)) - parseInt(b.slice(1))).forEach(weekStr => {
+            const weekNum = parseInt(weekStr.slice(1));
+            const weekData = row.planData[weekStr];
+            if (!weekData || weekData.totalPlan <= 0) return;
+            
+            // Find first day of this week in our dates array
+            const firstDayOfWeek = dates.find(d => getWeek(d, { weekStartsOn: 1 }) === weekNum);
+            if (!firstDayOfWeek) return;
+
+            const weekStartIndex = dateToColumnIndex.get(format(firstDayOfWeek, 'yyyy-MM-dd')) ?? -1;
+            if (weekStartIndex === -1) return;
+
+            if (lastProcessedWeek !== weekNum) {
+                weeklyLeftOffset = 0;
+                lastProcessedWeek = weekNum;
+            }
+
+            weekData.models.forEach((model, modelIndex) => {
+                if(model.planQty <= 0) return;
+
+                const daysForModel = (model.planQty / weekData.totalPlan) * 6; // 6 working days
+                const itemWidth = daysForModel * CELL_WIDTH_PX;
+                
+                const order = orders.find(o => o.id === model.orderId);
+                const itemColor = order?.displayColor || '#A1A1AA';
+
+                const leftPosition = (weekStartIndex * CELL_WIDTH_PX) + weeklyLeftOffset;
+
+                items.push(
+                    <TooltipProvider key={`${row.id}-${weekStr}-${model.color}`}>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <div
+                                    className="absolute rounded-md text-white text-xs font-semibold overflow-hidden flex items-center justify-center shadow"
+                                    style={{
+                                        top: `${rowIndex * ROW_HEIGHT_PX + 4}px`,
+                                        left: `${leftPosition}px`,
+                                        width: `${itemWidth}px`,
+                                        height: `${ROW_HEIGHT_PX - 8}px`,
+                                        backgroundColor: itemColor
+                                    }}
+                                >
+                                  <span className="truncate px-2">{model.color}</span>
+                                </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p><strong>{row.name} / {row.ccNo}</strong></p>
+                                <p>Model: {model.color}</p>
+                                <p>Plan Qty: {Math.round(model.planQty).toLocaleString()}</p>
+                                <p>Duration: {daysForModel.toFixed(1)} days</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                );
+
+                weeklyLeftOffset += itemWidth;
+            });
+        });
+    });
+    return items;
+};
+
+
+export default function LinePlanGanttChart({ rows, dates, orders }: GanttChartProps) {
   const headerRef = React.useRef<HTMLDivElement>(null);
   const sidebarRef = React.useRef<HTMLDivElement>(null);
   const bodyRef = React.useRef<HTMLDivElement>(null);
@@ -61,6 +139,9 @@ export default function LinePlanGanttChart({ rows, dates }: GanttChartProps) {
   const gridTemplateColumns = `repeat(${dates.length}, ${CELL_WIDTH_PX}px)`;
   const totalGridWidth = dates.length * CELL_WIDTH_PX;
   const totalGridHeight = rows.length * ROW_HEIGHT_PX;
+
+  const planItems = React.useMemo(() => calculatePlanItems(rows, dates, orders), [rows, dates, orders]);
+
 
   return (
     <div 
@@ -112,13 +193,13 @@ export default function LinePlanGanttChart({ rows, dates }: GanttChartProps) {
             {rows.map((row, rowIndex) => (
               <React.Fragment key={row.id}>
                 {dates.map((date, dateIndex) => (
-                  <div key={`${row.id}-${dateIndex}`} className={cn("border-b border-r", rowIndex % 2 === 0 ? 'bg-background' : 'bg-muted/30')}>
-                    {/* Cell for scheduled items will go here */}
+                  <div key={`${row.id}-${dateIndex}`} className={cn("border-b border-r", (rowIndex + dateIndex) % 2 === 0 ? 'bg-background' : 'bg-muted/30')}>
                   </div>
                 ))}
               </React.Fragment>
             ))}
           </div>
+          {planItems}
         </div>
       </div>
     </div>
