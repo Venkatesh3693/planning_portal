@@ -15,13 +15,16 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ChevronsRight, ChevronDown } from 'lucide-react';
 import type { SyntheticPoRecord, Size, SizeBreakdown } from '@/lib/types';
 import { SIZES } from '@/lib/data';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
+import { cn } from '@/lib/utils';
 
 
 const PoDetailsTable = ({ records }: { records: SyntheticPoRecord[] }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+
     const totals = useMemo(() => {
         const sizeTotals = SIZES.reduce((acc, size) => {
             acc[size] = 0;
@@ -57,10 +60,18 @@ const PoDetailsTable = ({ records }: { records: SyntheticPoRecord[] }) => {
                     <TableHead>Destination</TableHead>
                     <TableHead>Snapshot Week</TableHead>
                     <TableHead>EHD Week</TableHead>
-                    {SIZES.map(size => (
+                    {isExpanded && SIZES.map(size => (
                         <TableHead key={size} className="text-right">{size}</TableHead>
                     ))}
-                    <TableHead className="text-right font-bold">Total</TableHead>
+                    <TableHead 
+                        className="text-right font-bold cursor-pointer"
+                        onClick={() => setIsExpanded(!isExpanded)}
+                    >
+                        <div className="flex items-center justify-end gap-2">
+                           {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronsRight className="h-4 w-4" />}
+                           Total
+                        </div>
+                    </TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -70,9 +81,9 @@ const PoDetailsTable = ({ records }: { records: SyntheticPoRecord[] }) => {
                         <TableCell>{record.destination}</TableCell>
                         <TableCell>{record.issueWeek}</TableCell>
                         <TableCell>{record.originalEhdWeek}</TableCell>
-                        {SIZES.map(size => (
+                        {isExpanded && SIZES.map(size => (
                              <TableCell key={size} className="text-right">
-                                {(record.quantities[size] || 0).toLocaleString()}
+                                {(record.quantities[size] || 0) > 0 ? (record.quantities[size] || 0).toLocaleString() : '-'}
                             </TableCell>
                         ))}
                         <TableCell className="text-right font-bold">
@@ -84,13 +95,15 @@ const PoDetailsTable = ({ records }: { records: SyntheticPoRecord[] }) => {
             <TableFooter>
                 <TableRow>
                     <TableCell colSpan={4} className="font-bold text-right">Total</TableCell>
-                    {SIZES.map(size => (
+                    {isExpanded && SIZES.map(size => (
                         <TableCell key={`total-${size}`} className="text-right font-bold">
                             {(totals.sizeTotals[size] || 0).toLocaleString()}
                         </TableCell>
                     ))}
                     <TableCell className="text-right font-bold">
-                        {totals.grandTotal.toLocaleString()}
+                        <div className="flex items-center justify-end">
+                            {totals.grandTotal.toLocaleString()}
+                        </div>
                     </TableCell>
                 </TableRow>
             </TableFooter>
