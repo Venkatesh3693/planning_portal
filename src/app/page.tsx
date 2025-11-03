@@ -167,7 +167,7 @@ function GanttPageContent() {
       }
     }
     return newMap;
-  }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, sewingLines, processBatchSizes, packingBatchSizes]);
+  }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, processBatchSizes, packingBatchSizes]);
   
   const latestSewingStartDateMap = useMemo(() => {
     const map = new Map<string, Date>();
@@ -175,7 +175,7 @@ function GanttPageContent() {
 
     orders.forEach(order => {
         if (order.orderType === 'Forecasted') return;
-        const numLines = sewingLines[order.id] || 1;
+        const numLines = sewingLines.filter(line => line.machines.some(m => m.processIds.includes('sewing'))).length;
         const latestDate = calculateLatestSewingStartDate(order, PROCESSES, numLines);
         if (latestDate) {
             map.set(order.id, latestDate);
@@ -667,7 +667,7 @@ function GanttPageContent() {
 
   const handleOpenSplitDialog = (process: ScheduledProcess) => {
     const order = orders.find(o => o.id === process.orderId)!;
-    const numLines = sewingLines[process.orderId] || 1;
+    const numLines = sewingLines.filter(line => line.machines.some(m => m.processIds.includes('sewing'))).length;
     if (process.parentId) {
       const siblings = scheduledProcesses.filter(p => p.parentId === process.parentId);
       setProcessToSplit({ processes: siblings, order, numLines });
@@ -913,7 +913,9 @@ function GanttPageContent() {
                 unplannedBatches={unplannedBatches}
                 handleDragStart={handleDragStart}
                 sewingScheduledOrderIds={sewingScheduledOrderIds}
-                sewingLines={sewingLines}
+                sewingLines={sewingLines.reduce((acc, line) => {
+                  return acc;
+                }, {} as Record<string, number>)}
                 hasActiveFilters={hasActiveFilters}
                 filterOcn={filterOcn}
                 setFilterOcn={setFilterOcn}

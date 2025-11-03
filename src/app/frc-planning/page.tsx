@@ -221,7 +221,7 @@ export default function FrcPlanningPage() {
           <BreadcrumbList>
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
-                <Link href="/">Home</Link>
+                <Link href="/orders">Order Management</Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />

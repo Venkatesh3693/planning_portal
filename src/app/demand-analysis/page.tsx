@@ -331,12 +331,6 @@ function DemandAnalysisPageContent() {
                     <BreadcrumbList>
                         <BreadcrumbItem>
                             <BreadcrumbLink asChild>
-                                <Link href="/">Home</Link>
-                            </BreadcrumbLink>
-                        </BreadcrumbItem>
-                        <BreadcrumbSeparator />
-                        <BreadcrumbItem>
-                             <BreadcrumbLink asChild>
                                 <Link href="/orders">Order Management</Link>
                             </BreadcrumbLink>
                         </BreadcrumbItem>
