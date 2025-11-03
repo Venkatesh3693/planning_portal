@@ -58,8 +58,7 @@ const calculatePlanItems = (rows: LinePlanRow[], dates: Date[], orders: Order[])
                 const daysForModel = (model.planQty / weekData.totalPlan) * 6; // 6 working days
                 const itemWidth = daysForModel * CELL_WIDTH_PX;
                 
-                const order = orders.find(o => o.id === model.orderId);
-                const itemColor = order?.displayColor || '#A1A1AA';
+                const itemColor = model.displayColor;
 
                 const leftPosition = (weekStartIndex * CELL_WIDTH_PX) + weeklyLeftOffset;
 

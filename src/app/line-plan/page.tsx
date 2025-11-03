@@ -24,13 +24,13 @@ export type LinePlanRow = {
   id: string;
   name: string;
   ccNo: string;
-  color: string;
   planData: Record<string, {
     totalPlan: number;
     models: {
         color: string;
         planQty: number;
         orderId: string;
+        displayColor: string;
     }[];
   }>;
 };
@@ -59,7 +59,7 @@ export default function LinePlanPage() {
     return sewingLineGroups.map(slg => {
         const ordersForCc = orders.filter(o => o.ocn === slg.ccNo);
         if (ordersForCc.length === 0) {
-            return { id: slg.id, name: slg.name, ccNo: slg.ccNo, color: '', planData: {} };
+            return { id: slg.id, name: slg.name, ccNo: slg.ccNo, planData: {} };
         }
 
         const latestSnapshotWeek = Math.max(
@@ -82,11 +82,12 @@ export default function LinePlanPage() {
                 planData[week] = {
                     totalPlan: totalPlan,
                     models: Object.entries(modelProduction).map(([color, data]) => {
-                        const orderId = orders.find(o => o.ocn === slg.ccNo && o.color === color)?.id || '';
+                        const order = orders.find(o => o.ocn === slg.ccNo && o.color === color);
                         return {
                             color: color,
                             planQty: data.plan[week] || 0,
-                            orderId: orderId,
+                            orderId: order?.id || '',
+                            displayColor: order?.displayColor || '#A1A1AA' // Default color
                         }
                     }).filter(m => m.planQty > 0)
                 };
@@ -97,7 +98,6 @@ export default function LinePlanPage() {
             id: slg.id,
             name: slg.name,
             ccNo: slg.ccNo,
-            color: ordersForCc[0]?.displayColor || '#ccc',
             planData,
         };
     });
