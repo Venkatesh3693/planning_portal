@@ -41,13 +41,15 @@ const NavDropdown = ({ title, children }: { title: string, children: React.React
 export function Header() {
   const pathname = usePathname();
   const { appMode, setAppMode } = useSchedule();
+  
+  const homeHref = appMode === 'gup' ? '/' : '/orders';
 
   return (
     <header className="border-b bg-card shadow-sm sticky top-0 z-50">
       <div className="container mx-auto max-w-full px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-3">
+            <Link href={homeHref} className="flex items-center gap-3">
               <Factory className="h-8 w-8 text-primary" />
               <h1 className="hidden sm:block text-2xl font-bold tracking-tight text-foreground">
                 Planning DB
@@ -56,21 +58,27 @@ export function Header() {
           </div>
           
           <nav className="hidden md:flex items-center gap-1">
-            <NavLink href="/">
-                <LayoutDashboard className="mr-2 h-4 w-4" />
-                Dashboard
-            </NavLink>
-            <NavLink href="/orders">
-                <ShoppingCart className="mr-2 h-4 w-4" />
-                Orders
-            </NavLink>
-            {appMode === 'gup' ? (
-                <NavLink href="/capacity">
-                    <FactoryIcon className="mr-2 h-4 w-4" />
-                    Capacity
-                </NavLink>
+             {appMode === 'gup' ? (
+                <>
+                    <NavLink href="/">
+                        <LayoutDashboard className="mr-2 h-4 w-4" />
+                        Dashboard
+                    </NavLink>
+                    <NavLink href="/orders">
+                        <ShoppingCart className="mr-2 h-4 w-4" />
+                        Orders
+                    </NavLink>
+                    <NavLink href="/capacity">
+                        <FactoryIcon className="mr-2 h-4 w-4" />
+                        Capacity
+                    </NavLink>
+                </>
             ) : (
                 <>
+                    <NavLink href="/orders">
+                        <ShoppingCart className="mr-2 h-4 w-4" />
+                        Order Management
+                    </NavLink>
                     <NavDropdown title="Demand">
                         <Link href="/demand-analysis" passHref><DropdownMenuItem>Demand Trend Analysis</DropdownMenuItem></Link>
                         <Link href="/size-wise-demand" passHref><DropdownMenuItem>Size-wise Demand</DropdownMenuItem></Link>
@@ -113,12 +121,15 @@ export function Header() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <Link href="/" passHref><DropdownMenuItem>Dashboard</DropdownMenuItem></Link>
-                <Link href="/orders" passHref><DropdownMenuItem>Orders</DropdownMenuItem></Link>
-                {appMode === 'gup' && <Link href="/capacity" passHref><DropdownMenuItem>Capacity</DropdownMenuItem></Link>}
-                
-                {appMode === 'gut' && (
+                {appMode === 'gup' ? (
                   <>
+                    <Link href="/" passHref><DropdownMenuItem>Dashboard</DropdownMenuItem></Link>
+                    <Link href="/orders" passHref><DropdownMenuItem>Orders</DropdownMenuItem></Link>
+                    <Link href="/capacity" passHref><DropdownMenuItem>Capacity</DropdownMenuItem></Link>
+                  </>
+                ) : (
+                  <>
+                    <Link href="/orders" passHref><DropdownMenuItem>Order Management</DropdownMenuItem></Link>
                     <DropdownMenuSeparator/>
                     <DropdownMenuSub>
                       <DropdownMenuSubTrigger>Demand</DropdownMenuSubTrigger>
