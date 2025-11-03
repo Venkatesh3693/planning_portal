@@ -69,7 +69,7 @@ const PoDetailsTable = ({ records }: { records: SyntheticPoRecord[] }) => {
                     >
                         <div className="flex items-center justify-end gap-2">
                            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronsRight className="h-4 w-4" />}
-                           Total
+                           PO Qty
                         </div>
                     </TableHead>
                 </TableRow>
