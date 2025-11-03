@@ -15,7 +15,7 @@ const NavLink = ({ href, children }: { href: string, children: React.ReactNode }
     const isActive = pathname === href;
     return (
         <Link href={href} passHref>
-            <Button variant="ghost" size="sm" className={cn("text-sm font-normal", isActive && "font-semibold bg-accent text-accent-foreground")}>
+            <Button variant="ghost" size="sm" className={cn("text-sm font-normal text-white/80 hover:bg-white/10 hover:text-white", isActive && "font-semibold bg-white/20 text-white")}>
                 {children}
             </Button>
         </Link>
@@ -26,7 +26,7 @@ const NavDropdown = ({ title, children }: { title: string, children: React.React
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="text-sm font-normal">
+                <Button variant="ghost" size="sm" className="text-sm font-normal text-white/80 hover:bg-white/10 hover:text-white">
                     {title}
                     <ChevronDown className="ml-2 h-4 w-4" />
                 </Button>
@@ -45,13 +45,13 @@ export function Header() {
   const homeHref = appMode === 'gup' ? '/' : '/orders';
 
   return (
-    <header className="border-b bg-card shadow-sm sticky top-0 z-50">
+    <header className="bg-blue-800 dark:bg-blue-900 shadow-sm sticky top-0 z-50">
       <div className="container mx-auto max-w-full px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href={homeHref} className="flex items-center gap-3">
-              <Factory className="h-8 w-8 text-primary" />
-              <h1 className="hidden sm:block text-2xl font-bold tracking-tight text-foreground">
+              <Factory className="h-8 w-8 text-white" />
+              <h1 className="hidden sm:block text-2xl font-bold tracking-tight text-white">
                 Planning DB
               </h1>
             </Link>
@@ -115,7 +115,7 @@ export function Header() {
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="ring-offset-background focus-visible:ring-0 focus-visible:ring-offset-0 md:hidden">
+                <Button variant="ghost" size="icon" className="ring-offset-background focus-visible:ring-0 focus-visible:ring-offset-0 md:hidden text-white hover:bg-white/10 hover:text-white">
                   <Settings className="h-5 w-5" />
                   <span className="sr-only">Settings</span>
                 </Button>
