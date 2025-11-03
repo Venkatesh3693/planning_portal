@@ -1229,12 +1229,6 @@ export default function OrdersPage() {
         <Breadcrumb className="mb-4">
           <BreadcrumbList>
             <BreadcrumbItem>
-              <BreadcrumbLink asChild>
-                <Link href="/">Home</Link>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
               <BreadcrumbPage>Order Management</BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
