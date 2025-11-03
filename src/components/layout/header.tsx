@@ -1,7 +1,7 @@
 
 "use client";
 
-import { Factory, PanelLeftOpen, PanelRightOpen, Settings, ChevronDown } from 'lucide-react';
+import { Factory, PanelLeftOpen, PanelRightOpen, Settings, ChevronDown, LayoutDashboard, ShoppingCart, Box, FactoryIcon, LineChart, Scissors, ClipboardList, GanttChartSquare } from 'lucide-react';
 import Link from 'next/link';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuPortal, DropdownMenuSeparator, DropdownMenuRadioGroup, DropdownMenuRadioItem } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
@@ -9,43 +9,86 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useSchedule } from '@/context/schedule-provider';
 
-type HeaderProps = {
-  isOrdersPanelVisible?: boolean;
-  setIsOrdersPanelVisible?: (visible: boolean | ((prevState: boolean) => boolean)) => void;
+
+const NavLink = ({ href, children }: { href: string, children: React.ReactNode }) => {
+    const pathname = usePathname();
+    const isActive = pathname === href;
+    return (
+        <Link href={href} passHref>
+            <Button variant="ghost" size="sm" className={cn("text-sm font-normal", isActive && "font-semibold bg-accent text-accent-foreground")}>
+                {children}
+            </Button>
+        </Link>
+    );
 };
 
-export function Header({ 
-  isOrdersPanelVisible,
-  setIsOrdersPanelVisible,
-}: HeaderProps) {
+const NavDropdown = ({ title, children }: { title: string, children: React.ReactNode }) => {
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-sm font-normal">
+                    {title}
+                    <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+                {children}
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
+}
+
+export function Header() {
   const pathname = usePathname();
-  const isHomePage = pathname === '/';
   const { appMode, setAppMode } = useSchedule();
 
-  const handleToggle = () => {
-    if (setIsOrdersPanelVisible) {
-      setIsOrdersPanelVisible(prev => !prev);
-    }
-  };
-
   return (
-    <header className="border-b bg-card shadow-sm">
+    <header className="border-b bg-card shadow-sm sticky top-0 z-50">
       <div className="container mx-auto max-w-full px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-3">
-            {isHomePage && appMode === 'gup' && setIsOrdersPanelVisible && (
-              <Button variant="ghost" size="icon" onClick={handleToggle}>
-                {isOrdersPanelVisible ? <PanelLeftOpen className="h-5 w-5" /> : <PanelRightOpen className="h-5 w-5" />}
-                 <span className="sr-only">Toggle Orders Panel</span>
-              </Button>
-            )}
-            <Link href="/" className={cn("flex items-center gap-3", isHomePage && "hidden sm:flex")}>
+            <Link href="/" className="flex items-center gap-3">
               <Factory className="h-8 w-8 text-primary" />
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              <h1 className="hidden sm:block text-2xl font-bold tracking-tight text-foreground">
                 Planning DB
               </h1>
             </Link>
           </div>
+          
+          <nav className="hidden md:flex items-center gap-1">
+            <NavLink href="/">
+                <LayoutDashboard className="mr-2 h-4 w-4" />
+                Dashboard
+            </NavLink>
+            <NavLink href="/orders">
+                <ShoppingCart className="mr-2 h-4 w-4" />
+                Orders
+            </NavLink>
+            {appMode === 'gup' ? (
+                <NavLink href="/capacity">
+                    <FactoryIcon className="mr-2 h-4 w-4" />
+                    Capacity
+                </NavLink>
+            ) : (
+                <>
+                    <NavDropdown title="Demand">
+                        <Link href="/demand-analysis" passHref><DropdownMenuItem>Demand Trend Analysis</DropdownMenuItem></Link>
+                        <Link href="/size-wise-demand" passHref><DropdownMenuItem>Size-wise Demand</DropdownMenuItem></Link>
+                    </NavDropdown>
+                    <NavDropdown title="Material Planning">
+                        <Link href="/projection-planning" passHref><DropdownMenuItem>Projection Planning</DropdownMenuItem></Link>
+                        <Link href="/frc-planning" passHref><DropdownMenuItem>FRC Planning</DropdownMenuItem></Link>
+                    </NavDropdown>
+                     <NavDropdown title="Production Planning">
+                        <Link href="/cc-plan" passHref><DropdownMenuItem>CC Plan</DropdownMenuItem></Link>
+                        <Link href="/capacity-allocation" passHref><DropdownMenuItem>Capacity Allocation</DropdownMenuItem></Link>
+                        <Link href="/cut-order-issue" passHref><DropdownMenuItem>Cut Order Details</DropdownMenuItem></Link>
+                        <Link href="/line-plan" passHref><DropdownMenuItem>Line Plan</DropdownMenuItem></Link>
+                    </NavDropdown>
+                </>
+            )}
+          </nav>
+
           <div className="flex items-center gap-4">
              <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -61,76 +104,48 @@ export function Header({
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
             </DropdownMenu>
+            
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="ring-offset-background focus-visible:ring-0 focus-visible:ring-offset-0">
+                <Button variant="ghost" size="icon" className="ring-offset-background focus-visible:ring-0 focus-visible:ring-offset-0 md:hidden">
                   <Settings className="h-5 w-5" />
                   <span className="sr-only">Settings</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {appMode === 'gup' && (
-                  <Link href="/capacity">
-                    <DropdownMenuItem>Capacity management</DropdownMenuItem>
-                  </Link>
-                )}
-                <Link href="/orders">
-                  <DropdownMenuItem>Order management</DropdownMenuItem>
-                </Link>
-
+                <Link href="/" passHref><DropdownMenuItem>Dashboard</DropdownMenuItem></Link>
+                <Link href="/orders" passHref><DropdownMenuItem>Orders</DropdownMenuItem></Link>
+                {appMode === 'gup' && <Link href="/capacity" passHref><DropdownMenuItem>Capacity</DropdownMenuItem></Link>}
+                
                 {appMode === 'gut' && (
                   <>
+                    <DropdownMenuSeparator/>
                     <DropdownMenuSub>
-                      <DropdownMenuSubTrigger>
-                        <span>Demand</span>
-                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubTrigger>Demand</DropdownMenuSubTrigger>
                       <DropdownMenuPortal>
                         <DropdownMenuSubContent>
-                          <Link href="/demand-analysis">
-                            <DropdownMenuItem>Demand Analysis</DropdownMenuItem>
-                          </Link>
-                          <Link href="/size-wise-demand">
-                            <DropdownMenuItem>Size-wise Demand</DropdownMenuItem>
-                          </Link>
+                           <Link href="/demand-analysis" passHref><DropdownMenuItem>Demand Trend Analysis</DropdownMenuItem></Link>
+                           <Link href="/size-wise-demand" passHref><DropdownMenuItem>Size-wise Demand</DropdownMenuItem></Link>
                         </DropdownMenuSubContent>
                       </DropdownMenuPortal>
                     </DropdownMenuSub>
-                    
-                    <DropdownMenuSeparator />
                      <DropdownMenuSub>
-                      <DropdownMenuSubTrigger>
-                        <span>Material Planning</span>
-                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubTrigger>Material Planning</DropdownMenuSubTrigger>
                       <DropdownMenuPortal>
                         <DropdownMenuSubContent>
-                          <Link href="/projection-planning">
-                            <DropdownMenuItem>Projection Planning</DropdownMenuItem>
-                          </Link>
-                          <Link href="/frc-planning">
-                            <DropdownMenuItem>FRC Planning</DropdownMenuItem>
-                          </Link>
+                           <Link href="/projection-planning" passHref><DropdownMenuItem>Projection Planning</DropdownMenuItem></Link>
+                           <Link href="/frc-planning" passHref><DropdownMenuItem>FRC Planning</DropdownMenuItem></Link>
                         </DropdownMenuSubContent>
                       </DropdownMenuPortal>
                     </DropdownMenuSub>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger>
-                        <span>Production Planning</span>
-                      </DropdownMenuSubTrigger>
+                     <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>Production Planning</DropdownMenuSubTrigger>
                       <DropdownMenuPortal>
                         <DropdownMenuSubContent>
-                          <Link href="/cc-plan">
-                            <DropdownMenuItem>CC Plan</DropdownMenuItem>
-                          </Link>
-                          <Link href="/cut-order-issue">
-                            <DropdownMenuItem>Cut Order details</DropdownMenuItem>
-                          </Link>
-                          <Link href="/capacity-allocation">
-                            <DropdownMenuItem>Capacity Allocation</DropdownMenuItem>
-                          </Link>
-                          <Link href="/line-plan">
-                            <DropdownMenuItem>Line plan</DropdownMenuItem>
-                          </Link>
+                            <Link href="/cc-plan" passHref><DropdownMenuItem>CC Plan</DropdownMenuItem></Link>
+                            <Link href="/capacity-allocation" passHref><DropdownMenuItem>Capacity Allocation</DropdownMenuItem></Link>
+                            <Link href="/cut-order-issue" passHref><DropdownMenuItem>Cut Order Details</DropdownMenuItem></Link>
+                            <Link href="/line-plan" passHref><DropdownMenuItem>Line Plan</DropdownMenuItem></Link>
                         </DropdownMenuSubContent>
                       </DropdownMenuPortal>
                     </DropdownMenuSub>
@@ -139,6 +154,7 @@ export function Header({
 
               </DropdownMenuContent>
             </DropdownMenu>
+
           </div>
         </div>
       </div>
