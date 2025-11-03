@@ -179,8 +179,9 @@ export default function LinePlanGanttChart({ rows, dates, orders }: GanttChartPr
       <div ref={sidebarRef} className="row-start-3 overflow-hidden bg-background border-r z-20">
         <div style={{ height: totalGridHeight }}>
           {rows.map((row) => (
-            <div key={row.id} style={{height: ROW_HEIGHT_PX}} className="flex items-center px-4 border-b font-medium bg-muted/30">
-              {row.name}
+            <div key={row.id} style={{height: ROW_HEIGHT_PX}} className="flex flex-col justify-center px-4 border-b bg-muted/30">
+              <p className="font-medium">{row.name}</p>
+              <p className="text-xs text-muted-foreground">{row.ccNo}</p>
             </div>
           ))}
         </div>
