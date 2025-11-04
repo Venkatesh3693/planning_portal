@@ -82,6 +82,7 @@ export function Header() {
                     <NavDropdown title="Demand">
                         <Link href="/demand-analysis" passHref><DropdownMenuItem>Demand Trend Analysis</DropdownMenuItem></Link>
                         <Link href="/size-wise-demand" passHref><DropdownMenuItem>Size-wise Demand</DropdownMenuItem></Link>
+                        <Link href="/po-status" passHref><DropdownMenuItem>PO Status</DropdownMenuItem></Link>
                     </NavDropdown>
                     <NavDropdown title="Material Planning">
                         <Link href="/projection-planning" passHref><DropdownMenuItem>Projection Planning</DropdownMenuItem></Link>
@@ -137,6 +138,7 @@ export function Header() {
                         <DropdownMenuSubContent>
                            <Link href="/demand-analysis" passHref><DropdownMenuItem>Demand Trend Analysis</DropdownMenuItem></Link>
                            <Link href="/size-wise-demand" passHref><DropdownMenuItem>Size-wise Demand</DropdownMenuItem></Link>
+                           <Link href="/po-status" passHref><DropdownMenuItem>PO Status</DropdownMenuItem></Link>
                         </DropdownMenuSubContent>
                       </DropdownMenuPortal>
                     </DropdownMenuSub>
