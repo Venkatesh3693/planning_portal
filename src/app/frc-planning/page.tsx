@@ -274,6 +274,7 @@ export default function FrcPlanningPage() {
                         <TableHead className="text-right">FRC Qty</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Approve</TableHead>
+                        <TableHead>Kit-Receipt Week</TableHead>
                         <TableHead className="text-center">Remarks</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -314,6 +315,7 @@ export default function FrcPlanningPage() {
                                     </div>
                                 )}
                             </TableCell>
+                            <TableCell></TableCell>
                              <TableCell className="text-center">
                               <Button variant="ghost" size="icon" onClick={() => handleOpenRemarks(row)}>
                                 <MessageSquare className="h-4 w-4" />
@@ -323,7 +325,7 @@ export default function FrcPlanningPage() {
                         ))
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={12 + SIZES.length} className="h-24 text-center">
+                          <TableCell colSpan={13 + SIZES.length} className="h-24 text-center">
                             {isScheduleLoaded ? 'No FRC data available for the selected filters.' : 'Loading FRC data...'}
                           </TableCell>
                         </TableRow>

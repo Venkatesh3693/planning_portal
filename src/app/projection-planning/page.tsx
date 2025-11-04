@@ -417,6 +417,7 @@ export default function ProjectionPlanningPage() {
                         <TableHead className="text-right">PRJ Qty</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Approve</TableHead>
+                        <TableHead>Kit-Receipt Week</TableHead>
                         <TableHead className="text-center">Remarks</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -467,6 +468,7 @@ export default function ProjectionPlanningPage() {
                                     </div>
                                 )}
                             </TableCell>
+                            <TableCell></TableCell>
                             <TableCell className="text-center">
                               <Button variant="ghost" size="icon" onClick={() => handleOpenRemarks(row)}>
                                 <MessageSquare className="h-4 w-4" />
@@ -476,7 +478,7 @@ export default function ProjectionPlanningPage() {
                         ))
                       ) : (
                         <TableRow>
-                            <TableCell colSpan={10} className="h-24 text-center">
+                            <TableCell colSpan={11} className="h-24 text-center">
                             No projection data available.
                             </TableCell>
                         </TableRow>
