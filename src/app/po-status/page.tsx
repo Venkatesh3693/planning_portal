@@ -86,7 +86,7 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
                 {records.map(record => {
                     const orderInfo = getOrderInfo(record.orderId);
                     return (
-                        <TableRow key={record.poNumber}>
+                        <TableRow key={`${record.poNumber}-${record.destination}`}>
                             <TableCell>{orderInfo?.ocn || 'N/A'}</TableCell>
                             <TableCell>{orderInfo?.color || 'N/A'}</TableCell>
                             <TableCell className="font-medium whitespace-nowrap">{record.poNumber}</TableCell>
