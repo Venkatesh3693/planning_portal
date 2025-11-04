@@ -713,9 +713,10 @@ export const correctAllocationForNegativeFgoi = (
 ): Record<string, ModelPlanQuantities> => {
     const correctedQuantities = JSON.parse(JSON.stringify(initialQuantities));
     const modelNames = Object.keys(modelDemands);
+    let iterations = 0;
 
-    for (let i = 0; i < allWeeks.length; i++) {
-        const week = allWeeks[i];
+    while (iterations < 100) { // Safety break after 100 iterations
+        let correctionMade = false;
 
         const fgoiState: Record<string, Record<string, number>> = {};
         modelNames.forEach(name => {
@@ -728,44 +729,60 @@ export const correctAllocationForNegativeFgoi = (
             );
         });
 
-        const deficits: { modelName: string, amount: number }[] = [];
-        modelNames.forEach(name => {
-            const fgoi = fgoiState[name][week] || 0;
-            if (fgoi < 0) {
-                deficits.push({ modelName: name, amount: -fgoi });
-            }
-        });
-        
-        if (deficits.length === 0) continue;
+        for (let i = 0; i < allWeeks.length; i++) {
+            const week = allWeeks[i];
+            
+            const deficits: { modelName: string, amount: number }[] = [];
+            modelNames.forEach(name => {
+                const fgoi = fgoiState[name][week] || 0;
+                if (fgoi < 0) {
+                    deficits.push({ modelName: name, amount: -fgoi });
+                }
+            });
 
-        // Sort deficits to handle the largest one first
-        deficits.sort((a,b) => b.amount - a.amount);
-        
-        for (const deficit of deficits) {
-            let remainingDeficit = deficit.amount;
+            if (deficits.length === 0) continue;
 
-            // Search backwards for a donor week
-            for (let j = i - 1; j >= 0; j--) {
-                if(remainingDeficit <= 0) break;
-                const donorWeek = allWeeks[j];
+            correctionMade = true;
+            deficits.sort((a, b) => b.amount - a.amount);
 
-                for (const sourceModel of modelNames) {
-                    if(remainingDeficit <= 0) break;
-                    // Cannot steal from the model that has the deficit
-                    if (sourceModel === deficit.modelName) continue;
+            for (const deficit of deficits) {
+                let remainingDeficit = deficit.amount;
 
-                    const planQtyInDonorWeek = correctedQuantities[sourceModel].plan[donorWeek] || 0;
-                    if (planQtyInDonorWeek > 0) {
-                        const amountToSteal = Math.min(remainingDeficit, planQtyInDonorWeek);
-                        
-                        correctedQuantities[sourceModel].plan[donorWeek] -= amountToSteal;
-                        correctedQuantities[deficit.modelName].plan[donorWeek] = (correctedQuantities[deficit.modelName].plan[donorWeek] || 0) + amountToSteal;
-                        
-                        remainingDeficit -= amountToSteal;
+                // Search backwards for a donor week
+                for (let j = i - 1; j >= 0; j--) {
+                    if (remainingDeficit <= 0) break;
+                    const donorWeek = allWeeks[j];
+
+                    for (const sourceModel of modelNames) {
+                        if (remainingDeficit <= 0) break;
+                        if (sourceModel === deficit.modelName) continue; // Don't steal from self
+
+                        const planQtyInDonorWeek = correctedQuantities[sourceModel].plan[donorWeek] || 0;
+                        if (planQtyInDonorWeek > 0) {
+                            const amountToSteal = Math.min(remainingDeficit, planQtyInDonorWeek);
+
+                            correctedQuantities[sourceModel].plan[donorWeek] -= amountToSteal;
+                            correctedQuantities[deficit.modelName].plan[donorWeek] = (correctedQuantities[deficit.modelName].plan[donorWeek] || 0) + amountToSteal;
+                            
+                            remainingDeficit -= amountToSteal;
+                        }
                     }
                 }
             }
+             if (correctionMade) break; // Break from the weekly loop to restart the whole process
         }
+
+        if (correctionMade) {
+            iterations++;
+            continue; // Restart the while loop to re-evaluate from the beginning
+        }
+
+        // If we get here, no corrections were made in the full pass
+        break;
+    }
+
+    if (iterations === 100) {
+        console.warn("correctAllocationForNegativeFgoi reached max iterations. The plan may not be fully optimized.");
     }
 
     return correctedQuantities;
