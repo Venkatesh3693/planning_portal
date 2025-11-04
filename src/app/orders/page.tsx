@@ -1189,6 +1189,7 @@ const ForecastedOrderRow = forwardRef<
 
       <TableCell className="text-right font-bold">{order.shipped?.total.toLocaleString() || '-'}</TableCell>                          
       
+      <TableCell></TableCell>
     </TableRow>
   );
 });
@@ -1292,6 +1293,7 @@ export default function OrdersPage() {
                         <TableHead className="text-right">Cut Order</TableHead>
                         <TableHead className="text-right">Produced</TableHead>
                         <TableHead className="text-right">Shipped</TableHead>
+                        <TableHead>Alerts</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
