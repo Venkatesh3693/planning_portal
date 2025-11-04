@@ -728,48 +728,42 @@ export const correctAllocationForNegativeFgoi = (
             );
         });
 
-        const deficits: Record<string, number> = {};
-        let totalDeficit = 0;
+        const deficits: { modelName: string, amount: number }[] = [];
         modelNames.forEach(name => {
             const fgoi = fgoiState[name][week] || 0;
             if (fgoi < 0) {
-                deficits[name] = -fgoi;
-                totalDeficit += -fgoi;
+                deficits.push({ modelName: name, amount: -fgoi });
             }
         });
+        
+        if (deficits.length === 0) continue;
 
-        if (totalDeficit <= 0) continue;
+        // Sort deficits to handle the largest one first
+        deficits.sort((a,b) => b.amount - a.amount);
+        
+        for (const deficit of deficits) {
+            let remainingDeficit = deficit.amount;
 
-        // Search backwards for a donor week
-        for (let j = i - 1; j >= 0; j--) {
-            const donorWeek = allWeeks[j];
-            let foundDonor = false;
+            // Search backwards for a donor week
+            for (let j = i - 1; j >= 0; j--) {
+                if(remainingDeficit <= 0) break;
+                const donorWeek = allWeeks[j];
 
-            for (const sourceModel of modelNames) {
-                 const planQtyInDonorWeek = correctedQuantities[sourceModel].plan[donorWeek] || 0;
-                 const producedQtyInDonorWeek = correctedQuantities[sourceModel].produced[donorWeek] || 0;
+                for (const sourceModel of modelNames) {
+                    if(remainingDeficit <= 0) break;
+                    // Cannot steal from the model that has the deficit
+                    if (sourceModel === deficit.modelName) continue;
 
-                 if (planQtyInDonorWeek >= totalDeficit) {
-                    correctedQuantities[sourceModel].plan[donorWeek] -= totalDeficit;
-                    
-                    const deficitModel = Object.keys(deficits)[0]; // simple distribution
-                    correctedQuantities[deficitModel].plan[donorWeek] = (correctedQuantities[deficitModel].plan[donorWeek] || 0) + totalDeficit;
-                    
-                    foundDonor = true;
-                    break;
-                 } else if (producedQtyInDonorWeek >= totalDeficit) {
-                    correctedQuantities[sourceModel].produced[donorWeek] -= totalDeficit;
-                     
-                    const deficitModel = Object.keys(deficits)[0];
-                    correctedQuantities[deficitModel].produced[donorWeek] = (correctedQuantities[deficitModel].produced[donorWeek] || 0) + totalDeficit;
-                     
-                    foundDonor = true;
-                    break;
-                 }
-            }
-
-            if(foundDonor) {
-                break; // Exit the backward search once a donor is found and allocation is done
+                    const planQtyInDonorWeek = correctedQuantities[sourceModel].plan[donorWeek] || 0;
+                    if (planQtyInDonorWeek > 0) {
+                        const amountToSteal = Math.min(remainingDeficit, planQtyInDonorWeek);
+                        
+                        correctedQuantities[sourceModel].plan[donorWeek] -= amountToSteal;
+                        correctedQuantities[deficit.modelName].plan[donorWeek] = (correctedQuantities[deficit.modelName].plan[donorWeek] || 0) + amountToSteal;
+                        
+                        remainingDeficit -= amountToSteal;
+                    }
+                }
             }
         }
     }
