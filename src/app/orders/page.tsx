@@ -923,7 +923,7 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
               <span 
                 className="font-medium text-primary cursor-pointer hover:underline"
               >
-                {order.id}
+                {order.ocn} - {order.color}
               </span>
             </DialogTrigger>
             <DialogContent className="max-w-7xl p-0" hideClose>
@@ -1083,7 +1083,7 @@ const ForecastedOrderRow = forwardRef<
         <Dialog open={isTnaOpen} onOpenChange={setIsTnaOpen}>
           <DialogTrigger asChild>
             <span className="font-medium text-primary cursor-pointer hover:underline">
-              {order.id}
+              {order.ocn} - {order.color}
             </span>
           </DialogTrigger>
           <DialogContent className="max-w-7xl p-0" hideClose>
@@ -1245,7 +1245,7 @@ export default function OrdersPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Order ID</TableHead>
+                        <TableHead>CC-Color</TableHead>
                         <TableHead>Buyer</TableHead>
                         <TableHead>Order Type</TableHead>
                         <TableHead>Budgeted Eff.</TableHead>
@@ -1280,7 +1280,7 @@ export default function OrdersPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Order ID</TableHead>
+                        <TableHead>CC-Color</TableHead>
                         <TableHead>Season</TableHead>
                         <TableHead>Style</TableHead>
                         <TableHead>Model no.</TableHead>
