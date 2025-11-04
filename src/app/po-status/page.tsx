@@ -228,12 +228,12 @@ function PoStatusPageContent() {
                         </div>
                          <div className="flex items-center gap-2">
                            <Label htmlFor="color-select">Color</Label>
-                           <Select value={selectedColor} onValueChange={setSelectedColor} disabled={!selectedCc}>
+                           <Select value={selectedColor} onValueChange={(value) => setSelectedColor(value === 'all' ? '' : value)} disabled={!selectedCc}>
                              <SelectTrigger id="color-select" className="w-[180px]">
                                <SelectValue placeholder="All Colors" />
                              </SelectTrigger>
                              <SelectContent>
-                               <SelectItem value="">All Colors</SelectItem>
+                               <SelectItem value="all">All Colors</SelectItem>
                                {colorOptions.map(color => <SelectItem key={color} value={color}>{color}</SelectItem>)}
                              </SelectContent>
                            </Select>
