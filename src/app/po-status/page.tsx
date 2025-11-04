@@ -16,13 +16,15 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, ChevronsRight, ChevronDown } from 'lucide-react';
-import type { SyntheticPoRecord, Size, SizeBreakdown } from '@/lib/types';
+import type { SyntheticPoRecord, Size, SizeBreakdown, Order } from '@/lib/types';
 import { SIZES } from '@/lib/data';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
-const PoDetailsTable = ({ records }: { records: SyntheticPoRecord[] }) => {
+const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], orders: Order[] }) => {
     const [isExpanded, setIsExpanded] = useState(false);
 
     const totals = useMemo(() => {
@@ -47,15 +49,21 @@ const PoDetailsTable = ({ records }: { records: SyntheticPoRecord[] }) => {
     if (records.length === 0) {
         return (
             <div className="flex items-center justify-center h-48 text-muted-foreground border rounded-lg">
-                No released POs found for this order based on the current criteria.
+                No released POs found for the selected criteria.
             </div>
         );
     }
+
+    const getOrderInfo = (orderId: string) => {
+        return orders.find(o => o.id === orderId);
+    };
     
     return (
         <Table>
             <TableHeader>
                 <TableRow>
+                    <TableHead>CC</TableHead>
+                    <TableHead>Color</TableHead>
                     <TableHead>PO #</TableHead>
                     <TableHead>Destination</TableHead>
                     <TableHead>Snapshot Week</TableHead>
@@ -75,26 +83,31 @@ const PoDetailsTable = ({ records }: { records: SyntheticPoRecord[] }) => {
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {records.map(record => (
-                    <TableRow key={record.poNumber}>
-                        <TableCell className="font-medium whitespace-nowrap">{record.poNumber}</TableCell>
-                        <TableCell>{record.destination}</TableCell>
-                        <TableCell>{record.issueWeek}</TableCell>
-                        <TableCell>{record.originalEhdWeek}</TableCell>
-                        {isExpanded && SIZES.map(size => (
-                             <TableCell key={size} className="text-right">
-                                {(record.quantities[size] || 0) > 0 ? (record.quantities[size] || 0).toLocaleString() : '-'}
+                {records.map(record => {
+                    const orderInfo = getOrderInfo(record.orderId);
+                    return (
+                        <TableRow key={record.poNumber}>
+                            <TableCell>{orderInfo?.ocn || 'N/A'}</TableCell>
+                            <TableCell>{orderInfo?.color || 'N/A'}</TableCell>
+                            <TableCell className="font-medium whitespace-nowrap">{record.poNumber}</TableCell>
+                            <TableCell>{record.destination}</TableCell>
+                            <TableCell>{record.issueWeek}</TableCell>
+                            <TableCell>{record.originalEhdWeek}</TableCell>
+                            {isExpanded && SIZES.map(size => (
+                                 <TableCell key={size} className="text-right">
+                                    {(record.quantities[size] || 0) > 0 ? (record.quantities[size] || 0).toLocaleString() : '-'}
+                                </TableCell>
+                            ))}
+                            <TableCell className="text-right font-bold">
+                                {(record.quantities.total || 0).toLocaleString()}
                             </TableCell>
-                        ))}
-                        <TableCell className="text-right font-bold">
-                            {(record.quantities.total || 0).toLocaleString()}
-                        </TableCell>
-                    </TableRow>
-                ))}
+                        </TableRow>
+                    );
+                })}
             </TableBody>
             <TableFooter>
                 <TableRow>
-                    <TableCell colSpan={4} className="font-bold text-right">Total</TableCell>
+                    <TableCell colSpan={6} className="font-bold text-right">Total</TableCell>
                     {isExpanded && SIZES.map(size => (
                         <TableCell key={`total-${size}`} className="text-right font-bold">
                             {(totals.sizeTotals[size] || 0).toLocaleString()}
@@ -114,26 +127,66 @@ const PoDetailsTable = ({ records }: { records: SyntheticPoRecord[] }) => {
 
 function PoStatusPageContent() {
     const searchParams = useSearchParams();
-    const orderId = searchParams.get('orderId');
+    const orderIdFromUrl = searchParams.get('orderId');
+    
     const { orders, isScheduleLoaded, syntheticPoRecords, updatePoEhd } = useSchedule();
     
-    const order = useMemo(() => {
-        if (!isScheduleLoaded || !orderId) return null;
-        return orders.find(o => o.id === orderId);
-    }, [orderId, orders, isScheduleLoaded]);
+    const [selectedCc, setSelectedCc] = useState('');
+    const [selectedColor, setSelectedColor] = useState('');
+
+    const ccOptions = useMemo(() => {
+        const ccSet = new Set<string>();
+        orders.forEach(o => {
+            if (o.orderType === 'Forecasted' && o.ocn) {
+                ccSet.add(o.ocn);
+            }
+        });
+        return Array.from(ccSet).sort();
+    }, [orders]);
+
+    const colorOptions = useMemo(() => {
+        if (!selectedCc) return [];
+        const colorSet = new Set<string>();
+        orders.forEach(o => {
+            if (o.ocn === selectedCc) {
+                colorSet.add(o.color);
+            }
+        });
+        return Array.from(colorSet).sort();
+    }, [selectedCc, orders]);
+
+    useEffect(() => {
+        if (orderIdFromUrl) {
+            const initialOrder = orders.find(o => o.id === orderIdFromUrl);
+            if (initialOrder) {
+                setSelectedCc(initialOrder.ocn);
+                setSelectedColor(initialOrder.color);
+            }
+        }
+    }, [orderIdFromUrl, orders]);
+
+    useEffect(() => {
+        // Reset color if CC changes and the selected color is no longer valid
+        if (selectedCc && !colorOptions.includes(selectedColor)) {
+            setSelectedColor('');
+        }
+    }, [selectedCc, colorOptions, selectedColor]);
 
     const filteredRecords = useMemo(() => {
-        if (!orderId) return [];
-        return syntheticPoRecords.filter(r => r.orderId === orderId);
-    }, [orderId, syntheticPoRecords]);
+        if (!selectedCc) return [];
+
+        const filteredOrderIds = new Set(
+            orders
+                .filter(o => o.ocn === selectedCc && (!selectedColor || o.color === selectedColor))
+                .map(o => o.id)
+        );
+
+        return syntheticPoRecords.filter(r => filteredOrderIds.has(r.orderId));
+    }, [selectedCc, selectedColor, syntheticPoRecords, orders]);
 
 
     if (!isScheduleLoaded) {
         return <div className="flex items-center justify-center h-full">Loading data...</div>;
-    }
-
-    if (!order) {
-        return <div className="flex items-center justify-center h-full">Order not found. Please go back and select an order.</div>;
     }
 
     return (
@@ -158,19 +211,38 @@ function PoStatusPageContent() {
                     <div>
                         <h1 className="text-2xl font-bold">PO Status</h1>
                         <p className="text-muted-foreground">
-                            Order ID: {order.id}
+                            View released purchase orders for forecasted styles.
                         </p>
                     </div>
-                     <Button variant="outline" asChild>
-                        <Link href="/orders">
-                            <ArrowLeft className="mr-2 h-4 w-4" />
-                            Back to Orders
-                        </Link>
-                    </Button>
+                     <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                           <Label htmlFor="cc-select">CC No.</Label>
+                           <Select value={selectedCc} onValueChange={setSelectedCc}>
+                             <SelectTrigger id="cc-select" className="w-[180px]">
+                               <SelectValue placeholder="Select CC" />
+                             </SelectTrigger>
+                             <SelectContent>
+                               {ccOptions.map(cc => <SelectItem key={cc} value={cc}>{cc}</SelectItem>)}
+                             </SelectContent>
+                           </Select>
+                        </div>
+                         <div className="flex items-center gap-2">
+                           <Label htmlFor="color-select">Color</Label>
+                           <Select value={selectedColor} onValueChange={setSelectedColor} disabled={!selectedCc}>
+                             <SelectTrigger id="color-select" className="w-[180px]">
+                               <SelectValue placeholder="All Colors" />
+                             </SelectTrigger>
+                             <SelectContent>
+                               <SelectItem value="">All Colors</SelectItem>
+                               {colorOptions.map(color => <SelectItem key={color} value={color}>{color}</SelectItem>)}
+                             </SelectContent>
+                           </Select>
+                        </div>
+                    </div>
                 </div>
                 
                 <div className="border rounded-lg overflow-auto flex-1">
-                   <PoDetailsTable records={filteredRecords} />
+                   <PoDetailsTable records={filteredRecords} orders={orders} />
                 </div>
             </main>
         </div>
