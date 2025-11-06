@@ -1074,9 +1074,10 @@ const ForecastedOrderRow = forwardRef<
     onDemandDetailsOpen: (order: Order) => void;
     isHotExpanded: boolean;
     isBlockExpanded: boolean;
+    isEffExpanded: boolean;
     children?: React.ReactNode;
   }
->(({ order, onRampUpSave, onBomChange, onSetSewingLines, onDemandDetailsOpen, isHotExpanded, isBlockExpanded, children, ...props }, ref) => {
+>(({ order, onRampUpSave, onBomChange, onSetSewingLines, onDemandDetailsOpen, isHotExpanded, isBlockExpanded, isEffExpanded, children, ...props }, ref) => {
   const [isTnaOpen, setIsTnaOpen] = useState(false);
   const [activeView, setActiveView] = useState<'tna' | 'ob' | 'bom' | 'ramp-up'>('tna');
   
@@ -1244,6 +1245,18 @@ const ForecastedOrderRow = forwardRef<
 
       <TableCell className="text-right font-bold">{order.shipped?.total.toLocaleString() || '-'}</TableCell>                          
       
+      <TableCell>{order.budgetedEfficiency}%</TableCell>
+      
+      {isEffExpanded && (
+        <>
+            <TableCell>98%</TableCell>
+            <TableCell>95%</TableCell>
+        </>
+      )}
+       <TableCell>
+          <span className="font-medium">92%</span>
+      </TableCell>
+
       {isHotExpanded && (
         <>
             <TableCell>98.1%</TableCell>
@@ -1338,6 +1351,7 @@ export default function OrdersPage() {
   const [demandDetailsOrder, setDemandDetailsOrder] = useState<Order | null>(null);
   const [isHotExpanded, setIsHotExpanded] = useState(false);
   const [isBlockExpanded, setIsBlockExpanded] = useState(false);
+  const [isEffExpanded, setIsEffExpanded] = useState(false);
 
   const handleGenerateTna = (order: Order) => {
     const numLines = sewingLines[order.id] || 1;
@@ -1419,6 +1433,22 @@ export default function OrdersPage() {
                         <TableHead className="text-right">Cut Order</TableHead>
                         <TableHead className="text-right">Produced</TableHead>
                         <TableHead className="text-right">Shipped</TableHead>
+                        <TableHead>Target Eff.</TableHead>
+                        {isEffExpanded && (
+                            <>
+                                <TableHead>W-Eff%</TableHead>
+                                <TableHead>4W-Eff%</TableHead>
+                            </>
+                        )}
+                        <TableHead 
+                            className="cursor-pointer"
+                            onClick={() => setIsEffExpanded(!isEffExpanded)}
+                        >
+                            <div className="flex items-center gap-2">
+                               {isEffExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronsRight className="h-4 w-4" />}
+                               YTD Eff%
+                            </div>
+                        </TableHead>
                         {isHotExpanded && (
                             <>
                                 <TableHead>W-HOT%</TableHead>
@@ -1463,6 +1493,7 @@ export default function OrdersPage() {
                           onDemandDetailsOpen={setDemandDetailsOrder}
                           isHotExpanded={isHotExpanded}
                           isBlockExpanded={isBlockExpanded}
+                          isEffExpanded={isEffExpanded}
                         />
                       ))}
                     </TableBody>
