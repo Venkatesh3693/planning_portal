@@ -1072,9 +1072,10 @@ const ForecastedOrderRow = forwardRef<
     onBomChange: (orderId: string, componentName: string, field: keyof BomItem, value: any) => void;
     onSetSewingLines: (orderId: string, lines: number) => void;
     onDemandDetailsOpen: (order: Order) => void;
+    isHotExpanded: boolean;
     children?: React.ReactNode;
   }
->(({ order, onRampUpSave, onBomChange, onSetSewingLines, onDemandDetailsOpen, children, ...props }, ref) => {
+>(({ order, onRampUpSave, onBomChange, onSetSewingLines, onDemandDetailsOpen, isHotExpanded, children, ...props }, ref) => {
   const [isTnaOpen, setIsTnaOpen] = useState(false);
   const [activeView, setActiveView] = useState<'tna' | 'ob' | 'bom' | 'ramp-up'>('tna');
   
@@ -1242,6 +1243,12 @@ const ForecastedOrderRow = forwardRef<
 
       <TableCell className="text-right font-bold">{order.shipped?.total.toLocaleString() || '-'}</TableCell>                          
       
+      {isHotExpanded && (
+        <>
+            <TableCell>98.1%</TableCell>
+            <TableCell>96.5%</TableCell>
+        </>
+      )}
        <TableCell>
         <Dialog>
             <DialogTrigger asChild>
@@ -1257,7 +1264,7 @@ const ForecastedOrderRow = forwardRef<
       </TableCell>
 
        <TableCell>
-          <span className="font-medium text-destructive cursor-pointer hover:underline">2.5%</span>
+          <span className="font-medium text-destructive">2.5%</span>
       </TableCell>
       
       <TableCell>
@@ -1322,6 +1329,7 @@ export default function OrdersPage() {
   } = useSchedule();
 
   const [demandDetailsOrder, setDemandDetailsOrder] = useState<Order | null>(null);
+  const [isHotExpanded, setIsHotExpanded] = useState(false);
 
   const handleGenerateTna = (order: Order) => {
     const numLines = sewingLines[order.id] || 1;
@@ -1403,7 +1411,21 @@ export default function OrdersPage() {
                         <TableHead className="text-right">Cut Order</TableHead>
                         <TableHead className="text-right">Produced</TableHead>
                         <TableHead className="text-right">Shipped</TableHead>
-                        <TableHead>HOT</TableHead>
+                        {isHotExpanded && (
+                            <>
+                                <TableHead>W-HOT%</TableHead>
+                                <TableHead>4W-HOT%</TableHead>
+                            </>
+                        )}
+                        <TableHead 
+                            className="cursor-pointer"
+                            onClick={() => setIsHotExpanded(!isHotExpanded)}
+                        >
+                            <div className="flex items-center gap-2">
+                               {isHotExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronsRight className="h-4 w-4" />}
+                               YTD HOT%
+                            </div>
+                        </TableHead>
                         <TableHead>Blocking Rate</TableHead>
                         <TableHead>Alerts</TableHead>
                       </TableRow>
@@ -1417,6 +1439,7 @@ export default function OrdersPage() {
                           onBomChange={updateOrderBom}
                           onSetSewingLines={setSewingLines}
                           onDemandDetailsOpen={setDemandDetailsOrder}
+                          isHotExpanded={isHotExpanded}
                         />
                       ))}
                     </TableBody>
