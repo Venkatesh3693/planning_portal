@@ -27,6 +27,8 @@ import { Badge } from '@/components/ui/badge';
 
 const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], orders: Order[] }) => {
     const [isExpanded, setIsExpanded] = useState(false);
+    const [isDfqcExpanded, setIsDfqcExpanded] = useState(false);
+
 
     const poInspectionStatuses = useMemo(() => {
         const statuses = ["TBD", "Under Inspection", "Passed", "Failed"];
@@ -47,7 +49,7 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
             case "Failed":
                 return { variant: "destructive" };
             case "Under Inspection":
-                return { variant: "secondary" };
+                return { variant: "default", className: "bg-yellow-500 hover:bg-yellow-600" };
             default: // TBD
                 return { variant: "outline" };
         }
@@ -107,7 +109,22 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
                            PO Qty
                         </div>
                     </TableHead>
-                    <TableHead>DFQC Inspection</TableHead>
+                    <TableHead
+                        className="cursor-pointer"
+                        onClick={() => setIsDfqcExpanded(!isDfqcExpanded)}
+                    >
+                         <div className="flex items-center gap-2">
+                           {isDfqcExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronsRight className="h-4 w-4" />}
+                           DFQC Inspection
+                        </div>
+                    </TableHead>
+                    {isDfqcExpanded && (
+                        <>
+                            <TableHead>DFQC Name</TableHead>
+                            <TableHead>DFQC receive Date time</TableHead>
+                            <TableHead>DFQC inspection duration</TableHead>
+                        </>
+                    )}
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -135,6 +152,13 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
                             <TableCell>
                                 <Badge variant={variant} className={className}>{inspectionStatus}</Badge>
                             </TableCell>
+                             {isDfqcExpanded && (
+                                <>
+                                    <TableCell>John Doe</TableCell>
+                                    <TableCell>2024-07-29 10:00</TableCell>
+                                    <TableCell>45 mins</TableCell>
+                                </>
+                            )}
                         </TableRow>
                     );
                 })}
@@ -152,7 +176,7 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
                             {totals.grandTotal.toLocaleString()}
                         </div>
                     </TableCell>
-                    <TableCell></TableCell>
+                    <TableCell colSpan={isDfqcExpanded ? 4 : 1}></TableCell>
                 </TableRow>
             </TableFooter>
         </Table>
