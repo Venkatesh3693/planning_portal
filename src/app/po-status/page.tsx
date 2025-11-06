@@ -22,10 +22,37 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 
 
 const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], orders: Order[] }) => {
     const [isExpanded, setIsExpanded] = useState(false);
+
+    const poInspectionStatuses = useMemo(() => {
+        const statuses = ["Yet to be inspected (TBD)", "Under Inspection", "Passed", "Failed"];
+        const statusMap = new Map<string, string>();
+        records.forEach(record => {
+            const key = `${record.poNumber}-${record.destination}`;
+            // Simple hash to get a pseudo-random status
+            const hash = key.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+            statusMap.set(key, statuses[hash % statuses.length]);
+        });
+        return statusMap;
+    }, [records]);
+
+    const getStatusVariant = (status: string) => {
+        switch (status) {
+            case "Passed":
+                return "default";
+            case "Failed":
+                return "destructive";
+            case "Under Inspection":
+                return "secondary";
+            default:
+                return "outline";
+        }
+    };
+
 
     const totals = useMemo(() => {
         const sizeTotals = SIZES.reduce((acc, size) => {
@@ -80,13 +107,16 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
                            PO Qty
                         </div>
                     </TableHead>
+                    <TableHead>DFQC Inspection</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
                 {records.map(record => {
                     const orderInfo = getOrderInfo(record.orderId);
+                    const key = `${record.poNumber}-${record.destination}`;
+                    const inspectionStatus = poInspectionStatuses.get(key) || "Yet to be inspected (TBD)";
                     return (
-                        <TableRow key={`${record.poNumber}-${record.destination}`}>
+                        <TableRow key={key}>
                             <TableCell>{orderInfo?.ocn || 'N/A'}</TableCell>
                             <TableCell>{orderInfo?.color || 'N/A'}</TableCell>
                             <TableCell className="font-medium whitespace-nowrap">{record.poNumber}</TableCell>
@@ -100,6 +130,9 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
                             ))}
                             <TableCell className="text-right font-bold">
                                 {(record.quantities.total || 0).toLocaleString()}
+                            </TableCell>
+                            <TableCell>
+                                <Badge variant={getStatusVariant(inspectionStatus)}>{inspectionStatus}</Badge>
                             </TableCell>
                         </TableRow>
                     );
@@ -118,6 +151,7 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
                             {totals.grandTotal.toLocaleString()}
                         </div>
                     </TableCell>
+                    <TableCell></TableCell>
                 </TableRow>
             </TableFooter>
         </Table>
