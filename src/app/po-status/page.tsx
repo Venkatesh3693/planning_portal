@@ -119,6 +119,7 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
                     <TableHead>Destination</TableHead>
                     <TableHead>Snapshot Week</TableHead>
                     <TableHead>EHD Week</TableHead>
+                    <TableHead>CHD Week</TableHead>
                     {isExpanded && SIZES.map(size => (
                         <TableHead key={size} className="text-right">{size}</TableHead>
                     ))}
@@ -166,6 +167,7 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
                             <TableCell>{record.destination}</TableCell>
                             <TableCell>{record.issueWeek}</TableCell>
                             <TableCell>{record.originalEhdWeek}</TableCell>
+                            <TableCell>{record.originalEhdWeek}</TableCell>
                             {isExpanded && SIZES.map(size => (
                                  <TableCell key={size} className="text-right">
                                     {(record.quantities[size] || 0) > 0 ? (record.quantities[size] || 0).toLocaleString() : '-'}
@@ -193,7 +195,7 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
             </TableBody>
             <TableFooter>
                 <TableRow>
-                    <TableCell colSpan={6} className="font-bold text-right">Total</TableCell>
+                    <TableCell colSpan={7} className="font-bold text-right">Total</TableCell>
                     {isExpanded && SIZES.map(size => (
                         <TableCell key={`total-${size}`} className="text-right font-bold">
                             {(totals.sizeTotals[size] || 0).toLocaleString()}
