@@ -54,6 +54,28 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
                 return { variant: "outline" };
         }
     };
+    
+    const shipStatuses = useMemo(() => {
+        const statuses = ["On-time", "Delay", "Not Shipped"];
+        const statusMap = new Map<string, string>();
+        records.forEach(record => {
+            const key = `${record.poNumber}-${record.destination}`;
+            const hash = key.split('').reduce((acc, char) => acc + char.charCodeAt(0) + 1, 0); // Offset hash
+            statusMap.set(key, statuses[hash % statuses.length]);
+        });
+        return statusMap;
+    }, [records]);
+
+    const getShipStatusVariant = (status: string) => {
+        switch (status) {
+            case "On-time":
+                return { variant: "default", className: "bg-green-600 hover:bg-green-700" };
+            case "Delay":
+                return { variant: "destructive" };
+            default: // Not Shipped
+                return { variant: "outline" };
+        }
+    };
 
 
     const totals = useMemo(() => {
@@ -125,6 +147,7 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
                             <TableHead>DFQC inspection duration</TableHead>
                         </>
                     )}
+                    <TableHead>Ship Status</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -133,6 +156,8 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
                     const key = `${record.poNumber}-${record.destination}`;
                     const inspectionStatus = poInspectionStatuses.get(key) || "TBD";
                     const { variant, className } = getStatusVariant(inspectionStatus);
+                    const shippingStatus = shipStatuses.get(key) || "Not Shipped";
+                    const shipStatusStyle = getShipStatusVariant(shippingStatus);
                     return (
                         <TableRow key={key}>
                             <TableCell>{orderInfo?.ocn || 'N/A'}</TableCell>
@@ -159,6 +184,9 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
                                     <TableCell>45 mins</TableCell>
                                 </>
                             )}
+                            <TableCell>
+                                <Badge variant={shipStatusStyle.variant} className={shipStatusStyle.className}>{shippingStatus}</Badge>
+                            </TableCell>
                         </TableRow>
                     );
                 })}
@@ -176,7 +204,7 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
                             {totals.grandTotal.toLocaleString()}
                         </div>
                     </TableCell>
-                    <TableCell colSpan={isDfqcExpanded ? 4 : 1}></TableCell>
+                    <TableCell colSpan={isDfqcExpanded ? 5 : 2}></TableCell>
                 </TableRow>
             </TableFooter>
         </Table>
