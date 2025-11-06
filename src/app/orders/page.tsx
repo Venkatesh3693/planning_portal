@@ -20,6 +20,14 @@ import {
   DialogTrigger,
   DialogClose,
 } from '@/components/ui/dialog';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
 import { PROCESSES, WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE, MACHINE_NAME_ABBREVIATIONS, SIZES } from '@/lib/data';
@@ -1076,6 +1084,23 @@ const ForecastedOrderRow = forwardRef<
     }, 0);
   }, [order]);
 
+  // Dummy alert data
+  const alerts = useMemo(() => {
+    const hash = order.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const critical = (hash % 3); // 0, 1, or 2
+    const notCritical = (hash % 4) + 1; // 1, 2, 3, or 4
+    return {
+      critical: {
+        count: critical,
+        items: Array.from({ length: critical }, (_, i) => `Critical alert for ${order.ocn} #${i + 1}`)
+      },
+      notCritical: {
+        count: notCritical,
+        items: Array.from({ length: notCritical }, (_, i) => `Non-critical issue for ${order.ocn} #${i + 1}`)
+      },
+    };
+  }, [order.id, order.ocn]);
+
   
   return (
     <TableRow ref={ref} {...props}>
@@ -1189,7 +1214,46 @@ const ForecastedOrderRow = forwardRef<
 
       <TableCell className="text-right font-bold">{order.shipped?.total.toLocaleString() || '-'}</TableCell>                          
       
-      <TableCell></TableCell>
+      <TableCell>
+        <Sheet>
+          <SheetTrigger asChild>
+            <div className="flex items-center gap-2 cursor-pointer text-sm">
+                {alerts.critical.count > 0 && <Badge variant="destructive">{alerts.critical.count} Crit</Badge>}
+                {alerts.notCritical.count > 0 && <Badge variant="secondary">{alerts.notCritical.count} Not Crit</Badge>}
+            </div>
+          </SheetTrigger>
+          <SheetContent>
+            <SheetHeader>
+              <SheetTitle>Alerts for {order.ocn} - {order.color}</SheetTitle>
+              <SheetDescription>
+                Review critical and non-critical issues for this order.
+              </SheetDescription>
+            </SheetHeader>
+            <div className="py-4 space-y-6">
+                {alerts.critical.count > 0 && (
+                    <div>
+                        <h3 className="text-lg font-semibold text-destructive mb-2">Critical Alerts</h3>
+                        <ul className="space-y-2">
+                            {alerts.critical.items.map((alert, i) => (
+                                <li key={`crit-${i}`} className="p-3 bg-destructive/10 border-l-4 border-destructive rounded-r-md">{alert}</li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+                {alerts.notCritical.count > 0 && (
+                    <div>
+                        <h3 className="text-lg font-semibold text-yellow-600 mb-2">Not Critical Alerts</h3>
+                         <ul className="space-y-2">
+                            {alerts.notCritical.items.map((alert, i) => (
+                                <li key={`noncrit-${i}`} className="p-3 bg-muted rounded-md">{alert}</li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+            </div>
+          </SheetContent>
+        </Sheet>
+      </TableCell>
     </TableRow>
   );
 });
