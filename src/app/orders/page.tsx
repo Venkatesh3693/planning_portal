@@ -1436,8 +1436,8 @@ export default function OrdersPage() {
                         </TableHead>
                         {isBlockExpanded && (
                             <>
-                                <TableHead>W-Block%</TableHead>
-                                <TableHead>4W-Block%</TableHead>
+                                <TableHead>W-BR%</TableHead>
+                                <TableHead>4W-BR%</TableHead>
                             </>
                         )}
                         <TableHead
@@ -1446,7 +1446,7 @@ export default function OrdersPage() {
                         >
                             <div className="flex items-center gap-2">
                                {isBlockExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronsRight className="h-4 w-4" />}
-                               YTD-Block%
+                               YTD-BR%
                             </div>
                         </TableHead>
                         <TableHead>Alerts</TableHead>
