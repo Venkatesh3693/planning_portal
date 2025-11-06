@@ -1278,8 +1278,8 @@ const ForecastedOrderRow = forwardRef<
         <Sheet>
           <SheetTrigger asChild>
             <div className="flex items-center gap-2 cursor-pointer text-sm">
-                {alerts.critical.count > 0 && <Badge variant="destructive">{alerts.critical.count} Crit</Badge>}
-                {alerts.notCritical.count > 0 && <Badge variant="secondary">{alerts.notCritical.count} Not Crit</Badge>}
+                {alerts.critical.count > 0 && <Badge variant="destructive">{alerts.critical.count}</Badge>}
+                {alerts.notCritical.count > 0 && <Badge variant="secondary" className="bg-yellow-400 text-yellow-900">{alerts.notCritical.count}</Badge>}
             </div>
           </SheetTrigger>
           <SheetContent>
