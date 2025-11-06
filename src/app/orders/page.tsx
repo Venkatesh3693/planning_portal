@@ -1438,7 +1438,15 @@ export default function OrdersPage() {
                                 <TableHead>4W-Block%</TableHead>
                             </>
                         )}
-                        <TableHead>YTD-Block%</TableHead>
+                        <TableHead
+                            className="cursor-pointer"
+                            onClick={() => setIsHotExpanded(!isHotExpanded)}
+                        >
+                            <div className="flex items-center gap-2">
+                               {isHotExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronsRight className="h-4 w-4" />}
+                               YTD-Block%
+                            </div>
+                        </TableHead>
                         <TableHead>Alerts</TableHead>
                       </TableRow>
                     </TableHeader>
