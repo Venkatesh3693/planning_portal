@@ -29,7 +29,7 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
     const [isExpanded, setIsExpanded] = useState(false);
 
     const poInspectionStatuses = useMemo(() => {
-        const statuses = ["Yet to be inspected (TBD)", "Under Inspection", "Passed", "Failed"];
+        const statuses = ["TBD", "Under Inspection", "Passed", "Failed"];
         const statusMap = new Map<string, string>();
         records.forEach(record => {
             const key = `${record.poNumber}-${record.destination}`;
@@ -40,16 +40,16 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
         return statusMap;
     }, [records]);
 
-    const getStatusVariant = (status: string) => {
+    const getStatusVariant = (status: string): { variant: "default" | "secondary" | "destructive" | "outline", className?: string } => {
         switch (status) {
             case "Passed":
-                return "default";
+                return { variant: "default", className: "bg-green-600 hover:bg-green-700" };
             case "Failed":
-                return "destructive";
+                return { variant: "destructive" };
             case "Under Inspection":
-                return "secondary";
-            default:
-                return "outline";
+                return { variant: "secondary" };
+            default: // TBD
+                return { variant: "outline" };
         }
     };
 
@@ -114,7 +114,8 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
                 {records.map(record => {
                     const orderInfo = getOrderInfo(record.orderId);
                     const key = `${record.poNumber}-${record.destination}`;
-                    const inspectionStatus = poInspectionStatuses.get(key) || "Yet to be inspected (TBD)";
+                    const inspectionStatus = poInspectionStatuses.get(key) || "TBD";
+                    const { variant, className } = getStatusVariant(inspectionStatus);
                     return (
                         <TableRow key={key}>
                             <TableCell>{orderInfo?.ocn || 'N/A'}</TableCell>
@@ -132,7 +133,7 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
                                 {(record.quantities.total || 0).toLocaleString()}
                             </TableCell>
                             <TableCell>
-                                <Badge variant={getStatusVariant(inspectionStatus)}>{inspectionStatus}</Badge>
+                                <Badge variant={variant} className={className}>{inspectionStatus}</Badge>
                             </TableCell>
                         </TableRow>
                     );
