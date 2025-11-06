@@ -1255,6 +1255,10 @@ const ForecastedOrderRow = forwardRef<
             </DialogContent>
         </Dialog>
       </TableCell>
+
+       <TableCell>
+          <span className="font-medium text-destructive cursor-pointer hover:underline">2.5%</span>
+      </TableCell>
       
       <TableCell>
         <Sheet>
@@ -1400,6 +1404,7 @@ export default function OrdersPage() {
                         <TableHead className="text-right">Produced</TableHead>
                         <TableHead className="text-right">Shipped</TableHead>
                         <TableHead>HOT</TableHead>
+                        <TableHead>Blocking Rate</TableHead>
                         <TableHead>Alerts</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1432,4 +1437,3 @@ export default function OrdersPage() {
     </div>
   );
 }
-
