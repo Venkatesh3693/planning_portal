@@ -1073,9 +1073,10 @@ const ForecastedOrderRow = forwardRef<
     onSetSewingLines: (orderId: string, lines: number) => void;
     onDemandDetailsOpen: (order: Order) => void;
     isHotExpanded: boolean;
+    isBlockExpanded: boolean;
     children?: React.ReactNode;
   }
->(({ order, onRampUpSave, onBomChange, onSetSewingLines, onDemandDetailsOpen, isHotExpanded, children, ...props }, ref) => {
+>(({ order, onRampUpSave, onBomChange, onSetSewingLines, onDemandDetailsOpen, isHotExpanded, isBlockExpanded, children, ...props }, ref) => {
   const [isTnaOpen, setIsTnaOpen] = useState(false);
   const [activeView, setActiveView] = useState<'tna' | 'ob' | 'bom' | 'ramp-up'>('tna');
   
@@ -1263,7 +1264,7 @@ const ForecastedOrderRow = forwardRef<
         </Dialog>
       </TableCell>
 
-      {isHotExpanded && (
+      {isBlockExpanded && (
         <>
             <TableCell>2.1%</TableCell>
             <TableCell>3.5%</TableCell>
@@ -1336,6 +1337,7 @@ export default function OrdersPage() {
 
   const [demandDetailsOrder, setDemandDetailsOrder] = useState<Order | null>(null);
   const [isHotExpanded, setIsHotExpanded] = useState(false);
+  const [isBlockExpanded, setIsBlockExpanded] = useState(false);
 
   const handleGenerateTna = (order: Order) => {
     const numLines = sewingLines[order.id] || 1;
@@ -1432,7 +1434,7 @@ export default function OrdersPage() {
                                YTD HOT%
                             </div>
                         </TableHead>
-                        {isHotExpanded && (
+                        {isBlockExpanded && (
                             <>
                                 <TableHead>W-Block%</TableHead>
                                 <TableHead>4W-Block%</TableHead>
@@ -1440,10 +1442,10 @@ export default function OrdersPage() {
                         )}
                         <TableHead
                             className="cursor-pointer"
-                            onClick={() => setIsHotExpanded(!isHotExpanded)}
+                            onClick={() => setIsBlockExpanded(!isBlockExpanded)}
                         >
                             <div className="flex items-center gap-2">
-                               {isHotExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronsRight className="h-4 w-4" />}
+                               {isBlockExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronsRight className="h-4 w-4" />}
                                YTD-Block%
                             </div>
                         </TableHead>
@@ -1460,6 +1462,7 @@ export default function OrdersPage() {
                           onSetSewingLines={setSewingLines}
                           onDemandDetailsOpen={setDemandDetailsOrder}
                           isHotExpanded={isHotExpanded}
+                          isBlockExpanded={isBlockExpanded}
                         />
                       ))}
                     </TableBody>
