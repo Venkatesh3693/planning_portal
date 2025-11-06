@@ -1036,6 +1036,34 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
 });
 OrderRow.displayName = 'OrderRow';
 
+const WeeklyHotBreakdown = () => {
+    // Dummy data for the weekly breakdown
+    const weeklyData = [
+        { week: 40, hot: 92.5 },
+        { week: 41, hot: 95.1 },
+        { week: 42, hot: 98.3 },
+        { week: 43, hot: 97.2 },
+    ];
+    return (
+        <Table>
+            <TableHeader>
+                <TableRow>
+                    <TableHead>Week</TableHead>
+                    <TableHead className="text-right">HOT %</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {weeklyData.map(d => (
+                    <TableRow key={d.week}>
+                        <TableCell>Week {d.week}</TableCell>
+                        <TableCell className="text-right font-medium">{d.hot.toFixed(1)}%</TableCell>
+                    </TableRow>
+                ))}
+            </TableBody>
+        </Table>
+    )
+}
+
 const ForecastedOrderRow = forwardRef<
   HTMLTableRowElement,
   {
@@ -1214,6 +1242,20 @@ const ForecastedOrderRow = forwardRef<
 
       <TableCell className="text-right font-bold">{order.shipped?.total.toLocaleString() || '-'}</TableCell>                          
       
+       <TableCell>
+        <Dialog>
+            <DialogTrigger asChild>
+                <span className="font-medium text-primary cursor-pointer hover:underline">95.5%</span>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Weekly HOT% for {order.id}</DialogTitle>
+                </DialogHeader>
+                <WeeklyHotBreakdown />
+            </DialogContent>
+        </Dialog>
+      </TableCell>
+      
       <TableCell>
         <Sheet>
           <SheetTrigger asChild>
@@ -1357,6 +1399,7 @@ export default function OrdersPage() {
                         <TableHead className="text-right">Cut Order</TableHead>
                         <TableHead className="text-right">Produced</TableHead>
                         <TableHead className="text-right">Shipped</TableHead>
+                        <TableHead>HOT</TableHead>
                         <TableHead>Alerts</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1389,3 +1432,4 @@ export default function OrdersPage() {
     </div>
   );
 }
+
