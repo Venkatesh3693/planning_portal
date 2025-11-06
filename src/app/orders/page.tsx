@@ -1263,6 +1263,12 @@ const ForecastedOrderRow = forwardRef<
         </Dialog>
       </TableCell>
 
+      {isHotExpanded && (
+        <>
+            <TableCell>2.1%</TableCell>
+            <TableCell>3.5%</TableCell>
+        </>
+      )}
        <TableCell>
           <span className="font-medium text-destructive">2.5%</span>
       </TableCell>
@@ -1426,7 +1432,13 @@ export default function OrdersPage() {
                                YTD HOT%
                             </div>
                         </TableHead>
-                        <TableHead>Blocking Rate</TableHead>
+                        {isHotExpanded && (
+                            <>
+                                <TableHead>W-Block%</TableHead>
+                                <TableHead>4W-Block%</TableHead>
+                            </>
+                        )}
+                        <TableHead>YTD-Block%</TableHead>
                         <TableHead>Alerts</TableHead>
                       </TableRow>
                     </TableHeader>
