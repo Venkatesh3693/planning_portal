@@ -83,6 +83,32 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
         }
     };
 
+    const initialProductionStatuses = useMemo(() => {
+        const statuses = ["Produced", "CO Issued", "Not Planned"];
+        const statusMap: Record<string, string> = {};
+        records.forEach(record => {
+            const key = `${record.poNumber}-${record.destination}`;
+            const hash = key.split('').reduce((acc, char) => acc + char.charCodeAt(0) + 2, 0); // Offset hash
+            statusMap[key] = statuses[hash % statuses.length];
+        });
+        return statusMap;
+    }, [records]);
+
+    useEffect(() => {
+        setProductionStatuses(initialProductionStatuses);
+    }, [initialProductionStatuses]);
+
+    const getProductionStatusVariant = (status: string): { variant: "default" | "secondary" | "destructive" | "outline", className?: string } => {
+        switch (status) {
+            case "Produced":
+                return { variant: "default", className: "bg-green-600 hover:bg-green-700" };
+            case "CO Issued":
+                return { variant: "default", className: "bg-yellow-500 hover:bg-yellow-600" };
+            default: // Not Planned
+                return { variant: "outline" };
+        }
+    };
+
 
     const totals = useMemo(() => {
         const sizeTotals = SIZES.reduce((acc, size) => {
@@ -167,6 +193,7 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
                     const shippingStatus = shipStatuses.get(key) || "Not Shipped";
                     const shipStatusStyle = getShipStatusVariant(shippingStatus);
                     const currentProdStatus = productionStatuses[key] || "Not Planned";
+                    const prodStatusStyle = getProductionStatusVariant(currentProdStatus);
                     return (
                         <TableRow key={key}>
                             <TableCell>{orderInfo?.ocn || 'N/A'}</TableCell>
@@ -185,16 +212,9 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
                                 {(record.quantities.total || 0).toLocaleString()}
                             </TableCell>
                             <TableCell>
-                                <Select value={currentProdStatus} onValueChange={(status) => handleProductionStatusChange(key, status)}>
-                                    <SelectTrigger className="w-[130px]">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="Produced">Produced</SelectItem>
-                                        <SelectItem value="CO Issued">CO Issued</SelectItem>
-                                        <SelectItem value="Not Planned">Not Planned</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                                <Badge variant={prodStatusStyle.variant} className={prodStatusStyle.className}>
+                                    {currentProdStatus}
+                                </Badge>
                             </TableCell>
                             <TableCell>
                                 <Badge variant={variant} className={className}>{inspectionStatus}</Badge>
