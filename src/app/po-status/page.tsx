@@ -29,6 +29,12 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
     const [isExpanded, setIsExpanded] = useState(false);
     const [isDfqcExpanded, setIsDfqcExpanded] = useState(false);
 
+    const [productionStatuses, setProductionStatuses] = useState<Record<string, string>>({});
+
+    const handleProductionStatusChange = (key: string, status: string) => {
+        setProductionStatuses(prev => ({ ...prev, [key]: status }));
+    };
+
 
     const poInspectionStatuses = useMemo(() => {
         const statuses = ["TBD", "Under Inspection", "Passed", "Failed"];
@@ -132,6 +138,7 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
                            PO Qty
                         </div>
                     </TableHead>
+                    <TableHead>Production</TableHead>
                     <TableHead
                         className="cursor-pointer"
                         onClick={() => setIsDfqcExpanded(!isDfqcExpanded)}
@@ -159,6 +166,7 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
                     const { variant, className } = getStatusVariant(inspectionStatus);
                     const shippingStatus = shipStatuses.get(key) || "Not Shipped";
                     const shipStatusStyle = getShipStatusVariant(shippingStatus);
+                    const currentProdStatus = productionStatuses[key] || "Not Planned";
                     return (
                         <TableRow key={key}>
                             <TableCell>{orderInfo?.ocn || 'N/A'}</TableCell>
@@ -175,6 +183,18 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
                             ))}
                             <TableCell className="text-right font-bold">
                                 {(record.quantities.total || 0).toLocaleString()}
+                            </TableCell>
+                            <TableCell>
+                                <Select value={currentProdStatus} onValueChange={(status) => handleProductionStatusChange(key, status)}>
+                                    <SelectTrigger className="w-[130px]">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Produced">Produced</SelectItem>
+                                        <SelectItem value="CO Issued">CO Issued</SelectItem>
+                                        <SelectItem value="Not Planned">Not Planned</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </TableCell>
                             <TableCell>
                                 <Badge variant={variant} className={className}>{inspectionStatus}</Badge>
@@ -206,7 +226,7 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
                             {totals.grandTotal.toLocaleString()}
                         </div>
                     </TableCell>
-                    <TableCell colSpan={isDfqcExpanded ? 5 : 2}></TableCell>
+                    <TableCell colSpan={isDfqcExpanded ? 6 : 3}></TableCell>
                 </TableRow>
             </TableFooter>
         </Table>
@@ -345,3 +365,5 @@ export default function PoStatusPage() {
         </Suspense>
     );
 }
+
+    
