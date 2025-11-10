@@ -988,7 +988,6 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
           </Dialog>
         </TableCell>
         <TableCell>{order.buyer}</TableCell>
-        <TableCell>{order.orderType}</TableCell>
         <TableCell>{order.budgetedEfficiency}%</TableCell>
         <TableCell>
           <TooltipProvider delayDuration={100}>
@@ -1283,8 +1282,13 @@ const ForecastedOrderRow = forwardRef<
             <TableCell>3.5%</TableCell>
         </>
       )}
-       <TableCell>
-          <span className="font-medium text-destructive">2.5%</span>
+       <TableCell
+        className="cursor-pointer"
+        onClick={() => {
+          /* Logic to expand/collapse BR% will be handled in parent */
+        }}
+      >
+        <span className="font-medium text-destructive">2.5%</span>
       </TableCell>
       
       <TableCell>
@@ -1388,7 +1392,6 @@ export default function OrdersPage() {
                       <TableRow>
                         <TableHead>CC-Color</TableHead>
                         <TableHead>Buyer</TableHead>
-                        <TableHead>Order Type</TableHead>
                         <TableHead>Budgeted Eff.</TableHead>
                         <TableHead>Avg. Eff.</TableHead>
                         <TableHead>Days to Budget</TableHead>
