@@ -921,6 +921,19 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
   const handleRecalculate = () => {
     onTnaGenerate(order, processBatchSize);
   };
+  
+  const fileStatusOptions = ['Pending', 'On-time', 'Delay'];
+  const fileStatus = useMemo(() => {
+      // Simple pseudo-random logic based on order ID
+      const hash = order.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+      return fileStatusOptions[hash % fileStatusOptions.length];
+  }, [order.id]);
+  
+  const fileStatusVariant = useMemo(() => {
+      if (fileStatus === 'On-time') return 'default';
+      if (fileStatus === 'Delay') return 'destructive';
+      return 'secondary';
+  }, [fileStatus]);
 
 
   return (
@@ -988,6 +1001,15 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
           </Dialog>
         </TableCell>
         <TableCell>{order.buyer}</TableCell>
+        <TableCell>
+          <ColorPicker 
+            color={order.displayColor}
+            onColorChange={(newColor) => onColorChange(order.id, newColor)}
+          />
+        </TableCell>
+        <TableCell>
+          <Badge variant={fileStatusVariant}>{fileStatus}</Badge>
+        </TableCell>
         <TableCell>{order.budgetedEfficiency}%</TableCell>
         <TableCell>
           <TooltipProvider delayDuration={100}>
@@ -1014,12 +1036,6 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
            <Badge variant={isBudgetUnreachable ? 'destructive' : 'secondary'}>
               {isBudgetUnreachable ? '∞' : (typeof daysToBudget === 'number' ? `${daysToBudget} days` : daysToBudget)}
            </Badge>
-        </TableCell>
-        <TableCell>
-          <ColorPicker 
-            color={order.displayColor}
-            onColorChange={(newColor) => onColorChange(order.id, newColor)}
-          />
         </TableCell>
         <TableCell className="text-right">{order.quantity}</TableCell>
         <TableCell>{order.dueDate ? format(new Date(order.dueDate), 'PPP') : '-'}</TableCell>
@@ -1392,10 +1408,11 @@ export default function OrdersPage() {
                       <TableRow>
                         <TableHead>CC-Color</TableHead>
                         <TableHead>Buyer</TableHead>
+                        <TableHead>Display Color</TableHead>
+                        <TableHead>File Status</TableHead>
                         <TableHead>Budgeted Eff.</TableHead>
                         <TableHead>Avg. Eff.</TableHead>
                         <TableHead>Days to Budget</TableHead>
-                        <TableHead>Display Color</TableHead>
                         <TableHead className="text-right">Quantity</TableHead>
                         <TableHead>Due Date</TableHead>
                         <TableHead>EHD</TableHead>
