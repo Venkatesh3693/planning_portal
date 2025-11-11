@@ -1037,6 +1037,12 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
               {isBudgetUnreachable ? '∞' : (typeof daysToBudget === 'number' ? `${daysToBudget} days` : daysToBudget)}
            </Badge>
         </TableCell>
+        <TableCell>-</TableCell>
+        <TableCell>-</TableCell>
+        <TableCell>-</TableCell>
+        <TableCell>-</TableCell>
+        <TableCell>-</TableCell>
+        <TableCell>-</TableCell>
         <TableCell className="text-right">{order.quantity}</TableCell>
         <TableCell>{order.dueDate ? format(new Date(order.dueDate), 'PPP') : '-'}</TableCell>
         <TableCell className={cn(isLate && "text-destructive font-semibold")}>
@@ -1411,8 +1417,14 @@ export default function OrdersPage() {
                         <TableHead>Display Color</TableHead>
                         <TableHead>File Status</TableHead>
                         <TableHead>Budgeted Eff.</TableHead>
-                        <TableHead>Avg. Eff.</TableHead>
+                        <TableHead>Planned Efficiency</TableHead>
                         <TableHead>Days to Budget</TableHead>
+                        <TableHead>Cut Qty</TableHead>
+                        <TableHead>Print Qty</TableHead>
+                        <TableHead>Embroidered Qty</TableHead>
+                        <TableHead>SM stock</TableHead>
+                        <TableHead>Sewing Produced Qty</TableHead>
+                        <TableHead>Packed Qty</TableHead>
                         <TableHead className="text-right">Quantity</TableHead>
                         <TableHead>Due Date</TableHead>
                         <TableHead>EHD</TableHead>
