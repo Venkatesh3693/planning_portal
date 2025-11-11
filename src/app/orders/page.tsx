@@ -1274,7 +1274,12 @@ const ForecastedOrderRow = forwardRef<
             <TableCell>95%</TableCell>
         </>
       )}
-       <TableCell>
+       <TableCell
+            className="cursor-pointer"
+            onClick={() => {
+                /* Logic to expand/collapse Eff% will be handled in parent */
+            }}
+        >
           <span className="font-medium">92%</span>
       </TableCell>
 
@@ -1423,9 +1428,9 @@ export default function OrdersPage() {
                         <TableHead>Print Qty</TableHead>
                         <TableHead>Embroidered Qty</TableHead>
                         <TableHead>SM stock</TableHead>
-                        <TableHead>Sewing Produced Qty</TableHead>
+                        <TableHead>Sewn Quantity</TableHead>
                         <TableHead>Packed Qty</TableHead>
-                        <TableHead className="text-right">Quantity</TableHead>
+                        <TableHead className="text-right">Order Qty</TableHead>
                         <TableHead>Due Date</TableHead>
                         <TableHead>EHD</TableHead>
                       </TableRow>
