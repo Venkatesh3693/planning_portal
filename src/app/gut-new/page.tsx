@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -1127,7 +1128,7 @@ function GanttPageContent() {
   );
 }
 
-export default function GutNewPage() {
+export default function Home() {
   return (
     <GanttPageContent />
   );

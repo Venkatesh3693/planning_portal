@@ -49,27 +49,29 @@ export function calculateSewingDurationMinutes(
     overtimeDays: string[] = []
 ): number {
     if (quantity <= 0 || sam <= 0 || numLines <= 0) return 0;
-    
+
     let remainingQty = quantity;
     let totalMinutes = 0;
     let workingDayCounter = 0;
-    let calendarDayOffset = -1; // Start at -1 so the first loop iteration is Day 0
+    let calendarDayOffset = 0;
     const obData: SewingOperation[] = SEWING_OPERATIONS_BY_STYLE[orderStyle] || [];
     const totalSam = obData.reduce((sum, op) => sum + op.sam, 0);
     const totalTailors = obData.reduce((sum, op) => sum + op.operators, 0);
 
+    if (totalSam <= 0 || totalTailors <= 0) return Infinity;
 
     while (remainingQty > 0) {
-        calendarDayOffset++;
-        const currentDate = addBusinessDays(startDate, calendarDayOffset);
-        const dateKey = format(startOfDay(currentDate), 'yyyy-MM-dd');
-
-        if (holidays.includes(dateKey)) {
-            continue; // Skip holiday and move to the next day
+        const currentDate = addDays(startOfDay(startDate), calendarDayOffset);
+        const dateKey = format(currentDate, 'yyyy-MM-dd');
+        
+        // Check for non-working days (Sunday or Holiday)
+        if (getDay(currentDate) === 0 || holidays.includes(dateKey)) {
+            calendarDayOffset++;
+            continue; // Skip this day entirely
         }
 
         workingDayCounter++;
-
+        
         const isOvertime = overtimeDays.includes(dateKey);
         const effectiveWorkDayMinutes = WORK_DAY_MINUTES * (isOvertime ? 1.25 : 1);
 
@@ -80,11 +82,12 @@ export function calculateSewingDurationMinutes(
             }
         }
         
-        if (!efficiency || efficiency <= 0 || totalSam <= 0) {
-          return Infinity; // Cannot produce if efficiency or SAM is zero
+        if (!efficiency || efficiency <= 0) {
+             calendarDayOffset++;
+             continue;
         }
-        
-        const dailyOutput = (effectiveWorkDayMinutes * efficiency/100 * totalTailors * numLines) / totalSam;
+
+        const dailyOutput = (effectiveWorkDayMinutes * efficiency / 100 * totalTailors * numLines) / totalSam;
 
         if (remainingQty <= dailyOutput) {
             // Last day of production
@@ -98,10 +101,11 @@ export function calculateSewingDurationMinutes(
             remainingQty -= dailyOutput;
         }
 
-        if (totalMinutes > WORK_DAY_MINUTES * 10000) { // Safety break
-            return Infinity;
-        }
+        calendarDayOffset++;
+        
+        if (calendarDayOffset > 10000) return Infinity; // Safety break
     }
+
     return totalMinutes;
 }
 
