@@ -23,6 +23,7 @@ import type { Order, SewingLine, SewingMachineType, SewingLineGroup, MachineRequ
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import LineReallocationDialog from '@/components/capacity/line-reallocation-dialog';
+import CreateLineDialog from '@/components/capacity/create-line-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Calendar } from '@/components/ui/calendar';
@@ -102,6 +103,7 @@ export default function CapacityAllocationPage() {
     const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
     const [isCreatingGroup, setIsCreatingGroup] = useState(false);
     const [outputMultiplier, setOutputMultiplier] = useState(1);
+    const [isCreatingLine, setIsCreatingLine] = useState(false);
 
     const [lineForReallocation, setLineForReallocation] = useState<SewingLine | null>(null);
     const [holidayDialogOpen, setHolidayDialogOpen] = useState(false);
@@ -302,6 +304,37 @@ export default function CapacityAllocationPage() {
         setLineForReallocation(null);
     };
 
+    const handleCreateNewLine = (
+        lineName: string,
+        transfers: { sourceLineId: string; machineType: SewingMachineType; quantity: number }[]
+    ) => {
+        setSewingLines(prevLines => {
+            const newLines = JSON.parse(JSON.stringify(prevLines)) as SewingLine[];
+            const newLine: SewingLine = {
+                id: `L${prevLines.length + 1}`,
+                name: lineName,
+                unitId: 'u1', // Default or ask user?
+                machineCounts: {},
+            };
+
+            transfers.forEach(({ sourceLineId, machineType, quantity }) => {
+                const sourceLine = newLines.find(l => l.id === sourceLineId);
+                if (sourceLine) {
+                    sourceLine.machineCounts[machineType] = (sourceLine.machineCounts[machineType] || 0) - quantity;
+                    newLine.machineCounts[machineType] = (newLine.machineCounts[machineType] || 0) + quantity;
+                }
+            });
+
+            return [...newLines, newLine];
+        });
+
+        toast({
+            title: "Sewing Line Created",
+            description: `Line "${lineName}" has been created successfully.`,
+        });
+        setIsCreatingLine(false);
+    };
+
     const handleSaveConfiguration = () => {
         toast({
           title: "Configuration Saved",
@@ -386,6 +419,9 @@ export default function CapacityAllocationPage() {
                         </p>
                     </div>
                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setIsCreatingLine(true)}>
+                            <PlusCircle className="mr-2 h-4 w-4" /> Create New Sewing Line
+                        </Button>
                         <Button variant="outline" size="sm" onClick={() => setIsCreatingGroup(true)}>
                             <PlusCircle className="mr-2 h-4 w-4" /> Create New Line Group
                         </Button>
@@ -593,6 +629,12 @@ export default function CapacityAllocationPage() {
                     onSave={handleReallocationSave}
                 />
             )}
+             <CreateLineDialog
+                isOpen={isCreatingLine}
+                onOpenChange={setIsCreatingLine}
+                allLines={sewingLines}
+                onSave={handleCreateNewLine}
+            />
             {activeGroup && (
                  <Dialog open={holidayDialogOpen} onOpenChange={setHolidayDialogOpen}>
                     <DialogContent className="sm:max-w-2xl">
@@ -652,8 +694,3 @@ export default function CapacityAllocationPage() {
         </div>
     );
 }
-
-
-    
-
-    
