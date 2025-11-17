@@ -512,7 +512,7 @@ function GanttPageContent() {
       
       let durationMinutes;
       if (order.orderType === 'Forecasted') {
-        const slg = sewingLineGroups.find(g => g.ccNo === order.ocn);
+        const slg = sewingLineGroups.find(g => g.id === rowId);
         const multiplier = slg?.outputMultiplier || 1;
         const operations = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
         const totalSam = operations.reduce((sum, op) => sum + op.sam, 0);
@@ -877,11 +877,12 @@ function GanttPageContent() {
     const slg = sewingLineGroups.find(g => g.ccNo === order.ocn);
     const multiplier = slg?.outputMultiplier || 1;
     const holidays = slg?.holidays?.map(h => h.split('T')[0]) || [];
+    const overtimeDays = slg?.overtimeDays?.map(h => h.split('T')[0]) || [];
     const totalTailors = baseTotalTailors * multiplier;
 
     if (totalSam === 0 || totalTailors === 0) return null;
   
-    const dailyOutput = (WORK_DAY_MINUTES * totalTailors * (order.budgetedEfficiency / 100)) / totalSam;
+    const baseDailyOutput = (WORK_DAY_MINUTES * totalTailors * (order.budgetedEfficiency / 100)) / totalSam;
   
     const dailyData: Record<string, number> = {};
   
@@ -890,7 +891,13 @@ function GanttPageContent() {
         while (isBefore(currentDate, process.endDateTime) || isSameDay(currentDate, process.endDateTime)) {
              const dateKey = format(currentDate, 'yyyy-MM-dd');
              const isHoliday = holidays.includes(dateKey);
+             const isOvertime = overtimeDays.includes(dateKey);
+
             if (getDay(currentDate) !== 0 && !isHoliday) { // Exclude Sundays and holidays
+                let dailyOutput = baseDailyOutput;
+                if(isOvertime) {
+                    dailyOutput *= 1.25;
+                }
                 dailyData[dateKey] = (dailyData[dateKey] || 0) + dailyOutput;
             }
             currentDate = addDays(currentDate, 1);
