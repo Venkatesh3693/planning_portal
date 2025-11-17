@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import {
@@ -330,7 +329,9 @@ export default function MachinePanel({
                        <span>
                         {order.dueDate ? `Due: ${format(order.dueDate, 'MMM dd')}` : ''}
                       </span>
-                      <span>{isFinite(durationDays) ? durationDays.toFixed(1) : '...'} days left</span>
+                      <span>
+                        Prod. days left: {isFinite(durationDays) ? durationDays.toFixed(1) : '...'}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -351,3 +352,5 @@ export default function MachinePanel({
     </Card>
   );
 }
+
+  
