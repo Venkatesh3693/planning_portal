@@ -63,7 +63,7 @@ const RequirementsTable = ({ requirements, machineTotals }: { requirements: Mach
 const UnallocatedLineCard = ({ line, onAllocate, onEdit, activeGroup }: { line: SewingLine, onAllocate: (line: SewingLine) => void, onEdit: (line: SewingLine) => void, activeGroup: SewingLineGroup | undefined }) => {
     const machineCounts = useMemo(() => {
         return line.machines.reduce((acc, machine) => {
-            const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name] || machine.name;
+            const machineType = machine.name;
             acc[machineType] = (acc[machineType] || 0) + 1;
             return acc;
         }, {} as Record<string, number>);
@@ -91,7 +91,7 @@ const UnallocatedLineCard = ({ line, onAllocate, onEdit, activeGroup }: { line: 
                 {Object.entries(machineCounts)
                     .filter(([, count]) => count > 0)
                     .map(([type, count]) => (
-                    <Badge key={type} variant="secondary" className="font-normal">{type}: {count}</Badge>
+                    <Badge key={type} variant="secondary" className="font-normal">{MACHINE_NAME_ABBREVIATIONS[type] || type}: {count}</Badge>
                 ))}
             </div>
         </div>
