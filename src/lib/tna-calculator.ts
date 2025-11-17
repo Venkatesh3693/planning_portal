@@ -38,18 +38,39 @@ function calculateDaysToProduceBatch(
     return Math.ceil(totalMinutes / WORK_DAY_MINUTES);
 };
 
-export function calculateSewingDurationMinutes(quantity: number, sam: number, rampUpScheme: RampUpEntry[], numLines: number): number {
+export function calculateSewingDurationMinutes(
+    quantity: number, 
+    sam: number, 
+    rampUpScheme: RampUpEntry[], 
+    numLines: number,
+    startDate: Date = new Date(),
+    holidays: string[] = [],
+    overtimeDays: string[] = []
+): number {
     if (quantity <= 0 || sam <= 0 || numLines <= 0) return 0;
     
     let remainingQty = quantity;
     let totalMinutes = 0;
-    
+    let currentDay = 0; // Represents working days passed
+
     while (remainingQty > 0) {
-        const currentProductionDay = Math.floor(totalMinutes / WORK_DAY_MINUTES) + 1;
+        const currentDate = addBusinessDays(startDate, currentDay);
+        const dateKey = format(startOfDay(currentDate), 'yyyy-MM-dd');
         
+        if (holidays.includes(dateKey)) {
+            totalMinutes += WORK_DAY_MINUTES;
+            currentDay++;
+            continue;
+        }
+
+        const isOvertime = overtimeDays.includes(dateKey);
+        const effectiveWorkDayMinutes = WORK_DAY_MINUTES * (isOvertime ? 1.25 : 1);
+        
+        currentDay++;
+
         let efficiency = rampUpScheme.length > 0 ? rampUpScheme[rampUpScheme.length - 1]?.efficiency : 100;
         for (const entry of rampUpScheme) {
-          if(currentProductionDay >= entry.day) {
+          if(currentDay >= entry.day) {
             efficiency = entry.efficiency;
           }
         }
@@ -58,16 +79,14 @@ export function calculateSewingDurationMinutes(quantity: number, sam: number, ra
 
         const effectiveSam = sam / (efficiency / 100);
         const outputPerMinute = (1 / effectiveSam) * numLines;
-        
-        const minutesLeftInWorkDay = WORK_DAY_MINUTES - (totalMinutes % WORK_DAY_MINUTES);
-        const maxOutputForRestOfDay = minutesLeftInWorkDay * outputPerMinute;
+        const dailyOutput = effectiveWorkDayMinutes * outputPerMinute;
 
-        if (remainingQty <= maxOutputForRestOfDay) {
+        if (remainingQty <= dailyOutput) {
             totalMinutes += remainingQty / outputPerMinute;
             remainingQty = 0;
         } else {
-            totalMinutes += minutesLeftInWorkDay;
-            remainingQty -= maxOutputForRestOfDay;
+            totalMinutes += effectiveWorkDayMinutes;
+            remainingQty -= dailyOutput;
         }
 
         if (totalMinutes > WORK_DAY_MINUTES * 10000) {
@@ -94,19 +113,26 @@ export function calculateSewingDurationDays(quantity: number, sam: number, rampU
 export function calculateDailySewingOutput(
     order: Order,
     allSewingProcessesForOrder: ScheduledProcess[],
-    processInfo: Process
+    processInfo: Process,
+    sewingLineGroups: SewingLineGroup[]
 ): Record<string, number> {
     const dailyOutput: Record<string, number> = {};
     const processProductionDayCounter: Record<string, number> = {}; // Tracks ramp-up day per scheduled instance
 
     for (const p of allSewingProcessesForOrder) {
+        const slg = sewingLineGroups.find(g => g.id === p.machineId);
+        const multiplier = slg?.outputMultiplier || 1;
+        const holidays = slg?.holidays?.map(h => h.split('T')[0]) || [];
+        const overtimeDays = slg?.overtimeDays?.map(o => o.split('T')[0]) || [];
+
         if (!processProductionDayCounter[p.id]) processProductionDayCounter[p.id] = 0;
 
         let current = new Date(p.startDateTime);
         let remainingDuration = p.durationMinutes;
 
         while (remainingDuration > 0) {
-            if (getDay(current) === 0) { // Skip Sundays
+             const dateKey = format(startOfDay(current), 'yyyy-MM-dd');
+            if (getDay(current) === 0 || holidays.includes(dateKey)) { // Skip Sundays and holidays
                 current = startOfDay(addDays(current, 1));
                 current.setHours(9, 0, 0, 0);
                 continue;
@@ -114,7 +140,18 @@ export function calculateDailySewingOutput(
 
             const endOfWorkDay = new Date(current).setHours(17, 0, 0, 0);
             const minutesLeftInCurrentTime = differenceInMinutes(endOfWorkDay, current);
-            const minutesToProcessToday = Math.min(remainingDuration, minutesLeftInCurrentTime, WORK_DAY_MINUTES);
+            
+            const isOvertime = overtimeDays.includes(dateKey);
+            const effectiveWorkDayMinutes = WORK_DAY_MINUTES * (isOvertime ? 1.25 : 1);
+            
+            let minutesToProcessToday = Math.min(remainingDuration, minutesLeftInCurrentTime, effectiveWorkDayMinutes);
+            
+            if (isOvertime) {
+                // Allow extending beyond normal work day if it's overtime
+                const potentialOvertimeMins = (WORK_DAY_MINUTES * 0.25);
+                minutesToProcessToday = Math.min(remainingDuration, minutesLeftInCurrentTime + potentialOvertimeMins);
+            }
+
 
             if (minutesToProcessToday <= 0) {
                 current = startOfDay(addDays(current, 1));
@@ -123,8 +160,7 @@ export function calculateDailySewingOutput(
             }
 
             processProductionDayCounter[p.id]++;
-            const dateKey = format(startOfDay(current), 'yyyy-MM-dd');
-
+            
             const rampUpScheme = order.sewingRampUpScheme || [];
             let efficiency = rampUpScheme.length > 0 ? rampUpScheme[rampUpScheme.length - 1].efficiency : order.budgetedEfficiency || 100;
             
@@ -137,7 +173,7 @@ export function calculateDailySewingOutput(
             let outputForDay = 0;
             if (efficiency > 0) {
                 const effectiveSam = processInfo.sam / (efficiency / 100);
-                outputForDay = minutesToProcessToday / effectiveSam;
+                outputForDay = (minutesToProcessToday / effectiveSam) * multiplier;
             }
 
             dailyOutput[dateKey] = (dailyOutput[dateKey] || 0) + outputForDay;
