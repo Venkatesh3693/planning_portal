@@ -940,7 +940,7 @@ function GanttPageContent() {
                       dates={dates}
                       scheduledProcesses={processesForGantt}
                       allProcesses={scheduledProcesses}
-                      onDrop={onDrop}
+                      onDrop={handleDropOnChart}
                       onUndoSchedule={handleUndoSchedule}
                       onProcessDragStart={handleDragStart}
                       onSplitProcess={handleOpenSplitDialog}
