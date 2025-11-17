@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays, format, startOfWeek, isSameDay } from 'date-fns';
+import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays, format, startOfWeek, isSameDay, startOfDay } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, PROCESSES, WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE } from '@/lib/data';
@@ -127,7 +127,7 @@ function GanttPageContent() {
           sewingProcessesForOrder[0].startDateTime
         );
         const sewingProcessInfo = PROCESSES.find(p => p.id === SEWING_PROCESS_ID)!;
-        const dailySewingOutput = calculateDailySewingOutput(order, sewingProcessesForOrder, sewingProcessInfo);
+        const dailySewingOutput = calculateDailySewingOutput(order, sewingProcessesForOrder, sewingProcessInfo, sewingLineGroups);
   
         const batchSize = selectedProcessId === PACKING_PROCESS_ID ? packingBatchSizes[order.id] : processBatchSizes[order.id];
         if (!batchSize || batchSize <= 0) continue;
@@ -171,7 +171,7 @@ function GanttPageContent() {
       }
     }
     return newMap;
-  }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, processBatchSizes, packingBatchSizes, appMode]);
+  }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, processBatchSizes, packingBatchSizes, appMode, sewingLineGroups]);
   
   const latestSewingStartDateMap = useMemo(() => {
     const map = new Map<string, Date>();
@@ -286,7 +286,7 @@ function GanttPageContent() {
                 sewingProcessesForOrder[0].startDateTime
             );
             const sewingProcessInfo = PROCESSES.find(p => p.id === SEWING_PROCESS_ID)!;
-            dailySewingOutputs[order.id] = calculateDailySewingOutput(order, sewingProcessesForOrder, sewingProcessInfo);
+            dailySewingOutputs[order.id] = calculateDailySewingOutput(order, sewingProcessesForOrder, sewingProcessInfo, sewingLineGroups);
         }
     });
 
@@ -336,7 +336,7 @@ function GanttPageContent() {
         }
     }
     return map;
-}, [scheduledProcesses, orders, isScheduleLoaded, packingBatchSizes]);
+}, [scheduledProcesses, orders, isScheduleLoaded, packingBatchSizes, sewingLineGroups]);
 
   const predecessorEndDate = useMemo(() => {
     if (!draggedItem) return null;
@@ -510,19 +510,9 @@ function GanttPageContent() {
       const process = PROCESSES.find(p => p.id === droppedItem.processId)!;
       
       let durationMinutes;
-      if (order.orderType === 'Forecasted') {
+      if (process.id === SEWING_PROCESS_ID) {
         const slg = sewingLineGroups.find(g => g.id === rowId);
-        const multiplier = slg?.outputMultiplier || 1;
-        const operations = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
-        const totalSam = operations.reduce((sum, op) => sum + op.sam, 0);
-        const baseTotalTailors = operations.reduce((sum, op) => sum + op.operators, 0);
-        const totalTailors = baseTotalTailors * multiplier;
-        const dailyOutput = (WORK_DAY_MINUTES * totalTailors * (order.budgetedEfficiency || 85) / 100) / totalSam;
-        const productionQtyLeft = Math.max(0, order.quantity - (order.produced?.total || 0));
-        const productionDays = dailyOutput > 0 ? productionQtyLeft / dailyOutput : 0;
-        durationMinutes = productionDays * WORK_DAY_MINUTES;
-      } else if (process.id === SEWING_PROCESS_ID) {
-        const numLines = 1;
+        const numLines = slg ? 1 : (sewingLineGroups.length > 0 ? sewingLineGroups.length : 1);
         durationMinutes = calculateSewingDuration(order, droppedItem.quantity, numLines, sewingLineGroups);
       } else {
         durationMinutes = process.sam * droppedItem.quantity;
@@ -1140,5 +1130,3 @@ export default function GutNewPage() {
     <GanttPageContent />
   );
 }
-
-    
