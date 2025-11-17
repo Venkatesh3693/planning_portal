@@ -202,7 +202,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         }
         
         if(storedData.sewingLineGroups) {
-          setSewingLineGroups(storedData.sewingLineGroups);
+          setSewingLineGroups(storedData.sewingLineGroups.map((g: SewingLineGroup) => ({...g, holidays: g.holidays || [] })));
         }
         setSewingLines(storedData.sewingLines || staticSewingLines);
 

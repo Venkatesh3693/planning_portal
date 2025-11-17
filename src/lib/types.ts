@@ -44,6 +44,7 @@ export type SewingLineGroup = {
   allocatedLines: string[];
   machineRequirements: MachineRequirement[];
   outputMultiplier?: number;
+  holidays?: string[];
 };
 
 export type Process = {

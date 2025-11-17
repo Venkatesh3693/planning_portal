@@ -3,7 +3,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays, format, startOfDay, startOfWeek } from 'date-fns';
+import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays, format, startOfWeek, isSameDay } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, PROCESSES, WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE } from '@/lib/data';
@@ -876,6 +876,7 @@ function GanttPageContent() {
     const baseTotalTailors = operations.reduce((sum, op) => sum + op.operators, 0);
     const slg = sewingLineGroups.find(g => g.ccNo === order.ocn);
     const multiplier = slg?.outputMultiplier || 1;
+    const holidays = slg?.holidays?.map(h => h.split('T')[0]) || [];
     const totalTailors = baseTotalTailors * multiplier;
 
     if (totalSam === 0 || totalTailors === 0) return null;
@@ -886,9 +887,10 @@ function GanttPageContent() {
   
     allProcessesForOrder.forEach(process => {
         let currentDate = new Date(process.startDateTime);
-        while (currentDate <= process.endDateTime) {
-            if (getDay(currentDate) !== 0) { // Exclude Sundays
-                const dateKey = format(startOfDay(currentDate), 'yyyy-MM-dd');
+        while (isBefore(currentDate, process.endDateTime) || isSameDay(currentDate, process.endDateTime)) {
+             const dateKey = format(currentDate, 'yyyy-MM-dd');
+             const isHoliday = holidays.includes(dateKey);
+            if (getDay(currentDate) !== 0 && !isHoliday) { // Exclude Sundays and holidays
                 dailyData[dateKey] = (dailyData[dateKey] || 0) + dailyOutput;
             }
             currentDate = addDays(currentDate, 1);

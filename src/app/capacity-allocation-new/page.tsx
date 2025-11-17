@@ -17,13 +17,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PlusCircle, Trash2, ChevronRight, Edit, Save } from 'lucide-react';
+import { PlusCircle, Trash2, ChevronRight, Edit, Save, CalendarDays } from 'lucide-react';
 import { SEWING_OPERATIONS_BY_STYLE, sewingMachineTypes } from '@/lib/data';
 import type { Order, SewingLine, SewingMachineType, SewingLineGroup, MachineRequirement } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import LineReallocationDialog from '@/components/capacity/line-reallocation-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Calendar } from '@/components/ui/calendar';
 
 
 const RequirementsTable = ({ requirements, machineTotals }: { requirements: MachineRequirement[], machineTotals: Record<string, number> }) => {
@@ -102,6 +104,8 @@ export default function CapacityAllocationPage() {
     const [outputMultiplier, setOutputMultiplier] = useState(1);
 
     const [lineForReallocation, setLineForReallocation] = useState<SewingLine | null>(null);
+    const [holidayDialogOpen, setHolidayDialogOpen] = useState(false);
+    const [selectedHolidays, setSelectedHolidays] = useState<Date[] | undefined>(undefined);
     const { toast } = useToast();
     
     const unallocatedLines = useMemo(() => {
@@ -265,7 +269,6 @@ export default function CapacityAllocationPage() {
         // This logic simplifies by moving ALL machines back to the original line configuration.
         // A more complex implementation would track partially allocated machines.
         // For now, we assume de-allocation returns the line to its "original" state pre-allocation.
-        // This requires a "snapshot" or "original config" of lines, which we don't have.
         // Let's just remove the line from the group. The machine counts are implicitly recalculated.
         
         setSewingLineGroups(prevGroups => prevGroups.map(group => {
@@ -304,6 +307,31 @@ export default function CapacityAllocationPage() {
           description: "Your sewing line group settings have been saved successfully.",
         });
         setActiveGroupId(null);
+    };
+    
+    const handleOpenHolidayDialog = () => {
+        if (!activeGroup) return;
+        const currentHolidays = activeGroup.holidays?.map(h => new Date(h)) || [];
+        setSelectedHolidays(currentHolidays);
+        setHolidayDialogOpen(true);
+    };
+
+    const handleSaveHolidays = () => {
+        if (!activeGroup || !selectedHolidays) return;
+        
+        const holidayStrings = selectedHolidays.map(d => d.toISOString().split('T')[0]);
+
+        setSewingLineGroups(prevGroups =>
+            prevGroups.map(g => 
+                g.id === activeGroup.id ? { ...g, holidays: holidayStrings } : g
+            )
+        );
+
+        setHolidayDialogOpen(false);
+        toast({
+            title: "Holidays Updated",
+            description: `Holidays for ${activeGroup.name} have been saved.`
+        });
     };
 
     return (
@@ -456,12 +484,12 @@ export default function CapacityAllocationPage() {
                         
                         {activeGroup && (
                             <Card className="flex-1 flex flex-col">
-                                 <CardHeader className="flex-row items-center justify-between">
+                                 <CardHeader className="flex-row items-start justify-between">
                                     <div>
                                         <CardTitle>Details for {activeGroup.name}</CardTitle>
                                         <CardDescription>CC No: {activeGroup.ccNo}</CardDescription>
                                     </div>
-                                     <div className="flex items-center gap-4">
+                                     <div className="flex items-center gap-2">
                                         <div className="w-24 space-y-1">
                                             <Label htmlFor="active-multiplier-select" className="text-xs">Output</Label>
                                             <Select 
@@ -476,6 +504,9 @@ export default function CapacityAllocationPage() {
                                                 </SelectContent>
                                             </Select>
                                         </div>
+                                         <Button variant="outline" size="sm" onClick={handleOpenHolidayDialog}>
+                                            <CalendarDays className="mr-2 h-4 w-4" /> Manage Holidays
+                                        </Button>
                                         <Button size="sm" onClick={handleSaveConfiguration}>
                                             <Save className="mr-2 h-4 w-4" /> Save Configuration
                                         </Button>
@@ -533,9 +564,33 @@ export default function CapacityAllocationPage() {
                     onSave={handleReallocationSave}
                 />
             )}
+            {activeGroup && (
+                 <Dialog open={holidayDialogOpen} onOpenChange={setHolidayDialogOpen}>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle>Manage Holidays for {activeGroup.name}</DialogTitle>
+                            <DialogDescription>
+                                Select the dates that this sewing line group will be on holiday.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="flex justify-center py-4">
+                           <Calendar
+                                mode="multiple"
+                                selected={selectedHolidays}
+                                onSelect={setSelectedHolidays}
+                            />
+                        </div>
+                        <DialogFooter>
+                            <Button type="button" variant="secondary" onClick={() => setHolidayDialogOpen(false)}>
+                                Cancel
+                            </Button>
+                             <Button type="button" onClick={handleSaveHolidays}>
+                                Confirm
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            )}
         </div>
     );
 }
-
-    
-
