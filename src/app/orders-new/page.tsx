@@ -1143,8 +1143,14 @@ const ForecastedOrderRow = forwardRef<
     const critical = (hash % 3); // 0, 1, or 2
     const notCritical = (hash % 4) + 1; // 1, 2, 3, or 4
     return {
-      critical,
-      notCritical
+      critical: {
+        count: critical,
+        items: Array.from({ length: critical }, (_, i) => `Critical alert for ${order.ocn} #${i + 1}`)
+      },
+      notCritical: {
+        count: notCritical,
+        items: Array.from({ length: notCritical }, (_, i) => `Non-critical issue for ${order.ocn} #${i + 1}`)
+      },
     };
   }, [order.id, order.ocn]);
 
@@ -1317,8 +1323,8 @@ const ForecastedOrderRow = forwardRef<
         <Sheet>
           <SheetTrigger asChild>
             <div className="flex items-center gap-2 cursor-pointer text-sm">
-                {alerts.critical > 0 && <Badge variant="destructive">{alerts.critical}</Badge>}
-                {alerts.notCritical > 0 && <Badge variant="secondary" className="bg-yellow-400 text-yellow-900">{alerts.notCritical}</Badge>}
+                {alerts.critical.count > 0 && <Badge variant="destructive">{alerts.critical.count}</Badge>}
+                {alerts.notCritical.count > 0 && <Badge variant="secondary" className="bg-yellow-400 text-yellow-900">{alerts.notCritical.count}</Badge>}
             </div>
           </SheetTrigger>
           <SheetContent>
@@ -1329,22 +1335,22 @@ const ForecastedOrderRow = forwardRef<
               </SheetDescription>
             </SheetHeader>
             <div className="py-4 space-y-6">
-                {alerts.critical > 0 && (
+                {alerts.critical.count > 0 && (
                     <div>
                         <h3 className="text-lg font-semibold text-destructive mb-2">Critical Alerts</h3>
                         <ul className="space-y-2">
-                            {Array.from({length: alerts.critical}).map((_, i) => (
-                                <li key={`crit-${i}`} className="p-3 bg-destructive/10 border-l-4 border-destructive rounded-r-md">{`Critical alert for ${order.ocn} #${i + 1}`}</li>
+                            {alerts.critical.items.map((alert, i) => (
+                                <li key={`crit-${i}`} className="p-3 bg-destructive/10 border-l-4 border-destructive rounded-r-md">{alert}</li>
                             ))}
                         </ul>
                     </div>
                 )}
-                {alerts.notCritical > 0 && (
+                {alerts.notCritical.count > 0 && (
                     <div>
                         <h3 className="text-lg font-semibold text-yellow-600 mb-2">Not Critical Alerts</h3>
                          <ul className="space-y-2">
-                             {Array.from({length: alerts.notCritical}).map((_, i) => (
-                                <li key={`noncrit-${i}`} className="p-3 bg-muted rounded-md">{`Non-critical issue for ${order.ocn} #${i + 1}`}</li>
+                            {alerts.notCritical.items.map((alert, i) => (
+                                <li key={`noncrit-${i}`} className="p-3 bg-muted rounded-md">{alert}</li>
                             ))}
                         </ul>
                     </div>

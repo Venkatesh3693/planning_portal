@@ -245,8 +245,8 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
               }
           }
           
-          const producedQty = Math.round(cumulativePoFc * 1.25);
-          const shippedQty = Math.round(cumulativePoFc * 0.95);
+          const producedQty = Math.round(cumulativePoFc * (1 + Math.random() * 0.15)); // 1.0 to 1.15 times
+          const shippedQty = Math.round(cumulativePoFc * (0.95 + Math.random() * 0.05)); // 0.95 to 1.0 times
 
           if (order.orderType === 'Forecasted') {
               return {
