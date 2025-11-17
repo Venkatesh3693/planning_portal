@@ -26,6 +26,7 @@ type GanttChartProps = {
   onDrop: (rowId: string, startDateTime: Date, draggedItemJSON: string) => void;
   onUndoSchedule: (scheduledProcessId: string) => void;
   onProcessDragStart: (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => void;
+  onProcessClick?: (processId: string) => void;
   onSplitProcess: (process: ScheduledProcess) => void;
   viewMode: ViewMode;
   draggedItem: DraggedItemData | null;
@@ -36,6 +37,8 @@ type GanttChartProps = {
   predecessorEndDateMap: Map<string, Date>;
   draggedItemLatestEndDate: Date | null;
   draggedItemCkDate: Date | null;
+  activePlanQtyProcessId?: string | null;
+  dailyPlanQty?: Record<string, number> | null;
 };
 
 const ROW_HEIGHT_PX = 40;
@@ -172,6 +175,7 @@ export default function GanttChart({
   onDrop,
   onUndoSchedule,
   onProcessDragStart,
+  onProcessClick,
   onSplitProcess,
   viewMode,
   draggedItem,
@@ -182,6 +186,8 @@ export default function GanttChart({
   predecessorEndDateMap,
   draggedItemLatestEndDate,
   draggedItemCkDate,
+  activePlanQtyProcessId,
+  dailyPlanQty,
 }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const isDragging = !!draggedItem;
@@ -192,6 +198,11 @@ export default function GanttChart({
   const sidebarWidthRef = React.useRef<HTMLDivElement>(null);
 
   const [sidebarWidth, setSidebarWidth] = React.useState(150);
+
+  const activeProcess = React.useMemo(() => {
+      if (!activePlanQtyProcessId) return null;
+      return scheduledProcesses.find(p => p.id === activePlanQtyProcessId);
+  }, [activePlanQtyProcessId, scheduledProcesses]);
 
   const timeColumns = React.useMemo(() => {
     if (viewMode === 'day') {
@@ -242,9 +253,7 @@ export default function GanttChart({
   };
   
   const cellWidth = viewMode === 'day' ? DAY_CELL_WIDTH : HOUR_CELL_WIDTH;
-  const gridTemplateColumns = `repeat(${timeColumns.length}, ${cellWidth})`;
-  const totalGridWidth = `calc(${timeColumns.length} * ${cellWidth})`;
-
+  
   const validDateRanges = React.useMemo(() => {
     if (!draggedItem || draggedItem.type !== 'existing' || !draggedItem.process.isAutoScheduled) {
       return null;
@@ -286,6 +295,24 @@ export default function GanttChart({
       end: successorStart
     };
   }, [draggedItem, orders, allProcesses]);
+  
+  const flattenedRows = React.useMemo(() => {
+    const finalRows: (Row & { isPlanRow?: boolean })[] = [];
+    rows.forEach(row => {
+      finalRows.push(row);
+      if (activeProcess && row.id === activeProcess.machineId) {
+        finalRows.push({
+          id: `${row.id}-plan`,
+          name: 'Plan Qty',
+          isPlanRow: true,
+        });
+      }
+    });
+    return finalRows;
+  }, [rows, activeProcess]);
+
+  const gridTemplateColumns = `repeat(${timeColumns.length}, ${cellWidth})`;
+  const totalGridWidth = `calc(${timeColumns.length} * ${cellWidth})`;
 
   return (
     <div 
@@ -311,7 +338,7 @@ export default function GanttChart({
       <div ref={sidebarRef} className="row-start-2 overflow-hidden bg-muted/30 border-r border-border/60">
         {/* Render twice: one for measuring, one for display */}
         <div ref={sidebarWidthRef} className="absolute pointer-events-none opacity-0 -z-10">
-          {rows.map(row => (
+          {flattenedRows.map(row => (
              <div key={row.id} className="p-2 whitespace-nowrap">
               <div className="font-semibold text-foreground text-sm">{row.name}</div>
               {row.ccNo && <div className="text-xs text-muted-foreground">{row.ccNo}</div>}
@@ -319,13 +346,13 @@ export default function GanttChart({
           ))}
         </div>
         <div>
-          {rows.map((row, rowIndex) => (
+          {flattenedRows.map((row) => (
             <div
               key={row.id}
               className="p-2 border-b border-border/60 whitespace-nowrap flex flex-col justify-center"
               style={{ height: `${ROW_HEIGHT_PX}px` }}
             >
-              <div className="font-semibold text-foreground text-sm">{row.name}</div>
+              <div className={cn("font-semibold text-sm", row.isPlanRow ? 'text-primary' : 'text-foreground')}>{row.name}</div>
               {row.ccNo && <div className="text-xs text-muted-foreground">{row.ccNo}</div>}
             </div>
           ))}
@@ -334,12 +361,22 @@ export default function GanttChart({
 
       {/* Bottom-Right Body (Timeline) */}
       <div ref={bodyRef} className="row-start-2 col-start-2 overflow-auto relative" onScroll={handleBodyScroll}>
-        <div className="relative" style={{ width: totalGridWidth, height: `${rows.length * ROW_HEIGHT_PX}px`}}>
+        <div className="relative" style={{ width: totalGridWidth, height: `${flattenedRows.length * ROW_HEIGHT_PX}px`}}>
           {/* Main Timeline Grid Background */}
-          <div className="absolute inset-0 grid" style={{ gridTemplateColumns, gridTemplateRows: `repeat(${rows.length}, ${ROW_HEIGHT_PX}px)` }}>
-            {rows.map((row, rowIndex) => (
+          <div className="absolute inset-0 grid" style={{ gridTemplateColumns, gridTemplateRows: `repeat(${flattenedRows.length}, ${ROW_HEIGHT_PX}px)` }}>
+            {flattenedRows.map((row, rowIndex) => (
               <React.Fragment key={row.id}>
                 {timeColumns.map((col, dateIndex) => {
+                  if (row.isPlanRow) {
+                    const dateKey = format(startOfDay(col.date), 'yyyy-MM-dd');
+                    const qty = dailyPlanQty?.[dateKey];
+                    return (
+                       <div key={`${row.id}-${dateIndex}`} className="border-b border-r border-border/60 bg-blue-50 dark:bg-blue-900/10 flex items-center justify-center">
+                          {qty && qty > 0 && <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">{Math.round(qty).toLocaleString()}</span>}
+                       </div>
+                    );
+                  }
+
                   const isDragOver = dragOverCell?.rowId === row.id && dragOverCell.date.getTime() === col.date.getTime();
                   let isInTnaRange = false;
                   
@@ -394,7 +431,7 @@ export default function GanttChart({
 
           {/* Scheduled Process Bars */}
           {scheduledProcesses.map((item) => {
-              const rowIndex = rows.findIndex(r => r.id === item.machineId);
+              const rowIndex = flattenedRows.findIndex(r => r.id === item.machineId);
               if (rowIndex === -1) return null;
 
               const getColumnIndex = (date: Date) => {
@@ -433,6 +470,7 @@ export default function GanttChart({
                         orders={orders}
                         onUndo={onUndoSchedule}
                         onDragStart={onProcessDragStart}
+                        onClick={onProcessClick}
                         onSplit={onSplitProcess}
                         latestStartDatesMap={latestStartDatesMap}
                         predecessorEndDateMap={predecessorEndDateMap}

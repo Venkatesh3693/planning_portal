@@ -7,7 +7,7 @@ import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, comp
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, PROCESSES, WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE } from '@/lib/data';
-import type { Order, ScheduledProcess, UnplannedBatch } from '@/lib/types';
+import type { Order, ScheduledProcess, UnplannedBatch, SewingLineGroup } from '@/lib/types';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Trash2, ShoppingCart } from 'lucide-react';
@@ -107,6 +107,7 @@ function GanttPageContent() {
   const [draggedItem, setDraggedItem] = useState<DraggedItemData | null>(null);
   const [processToSplit, setProcessToSplit] = useState<ProcessToSplitState | null>(null);
   const [draggingProcessId, setDraggingProcessId] = useState<string | null>(null);
+  const [activePlanQtyProcessId, setActivePlanQtyProcessId] = useState<string | null>(null);
 
   const dates = useMemo(() => {
     const today = startOfToday();
@@ -133,7 +134,8 @@ function GanttPageContent() {
   
     if (selectedProcessId !== 'pab' && selectedProcessId !== SEWING_PROCESS_ID) {
       for (const order of orders) {
-        if (order.orderType !== 'Firm PO') continue;
+        if (appMode === 'gut-new' && order.orderType !== 'Forecasted') continue;
+        if (appMode !== 'gut-new' && order.orderType !== 'Firm PO') continue;
         const sewingProcessesForOrder = scheduledProcesses.filter(sp => sp.orderId === order.id && sp.processId === SEWING_PROCESS_ID);
         if (sewingProcessesForOrder.length === 0) continue;
   
@@ -189,14 +191,14 @@ function GanttPageContent() {
       }
     }
     return newMap;
-  }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, processBatchSizes, packingBatchSizes]);
+  }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, processBatchSizes, packingBatchSizes, appMode]);
   
   const latestSewingStartDateMap = useMemo(() => {
     const map = new Map<string, Date>();
     if (!isScheduleLoaded) return map;
 
     orders.forEach(order => {
-        if (order.orderType !== 'Firm PO') return;
+        if (order.orderType === 'Forecasted') return;
         const numLines = 1; // Simplified for this context
         const latestDate = calculateLatestSewingStartDate(order, PROCESSES, numLines);
         if (latestDate) {
@@ -767,10 +769,14 @@ function GanttPageContent() {
 
   const chartRows = useMemo(() => {
     if (selectedProcessId === 'sewing') {
-      return sewingLineGroups || [];
+        const rows: (SewingLineGroup & { ccNo: string })[] = sewingLineGroups.map(slg => ({
+            ...slg,
+            ccNo: orders.find(o => o.ocn === slg.ccNo)?.ocn || ''
+        }));
+        return rows;
     }
     return MACHINES.filter(m => m.processIds.includes(selectedProcessId));
-  }, [selectedProcessId, sewingLineGroups]);
+  }, [selectedProcessId, sewingLineGroups, orders]);
 
 
   const chartProcesses = useMemo(() => {
@@ -852,6 +858,26 @@ function GanttPageContent() {
       setScheduledProcesses(prev => prev.filter(p => p.processId !== selectedProcessId));
     }
   };
+
+  const handleProcessBarClick = (processId: string) => {
+    setActivePlanQtyProcessId(prevId => prevId === processId ? null : processId);
+  };
+
+  const dailyPlanQty = useMemo(() => {
+    if (!activePlanQtyProcessId) return null;
+    
+    const process = scheduledProcesses.find(p => p.id === activePlanQtyProcessId);
+    if (!process) return null;
+    
+    const order = orders.find(o => o.id === process.orderId);
+    if (!order) return null;
+
+    const allSewingProcessesForOrder = scheduledProcesses.filter(p => p.orderId === process.orderId && p.processId === process.processId);
+    const sewingProcessInfo = PROCESSES.find(p => p.id === SEWING_PROCESS_ID)!;
+
+    return calculateDailySewingOutput(order, allSewingProcessesForOrder, sewingProcessInfo);
+
+  }, [activePlanQtyProcessId, scheduledProcesses, orders]);
 
   const isPabView = selectedProcessId === 'pab';
 
@@ -986,6 +1012,7 @@ function GanttPageContent() {
                         onDrop={handleDropOnChart}
                         onUndoSchedule={handleUndoSchedule}
                         onProcessDragStart={handleDragStart}
+                        onProcessClick={handleProcessBarClick}
                         onSplitProcess={handleOpenSplitDialog}
                         viewMode={viewMode}
                         draggedItem={draggedItem}
@@ -997,6 +1024,8 @@ function GanttPageContent() {
                         predecessorEndDateMap={predecessorEndDateMap}
                         draggedItemLatestEndDate={draggedItemLatestEndDate}
                         draggedItemCkDate={draggedItemCkDate}
+                        activePlanQtyProcessId={activePlanQtyProcessId}
+                        dailyPlanQty={dailyPlanQty}
                       />
                   )}
                 </div>

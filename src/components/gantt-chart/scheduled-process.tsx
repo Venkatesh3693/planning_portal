@@ -17,6 +17,7 @@ type ScheduledProcessProps = {
   orders: Order[];
   onUndo?: (scheduledProcessId: string) => void;
   onDragStart?: (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => void;
+  onClick?: (processId: string) => void;
   onSplit?: (process: ScheduledProcess) => void;
   latestStartDatesMap: Map<string, Date>;
   predecessorEndDateMap: Map<string, Date>;
@@ -27,6 +28,7 @@ export default function ScheduledProcessBar({
   orders,
   onUndo,
   onDragStart,
+  onClick,
   onSplit,
   latestStartDatesMap,
   predecessorEndDateMap,
@@ -66,6 +68,12 @@ export default function ScheduledProcessBar({
     setIsMenuOpen(true);
   };
 
+  const handleClick = () => {
+    if (onClick) {
+      onClick(item.id);
+    }
+  }
+
   const dateMapKey = `${item.orderId}-${item.processId}-${item.batchNumber || 0}`;
   const liveLatestStartDate = latestStartDatesMap.get(dateMapKey);
   const livePredecessorEndDate = predecessorEndDateMap.get(dateMapKey);
@@ -91,13 +99,15 @@ export default function ScheduledProcessBar({
     <Popover open={isMenuOpen} onOpenChange={setIsMenuOpen}>
       <PopoverAnchor asChild>
         <div
+          onClick={handleClick}
           onContextMenu={handleContextMenu}
           draggable={!!onDragStart}
           onDragStart={handleInternalDragStart}
           className={cn(
             "relative z-10 flex items-center overflow-hidden rounded-md m-px h-[calc(100%-0.125rem)] text-white shadow-lg group/gantt-chart-bar",
             "group-[.is-dragging]/gantt:pointer-events-none", // Make other bars un-interactive during drag
-            onDragStart && 'cursor-grab active:cursor-grabbing'
+            onDragStart && 'cursor-grab active:cursor-grabbing',
+            onClick && 'cursor-pointer'
           )}
           style={{
             backgroundColor: baseColor,
@@ -110,7 +120,7 @@ export default function ScheduledProcessBar({
               </div>
             <div className="flex items-center gap-2 px-2 pointer-events-none w-full">
               <Icon className="h-4 w-4 shrink-0" />
-              <span className="truncate text-xs font-semibold">{orderDetails.id}</span>
+              <span className="truncate text-xs font-semibold">{orderDetails.ocn ? `${orderDetails.ocn}-${orderDetails.color}` : orderDetails.id}</span>
               {item.isSplit && <span className="text-xs opacity-80">({item.quantity})</span>}
             </div>
           </div>
