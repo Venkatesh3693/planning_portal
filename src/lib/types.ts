@@ -43,6 +43,7 @@ export type SewingLineGroup = {
   ccNo: string;
   allocatedLines: string[];
   machineRequirements: MachineRequirement[];
+  outputMultiplier?: number;
 };
 
 export type Process = {
@@ -280,5 +281,3 @@ export type FrcRow = {
     status: string;
     remarks: Remark[];
 };
-
-    

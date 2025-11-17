@@ -99,6 +99,7 @@ export default function CapacityAllocationPage() {
     const [selectedCc, setSelectedCc] = useState('');
     const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
     const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+    const [outputMultiplier, setOutputMultiplier] = useState(1);
 
     const [lineForReallocation, setLineForReallocation] = useState<SewingLine | null>(null);
     const { toast } = useToast();
@@ -145,7 +146,7 @@ export default function CapacityAllocationPage() {
 
         const machineRequirements: MachineRequirement[] = Object.entries(machineCounts).map(([type, count]) => ({
             machineType: type,
-            required: count,
+            required: count * outputMultiplier,
         }));
         
         const newGroup: SewingLineGroup = {
@@ -154,10 +155,12 @@ export default function CapacityAllocationPage() {
             ccNo: selectedCc,
             allocatedLines: [],
             machineRequirements: machineRequirements,
+            outputMultiplier: outputMultiplier,
         };
 
         setSewingLineGroups([...sewingLineGroups, newGroup]);
         setSelectedCc('');
+        setOutputMultiplier(1);
         setActiveGroupId(newGroup.id);
         setIsCreatingGroup(false);
     };
@@ -229,7 +232,6 @@ export default function CapacityAllocationPage() {
         // For now, we assume de-allocation returns the line to its "original" state pre-allocation.
         // This requires a "snapshot" or "original config" of lines, which we don't have.
         // Let's just remove the line from the group. The machine counts are implicitly recalculated.
-        // To properly move machines back, we'd need to know which ones came from where.
         
         setSewingLineGroups(prevGroups => prevGroups.map(group => {
             if (group.id !== groupToUpdate.id) return group;
@@ -309,9 +311,22 @@ export default function CapacityAllocationPage() {
                                     <CardTitle>Create New Line Group</CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
-                                    <div className="space-y-2">
-                                        <Label>Group Name</Label>
-                                        <p className="text-lg font-semibold text-muted-foreground p-2 border rounded-md h-10">SLG-{sewingLineGroups.length + 1}</p>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>Group Name</Label>
+                                            <p className="text-lg font-semibold text-muted-foreground p-2 border rounded-md h-10">SLG-{sewingLineGroups.length + 1}</p>
+                                        </div>
+                                         <div className="space-y-2">
+                                            <Label htmlFor="multiplier-select">Output</Label>
+                                            <Select value={String(outputMultiplier)} onValueChange={(v) => setOutputMultiplier(Number(v))}>
+                                                <SelectTrigger id="multiplier-select">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {[1, 2, 3, 4, 5].map(m => <SelectItem key={m} value={String(m)}>{m}x</SelectItem>)}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="cc-select">Assign CC No.</Label>
@@ -374,12 +389,15 @@ export default function CapacityAllocationPage() {
                                             const groupMachineTotals = calculateGroupMachineTotals(group);
                                             return (
                                                 <div key={group.id} className={cn("p-3 rounded-md border flex flex-col cursor-pointer", activeGroupId === group.id && "ring-2 ring-primary border-primary")} onClick={() => setActiveGroupId(group.id)}>
-                                                    <div className="flex items-center justify-between">
+                                                    <div className="flex items-start justify-between">
                                                         <div>
                                                             <p className="font-semibold">{group.name}</p>
                                                             <p className="text-sm text-muted-foreground">CC: {group.ccNo}</p>
                                                         </div>
                                                         <div className="flex items-center gap-2">
+                                                            {group.outputMultiplier && group.outputMultiplier > 1 && (
+                                                                <Badge variant="outline">{group.outputMultiplier}x Output</Badge>
+                                                            )}
                                                             <Button variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={(e) => { e.stopPropagation(); handleDeleteGroup(group.id); }}>
                                                                 <Trash2 />
                                                             </Button>
