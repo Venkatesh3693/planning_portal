@@ -408,7 +408,6 @@ export default function CapacityAllocationPage() {
                                             <p className="text-lg font-semibold text-muted-foreground p-2 border rounded-md h-10">SLG-{sewingLineGroups.length + 1}</p>
                                         </div>
                                          <div className="space-y-2">
-                                            <Label htmlFor="multiplier-select">Output</Label>
                                             <Select value={String(outputMultiplier)} onValueChange={(v) => setOutputMultiplier(Number(v))}>
                                                 <SelectTrigger id="multiplier-select">
                                                     <SelectValue />
@@ -519,7 +518,6 @@ export default function CapacityAllocationPage() {
                                     </div>
                                      <div className="flex items-center gap-2">
                                         <div className="w-40 space-y-2">
-                                            <Label htmlFor="active-multiplier-select">Output</Label>
                                             <Select 
                                                 value={String(activeGroup.outputMultiplier || 1)} 
                                                 onValueChange={(v) => handleMultiplierChange(activeGroup.id, Number(v))}
