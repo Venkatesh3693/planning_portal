@@ -822,19 +822,21 @@ function GanttPageContent() {
 
   const isPabView = selectedProcessId === 'pab';
 
-  if (appMode === 'gut' || appMode === 'gut-new') {
+  if (appMode !== 'gut-new') {
     return (
       <div className="flex h-screen flex-col">
         <Header />
         <main className="flex-1 flex items-center justify-center">
           <div className="text-center">
               <ShoppingCart className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h2 className="mt-4 text-xl font-semibold">Gantt Chart Not Available for GUT Mode</h2>
+              <h2 className="mt-4 text-xl font-semibold">Gantt Chart Not Available</h2>
               <p className="mt-2 text-muted-foreground">
-                  The planning and scheduling view is only applicable to GUP.
+                  This view is only applicable for GUT (New) mode.
               </p>
               <Button asChild className="mt-6">
-                <Link href="/orders">View GUT Orders</Link>
+                <Link href={appMode === 'gup' ? '/' : '/orders'}>
+                  Return to {appMode.toUpperCase()}
+                </Link>
               </Button>
           </div>
         </main>
@@ -972,7 +974,7 @@ function GanttPageContent() {
   );
 }
 
-export default function Home() {
+export default function GutNewPage() {
   return (
     <GanttPageContent />
   );

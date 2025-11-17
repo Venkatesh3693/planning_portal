@@ -42,7 +42,7 @@ export function Header() {
   const pathname = usePathname();
   const { appMode, setAppMode } = useSchedule();
   
-  const homeHref = appMode === 'gup' ? '/' : '/orders';
+  const homeHref = appMode === 'gup' ? '/' : appMode === 'gut' ? '/orders' : '/gut-new';
 
   return (
     <header className="bg-blue-800 dark:bg-blue-900 shadow-sm sticky top-0 z-50">
@@ -73,7 +73,7 @@ export function Header() {
                         Capacity
                     </NavLink>
                 </>
-            ) : (
+            ) : appMode === 'gut' ? (
                 <>
                     <NavLink href="/orders">
                         <ShoppingCart className="mr-2 h-4 w-4" />
@@ -95,21 +95,29 @@ export function Header() {
                         <Link href="/line-plan" passHref><DropdownMenuItem>Line Plan</DropdownMenuItem></Link>
                     </NavDropdown>
                 </>
+            ) : (
+                 <NavLink href="/gut-new">
+                    <GanttChartSquare className="mr-2 h-4 w-4" />
+                    Gantt Chart
+                </NavLink>
             )}
           </nav>
 
           <div className="flex items-center gap-4">
              <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="w-[100px] justify-between">
-                  <span>{appMode.toUpperCase()}</span>
+                <Button variant="outline" className="w-[120px] justify-between">
+                  <span>
+                    {appMode === 'gup' ? 'GUP' : appMode === 'gut' ? 'GUT' : 'GUT (New)'}
+                    </span>
                   <ChevronDown/>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                <DropdownMenuRadioGroup value={appMode} onValueChange={(value) => setAppMode(value as 'gup' | 'gut')}>
+                <DropdownMenuRadioGroup value={appMode} onValueChange={(value) => setAppMode(value as 'gup' | 'gut' | 'gut-new')}>
                   <DropdownMenuRadioItem value="gup">GUP</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="gut">GUT</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="gut-new">GUT (New)</DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -128,7 +136,7 @@ export function Header() {
                     <Link href="/orders" passHref><DropdownMenuItem>Orders</DropdownMenuItem></Link>
                     <Link href="/capacity" passHref><DropdownMenuItem>Capacity</DropdownMenuItem></Link>
                   </>
-                ) : (
+                ) : appMode === 'gut' ? (
                   <>
                     <Link href="/orders" passHref><DropdownMenuItem>Order Management</DropdownMenuItem></Link>
                     <DropdownMenuSeparator/>
@@ -163,6 +171,8 @@ export function Header() {
                       </DropdownMenuPortal>
                     </DropdownMenuSub>
                   </>
+                ) : (
+                    <Link href="/gut-new" passHref><DropdownMenuItem>Gantt Chart</DropdownMenuItem></Link>
                 )}
 
               </DropdownMenuContent>

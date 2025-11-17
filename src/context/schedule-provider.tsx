@@ -7,10 +7,10 @@ import { ORDERS as staticOrders, PROCESSES, ORDER_COLORS, SIZES, MACHINES as sta
 import { addDays, startOfToday, isAfter, getWeek } from 'date-fns';
 import { getProcessBatchSize, getPackingBatchSize, PrjGenerator, FrcGenerator } from '@/lib/tna-calculator';
 
-const STORE_KEY = 'stitchplan_schedule_v5';
+const STORE_KEY_PREFIX = 'stitchplan_schedule_v5_';
 const FIRM_PO_WINDOW = 3;
 
-type AppMode = 'gup' | 'gut';
+type AppMode = 'gup' | 'gut' | 'gut-new';
 type SewingRampUpSchemes = Record<string, RampUpEntry[]>;
 type SewingLines = Record<string, number>;
 type StoredOrderOverrides = Record<string, Partial<Pick<Order, 'displayColor' | 'sewingRampUpScheme' | 'tna' | 'bom' | 'fcVsFcDetails'>>>;
@@ -159,14 +159,17 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     try {
-      const serializedState = localStorage.getItem(STORE_KEY);
+      const storedAppMode = localStorage.getItem(`${STORE_KEY_PREFIX}appMode`) as AppMode | null;
+      const initialMode = storedAppMode || 'gup';
+      setAppModeState(initialMode);
+      
+      const serializedState = localStorage.getItem(`${STORE_KEY_PREFIX}${initialMode}`);
       let loadedOverrides: StoredOrderOverrides = {};
       let maxEndDate = addDays(startOfToday(), 90);
       
       if (serializedState) {
         const storedData = JSON.parse(serializedState);
         
-        if (storedData.appMode) setAppModeState(storedData.appMode);
         setProductionPlans(storedData.productionPlans || {});
         loadedOverrides = storedData.orderOverrides || {};
         setOrderOverrides(loadedOverrides);
@@ -363,7 +366,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     if (!isScheduleLoaded) return;
     try {
       const stateToSave = {
-        appMode,
         scheduledProcesses,
         orderOverrides,
         productionPlans,
@@ -375,13 +377,15 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         sewingLineGroups,
       };
       const serializedState = JSON.stringify(stateToSave);
-      localStorage.setItem(STORE_KEY, serializedState);
+      localStorage.setItem(`${STORE_KEY_PREFIX}${appMode}`, serializedState);
+      localStorage.setItem(`${STORE_KEY_PREFIX}appMode`, appMode);
     } catch (err) {
       console.error("Could not save schedule to localStorage", err);
     }
   }, [appMode, scheduledProcesses, orderOverrides, productionPlans, timelineEndDate, splitOrderProcesses, cutOrderRecords, frcData, machines, sewingLineGroups, isScheduleLoaded]);
 
   const setAppMode = useCallback((mode: AppMode) => {
+    window.location.reload(); // Simplest way to reload state for the new mode
     setAppModeState(mode);
   }, []);
 
