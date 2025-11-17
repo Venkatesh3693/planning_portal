@@ -3,7 +3,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays, startOfWeek, format, startOfDay } from 'date-fns';
+import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays, startOfWeek, format } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, PROCESSES, WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE } from '@/lib/data';
@@ -864,34 +864,44 @@ function GanttPageContent() {
   };
   
   const dailyPlanQty = useMemo(() => {
-    if (!activePlanQtyProcessId) return null;
-    const process = scheduledProcesses.find(p => p.id === activePlanQtyProcessId);
-    if (!process) return null;
-    const order = orders.find(o => o.id === process.orderId);
-    if (!order || !order.budgetedEfficiency) return null;
+      if (!activePlanQtyProcessId) return null;
+      
+      const activeProcess = scheduledProcesses.find(p => p.id === activePlanQtyProcessId);
+      if (!activeProcess) return null;
 
-    const operations = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
-    if (operations.length === 0) return null;
+      const order = orders.find(o => o.id === activeProcess.orderId);
+      if (!order || !order.budgetedEfficiency) return null;
 
-    const totalSam = operations.reduce((sum, op) => sum + op.sam, 0);
-    const totalTailors = operations.reduce((sum, op) => sum + op.operators, 0);
+      const allProcessesForOrder = scheduledProcesses.filter(p => 
+          p.orderId === activeProcess.orderId && 
+          p.processId === activeProcess.processId
+      );
 
-    if (totalSam === 0 || totalTailors === 0) return null;
+      const dailyData: Record<string, number> = {};
 
-    const dailyOutput = (WORK_DAY_MINUTES * totalTailors * (order.budgetedEfficiency / 100)) / totalSam;
-    
-    const dailyData: Record<string, number> = {};
-    let currentDate = new Date(process.startDateTime);
-    while (currentDate <= process.endDateTime) {
-        if(getDay(currentDate) !== 0) { // Exclude Sundays
-            const dateKey = format(startOfDay(currentDate), 'yyyy-MM-dd');
-            dailyData[dateKey] = dailyOutput;
-        }
-        currentDate = addDays(currentDate, 1);
-    }
+      allProcessesForOrder.forEach(process => {
+          const operations = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
+          if (operations.length === 0) return;
 
-    return dailyData;
-}, [activePlanQtyProcessId, scheduledProcesses, orders]);
+          const totalSam = operations.reduce((sum, op) => sum + op.sam, 0);
+          const totalTailors = operations.reduce((sum, op) => sum + op.operators, 0);
+          if (totalSam === 0 || totalTailors === 0) return;
+
+          const dailyOutput = (WORK_DAY_MINUTES * totalTailors * (order.budgetedEfficiency || 0) / 100) / totalSam;
+
+          let currentDate = new Date(process.startDateTime);
+          while (currentDate <= process.endDateTime) {
+              if (getDay(currentDate) !== 0) { // Exclude Sundays
+                  const dateKey = format(startOfDay(currentDate), 'yyyy-MM-dd');
+                  dailyData[dateKey] = (dailyData[dateKey] || 0) + dailyOutput;
+              }
+              currentDate = addDays(currentDate, 1);
+          }
+      });
+      
+      return dailyData;
+  }, [activePlanQtyProcessId, scheduledProcesses, orders]);
+
 
 
   const dailyPoFcQty = useMemo(() => {
@@ -926,13 +936,13 @@ function GanttPageContent() {
       const fgOiData: Record<string, number> = {};
       let openingInventory = 0; // Assume initial opening inventory is 0
 
-      // Iterate through all days in the visible timeline
       for (const day of dates) {
           const dateKey = format(day, 'yyyy-MM-dd');
-          const yesterday = subDays(day, 1);
-          const yesterdayDateKey = format(yesterday, 'yyyy-MM-dd');
-
-          const planQtyYesterday = dailyPlanQty[yesterdayDateKey] || 0;
+          
+          const prevDate = subDays(day, 1);
+          const prevDateKey = format(prevDate, 'yyyy-MM-dd');
+          
+          const planQtyYesterday = dailyPlanQty[prevDateKey] || 0;
           const poFcToday = dailyPoFcQty[dateKey] || 0;
 
           const todayFgOi = openingInventory + planQtyYesterday - poFcToday;
@@ -1118,6 +1128,7 @@ export default function GutNewPage() {
     <GanttPageContent />
   );
 }
+
 
 
 
