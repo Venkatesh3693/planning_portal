@@ -3,7 +3,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays, format, startOfDay } from 'date-fns';
+import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays, format, startOfDay, startOfWeek } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, PROCESSES, WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE } from '@/lib/data';
@@ -875,8 +875,8 @@ function GanttPageContent() {
     if (!order || !order.budgetedEfficiency) return null;
     
     const allProcessesForOrder = scheduledProcesses.filter(p => {
-        const parentId = p.parentId || p.id.split('-split-')[0];
-        const activeParentId = activeProcess.parentId || activeProcess.id.split('-split-')[0];
+        const parentId = p.parentId || (p.isSplit ? p.id.split('-child-')[0] : p.id.split('-split-')[0]);
+        const activeParentId = activeProcess.parentId || (activeProcess.isSplit ? activeProcess.id.split('-child-')[0] : activeProcess.id.split('-split-')[0]);
         return parentId === activeParentId && p.processId === activeProcess.processId;
     });
 
@@ -1146,3 +1146,4 @@ export default function GutNewPage() {
     <GanttPageContent />
   );
 }
+
