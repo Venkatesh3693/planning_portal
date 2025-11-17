@@ -1,5 +1,4 @@
 
-
 import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail, FcSnapshot, FcComposition, ProjectionDetail, BomItem, ComponentStatusDetail, FrcDetail, SewingLine } from './types';
 import { Scissors, Printer, Fingerprint, ExternalLink, MoveHorizontal, PackageCheck } from 'lucide-react';
 import { addDays, subDays, startOfToday, getWeek, isBefore } from 'date-fns';
@@ -635,4 +634,3 @@ export const SEWING_OPERATIONS_BY_STYLE: Record<string, SewingOperation[]> = {
 
 // Assuming an 8-hour work day
 export const WORK_DAY_MINUTES = 8 * 60;
-
