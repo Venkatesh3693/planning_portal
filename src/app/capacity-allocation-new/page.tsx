@@ -340,7 +340,7 @@ export default function CapacityAllocationPage() {
                                         {sewingLineGroups.map(group => {
                                             const groupMachineTotals = calculateGroupMachineTotals(group);
                                             return (
-                                                <div key={group.id} className={cn("p-3 rounded-md border flex flex-col cursor-pointer", activeGroupId === group.id && "ring-2 ring-primary border-primary")} onClick={() => setActiveGroupId(prevId => prevId === group.id ? null : prevId)}>
+                                                <div key={group.id} className={cn("p-3 rounded-md border flex flex-col cursor-pointer", activeGroupId === group.id && "ring-2 ring-primary border-primary")} onClick={() => setActiveGroupId(group.id)}>
                                                     <div className="flex items-center justify-between">
                                                         <div>
                                                             <p className="font-semibold">{group.name}</p>
@@ -434,5 +434,7 @@ export default function CapacityAllocationPage() {
         </div>
     );
 }
+
+    
 
     
