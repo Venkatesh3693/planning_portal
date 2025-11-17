@@ -47,8 +47,8 @@ const ROW_HEIGHT_PX = 40;
 const WORKING_HOURS_START = 9;
 const WORKING_HOURS_END = 17;
 const WORKING_HOURS = Array.from({ length: WORKING_HOURS_END - WORKING_HOURS_START }, (_, i) => i + WORKING_HOURS_START);
-const DAY_CELL_WIDTH = '2.5rem';
-const HOUR_CELL_WIDTH = '3.5rem';
+const DAY_CELL_WIDTH_INITIAL = 40; // 2.5rem
+const HOUR_CELL_WIDTH_INITIAL = 56; // 3.5rem
 
 
 const TopLeftCorner = () => (
@@ -66,8 +66,17 @@ const TopLeftCorner = () => (
 
 const Header = React.forwardRef<
   HTMLDivElement,
-  { timeColumns: { date: Date; type: 'day' | 'hour' }[]; viewMode: ViewMode; draggedItemLatestStartDate: Date | null; predecessorEndDate: Date | null; draggedItemLatestEndDate: Date | null; draggedItemCkDate: Date | null; }
->(({ timeColumns, viewMode, draggedItemLatestStartDate, predecessorEndDate, draggedItemLatestEndDate, draggedItemCkDate }, ref) => {
+  { 
+    timeColumns: { date: Date; type: 'day' | 'hour' }[]; 
+    viewMode: ViewMode; 
+    draggedItemLatestStartDate: Date | null; 
+    predecessorEndDate: Date | null; 
+    draggedItemLatestEndDate: Date | null; 
+    draggedItemCkDate: Date | null;
+    cellWidth: number;
+    onResizeStart: (index: number, startX: number) => void;
+  }
+>(({ timeColumns, viewMode, draggedItemLatestStartDate, predecessorEndDate, draggedItemLatestEndDate, draggedItemCkDate, cellWidth, onResizeStart }, ref) => {
   const monthHeaders = React.useMemo(() => {
     const headers: { name: string; span: number }[] = [];
     if (timeColumns.length === 0 || viewMode !== 'day') return headers;
@@ -116,8 +125,7 @@ const Header = React.forwardRef<
   }, [timeColumns, viewMode]);
 
   const topHeaders = viewMode === 'day' ? monthHeaders : dayHeaders;
-  const cellWidth = viewMode === 'day' ? DAY_CELL_WIDTH : HOUR_CELL_WIDTH;
-  const gridTemplateColumns = `repeat(${timeColumns.length}, ${cellWidth})`;
+  const gridTemplateColumns = `repeat(${timeColumns.length}, ${cellWidth}px)`;
 
   return (
     <div ref={ref} className="sticky top-0 z-30 overflow-hidden bg-muted/30 border-b border-border/60">
@@ -136,7 +144,7 @@ const Header = React.forwardRef<
            const isCkDate = draggedItemCkDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemCkDate) : isSameHour(col.date, draggedItemCkDate));
 
            return (
-              <div key={`bottom-header-${i}`} className="border-r border-border/60 text-center h-7 flex items-center justify-center relative">
+              <div key={`bottom-header-${i}`} className="border-r border-border/60 text-center h-7 flex items-center justify-center relative group">
                  {isLatestEndDate ? (
                     <div className="absolute inset-0 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold z-10">
                         FINISH BY
@@ -158,6 +166,10 @@ const Header = React.forwardRef<
                     {viewMode === 'day' ? format(col.date, 'd') : format(col.date, 'ha').toLowerCase()}
                   </div>
                 )}
+                 <div
+                    className="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-primary opacity-0 group-hover:opacity-100 transition-opacity"
+                    onMouseDown={(e) => onResizeStart(i, e.clientX)}
+                  />
               </div>
            );
         })}
@@ -202,6 +214,33 @@ export default function GanttChart({
   const sidebarWidthRef = React.useRef<HTMLDivElement>(null);
 
   const [sidebarWidth, setSidebarWidth] = React.useState(150);
+  
+  const [cellWidth, setCellWidth] = React.useState(viewMode === 'day' ? DAY_CELL_WIDTH_INITIAL : HOUR_CELL_WIDTH_INITIAL);
+
+  const resizeData = React.useRef<{ startIndex: number, startX: number, startWidth: number } | null>(null);
+
+  React.useEffect(() => {
+    setCellWidth(viewMode === 'day' ? DAY_CELL_WIDTH_INITIAL : HOUR_CELL_WIDTH_INITIAL);
+  }, [viewMode]);
+  
+  const handleResizeStart = (index: number, startX: number) => {
+    resizeData.current = { startIndex: index, startX, startWidth: cellWidth };
+    window.addEventListener('mousemove', handleResizeMove);
+    window.addEventListener('mouseup', handleResizeEnd);
+  };
+
+  const handleResizeMove = (e: MouseEvent) => {
+    if (!resizeData.current) return;
+    const dx = e.clientX - resizeData.current.startX;
+    const newWidth = Math.max(20, resizeData.current.startWidth + dx); // Minimum width of 20px
+    setCellWidth(newWidth);
+  };
+
+  const handleResizeEnd = () => {
+    resizeData.current = null;
+    window.removeEventListener('mousemove', handleResizeMove);
+    window.removeEventListener('mouseup', handleResizeEnd);
+  };
 
   const activeProcess = React.useMemo(() => {
       if (!activePlanQtyProcessId) return null;
@@ -255,8 +294,6 @@ export default function GanttChart({
     onDrop(rowId, date, draggedItemJSON);
     setDragOverCell(null);
   };
-  
-  const cellWidth = viewMode === 'day' ? DAY_CELL_WIDTH : HOUR_CELL_WIDTH;
   
   const validDateRanges = React.useMemo(() => {
     if (!draggedItem || draggedItem.type !== 'existing' || !draggedItem.process.isAutoScheduled) {
@@ -313,8 +350,8 @@ export default function GanttChart({
     return finalRows;
   }, [rows, activeProcess]);
 
-  const gridTemplateColumns = `repeat(${timeColumns.length}, ${cellWidth})`;
-  const totalGridWidth = `calc(${timeColumns.length} * ${cellWidth})`;
+  const gridTemplateColumns = `repeat(${timeColumns.length}, ${cellWidth}px)`;
+  const totalGridWidth = timeColumns.length * cellWidth;
 
   return (
     <div 
@@ -334,6 +371,8 @@ export default function GanttChart({
         predecessorEndDate={predecessorEndDate}
         draggedItemLatestEndDate={draggedItemLatestEndDate}
         draggedItemCkDate={draggedItemCkDate}
+        cellWidth={cellWidth}
+        onResizeStart={handleResizeStart}
       />
 
       {/* Bottom-Left Sidebar (Machine Names) */}
@@ -478,8 +517,8 @@ export default function GanttChart({
                     className="absolute z-10"
                     style={{
                       top: `${rowIndex * ROW_HEIGHT_PX}px`,
-                      left: `calc(${startIndex} * ${cellWidth})`,
-                      width: `calc(${span} * ${cellWidth})`,
+                      left: `${startIndex * cellWidth}px`,
+                      width: `${span * cellWidth}px`,
                       height: `${ROW_HEIGHT_PX}px`,
                     }}
                   >
