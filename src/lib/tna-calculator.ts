@@ -1,6 +1,6 @@
 
 
-import type { Order, Process, TnaProcess, RampUpEntry, ScheduledProcess, SewingOperation, Size, FcComposition, FcSnapshot, ProjectionRow, FrcRow } from './types';
+import type { Order, Process, TnaProcess, RampUpEntry, ScheduledProcess, SewingOperation, Size, FcComposition, FcSnapshot, ProjectionRow, FrcRow, SewingLineGroup } from './types';
 import { WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE, SIZES, PROCESSES as allProcesses } from './data';
 import { addDays, subDays, getDay, format, startOfDay, differenceInMinutes, isBefore, isAfter } from 'date-fns';
 import { calculateStartDateTime, subBusinessDays } from './utils';
@@ -58,7 +58,7 @@ export function calculateSewingDurationMinutes(
         const dateKey = format(startOfDay(currentDate), 'yyyy-MM-dd');
         
         if (holidays.includes(dateKey)) {
-            totalMinutes += WORK_DAY_MINUTES;
+            // FIX: Do not add any minutes for a holiday, just skip to the next day.
             currentDay++;
             continue;
         }
