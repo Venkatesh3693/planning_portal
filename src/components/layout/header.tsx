@@ -96,10 +96,20 @@ export function Header() {
                     </NavDropdown>
                 </>
             ) : (
+                <>
                  <NavLink href="/gut-new">
                     <GanttChartSquare className="mr-2 h-4 w-4" />
                     Gantt Chart
                 </NavLink>
+                <NavLink href="/orders-new">
+                    <ShoppingCart className="mr-2 h-4 w-4" />
+                    Orders
+                </NavLink>
+                 <NavLink href="/capacity-allocation-new">
+                    <FactoryIcon className="mr-2 h-4 w-4" />
+                    Capacity
+                </NavLink>
+                </>
             )}
           </nav>
 
@@ -172,7 +182,11 @@ export function Header() {
                     </DropdownMenuSub>
                   </>
                 ) : (
+                  <>
                     <Link href="/gut-new" passHref><DropdownMenuItem>Gantt Chart</DropdownMenuItem></Link>
+                    <Link href="/orders-new" passHref><DropdownMenuItem>Orders</DropdownMenuItem></Link>
+                    <Link href="/capacity-allocation-new" passHref><DropdownMenuItem>Capacity</DropdownMenuItem></Link>
+                  </>
                 )}
 
               </DropdownMenuContent>
