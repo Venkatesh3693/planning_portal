@@ -62,7 +62,8 @@ export default function LineReallocationDialog({
           counts[line.id] = {};
           line.machines.forEach(machine => {
               if (machine.isMoveable) {
-                  counts[line.id][machine.name] = (counts[line.id][machine.name] || 0) + 1;
+                  const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name] || machine.name;
+                  counts[line.id][machineType] = (counts[line.id][machineType] || 0) + 1;
               }
           });
       });
@@ -91,13 +92,14 @@ export default function LineReallocationDialog({
   const isSaveDisabled = useMemo(() => {
       return reallocations.some(r => !r.sourceLineId || !r.machineType || r.quantity <= 0) ||
         reallocations.some(r => {
-            const available = sourceLineMachineCounts[r.sourceLineId]?.[r.machineType] || 0;
+            const originalMachineName = Object.keys(MACHINE_NAME_ABBREVIATIONS).find(key => MACHINE_NAME_ABBREVIATIONS[key] === r.machineType) || r.machineType;
+            const available = sourceLineOptions.find(l => l.id === r.sourceLineId)?.machines.filter(m => m.name === originalMachineName).length || 0;
             const requested = reallocations
                 .filter(re => re.sourceLineId === r.sourceLineId && re.machineType === r.machineType)
                 .reduce((sum, re) => sum + re.quantity, 0);
             return requested > available;
         });
-  }, [reallocations, sourceLineMachineCounts]);
+  }, [reallocations, sourceLineOptions]);
 
 
   const handleSave = () => {
@@ -111,9 +113,11 @@ export default function LineReallocationDialog({
     for (const realloc of reallocations) {
         if (!realloc.sourceLineId || !realloc.machineType || realloc.quantity <= 0) continue;
 
+        const originalMachineName = Object.keys(MACHINE_NAME_ABBREVIATIONS).find(key => MACHINE_NAME_ABBREVIATIONS[key] === realloc.machineType) || realloc.machineType;
+
         for (let i = 0; i < realloc.quantity; i++) {
             const pool = availableMachinesPool[realloc.sourceLineId];
-            const machineIndex = pool.findIndex(m => m.name === realloc.machineType);
+            const machineIndex = pool.findIndex(m => m.name === originalMachineName);
             if (machineIndex > -1) {
                 const [machineToMove] = pool.splice(machineIndex, 1);
                 movedMachines.push(machineToMove);
@@ -144,7 +148,9 @@ export default function LineReallocationDialog({
         <div className="space-y-4 py-4 max-h-[40vh] overflow-y-auto">
           {reallocations.map(realloc => {
             const availableTypes = Object.keys(sourceLineMachineCounts[realloc.sourceLineId] || {});
-            const availableCount = sourceLineMachineCounts[realloc.sourceLineId]?.[realloc.machineType] || 0;
+            const originalMachineName = Object.keys(MACHINE_NAME_ABBREVIATIONS).find(key => MACHINE_NAME_ABBREVIATIONS[key] === realloc.machineType) || realloc.machineType;
+            const availableCount = sourceLineOptions.find(l => l.id === realloc.sourceLineId)?.machines.filter(m => m.name === originalMachineName).length || 0;
+
             const currentlyRequested = reallocations
               .filter(r => r.sourceLineId === realloc.sourceLineId && r.machineType === realloc.machineType)
               .reduce((sum, r) => sum + r.quantity, 0);
@@ -163,7 +169,7 @@ export default function LineReallocationDialog({
                   <Select value={realloc.machineType} onValueChange={(val) => handleUpdateRow(realloc.id, 'machineType', val)} disabled={!realloc.sourceLineId}>
                       <SelectTrigger><SelectValue placeholder="Machine Type" /></SelectTrigger>
                       <SelectContent>
-                          {availableTypes.map(type => <SelectItem key={type} value={type}>{MACHINE_NAME_ABBREVIATIONS[type] || type}</SelectItem>)}
+                          {availableTypes.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
                       </SelectContent>
                   </Select>
 
