@@ -90,34 +90,6 @@ function GanttPageContent() {
   const [draggingProcessId, setDraggingProcessId] = useState<string | null>(null);
   const [activePlanQtyProcessId, setActivePlanQtyProcessId] = useState<string | null>(null);
 
-  const calculateProductionDays = (order: Order): number => {
-    const operations = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
-    const productionQtyLeft = Math.max(0, order.quantity - (order.produced?.total || 0));
-
-    if (operations.length === 0 || productionQtyLeft <= 0 || !order.budgetedEfficiency) {
-      return 0;
-    }
-  
-    const totalSam = operations.reduce((sum, op) => sum + op.sam, 0);
-    const baseTotalTailors = operations.reduce((sum, op) => sum + op.operators, 0);
-
-    const slg = sewingLineGroups.find(g => g.ccNo === order.ocn);
-    const multiplier = slg?.outputMultiplier || 1;
-    const totalTailors = baseTotalTailors * multiplier;
-  
-    if (totalSam === 0 || totalTailors === 0) {
-      return 0;
-    }
-  
-    const dailyTotalOutput = (WORK_DAY_MINUTES * totalTailors * (order.budgetedEfficiency / 100)) / totalSam;
-  
-    if (dailyTotalOutput <= 0) {
-      return Infinity;
-    }
-  
-    return productionQtyLeft / dailyTotalOutput;
-  };
-
   const dates = useMemo(() => {
     const today = startOfToday();
     const dateArray: Date[] = [];
@@ -540,7 +512,14 @@ function GanttPageContent() {
       
       let durationMinutes;
       if (order.orderType === 'Forecasted') {
-        const productionDays = calculateProductionDays(order);
+        const slg = sewingLineGroups.find(g => g.ccNo === order.ocn);
+        const multiplier = slg?.outputMultiplier || 1;
+        const operations = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
+        const totalSam = operations.reduce((sum, op) => sum + op.sam, 0);
+        const totalTailors = operations.reduce((sum, op) => sum + op.operators, 0) * multiplier;
+        const dailyOutput = (WORK_DAY_MINUTES * totalTailors * (order.budgetedEfficiency || 85) / 100) / totalSam;
+        const productionQtyLeft = Math.max(0, order.quantity - (order.produced?.total || 0));
+        const productionDays = dailyOutput > 0 ? productionQtyLeft / dailyOutput : 0;
         durationMinutes = productionDays * WORK_DAY_MINUTES;
       } else if (process.id === SEWING_PROCESS_ID) {
         const numLines = 1;
@@ -1090,7 +1069,6 @@ function GanttPageContent() {
                 toggleSplitProcess={toggleSplitProcess}
                 latestStartDatesMap={latestStartDatesMap}
                 latestSewingStartDateMap={latestSewingStartDateMap}
-                calculateProductionDays={calculateProductionDays}
               />
               
               <div className="h-full flex-1 overflow-auto rounded-lg border bg-card">
@@ -1108,6 +1086,7 @@ function GanttPageContent() {
                         dates={dates}
                         scheduledProcesses={processesForGantt}
                         allProcesses={scheduledProcesses}
+                        orders={orders}
                         onDrop={handleDropOnChart}
                         onUndoSchedule={handleUndoSchedule}
                         onProcessDragStart={handleDragStart}
@@ -1115,7 +1094,6 @@ function GanttPageContent() {
                         onSplitProcess={handleOpenSplitDialog}
                         viewMode={viewMode}
                         draggedItem={draggedItem}
-                        orders={orders}
                         latestStartDatesMap={latestStartDatesMap}
                         latestSewingStartDateMap={latestSewingStartDateMap}
                         draggedItemLatestStartDate={draggedItemLatestStartDate}
@@ -1153,6 +1131,7 @@ export default function GutNewPage() {
     <GanttPageContent />
   );
 }
+
 
 
 
