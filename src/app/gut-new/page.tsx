@@ -3,7 +3,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays, startOfWeek, format } from 'date-fns';
+import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays, startOfWeek, format, startOfDay } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, PROCESSES, WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE } from '@/lib/data';
@@ -879,16 +879,16 @@ function GanttPageContent() {
 
       const dailyData: Record<string, number> = {};
 
+      const operations = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
+      if (operations.length === 0) return null;
+
+      const totalSam = operations.reduce((sum, op) => sum + op.sam, 0);
+      const totalTailors = operations.reduce((sum, op) => sum + op.operators, 0);
+      if (totalSam === 0 || totalTailors === 0) return null;
+
+      const dailyOutput = (WORK_DAY_MINUTES * totalTailors * (order.budgetedEfficiency / 100)) / totalSam;
+
       allProcessesForOrder.forEach(process => {
-          const operations = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
-          if (operations.length === 0) return;
-
-          const totalSam = operations.reduce((sum, op) => sum + op.sam, 0);
-          const totalTailors = operations.reduce((sum, op) => sum + op.operators, 0);
-          if (totalSam === 0 || totalTailors === 0) return;
-
-          const dailyOutput = (WORK_DAY_MINUTES * totalTailors * (order.budgetedEfficiency || 0) / 100) / totalSam;
-
           let currentDate = new Date(process.startDateTime);
           while (currentDate <= process.endDateTime) {
               if (getDay(currentDate) !== 0) { // Exclude Sundays
@@ -1128,8 +1128,3 @@ export default function GutNewPage() {
     <GanttPageContent />
   );
 }
-
-
-
-
-
