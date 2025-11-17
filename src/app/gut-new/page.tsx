@@ -862,22 +862,37 @@ function GanttPageContent() {
   const handleProcessBarClick = (processId: string) => {
     setActivePlanQtyProcessId(prevId => prevId === processId ? null : processId);
   };
-
+  
   const dailyPlanQty = useMemo(() => {
     if (!activePlanQtyProcessId) return null;
-    
     const process = scheduledProcesses.find(p => p.id === activePlanQtyProcessId);
     if (!process) return null;
-    
     const order = orders.find(o => o.id === process.orderId);
-    if (!order) return null;
+    if (!order || !order.budgetedEfficiency) return null;
 
-    const allSewingProcessesForOrder = scheduledProcesses.filter(p => p.orderId === process.orderId && p.processId === process.processId);
-    const sewingProcessInfo = PROCESSES.find(p => p.id === SEWING_PROCESS_ID)!;
+    const operations = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
+    if (operations.length === 0) return null;
 
-    return calculateDailySewingOutput(order, allSewingProcessesForOrder, sewingProcessInfo);
+    const totalSam = operations.reduce((sum, op) => sum + op.sam, 0);
+    const totalTailors = operations.reduce((sum, op) => sum + op.operators, 0);
 
-  }, [activePlanQtyProcessId, scheduledProcesses, orders]);
+    if (totalSam === 0 || totalTailors === 0) return null;
+
+    const dailyOutput = (WORK_DAY_MINUTES * totalTailors * (order.budgetedEfficiency / 100)) / totalSam;
+    
+    const dailyData: Record<string, number> = {};
+    let currentDate = new Date(process.startDateTime);
+    while (currentDate <= process.endDateTime) {
+        if(getDay(currentDate) !== 0) { // Exclude Sundays
+            const dateKey = format(startOfDay(currentDate), 'yyyy-MM-dd');
+            dailyData[dateKey] = dailyOutput;
+        }
+        currentDate = addDays(currentDate, 1);
+    }
+
+    return dailyData;
+}, [activePlanQtyProcessId, scheduledProcesses, orders]);
+
 
   const dailyPoFcQty = useMemo(() => {
     if (!activePlanQtyProcessId) return null;
@@ -1079,4 +1094,5 @@ export default function GutNewPage() {
     <GanttPageContent />
   );
 }
+
 
