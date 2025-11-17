@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -17,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PlusCircle, X, Zap } from 'lucide-react';
-import { ORDERS, PROCESSES, WORK_DAY_MINUTES } from '@/lib/data';
+import { PROCESSES, WORK_DAY_MINUTES } from '@/lib/data';
 import { getProcessBatchSize, getPackingBatchSize } from '@/lib/tna-calculator';
 
 
@@ -70,7 +71,12 @@ export default function SplitProcessDialog({
         }
         return String(p.quantity);
       });
-      setSplits(initialSplits);
+
+      if (isDurationSplit && initialSplits.length > 0) {
+        setSplits([initialSplits[0], '0']);
+      } else {
+        setSplits(initialSplits);
+      }
     }
   }, [processes, isDurationSplit]);
 
@@ -84,12 +90,19 @@ export default function SplitProcessDialog({
     return getProcessBatchSize(order, PROCESSES, numLines);
   }, [order, processInfo, numLines]);
 
+  const remainingValue = useMemo(() => {
+    const allocated = splits.slice(1).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
+    return totalOriginalValue - allocated;
+  }, [splits, totalOriginalValue]);
+
 
   const totalSplitValue = useMemo(() => {
     return splits.reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
   }, [splits]);
   
-  const isInvalid = Math.abs(totalSplitValue - totalOriginalValue) > 0.01 || splits.some(q => (parseFloat(q) || 0) < 0);
+  const isInvalid = isDurationSplit 
+    ? remainingValue < 0
+    : Math.abs(totalSplitValue - totalOriginalValue) > 0.01 || splits.some(q => (parseFloat(q) || 0) < 0);
 
   const handleAddSplit = () => {
     const newSplits = [...splits, '0'];
@@ -97,7 +110,8 @@ export default function SplitProcessDialog({
   };
 
   const handleRemoveSplit = (index: number) => {
-    if (splits.length <= 1) return;
+    if (isDurationSplit && splits.length <= 2) return;
+    if (!isDurationSplit && splits.length <= 1) return;
     const newSplits = splits.filter((_, i) => i !== index);
     setSplits(newSplits);
   };
@@ -129,7 +143,13 @@ export default function SplitProcessDialog({
 
   const handleSubmit = () => {
     if (!isInvalid && processes) {
-      const numericSplits = splits.map(s => parseFloat(s) || 0).filter(q => q > 0);
+      let numericSplits: number[];
+      if (isDurationSplit) {
+        numericSplits = [remainingValue, ...splits.slice(1).map(s => parseFloat(s) || 0)].filter(q => q > 0.01);
+      } else {
+        numericSplits = splits.map(s => parseFloat(s) || 0).filter(q => q > 0);
+      }
+      
       if (numericSplits.length > 0) {
         onConfirmSplit(processes, numericSplits);
       }
@@ -178,33 +198,33 @@ export default function SplitProcessDialog({
             <span></span>
           </div>
 
-          {splits.map((value, index) => (
-            <div
-              key={index}
-              className="grid grid-cols-[1fr_120px_40px] items-center gap-x-4 px-4"
-            >
-              <Label htmlFor={`split-val-${index}`}>Batch {index + 1}</Label>
-              <Input
-                id={`split-val-${index}`}
-                type="number"
-                min="0"
-                step={isDurationSplit ? "0.1" : "1"}
-                value={value}
-                onChange={(e) => handleQuantityChange(index, e.target.value)}
-                className="text-right"
-              />
-              {splits.length > 1 && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => handleRemoveSplit(index)}
-                  className="justify-self-center"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          ))}
+          {isDurationSplit ? (
+            <>
+              <div className="grid grid-cols-[1fr_120px_40px] items-center gap-x-4 px-4">
+                <Label>Remainder</Label>
+                <Input readOnly value={remainingValue.toFixed(2)} className="text-right bg-muted" />
+                <span></span>
+              </div>
+              {splits.slice(1).map((value, index) => {
+                const realIndex = index + 1;
+                return (
+                  <div key={realIndex} className="grid grid-cols-[1fr_120px_40px] items-center gap-x-4 px-4">
+                    <Label htmlFor={`split-val-${realIndex}`}>Batch {realIndex}</Label>
+                    <Input id={`split-val-${realIndex}`} type="number" min="0" step="0.1" value={value} onChange={(e) => handleQuantityChange(realIndex, e.target.value)} className="text-right" />
+                    <Button variant="ghost" size="icon" onClick={() => handleRemoveSplit(realIndex)} className="justify-self-center"><X className="h-4 w-4" /></Button>
+                  </div>
+                )
+              })}
+            </>
+          ) : (
+            splits.map((value, index) => (
+              <div key={index} className="grid grid-cols-[1fr_120px_40px] items-center gap-x-4 px-4">
+                <Label htmlFor={`split-val-${index}`}>Batch {index + 1}</Label>
+                <Input id={`split-val-${index}`} type="number" min="0" step="1" value={value} onChange={(e) => handleQuantityChange(index, e.target.value)} className="text-right" />
+                {splits.length > 1 && <Button variant="ghost" size="icon" onClick={() => handleRemoveSplit(index)} className="justify-self-center"><X className="h-4 w-4" /></Button>}
+              </div>
+            ))
+          )}
 
             <div className="px-4">
                 <Button
@@ -217,7 +237,7 @@ export default function SplitProcessDialog({
                     Add Batch
                 </Button>
             </div>
-
+            
             <div className="px-4 pt-2 border-t mt-4">
                 <div className="flex justify-between font-medium">
                     <span>Total Split {isDurationSplit ? 'Duration' : 'Quantity'}:</span>

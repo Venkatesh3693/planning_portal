@@ -3,7 +3,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays, format, startOfWeek, startOfDay } from 'date-fns';
+import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays, format, startOfDay } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, PROCESSES, WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE } from '@/lib/data';
@@ -516,7 +516,8 @@ function GanttPageContent() {
         const multiplier = slg?.outputMultiplier || 1;
         const operations = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
         const totalSam = operations.reduce((sum, op) => sum + op.sam, 0);
-        const totalTailors = operations.reduce((sum, op) => sum + op.operators, 0) * multiplier;
+        const baseTotalTailors = operations.reduce((sum, op) => sum + op.operators, 0);
+        const totalTailors = baseTotalTailors * multiplier;
         const dailyOutput = (WORK_DAY_MINUTES * totalTailors * (order.budgetedEfficiency || 85) / 100) / totalSam;
         const productionQtyLeft = Math.max(0, order.quantity - (order.produced?.total || 0));
         const productionDays = dailyOutput > 0 ? productionQtyLeft / dailyOutput : 0;
@@ -1131,6 +1132,7 @@ export default function GutNewPage() {
     <GanttPageContent />
   );
 }
+
 
 
 
