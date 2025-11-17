@@ -18,8 +18,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PlusCircle, Trash2, ChevronRight, Edit, Save } from 'lucide-react';
-import { SEWING_OPERATIONS_BY_STYLE, MACHINE_NAME_ABBREVIATIONS, sewingMachineTypes } from '@/lib/data';
-import type { Order, SewingLine, SewingMachine, SewingLineGroup, MachineRequirement } from '@/lib/types';
+import { SEWING_OPERATIONS_BY_STYLE, sewingMachineTypes } from '@/lib/data';
+import type { Order, SewingLine, SewingMachineType, SewingLineGroup, MachineRequirement } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import LineReallocationDialog from '@/components/capacity/line-reallocation-dialog';
@@ -61,20 +61,16 @@ const RequirementsTable = ({ requirements, machineTotals }: { requirements: Mach
 };
 
 const UnallocatedLineCard = ({ line, onAllocate, onEdit, activeGroup }: { line: SewingLine, onAllocate: (line: SewingLine) => void, onEdit: (line: SewingLine) => void, activeGroup: SewingLineGroup | undefined }) => {
-    const machineCounts = useMemo(() => {
-        return line.machines.reduce((acc, machine) => {
-            const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name] || machine.name;
-            acc[machineType] = (acc[machineType] || 0) + 1;
-            return acc;
-        }, {} as Record<string, number>);
-    }, [line.machines]);
+    const totalMachines = useMemo(() => {
+        return Object.values(line.machineCounts).reduce((sum, count) => sum + (count || 0), 0);
+    }, [line.machineCounts]);
 
     return (
         <div className="p-3 rounded-md border">
             <div className="flex items-center justify-between mb-2">
                 <div>
                     <p className="font-medium">{line.name}</p>
-                    <p className="text-xs text-muted-foreground">{line.machines.length} Machines</p>
+                    <p className="text-xs text-muted-foreground">{totalMachines} Machines</p>
                 </div>
                  <div className="flex items-center gap-1">
                     <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onEdit(line)}>
@@ -88,8 +84,8 @@ const UnallocatedLineCard = ({ line, onAllocate, onEdit, activeGroup }: { line: 
                  </div>
             </div>
             <div className="flex flex-wrap gap-1">
-                {Object.entries(machineCounts)
-                    .filter(([, count]) => count > 0)
+                {Object.entries(line.machineCounts)
+                    .filter(([, count]) => count && count > 0)
                     .map(([type, count]) => (
                     <Badge key={type} variant="secondary" className="font-normal">{type}: {count}</Badge>
                 ))}
@@ -121,16 +117,16 @@ export default function CapacityAllocationPage() {
     
     const activeGroupMachineTotals = useMemo(() => {
         if (!activeGroup) return {};
-         const allocatedMachines = activeGroup.allocatedLines.flatMap(l => {
+        const totals: Record<string, number> = {};
+        activeGroup.allocatedLines.forEach(l => {
             const line = sewingLines.find(sl => sl.id === l.lineId);
-            return line ? line.machines.filter(m => l.allocatedMachines.some(am => am.id === m.id)) : [];
+            if (line) {
+                Object.entries(line.machineCounts).forEach(([type, count]) => {
+                    totals[type] = (totals[type] || 0) + (count || 0);
+                });
+            }
         });
-
-         return allocatedMachines.reduce((acc, machine) => {
-            const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name] || machine.name;
-            acc[machineType] = (acc[machineType] || 0) + 1;
-            return acc;
-        }, {} as Record<string, number>);
+        return totals;
     }, [activeGroup, sewingLines]);
 
 
@@ -142,10 +138,9 @@ export default function CapacityAllocationPage() {
 
         const newGroupName = `SLG-${sewingLineGroups.length + 1}`;
 
-        const operations = (SEWING_OPERATIONS_BY_STYLE[order.style] || []).filter(op => sewingMachineTypes.includes(op.machine));
+        const operations = (SEWING_OPERATIONS_BY_STYLE[order.style] || []).filter(op => sewingMachineTypes.includes(op.machine as any));
         const machineCounts = operations.reduce((acc, op) => {
-            const machineAbbr = MACHINE_NAME_ABBREVIATIONS[op.machine] || op.machine;
-            acc[machineAbbr] = (acc[machineAbbr] || 0) + op.operators;
+            acc[op.machine] = (acc[op.machine] || 0) + op.operators;
             return acc;
         }, {} as Record<string, number>);
 
@@ -177,67 +172,22 @@ export default function CapacityAllocationPage() {
     
     const allocateLine = useCallback((line: SewingLine) => {
         if (!activeGroup) return;
-
         setSewingLineGroups(prevGroups => prevGroups.map(group => {
             if (group.id !== activeGroup.id) return group;
-
-            const remainingRequirements = group.machineRequirements.map(req => ({
-                ...req,
-                required: req.required - (activeGroupMachineTotals[req.machineType] || 0)
-            }));
-
-            const availableMachinesInLine = line.machines.slice();
-            let machinesToAllocate: SewingMachine[] = [];
-            let isPartial = false;
-
-            remainingRequirements.forEach(req => {
-                if (req.required > 0) {
-                    const machineTypeAbbr = req.machineType;
-                    const machineFullName = Object.keys(MACHINE_NAME_ABBREVIATIONS).find(key => MACHINE_NAME_ABBREVIATIONS[key] === machineTypeAbbr) || machineTypeAbbr;
-                    
-                    const matchingMachines = availableMachinesInLine.filter(m => m.name === machineFullName);
-                    const machinesNeeded = req.required;
-                    const allocatedFromThisType = matchingMachines.slice(0, machinesNeeded);
-                    machinesToAllocate.push(...allocatedFromThisType);
-                    
-                    allocatedFromThisType.forEach(am => {
-                        const index = availableMachinesInLine.findIndex(m => m.id === am.id);
-                        if (index > -1) availableMachinesInLine.splice(index, 1);
-                    });
-                }
-            });
-            
-            isPartial = machinesToAllocate.length > 0 && machinesToAllocate.length < line.machines.length;
-            
-            if (machinesToAllocate.length === 0) {
-                machinesToAllocate = [...line.machines];
-                isPartial = false;
-            } else if (!isPartial && machinesToAllocate.length > 0) {
-                 machinesToAllocate = [...line.machines]; 
-            }
-
             const newAllocatedLine = {
                 lineId: line.id,
-                isPartial,
-                allocatedMachines: machinesToAllocate
+                isPartial: false, // Simplified for now
+                allocatedMachines: [] // This needs adjustment based on the new data model
             };
-            
-            const updatedAllocatedLines = [...group.allocatedLines, newAllocatedLine];
-            
-            return { ...group, allocatedLines: updatedAllocatedLines };
+            return { ...group, allocatedLines: [...group.allocatedLines, newAllocatedLine] };
         }));
-
-    }, [activeGroup, activeGroupMachineTotals, setSewingLineGroups]);
+    }, [activeGroup, setSewingLineGroups]);
     
     const deallocateLine = useCallback((lineId: string) => {
         if (!activeGroup) return;
-
         setSewingLineGroups(prevGroups => prevGroups.map(group => {
             if (group.id !== activeGroup.id) return group;
-
-            const updatedAllocatedLines = group.allocatedLines.filter(l => l.lineId !== lineId);
-            
-            return { ...group, allocatedLines: updatedAllocatedLines };
+            return { ...group, allocatedLines: group.allocatedLines.filter(l => l.lineId !== lineId) };
         }));
     }, [activeGroup, setSewingLineGroups]);
     
@@ -249,31 +199,22 @@ export default function CapacityAllocationPage() {
             .filter((value, index, self) => self.indexOf(value) === index);
     }, [orders, sewingLineGroups]);
     
-    const handleReallocationSave = (targetLineId: string, movedMachines: SewingMachine[]) => {
+    const handleReallocationSave = (sourceLineId: string, targetLineId: string, machineType: SewingMachineType, quantity: number) => {
         setSewingLines(prevLines => {
-            const currentLines = JSON.parse(JSON.stringify(prevLines)) as SewingLine[];
-            
-            const machineIdsToMove = new Set(movedMachines.map(m => m.id));
+            const newLines = JSON.parse(JSON.stringify(prevLines)) as SewingLine[];
+            const sourceLine = newLines.find(l => l.id === sourceLineId);
+            const targetLine = newLines.find(l => l.id === targetLineId);
 
-            // Remove machines from their original lines
-            currentLines.forEach(line => {
-                line.machines = line.machines.filter(m => !machineIdsToMove.has(m.id));
-            });
-
-            // Add moved machines to the target line
-            const targetLine = currentLines.find(l => l.id === targetLineId);
-            if (targetLine) {
-                targetLine.machines.push(...movedMachines.map(m => ({ ...m, lineId: targetLineId })));
+            if (sourceLine && targetLine) {
+                sourceLine.machineCounts[machineType] = (sourceLine.machineCounts[machineType] || 0) - quantity;
+                targetLine.machineCounts[machineType] = (targetLine.machineCounts[machineType] || 0) + quantity;
             }
-            
-            return currentLines;
+            return newLines;
         });
-
         setLineForReallocation(null);
     };
 
     const handleSaveConfiguration = () => {
-        // The saving is handled by the useEffect in the provider, but we can show a toast
         toast({
           title: "Configuration Saved",
           description: "Your sewing line group settings have been saved successfully.",
@@ -283,16 +224,16 @@ export default function CapacityAllocationPage() {
 
     const calculateGroupMachineTotals = (group: SewingLineGroup) => {
       if (!group) return {};
-      const allocatedMachines = group.allocatedLines.flatMap(l => {
+      const totals: Record<string, number> = {};
+      group.allocatedLines.forEach(l => {
           const line = sewingLines.find(sl => sl.id === l.lineId);
-          return line ? line.machines.filter(m => l.allocatedMachines.some(am => am.id === m.id)) : [];
+          if (line) {
+              (Object.keys(line.machineCounts) as SewingMachineType[]).forEach(type => {
+                  totals[type] = (totals[type] || 0) + (line.machineCounts[type] || 0);
+              });
+          }
       });
-
-       return allocatedMachines.reduce((acc, machine) => {
-          const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name] || machine.name;
-          acc[machineType] = (acc[machineType] || 0) + 1;
-          return acc;
-      }, {} as Record<string, number>);
+       return totals;
     };
 
     return (
@@ -451,21 +392,15 @@ export default function CapacityAllocationPage() {
                                                     const line = sewingLines.find(l => l.id === alloc.lineId);
                                                     if (!line) return null;
                                                     
-                                                    const machinesInLine = line.machines.filter(m => alloc.allocatedMachines.some(am => am.id === m.id));
-
-                                                    const machineCounts = machinesInLine.reduce((acc, m) => {
-                                                        const type = MACHINE_NAME_ABBREVIATIONS[m.name] || m.name;
-                                                        acc[type] = (acc[type] || 0) + 1;
-                                                        return acc;
-                                                    }, {} as Record<string, number>)
+                                                     const totalMachines = Object.values(line.machineCounts).reduce((s, c) => s + (c || 0), 0);
 
                                                     return (
                                                         <div key={alloc.lineId} className="p-3 rounded-md border bg-background flex items-start justify-between">
                                                             <div>
-                                                                <p className="font-medium">{line.name} {alloc.isPartial && <span className="text-xs font-normal text-muted-foreground">(Partial)</span>}</p>
-                                                                <p className="text-xs text-muted-foreground">{alloc.allocatedMachines.length} / {line.machines.length} Machines Allocated</p>
+                                                                <p className="font-medium">{line.name}</p>
+                                                                <p className="text-xs text-muted-foreground">{totalMachines} Machines</p>
                                                                 <div className="flex flex-wrap gap-1 mt-2">
-                                                                    {Object.entries(machineCounts).map(([type, count]) => (
+                                                                    {Object.entries(line.machineCounts).map(([type, count]) => (
                                                                         <Badge key={type} variant="secondary" className="font-normal">{type}: {count}</Badge>
                                                                     ))}
                                                                 </div>

@@ -1,5 +1,5 @@
 
-import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail, FcSnapshot, FcComposition, ProjectionDetail, BomItem, ComponentStatusDetail, FrcDetail, SewingLine } from './types';
+import type { Unit, Machine, Order, Process, SewingOperation, Size, PoDetail, DemandDetail, FcSnapshot, FcComposition, ProjectionDetail, BomItem, ComponentStatusDetail, FrcDetail, SewingLine, SewingMachineType } from './types';
 import { Scissors, Printer, Fingerprint, ExternalLink, MoveHorizontal, PackageCheck } from 'lucide-react';
 import { addDays, subDays, startOfToday, getWeek, isBefore } from 'date-fns';
 
@@ -9,13 +9,24 @@ export const UNITS: Unit[] = [
   { id: 'u3', name: 'Unit 3' },
 ];
 
-export const sewingMachineTypes = [
+export const sewingMachineTypes: SewingMachineType[] = [
     'Single Needle Lock Stitch',
     'Over Lock Machine',
     'Flat Lock Machine',
     'Bar Tack Machine',
     'Chain Stitch Machine',
 ];
+
+export const SEWING_LINES: SewingLine[] = [
+    { id: 'L1', name: 'Line 1', unitId: 'u1', machineCounts: { 'Single Needle Lock Stitch': 10, 'Over Lock Machine': 5, 'Flat Lock Machine': 3 } },
+    { id: 'L2', name: 'Line 2', unitId: 'u1', machineCounts: { 'Single Needle Lock Stitch': 10, 'Over Lock Machine': 5, 'Flat Lock Machine': 3 } },
+    { id: 'L3', name: 'Line 3', unitId: 'u2', machineCounts: { 'Single Needle Lock Stitch': 8, 'Over Lock Machine': 4, 'Bar Tack Machine': 2 } },
+    { id: 'L4', name: 'Line 4', unitId: 'u2', machineCounts: { 'Single Needle Lock Stitch': 8, 'Over Lock Machine': 4, 'Bar Tack Machine': 2 } },
+    { id: 'L5', name: 'Line 5', unitId: 'u3', machineCounts: { 'Chain Stitch Machine': 5, 'Flat Lock Machine': 5 } },
+    { id: 'L6', name: 'Line 6', unitId: 'u3', machineCounts: { 'Chain Stitch Machine': 5, 'Flat Lock Machine': 4 } },
+    { id: 'buffer', name: 'Buffer', unitId: 'u1', machineCounts: { 'Single Needle Lock Stitch': 2, 'Over Lock Machine': 2, 'Flat Lock Machine': 2, 'Bar Tack Machine': 1, 'Chain Stitch Machine': 1 } },
+];
+
 
 export const MACHINES: Machine[] = [
   { id: 'm1', name: 'Cutting Machine Alpha', processIds: ['cutting'], unitId: 'u1', isMoveable: false },
@@ -26,38 +37,7 @@ export const MACHINES: Machine[] = [
   { id: 'm11', name: 'Embroidery Station 2', processIds: ['embroidery'], unitId: 'u2', isMoveable: false },
   { id: 'm12', name: 'Packing table 1', processIds: ['packing'], unitId: 'u3', isMoveable: false },
   { id: 'm13', name: 'Packing table 2', processIds: ['packing'], unitId: 'u3', isMoveable: false },
-  // 75 Sewing Machines with simple names
-  ...Array(30).fill(0).map((_, i) => ({ id: `snls-${i}`, name: 'Single Needle Lock Stitch', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: i < 10 })),
-  ...Array(20).fill(0).map((_, i) => ({ id: `olm-${i}`, name: 'Over Lock Machine', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: i < 5 })),
-  ...Array(15).fill(0).map((_, i) => ({ id: `flm-${i}`, name: 'Flat Lock Machine', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: i < 5 })),
-  ...Array(5).fill(0).map((_, i) => ({ id: `csm-${i}`, name: 'Chain Stitch Machine', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: i < 2 })),
-  ...Array(5).fill(0).map((_, i) => ({ id: `btm-${i}`, name: 'Bar Tack Machine', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: i < 2 })),
 ];
-
-const { lines: sewingLinesData } = ((): { lines: SewingLine[] } => {
-    const lines: SewingLine[] = [];
-    const numLines = 7;
-    const sewingMachines = MACHINES.filter(m => m.processIds.includes('sewing'));
-    const fixedMachines = sewingMachines.filter(m => !m.isMoveable);
-    const movableMachines = sewingMachines.filter(m => m.isMoveable);
-
-    for (let i = 1; i <= numLines; i++) {
-        const lineId = `L${i}`;
-        lines.push({ id: lineId, name: `Line ${i}`, machines: [] });
-    }
-    
-    fixedMachines.forEach((machine, index) => {
-        const lineIndex = index % numLines;
-        lines[lineIndex].machines.push(machine);
-    });
-    
-    if (movableMachines.length > 0) {
-      lines.push({ id: 'buffer', name: 'Buffer', machines: movableMachines });
-    }
-
-    return { lines };
-})();
-export const SEWING_LINES: SewingLine[] = sewingLinesData;
 
 
 export const ORDER_COLORS = [
@@ -625,7 +605,3 @@ export const SEWING_OPERATIONS_BY_STYLE: Record<string, SewingOperation[]> = {
 
 // Assuming an 8-hour work day
 export const WORK_DAY_MINUTES = 8 * 60;
-
-    
-
-    

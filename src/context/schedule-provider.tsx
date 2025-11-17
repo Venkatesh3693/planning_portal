@@ -3,7 +3,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, Dispatch, SetStateAction, useMemo, useCallback } from 'react';
 import type { ScheduledProcess, RampUpEntry, Order, Tna, TnaProcess, BomItem, Size, FcComposition, FcSnapshot, SyntheticPoRecord, CutOrderRecord, SizeBreakdown, ProjectionRow, FrcRow, Remark, SewingLine, Machine as IMachine, SewingLineGroup } from '@/lib/types';
-import { ORDERS as staticOrders, PROCESSES, ORDER_COLORS, SIZES, MACHINES as staticMachines } from '@/lib/data';
+import { ORDERS as staticOrders, PROCESSES, ORDER_COLORS, SIZES, MACHINES as staticMachines, SEWING_LINES as staticSewingLines } from '@/lib/data';
 import { addDays, startOfToday, isAfter, getWeek } from 'date-fns';
 import { getProcessBatchSize, getPackingBatchSize, PrjGenerator, FrcGenerator } from '@/lib/tna-calculator';
 
@@ -204,7 +204,10 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         if(storedData.sewingLineGroups) {
           setSewingLineGroups(storedData.sewingLineGroups);
         }
+        setSewingLines(storedData.sewingLines || staticSewingLines);
 
+      } else {
+        setSewingLines(staticSewingLines);
       }
 
       setTimelineEndDate(addDays(maxEndDate, 3));
@@ -245,122 +248,11 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
       console.error("Could not load schedule from localStorage", err);
       setOrders(staticOrders);
       setMachines(staticMachines);
+      setSewingLines(staticSewingLines);
     } finally {
       setIsScheduleLoaded(true);
     }
   }, []);
-
-  useEffect(() => {
-    // Generate sewing lines from machines state
-    const allSewingMachines = machines.filter(m => m.processIds.includes('sewing'));
-    const linesMap: Record<string, SewingLine> = {};
-
-    allSewingMachines.forEach((machine, index) => {
-      const lineId = machine.isMoveable ? 'buffer' : `L${Math.floor(index / 25) + 1}`;
-      if (!linesMap[lineId]) {
-        linesMap[lineId] = {
-          id: lineId,
-          name: lineId === 'buffer' ? 'Buffer' : `Line ${lineId.replace('L', '')}`,
-          machines: []
-        };
-      }
-      linesMap[lineId].machines.push({ ...machine, lineId, processIds: ['sewing'] });
-    });
-    setSewingLines(Object.values(linesMap).sort((a,b) => a.id.localeCompare(b.id)));
-  }, [machines]);
-
-
-  useEffect(() => {
-    if (!isScheduleLoaded) return;
-
-    const ccGroups = orders.reduce((acc, order) => {
-        if (order.orderType === 'Forecasted' && order.ocn) {
-            if (!acc[order.ocn]) acc[order.ocn] = [];
-            acc[order.ocn].push(order);
-        }
-        return acc;
-    }, {} as Record<string, Order[]>);
-
-    const allProjections = Object.values(ccGroups).flatMap(ccOrders => PrjGenerator(ccOrders));
-    setProjectionData(allProjections);
-    
-    if (!frcData || frcData.length === 0 || !frcData.some(f => f.remarks && f.remarks.length > 0)) {
-       const allFrcs = FrcGenerator(allProjections, orders);
-       setFrcData(allFrcs);
-    }
-
-    const projectionTotalsByOrder = allProjections.reduce((acc, prj) => {
-      const order = orders.find(o => o.ocn === prj.ccNo && `${o.style} / ${o.color}` === prj.model);
-      if (order) {
-        acc[order.id] = (acc[order.id] || 0) + prj.prjQty;
-      }
-      return acc;
-    }, {} as Record<string, number>);
-    
-    
-    const frcTotalsByOrder = FrcGenerator(allProjections, orders).reduce((acc, frc) => {
-        const orderId = orders.find(o => o.ocn === frc.ccNo && o.color === frc.model.split(' / ')[1])?.id;
-        if (orderId) {
-            acc[orderId] = (acc[orderId] || 0) + frc.frcQty;
-        }
-        return acc;
-    }, {} as Record<string, number>);
-
-
-    const cutOrderTotalsByOrder = cutOrderRecords.reduce((acc, co) => {
-        if (!acc[co.orderId]) {
-            acc[co.orderId] = { total: 0 };
-            SIZES.forEach(size => acc[co.orderId][size] = 0);
-        }
-        (Object.keys(co.quantities) as (keyof SizeBreakdown)[]).forEach(key => {
-            acc[co.orderId][key] = (acc[co.orderId][key] || 0) + (co.quantities[key] || 0);
-        });
-        return acc;
-    }, {} as Record<string, SizeBreakdown>);
-
-    const poTotalsByOrder = syntheticPoRecords.reduce((acc, po) => {
-      acc[po.orderId] = (acc[po.orderId] || 0) + po.quantities.total;
-      return acc;
-    }, {} as Record<string, number>);
-    
-
-    const newOrders = orders.map((baseOrder) => {
-      const override = orderOverrides[baseOrder.id] || {};
-      const hydratedTna: Tna = { ...(baseOrder.tna as Tna) };
-
-      if(override.tna) {
-          if (override.tna.processes) {
-              const storedProcessMap = new Map(override.tna.processes.map(p => [p.processId, p]));
-              hydratedTna.processes = (baseOrder.tna?.processes || []).map(baseProcess => {
-                  const storedProcess = storedProcessMap.get(baseProcess.processId);
-                  return storedProcess ? { ...baseProcess, ...storedProcess, earliestStartDate: storedProcess.earliestStartDate ? new Date(storedProcess.earliestStartDate) : undefined, latestStartDate: storedProcess.latestStartDate ? new Date(storedProcess.latestStartDate) : undefined } : baseProcess;
-              });
-          }
-           if(override.tna.minRunDays) hydratedTna.minRunDays = override.tna.minRunDays;
-      }
-        
-      const intermediateOrder: Order = {
-          ...baseOrder,
-          displayColor: override.displayColor || baseOrder.displayColor,
-          sewingRampUpScheme: override.sewingRampUpScheme || baseOrder.sewingRampUpScheme,
-          tna: hydratedTna,
-          bom: override.bom || baseOrder.bom,
-          fcVsFcDetails: override.fcVsFcDetails || baseOrder.fcVsFcDetails,
-      };
-
-      if (intermediateOrder.orderType === 'Forecasted') {
-        intermediateOrder.totalProjectionQty = projectionTotalsByOrder[intermediateOrder.id] || 0;
-        intermediateOrder.totalFrcQty = frcTotalsByOrder[intermediateOrder.id] || 0;
-        intermediateOrder.confirmedPoQty = poTotalsByOrder[intermediateOrder.id] || 0;
-        intermediateOrder.cutOrder = cutOrderTotalsByOrder[intermediateOrder.id] || { total: 0 };
-      }
-      return intermediateOrder;
-    });
-
-    setOrders(newOrders);
-
-  }, [orderOverrides, isScheduleLoaded, cutOrderRecords, syntheticPoRecords]);
-
 
   useEffect(() => {
     if (!isScheduleLoaded) return;
@@ -375,6 +267,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
         frcData,
         machines,
         sewingLineGroups,
+        sewingLines,
       };
       const serializedState = JSON.stringify(stateToSave);
       localStorage.setItem(`${STORE_KEY_PREFIX}${appMode}`, serializedState);
@@ -382,7 +275,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error("Could not save schedule to localStorage", err);
     }
-  }, [appMode, scheduledProcesses, orderOverrides, productionPlans, timelineEndDate, splitOrderProcesses, cutOrderRecords, frcData, machines, sewingLineGroups, isScheduleLoaded]);
+  }, [appMode, scheduledProcesses, orderOverrides, productionPlans, timelineEndDate, splitOrderProcesses, cutOrderRecords, frcData, machines, sewingLineGroups, sewingLines, isScheduleLoaded]);
 
   const setAppMode = useCallback((mode: AppMode) => {
     window.location.reload(); // Simplest way to reload state for the new mode

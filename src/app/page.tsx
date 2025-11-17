@@ -1,12 +1,11 @@
 
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
 import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
-import { MACHINES, PROCESSES, WORK_DAY_MINUTES, SEWING_LINES } from '@/lib/data';
+import { MACHINES, PROCESSES, WORK_DAY_MINUTES } from '@/lib/data';
 import type { Order, ScheduledProcess, UnplannedBatch } from '@/lib/types';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -175,7 +174,7 @@ function GanttPageContent() {
 
     orders.forEach(order => {
         if (order.orderType === 'Forecasted') return;
-        const numLines = sewingLines.filter(line => line.machines.some(m => m.processIds.includes('sewing'))).length;
+        const numLines = (sewingLines || []).filter(line => line.machineCounts['Single Needle Lock Stitch'] > 0).length;
         const latestDate = calculateLatestSewingStartDate(order, PROCESSES, numLines);
         if (latestDate) {
             map.set(order.id, latestDate);
@@ -667,7 +666,7 @@ function GanttPageContent() {
 
   const handleOpenSplitDialog = (process: ScheduledProcess) => {
     const order = orders.find(o => o.id === process.orderId)!;
-    const numLines = sewingLines.filter(line => line.machines.some(m => m.processIds.includes('sewing'))).length;
+    const numLines = (sewingLines || []).filter(line => line.machineCounts['Single Needle Lock Stitch'] > 0).length;
     if (process.parentId) {
       const siblings = scheduledProcesses.filter(p => p.parentId === process.parentId);
       setProcessToSplit({ processes: siblings, order, numLines });
@@ -732,22 +731,22 @@ function GanttPageContent() {
 
   const chartRows = useMemo(() => {
     if (selectedProcessId === 'sewing') {
-      return SEWING_LINES;
+      return sewingLines || [];
     }
     return MACHINES.filter(m => m.processIds.includes(selectedProcessId));
-  }, [selectedProcessId]);
+  }, [selectedProcessId, sewingLines]);
 
 
   const chartProcesses = useMemo(() => {
     if (selectedProcessId === 'pab') return [];
     
     if (selectedProcessId === 'sewing') {
-      const lineMachineIds = new Set(SEWING_LINES.flatMap(line => line.machines.map(m => m.id)));
+      const lineMachineIds = (sewingLines || []).flatMap(line => Object.keys(line.machineCounts).map(mId => mId));
       return scheduledProcesses.filter(sp => sp.processId === 'sewing');
     }
     
     return scheduledProcesses.filter(sp => sp.processId === selectedProcessId);
-  }, [scheduledProcesses, selectedProcessId]);
+  }, [scheduledProcesses, selectedProcessId, sewingLines]);
   
   const processesForGantt = chartProcesses.filter(p => p.id !== draggingProcessId);
   
@@ -813,7 +812,7 @@ function GanttPageContent() {
   const handleClearSchedule = () => {
     if (selectedProcessId === 'pab') return;
     if (selectedProcessId === 'sewing') {
-      const sewingMachineIds = new Set(SEWING_LINES.flatMap(line => line.machines.map(m => m.id)));
+      const sewingMachineIds = (sewingLines || []).flatMap(line => Object.keys(line.machineCounts).map(mId => mId));
       setScheduledProcesses(prev => prev.filter(p => p.processId !== 'sewing'));
     } else {
       setScheduledProcesses(prev => prev.filter(p => p.processId !== selectedProcessId));
@@ -939,7 +938,7 @@ function GanttPageContent() {
                       dates={dates}
                       scheduledProcesses={processesForGantt}
                       allProcesses={scheduledProcesses}
-                      onDrop={handleDropOnChart}
+                      onDrop={onDrop}
                       onUndoSchedule={handleUndoSchedule}
                       onProcessDragStart={handleDragStart}
                       onSplitProcess={handleOpenSplitDialog}

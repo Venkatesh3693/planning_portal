@@ -1,5 +1,4 @@
 
-
 import type { LucideIcon } from 'lucide-react';
 
 export type Unit = {
@@ -15,16 +14,23 @@ export type Machine = {
   isMoveable: boolean;
 };
 
-export type SewingMachine = Omit<Machine, 'processIds'> & {
-  processIds: ['sewing'];
-  lineId: string; // The sewing line this machine belongs to
-};
+export const sewingMachineTypes = [
+    'Single Needle Lock Stitch',
+    'Over Lock Machine',
+    'Flat Lock Machine',
+    'Bar Tack Machine',
+    'Chain Stitch Machine',
+] as const;
+
+export type SewingMachineType = typeof sewingMachineTypes[number];
 
 export type SewingLine = {
   id: string;
   name: string;
-  machines: Machine[];
+  unitId: string;
+  machineCounts: Partial<Record<SewingMachineType, number>>;
 };
+
 
 export type MachineRequirement = {
   machineType: string;
@@ -38,7 +44,8 @@ export type SewingLineGroup = {
   allocatedLines: {
     lineId: string;
     isPartial: boolean;
-    allocatedMachines: SewingMachine[];
+    // This will need to be adapted if we move away from individual machines
+    allocatedMachines: { id: string; name: string }[];
   }[];
   machineRequirements: MachineRequirement[];
 };
