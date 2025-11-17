@@ -88,7 +88,9 @@ const UnallocatedLineCard = ({ line, onAllocate, onEdit, activeGroup }: { line: 
                  </div>
             </div>
             <div className="flex flex-wrap gap-1">
-                {Object.entries(machineCounts).map(([type, count]) => (
+                {Object.entries(machineCounts)
+                    .filter(([type]) => ['SNLS', 'OLM', 'FLM', 'BTM'].includes(type))
+                    .map(([type, count]) => (
                     <Badge key={type} variant="secondary" className="font-normal">{type}: {count}</Badge>
                 ))}
             </div>

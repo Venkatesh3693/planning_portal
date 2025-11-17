@@ -33,6 +33,7 @@ const generateSewingLinesAndMachines = (): { lines: SewingLine[], machines: Mach
         { 'Single Needle Lock Stitch': 10, 'Over Lock Machine': 7, 'Flat Lock Machine': 3, 'Chain Stitch Machine': 3, 'Bar Tack Machine': 2 },
     ];
 
+    let machineIdCounter = 0;
     for (let i = 1; i <= numLines; i++) {
         const lineId = `L${i}`;
         const line: SewingLine = {
@@ -42,13 +43,12 @@ const generateSewingLinesAndMachines = (): { lines: SewingLine[], machines: Mach
         };
 
         const composition = lineCompositions[i-1];
-        let machineCounter = 0;
         
         Object.entries(composition).forEach(([machineType, count]) => {
             for (let j = 0; j < count; j++) {
                 const machine: Machine = {
-                    id: `sm-${i}-${machineCounter++}`,
-                    name: `${machineType} ${i}-${j+1}`, // Unique name
+                    id: `sm-${machineIdCounter++}`,
+                    name: machineType, // Use the base machine type as the name
                     processIds: ['sewing'],
                     unitId: `u${(i % 3) + 1}`,
                     isMoveable: Math.random() > 0.3,
