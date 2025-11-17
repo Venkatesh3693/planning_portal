@@ -11,7 +11,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { Order, UnplannedBatch } from '@/lib/types';
 import { format } from 'date-fns';
-import type { DraggedItemData } from '@/app/page';
+import type { DraggedItemData } from '@/app/gut-new/page';
 import {
   Popover,
   PopoverContent,
@@ -35,6 +35,7 @@ import { PROCESSES } from '@/lib/data';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { useSchedule } from '@/context/schedule-provider';
 
 const SEWING_PROCESS_ID = 'sewing';
 const PACKING_PROCESS_ID = 'packing';
@@ -45,7 +46,6 @@ type MachinePanelProps = {
   unplannedBatches: UnplannedBatch[];
   handleDragStart: (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => void;
   sewingScheduledOrderIds: Set<string>;
-  sewingLines: Record<string, number>;
   hasActiveFilters: boolean;
   filterOcn: string;
   setFilterOcn: (value: string) => void;
@@ -61,6 +61,7 @@ type MachinePanelProps = {
   toggleSplitProcess: (orderId: string, processId: string) => void;
   latestSewingStartDateMap: Map<string, Date>;
   latestStartDatesMap: Map<string, Date>;
+  calculateProductionDays: (order: Order) => number;
 };
 
 export default function MachinePanel({
@@ -69,7 +70,6 @@ export default function MachinePanel({
   unplannedBatches,
   handleDragStart,
   sewingScheduledOrderIds,
-  sewingLines,
   hasActiveFilters,
   filterOcn,
   setFilterOcn,
@@ -85,7 +85,9 @@ export default function MachinePanel({
   toggleSplitProcess,
   latestSewingStartDateMap,
   latestStartDatesMap,
+  calculateProductionDays,
 }: MachinePanelProps) {
+  const { appMode } = useSchedule();
 
   const handleSortToggle = () => {
     if (dueDateSort === null) {
@@ -267,14 +269,20 @@ export default function MachinePanel({
             })}
             {unplannedOrders.map((order) => {
               const process = PROCESSES.find(p => p.id === selectedProcessId)!;
-              const durationMinutes = process.sam * order.quantity;
-              const durationDays = (durationMinutes / (8 * 60)).toFixed(1);
-              const numLines = sewingLines[order.id] || 1;
+              let durationDays = 0;
 
+              if (appMode === 'gut-new') {
+                const calculatedDays = calculateProductionDays(order);
+                durationDays = isFinite(calculatedDays) ? calculatedDays : 0;
+              } else {
+                 const durationMinutes = process.sam * order.quantity;
+                 durationDays = durationMinutes / (8 * 60);
+              }
+              
               const isSplit = splitOrderProcesses[`${order.id}_${selectedProcessId}`];
               
-              const showSplitButton = (isPreSewingProcess && sewingScheduledOrderIds.has(order.id)) ||
-                                    (selectedProcessId === PACKING_PROCESS_ID && sewingScheduledOrderIds.has(order.id));
+              const showSplitButton = (appMode !== 'gut-new') && ((isPreSewingProcess && sewingScheduledOrderIds.has(order.id)) ||
+                                    (selectedProcessId === PACKING_PROCESS_ID && sewingScheduledOrderIds.has(order.id)));
                
               const item: DraggedItemData = {
                 type: 'new-order',
@@ -285,6 +293,8 @@ export default function MachinePanel({
               };
 
               const latestSewingStart = latestSewingStartDateMap.get(order.id);
+              
+              const displayName = appMode === 'gut-new' ? `${order.ocn}-${order.color}` : order.id;
 
               return (
                 <div
@@ -300,7 +310,7 @@ export default function MachinePanel({
                 >
                   <div className="flex flex-col">
                      <div className="flex justify-between items-center">
-                        <span className="font-semibold">{order.id}</span>
+                        <span className="font-semibold">{displayName}</span>
                         {showSplitButton && (
                            <TooltipProvider>
                               <Tooltip>
@@ -331,10 +341,7 @@ export default function MachinePanel({
                           : order.dueDate ? `Due: ${format(order.dueDate, 'MMM dd')}` : `Lead Time: ${order.leadTime}d`
                         }
                       </span>
-                      {selectedProcessId === SEWING_PROCESS_ID && (
-                        <span>{numLines} {numLines > 1 ? 'Lines' : 'Line'}</span>
-                      )}
-                      <span>{durationDays} days</span>
+                      <span>{durationDays.toFixed(1)} days</span>
                     </div>
                   </div>
                 </div>

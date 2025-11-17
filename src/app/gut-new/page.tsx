@@ -6,7 +6,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
-import { MACHINES, PROCESSES, WORK_DAY_MINUTES } from '@/lib/data';
+import { MACHINES, PROCESSES, WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE } from '@/lib/data';
 import type { Order, ScheduledProcess, UnplannedBatch } from '@/lib/types';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -59,6 +59,28 @@ const calculateSewingDuration = (order: Order, quantity: number, numLines: numbe
     return calculateSewingDurationMinutes(quantity, process.sam, order.sewingRampUpScheme || [], numLines);
 };
 
+const calculateProductionDays = (order: Order): number => {
+    const operations = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
+    if (operations.length === 0 || order.quantity <= 0 || !order.budgetedEfficiency) {
+      return 0;
+    }
+  
+    const totalSam = operations.reduce((sum, op) => sum + op.sam, 0);
+    const totalTailors = operations.reduce((sum, op) => sum + op.operators, 0);
+  
+    if (totalSam === 0 || totalTailors === 0) {
+      return 0;
+    }
+  
+    const dailyTotalOutput = (WORK_DAY_MINUTES * totalTailors * (order.budgetedEfficiency / 100)) / totalSam;
+  
+    if (dailyTotalOutput <= 0) {
+      return Infinity;
+    }
+  
+    return order.quantity / dailyTotalOutput;
+  };
+
 function GanttPageContent() {
   const { 
     appMode,
@@ -66,8 +88,7 @@ function GanttPageContent() {
     scheduledProcesses, 
     setScheduledProcesses, 
     isScheduleLoaded, 
-    sewingLines, 
-    sewingLineGroups,
+    sewingLineGroups, 
     timelineEndDate, 
     setTimelineEndDate, 
     splitOrderProcesses, 
@@ -112,7 +133,7 @@ function GanttPageContent() {
   
     if (selectedProcessId !== 'pab' && selectedProcessId !== SEWING_PROCESS_ID) {
       for (const order of orders) {
-        if (order.orderType === 'Forecasted') continue;
+        if (order.orderType !== 'Firm PO') continue;
         const sewingProcessesForOrder = scheduledProcesses.filter(sp => sp.orderId === order.id && sp.processId === SEWING_PROCESS_ID);
         if (sewingProcessesForOrder.length === 0) continue;
   
@@ -175,8 +196,8 @@ function GanttPageContent() {
     if (!isScheduleLoaded) return map;
 
     orders.forEach(order => {
-        if (order.orderType === 'Forecasted') return;
-        const numLines = (sewingLines || []).filter(line => line.machineCounts['Single Needle Lock Stitch'] > 0).length;
+        if (order.orderType !== 'Firm PO') return;
+        const numLines = 1; // Simplified for this context
         const latestDate = calculateLatestSewingStartDate(order, PROCESSES, numLines);
         if (latestDate) {
             map.set(order.id, latestDate);
@@ -184,7 +205,7 @@ function GanttPageContent() {
     });
 
     return map;
-  }, [orders, sewingLines, isScheduleLoaded]);
+  }, [orders, isScheduleLoaded]);
   
 
   const { unplannedOrderItems, unplannedBatches } = useMemo(() => {
@@ -203,7 +224,10 @@ function GanttPageContent() {
     const batches: UnplannedBatch[] = [];
     
     for (const order of orders) {
-        if (order.orderType === 'Forecasted') continue; // Exclude forecasted orders
+      
+        if (appMode === 'gut-new' && order.orderType !== 'Forecasted') continue;
+        if (appMode !== 'gut-new' && order.orderType !== 'Firm PO') continue;
+        
 
         const isProcessInOrder = order.processIds.includes(selectedProcessId);
         if (!isProcessInOrder) continue;
@@ -221,7 +245,7 @@ function GanttPageContent() {
           ? (packingBatchSizes[order.id] || 0) 
           : (processBatchSizes[order.id] || 0);
 
-        if (isSplit && batchSize > 0 && (isSewingScheduled || selectedProcessId === SEWING_PROCESS_ID)) {
+        if (isSplit && batchSize > 0 && (isSewingScheduled || selectedProcessId === SEWING_PROCESS_ID) && order.orderType === 'Firm PO') {
             const totalBatches = Math.ceil(order.quantity / batchSize);
             for (let i = 0; i < totalBatches; i++) {
                 const batchNumber = i + 1;
@@ -254,7 +278,7 @@ function GanttPageContent() {
     }
 
     return { unplannedOrderItems: orderItems.sort((a,b) => (a.dueDate && b.dueDate) ? compareAsc(a.dueDate, b.dueDate) : 0), unplannedBatches: batches };
-  }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, splitOrderProcesses, latestStartDatesMap, processBatchSizes, packingBatchSizes]);
+  }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, splitOrderProcesses, latestStartDatesMap, processBatchSizes, packingBatchSizes, appMode]);
   
   const predecessorEndDateMap = useMemo(() => {
     const map = new Map<string, Date>();
@@ -272,7 +296,7 @@ function GanttPageContent() {
     const sewingAnchorDates: Record<string, Date> = {};
     const dailySewingOutputs: Record<string, Record<string, number>> = {};
     orders.forEach(order => {
-        if (order.orderType === 'Forecasted') return;
+        if (order.orderType !== 'Firm PO') return;
         const sewingProcessesForOrder = scheduledProcesses.filter(sp => sp.orderId === order.id && sp.processId === SEWING_PROCESS_ID);
         if (sewingProcessesForOrder.length > 0) {
             sewingAnchorDates[order.id] = sewingProcessesForOrder.reduce(
@@ -286,7 +310,7 @@ function GanttPageContent() {
 
     for (const process of scheduledProcesses) {
         const order = orders.find(o => o.id === process.orderId);
-        if (!order || order.orderType === 'Forecasted') continue;
+        if (!order || order.orderType !== 'Firm PO') continue;
 
         const processSequence = order.processIds;
         const currentIndex = processSequence.indexOf(process.processId);
@@ -344,7 +368,7 @@ function GanttPageContent() {
       key = `${batch.orderId}-${batch.processId}-${batch.batchNumber || 0}`;
     } else if (draggedItem.type === 'new-order') {
         const order = orders.find(o => o.id === draggedItem.orderId);
-        if (!order || order.orderType === 'Forecasted') return null;
+        if (!order || order.orderType !== 'Firm PO') return null;
         const processIndex = order.processIds.indexOf(draggedItem.processId);
         if (processIndex > 0) {
             const predecessorId = order.processIds[processIndex - 1];
@@ -400,7 +424,7 @@ function GanttPageContent() {
     if (!packingProcessInfo) return map;
 
     orders.forEach(order => {
-        if (order.orderType === 'Forecasted' || !order.dueDate) return;
+        if (order.orderType !== 'Firm PO' || !order.dueDate) return;
         const packingKey = `${order.id}-${PACKING_PROCESS_ID}`;
         map.set(packingKey, order.dueDate);
 
@@ -442,7 +466,7 @@ function GanttPageContent() {
     if (!isScheduleLoaded) return map;
 
     orders.forEach(order => {
-        if (order.orderType === 'Forecasted') return;
+        if (order.orderType !== 'Firm PO') return;
         if(order.processIds.length > 0) {
             const firstProcessId = order.processIds[0];
             const key = `${order.id}-${firstProcessId}-1`;
@@ -504,7 +528,10 @@ function GanttPageContent() {
       const process = PROCESSES.find(p => p.id === droppedItem.processId)!;
       
       let durationMinutes;
-      if (process.id === SEWING_PROCESS_ID) {
+      if (order.orderType === 'Forecasted') {
+        const productionDays = calculateProductionDays(order);
+        durationMinutes = productionDays * WORK_DAY_MINUTES;
+      } else if (process.id === SEWING_PROCESS_ID) {
         const numLines = 1;
         durationMinutes = calculateSewingDuration(order, droppedItem.quantity, numLines);
       } else {
@@ -668,7 +695,7 @@ function GanttPageContent() {
 
   const handleOpenSplitDialog = (process: ScheduledProcess) => {
     const order = orders.find(o => o.id === process.orderId)!;
-    const numLines = (sewingLines || []).filter(line => line.machineCounts['Single Needle Lock Stitch'] > 0).length;
+    const numLines = 1; // Simplified for now
     if (process.parentId) {
       const siblings = scheduledProcesses.filter(p => p.parentId === process.parentId);
       setProcessToSplit({ processes: siblings, order, numLines });
@@ -747,7 +774,7 @@ function GanttPageContent() {
     }
     
     return scheduledProcesses.filter(sp => sp.processId === selectedProcessId);
-  }, [scheduledProcesses, selectedProcessId, sewingLines]);
+  }, [scheduledProcesses, selectedProcessId]);
   
   const processesForGantt = chartProcesses.filter(p => p.id !== draggingProcessId);
   
@@ -916,7 +943,6 @@ function GanttPageContent() {
                 unplannedBatches={unplannedBatches}
                 handleDragStart={handleDragStart}
                 sewingScheduledOrderIds={sewingScheduledOrderIds}
-                sewingLines={{}}
                 hasActiveFilters={hasActiveFilters}
                 filterOcn={filterOcn}
                 setFilterOcn={setFilterOcn}
@@ -932,6 +958,7 @@ function GanttPageContent() {
                 toggleSplitProcess={toggleSplitProcess}
                 latestStartDatesMap={latestStartDatesMap}
                 latestSewingStartDateMap={latestSewingStartDateMap}
+                calculateProductionDays={calculateProductionDays}
               />
               
               <div className="h-full flex-1 overflow-auto rounded-lg border bg-card">
