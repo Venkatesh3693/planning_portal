@@ -66,6 +66,7 @@ function GanttPageContent() {
     setScheduledProcesses, 
     isScheduleLoaded, 
     sewingLines, 
+    sewingLineGroups,
     timelineEndDate, 
     setTimelineEndDate, 
     splitOrderProcesses, 
@@ -731,17 +732,16 @@ function GanttPageContent() {
 
   const chartRows = useMemo(() => {
     if (selectedProcessId === 'sewing') {
-      return sewingLines || [];
+      return sewingLineGroups || [];
     }
     return MACHINES.filter(m => m.processIds.includes(selectedProcessId));
-  }, [selectedProcessId, sewingLines]);
+  }, [selectedProcessId, sewingLineGroups]);
 
 
   const chartProcesses = useMemo(() => {
     if (selectedProcessId === 'pab') return [];
     
     if (selectedProcessId === 'sewing') {
-      const lineMachineIds = (sewingLines || []).flatMap(line => Object.keys(line.machineCounts).map(mId => mId));
       return scheduledProcesses.filter(sp => sp.processId === 'sewing');
     }
     
@@ -812,7 +812,6 @@ function GanttPageContent() {
   const handleClearSchedule = () => {
     if (selectedProcessId === 'pab') return;
     if (selectedProcessId === 'sewing') {
-      const sewingMachineIds = (sewingLines || []).flatMap(line => Object.keys(line.machineCounts).map(mId => mId));
       setScheduledProcesses(prev => prev.filter(p => p.processId !== 'sewing'));
     } else {
       setScheduledProcesses(prev => prev.filter(p => p.processId !== selectedProcessId));
@@ -858,6 +857,8 @@ function GanttPageContent() {
         </div>
     );
   }
+
+  const showNoGroupsMessage = selectedProcessId === 'sewing' && chartRows.length === 0;
 
   return (
     <div className="flex h-screen flex-col" onDragEnd={handleDragEnd}>
@@ -914,9 +915,7 @@ function GanttPageContent() {
                 unplannedBatches={unplannedBatches}
                 handleDragStart={handleDragStart}
                 sewingScheduledOrderIds={sewingScheduledOrderIds}
-                sewingLines={sewingLines.reduce((acc, line) => {
-                  return acc;
-                }, {} as Record<string, number>)}
+                sewingLines={{}}
                 hasActiveFilters={hasActiveFilters}
                 filterOcn={filterOcn}
                 setFilterOcn={setFilterOcn}
@@ -935,26 +934,36 @@ function GanttPageContent() {
               />
               
               <div className="h-full flex-1 overflow-auto rounded-lg border bg-card">
-                  <GanttChart
-                      rows={chartRows} 
-                      dates={dates}
-                      scheduledProcesses={processesForGantt}
-                      allProcesses={scheduledProcesses}
-                      onDrop={handleDropOnChart}
-                      onUndoSchedule={handleUndoSchedule}
-                      onProcessDragStart={handleDragStart}
-                      onSplitProcess={handleOpenSplitDialog}
-                      viewMode={viewMode}
-                      draggedItem={draggedItem}
-                      orders={orders}
-                      latestStartDatesMap={latestStartDatesMap}
-                      latestSewingStartDateMap={latestSewingStartDateMap}
-                      draggedItemLatestStartDate={draggedItemLatestStartDate}
-                      predecessorEndDate={predecessorEndDate}
-                      predecessorEndDateMap={predecessorEndDateMap}
-                      draggedItemLatestEndDate={draggedItemLatestEndDate}
-                      draggedItemCkDate={draggedItemCkDate}
-                    />
+                  {showNoGroupsMessage ? (
+                    <div className="flex flex-col items-center justify-center h-full text-center">
+                        <p className="text-lg font-semibold mb-2">No Sewing Line Groups Created</p>
+                        <p className="text-muted-foreground mb-4">Please go to Capacity Allocation to create sewing line groups.</p>
+                        <Button asChild>
+                            <Link href="/capacity-allocation-new">Go to Capacity Allocation</Link>
+                        </Button>
+                    </div>
+                  ) : (
+                    <GanttChart
+                        rows={chartRows} 
+                        dates={dates}
+                        scheduledProcesses={processesForGantt}
+                        allProcesses={scheduledProcesses}
+                        onDrop={handleDropOnChart}
+                        onUndoSchedule={handleUndoSchedule}
+                        onProcessDragStart={handleDragStart}
+                        onSplitProcess={handleOpenSplitDialog}
+                        viewMode={viewMode}
+                        draggedItem={draggedItem}
+                        orders={orders}
+                        latestStartDatesMap={latestStartDatesMap}
+                        latestSewingStartDateMap={latestSewingStartDateMap}
+                        draggedItemLatestStartDate={draggedItemLatestStartDate}
+                        predecessorEndDate={predecessorEndDate}
+                        predecessorEndDateMap={predecessorEndDateMap}
+                        draggedItemLatestEndDate={draggedItemLatestEndDate}
+                        draggedItemCkDate={draggedItemCkDate}
+                      />
+                  )}
                 </div>
             </div>
           )}
