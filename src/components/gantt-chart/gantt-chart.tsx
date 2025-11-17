@@ -39,6 +39,7 @@ type GanttChartProps = {
   draggedItemCkDate: Date | null;
   activePlanQtyProcessId?: string | null;
   dailyPlanQty?: Record<string, number> | null;
+  dailyPoFcQty?: Record<string, number> | null;
 };
 
 const ROW_HEIGHT_PX = 40;
@@ -188,6 +189,7 @@ export default function GanttChart({
   draggedItemCkDate,
   activePlanQtyProcessId,
   dailyPlanQty,
+  dailyPoFcQty,
 }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const isDragging = !!draggedItem;
@@ -297,14 +299,19 @@ export default function GanttChart({
   }, [draggedItem, orders, allProcesses]);
   
   const flattenedRows = React.useMemo(() => {
-    const finalRows: (Row & { isPlanRow?: boolean })[] = [];
+    const finalRows: (Row & { rowType?: 'main' | 'plan' | 'po_fc' })[] = [];
     rows.forEach(row => {
-      finalRows.push(row);
+      finalRows.push({ ...row, rowType: 'main' });
       if (activeProcess && row.id === activeProcess.machineId) {
+        finalRows.push({
+          id: `${row.id}-po-fc`,
+          name: 'PO + FC',
+          rowType: 'po_fc',
+        });
         finalRows.push({
           id: `${row.id}-plan`,
           name: 'Plan Qty',
-          isPlanRow: true,
+          rowType: 'plan',
         });
       }
     });
@@ -352,7 +359,7 @@ export default function GanttChart({
               className="p-2 border-b border-border/60 whitespace-nowrap flex flex-col justify-center"
               style={{ height: `${ROW_HEIGHT_PX}px` }}
             >
-              <div className={cn("font-semibold text-sm", row.isPlanRow ? 'text-primary' : 'text-foreground')}>{row.name}</div>
+              <div className={cn("font-semibold text-sm", row.rowType === 'plan' ? 'text-primary' : row.rowType === 'po_fc' ? 'text-cyan-600' : 'text-foreground')}>{row.name}</div>
               {row.ccNo && <div className="text-xs text-muted-foreground">{row.ccNo}</div>}
             </div>
           ))}
@@ -367,7 +374,7 @@ export default function GanttChart({
             {flattenedRows.map((row, rowIndex) => (
               <React.Fragment key={row.id}>
                 {timeColumns.map((col, dateIndex) => {
-                  if (row.isPlanRow) {
+                   if (row.rowType === 'plan') {
                     const dateKey = format(startOfDay(col.date), 'yyyy-MM-dd');
                     const qty = dailyPlanQty?.[dateKey];
                     return (
@@ -375,6 +382,15 @@ export default function GanttChart({
                           {qty && qty > 0 && <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">{Math.round(qty).toLocaleString()}</span>}
                        </div>
                     );
+                  }
+                  if (row.rowType === 'po_fc') {
+                     const dateKey = format(startOfDay(col.date), 'yyyy-MM-dd');
+                     const qty = dailyPoFcQty?.[dateKey];
+                     return (
+                        <div key={`${row.id}-${dateIndex}`} className="border-b border-r border-border/60 bg-cyan-50 dark:bg-cyan-900/10 flex items-center justify-center">
+                           {qty && qty > 0 && <span className="text-xs font-semibold text-cyan-700 dark:text-cyan-300">{Math.round(qty).toLocaleString()}</span>}
+                        </div>
+                     );
                   }
 
                   const isDragOver = dragOverCell?.rowId === row.id && dragOverCell.date.getTime() === col.date.getTime();

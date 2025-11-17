@@ -3,7 +3,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays } from 'date-fns';
+import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays, startOfWeek } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, PROCESSES, WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE } from '@/lib/data';
@@ -879,6 +879,32 @@ function GanttPageContent() {
 
   }, [activePlanQtyProcessId, scheduledProcesses, orders]);
 
+  const dailyPoFcQty = useMemo(() => {
+    if (!activePlanQtyProcessId) return null;
+    const process = scheduledProcesses.find(p => p.id === activePlanQtyProcessId);
+    if (!process) return null;
+    const order = orders.find(o => o.id === process.orderId);
+    if (!order || !order.fcVsFcDetails || order.fcVsFcDetails.length === 0) return null;
+    
+    const latestSnapshot = [...order.fcVsFcDetails].sort((a,b) => b.snapshotWeek - a.snapshotWeek)[0];
+    if (!latestSnapshot) return null;
+
+    const dailyData: Record<string, number> = {};
+    Object.entries(latestSnapshot.forecasts).forEach(([weekStr, weekData]) => {
+      const weekNum = parseInt(weekStr.replace('W',''));
+      const poFcTotal = (weekData.total?.po || 0) + (weekData.total?.fc || 0);
+
+      if (poFcTotal > 0) {
+        const firstDayOfWeek = startOfWeek(new Date(process.startDateTime.getFullYear(), 0, (weekNum-1)*7 + 1), { weekStartsOn: 1});
+        const dateKey = format(firstDayOfWeek, 'yyyy-MM-dd');
+        dailyData[dateKey] = poFcTotal;
+      }
+    });
+
+    return dailyData;
+
+  }, [activePlanQtyProcessId, scheduledProcesses, orders]);
+
   const isPabView = selectedProcessId === 'pab';
 
   if (appMode !== 'gut-new') {
@@ -1026,6 +1052,7 @@ function GanttPageContent() {
                         draggedItemCkDate={draggedItemCkDate}
                         activePlanQtyProcessId={activePlanQtyProcessId}
                         dailyPlanQty={dailyPlanQty}
+                        dailyPoFcQty={dailyPoFcQty}
                       />
                   )}
                 </div>
