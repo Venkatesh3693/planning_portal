@@ -407,8 +407,8 @@ export default function CapacityAllocationPage() {
                                             <Label>Group Name</Label>
                                             <p className="text-lg font-semibold text-muted-foreground p-2 border rounded-md h-10">SLG-{sewingLineGroups.length + 1}</p>
                                         </div>
-                                         <div className="space-y-2">
-                                            <Label htmlFor="multiplier-select">Output</Label>
+                                         <div className="relative">
+                                            <Label htmlFor="multiplier-select" className="absolute -top-2 left-3 text-xs text-muted-foreground bg-background px-1">Output</Label>
                                             <Select value={String(outputMultiplier)} onValueChange={(v) => setOutputMultiplier(Number(v))}>
                                                 <SelectTrigger id="multiplier-select">
                                                     <SelectValue />
@@ -518,8 +518,8 @@ export default function CapacityAllocationPage() {
                                         <CardDescription>CC No: {activeGroup.ccNo}</CardDescription>
                                     </div>
                                      <div className="flex items-center gap-2">
-                                        <div className="w-24 space-y-1">
-                                            <Label htmlFor="active-multiplier-select" className="text-xs">Output</Label>
+                                        <div className="w-24 relative">
+                                            <Label htmlFor="active-multiplier-select" className="absolute -top-2 left-3 text-xs text-muted-foreground bg-card px-1">Output</Label>
                                             <Select 
                                                 value={String(activeGroup.outputMultiplier || 1)} 
                                                 onValueChange={(v) => handleMultiplierChange(activeGroup.id, Number(v))}
