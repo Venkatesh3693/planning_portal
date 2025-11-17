@@ -274,7 +274,7 @@ export default function MachinePanel({
               if (appMode === 'gut-new') {
                 const calculatedDays = calculateProductionDays(order);
                 durationDays = isFinite(calculatedDays) ? calculatedDays : 0;
-              } else {
+              } else if (process) {
                  const durationMinutes = process.sam * order.quantity;
                  durationDays = durationMinutes / (8 * 60);
               }
@@ -335,11 +335,8 @@ export default function MachinePanel({
                         )}
                      </div>
                     <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
-                      <span>
-                        {selectedProcessId === SEWING_PROCESS_ID && latestSewingStart 
-                          ? `Latest Start: ${format(latestSewingStart, 'MMM dd')}`
-                          : order.dueDate ? `Due: ${format(order.dueDate, 'MMM dd')}` : `Lead Time: ${order.leadTime}d`
-                        }
+                       <span>
+                        {order.dueDate ? `Due: ${format(order.dueDate, 'MMM dd')}` : ''}
                       </span>
                       <span>{durationDays.toFixed(1)} days</span>
                     </div>
