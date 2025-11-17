@@ -269,6 +269,7 @@ export default function MachinePanel({
             {unplannedOrders.map((order) => {
               const process = PROCESSES.find(p => p.id === selectedProcessId)!;
               const durationDays = calculateProductionDays(order);
+              const productionQtyLeft = Math.max(0, order.quantity - (order.produced?.total || 0));
               
               const isSplit = splitOrderProcesses[`${order.id}_${selectedProcessId}`];
               
@@ -326,8 +327,8 @@ export default function MachinePanel({
                         )}
                      </div>
                     <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
-                       <span>
-                        {order.dueDate ? `Due: ${format(order.dueDate, 'MMM dd')}` : ''}
+                      <span>
+                        Qty Left: {productionQtyLeft.toLocaleString()}
                       </span>
                       <span>
                         Prod. days left: {isFinite(durationDays) ? durationDays.toFixed(1) : '...'}
@@ -352,5 +353,3 @@ export default function MachinePanel({
     </Card>
   );
 }
-
-  
