@@ -4,14 +4,15 @@
 
 import * as React from 'react';
 import { format, getMonth, isWithinInterval, startOfDay, startOfHour, endOfHour, addDays, differenceInMilliseconds, endOfDay, compareAsc, isSameDay, isSameHour } from 'date-fns';
-import type { Order, ScheduledProcess } from '@/lib/types';
-import type { DraggedItemData } from '@/app/page';
+import type { Order, ScheduledProcess, SewingLineGroup } from '@/lib/types';
+import type { DraggedItemData } from '@/app/gut-new/page';
 import { cn } from '@/lib/utils';
 import ScheduledProcessBar from './scheduled-process';
 
 type Row = {
   id: string;
   name: string;
+  ccNo?: string;
 };
 
 type ViewMode = 'day' | 'hour';
@@ -37,7 +38,7 @@ type GanttChartProps = {
   draggedItemCkDate: Date | null;
 };
 
-const ROW_HEIGHT_PX = 32;
+const ROW_HEIGHT_PX = 40;
 const WORKING_HOURS_START = 9;
 const WORKING_HOURS_END = 17;
 const WORKING_HOURS = Array.from({ length: WORKING_HOURS_END - WORKING_HOURS_START }, (_, i) => i + WORKING_HOURS_START);
@@ -311,17 +312,21 @@ export default function GanttChart({
         {/* Render twice: one for measuring, one for display */}
         <div ref={sidebarWidthRef} className="absolute pointer-events-none opacity-0 -z-10">
           {rows.map(row => (
-            <div key={row.id} className="p-2 whitespace-nowrap font-semibold text-foreground text-sm">{row.name}</div>
+             <div key={row.id} className="p-2 whitespace-nowrap">
+              <div className="font-semibold text-foreground text-sm">{row.name}</div>
+              {row.ccNo && <div className="text-xs text-muted-foreground">{row.ccNo}</div>}
+            </div>
           ))}
         </div>
         <div>
           {rows.map((row, rowIndex) => (
             <div
               key={row.id}
-              className="p-2 border-b border-border/60 whitespace-nowrap justify-start flex items-center"
+              className="p-2 border-b border-border/60 whitespace-nowrap flex flex-col justify-center"
               style={{ height: `${ROW_HEIGHT_PX}px` }}
             >
-              <span className="font-semibold text-foreground text-sm">{row.name}</span>
+              <div className="font-semibold text-foreground text-sm">{row.name}</div>
+              {row.ccNo && <div className="text-xs text-muted-foreground">{row.ccNo}</div>}
             </div>
           ))}
         </div>
