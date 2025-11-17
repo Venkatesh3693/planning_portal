@@ -3,7 +3,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays, startOfWeek, format, startOfDay } from 'date-fns';
+import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays, format, startOfDay } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, PROCESSES, WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE } from '@/lib/data';
@@ -873,7 +873,7 @@ function GanttPageContent() {
 
     const order = orders.find(o => o.id === activeProcess.orderId);
     if (!order || !order.budgetedEfficiency) return null;
-
+    
     const allProcessesForOrder = scheduledProcesses.filter(p => {
         const parentId = p.parentId || p.id.split('-split-')[0];
         const activeParentId = activeProcess.parentId || activeProcess.id.split('-split-')[0];
@@ -886,7 +886,11 @@ function GanttPageContent() {
     if (operations.length === 0) return null;
   
     const totalSam = operations.reduce((sum, op) => sum + op.sam, 0);
-    const totalTailors = operations.reduce((sum, op) => sum + op.operators, 0);
+    const baseTotalTailors = operations.reduce((sum, op) => sum + op.operators, 0);
+    const slg = sewingLineGroups.find(g => g.ccNo === order.ocn);
+    const multiplier = slg?.outputMultiplier || 1;
+    const totalTailors = baseTotalTailors * multiplier;
+
     if (totalSam === 0 || totalTailors === 0) return null;
   
     const dailyOutput = (WORK_DAY_MINUTES * totalTailors * (order.budgetedEfficiency / 100)) / totalSam;
@@ -905,7 +909,7 @@ function GanttPageContent() {
     });
   
     return dailyData;
-  }, [activePlanQtyProcessId, scheduledProcesses, orders]);
+  }, [activePlanQtyProcessId, scheduledProcesses, orders, sewingLineGroups]);
 
 
 
