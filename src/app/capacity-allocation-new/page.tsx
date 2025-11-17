@@ -566,7 +566,7 @@ export default function CapacityAllocationPage() {
             )}
             {activeGroup && (
                  <Dialog open={holidayDialogOpen} onOpenChange={setHolidayDialogOpen}>
-                    <DialogContent className="sm:max-w-md">
+                    <DialogContent className="sm:max-w-2xl">
                         <DialogHeader>
                             <DialogTitle>Manage Holidays for {activeGroup.name}</DialogTitle>
                             <DialogDescription>
@@ -578,6 +578,7 @@ export default function CapacityAllocationPage() {
                                 mode="multiple"
                                 selected={selectedHolidays}
                                 onSelect={setSelectedHolidays}
+                                numberOfMonths={2}
                             />
                         </div>
                         <DialogFooter>
@@ -594,3 +595,6 @@ export default function CapacityAllocationPage() {
         </div>
     );
 }
+
+
+    
