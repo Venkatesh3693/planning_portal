@@ -63,7 +63,7 @@ const RequirementsTable = ({ requirements, machineTotals }: { requirements: Mach
 const UnallocatedLineCard = ({ line, onAllocate, onEdit, activeGroup }: { line: SewingLine, onAllocate: (line: SewingLine) => void, onEdit: (line: SewingLine) => void, activeGroup: SewingLineGroup | undefined }) => {
     const machineCounts = useMemo(() => {
         return line.machines.reduce((acc, machine) => {
-            const machineType = machine.name;
+            const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name] || machine.name;
             acc[machineType] = (acc[machineType] || 0) + 1;
             return acc;
         }, {} as Record<string, number>);
@@ -91,7 +91,7 @@ const UnallocatedLineCard = ({ line, onAllocate, onEdit, activeGroup }: { line: 
                 {Object.entries(machineCounts)
                     .filter(([, count]) => count > 0)
                     .map(([type, count]) => (
-                    <Badge key={type} variant="secondary" className="font-normal">{MACHINE_NAME_ABBREVIATIONS[type] || type}: {count}</Badge>
+                    <Badge key={type} variant="secondary" className="font-normal">{type}: {count}</Badge>
                 ))}
             </div>
         </div>
@@ -399,7 +399,7 @@ export default function CapacityAllocationPage() {
                                         {sewingLineGroups.map(group => {
                                             const groupMachineTotals = calculateGroupMachineTotals(group);
                                             return (
-                                                <div key={group.id} className={cn("p-3 rounded-md border flex flex-col cursor-pointer", activeGroupId === group.id && "ring-2 ring-primary border-primary")} onClick={() => setActiveGroupId(prevId => prevId === group.id ? null : group.id)}>
+                                                <div key={group.id} className={cn("p-3 rounded-md border flex flex-col cursor-pointer", activeGroupId === group.id && "ring-2 ring-primary border-primary")} onClick={() => setActiveGroupId(prevId => prevId === group.id ? null : prevId)}>
                                                     <div className="flex items-center justify-between">
                                                         <div>
                                                             <p className="font-semibold">{group.name}</p>
@@ -499,3 +499,5 @@ export default function CapacityAllocationPage() {
         </div>
     );
 }
+
+    

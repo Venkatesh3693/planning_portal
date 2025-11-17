@@ -13,8 +13,8 @@ export const sewingMachineTypes = [
     'Single Needle Lock Stitch',
     'Over Lock Machine',
     'Flat Lock Machine',
-    'Chain Stitch Machine',
     'Bar Tack Machine',
+    'Chain Stitch Machine',
 ];
 
 export const MACHINES: Machine[] = [
@@ -26,37 +26,33 @@ export const MACHINES: Machine[] = [
   { id: 'm11', name: 'Embroidery Station 2', processIds: ['embroidery'], unitId: 'u2', isMoveable: false },
   { id: 'm12', name: 'Packing table 1', processIds: ['packing'], unitId: 'u3', isMoveable: false },
   { id: 'm13', name: 'Packing table 2', processIds: ['packing'], unitId: 'u3', isMoveable: false },
-  // 75 Sewing Machines
-  ...Array(30).fill(0).map((_, i) => ({ id: `snls-${i}`, name: 'Single Needle Lock Stitch', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: Math.random() > 0.3 })),
-  ...Array(20).fill(0).map((_, i) => ({ id: `olm-${i}`, name: 'Over Lock Machine', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: Math.random() > 0.3 })),
-  ...Array(15).fill(0).map((_, i) => ({ id: `flm-${i}`, name: 'Flat Lock Machine', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: Math.random() > 0.3 })),
-  ...Array(5).fill(0).map((_, i) => ({ id: `csm-${i}`, name: 'Chain Stitch Machine', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: Math.random() > 0.3 })),
-  ...Array(5).fill(0).map((_, i) => ({ id: `btm-${i}`, name: 'Bar Tack Machine', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: Math.random() > 0.3 })),
+  // 75 Sewing Machines with simple names
+  ...Array(30).fill(0).map((_, i) => ({ id: `snls-${i}`, name: 'Single Needle Lock Stitch', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: i < 10 })),
+  ...Array(20).fill(0).map((_, i) => ({ id: `olm-${i}`, name: 'Over Lock Machine', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: i < 5 })),
+  ...Array(15).fill(0).map((_, i) => ({ id: `flm-${i}`, name: 'Flat Lock Machine', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: i < 5 })),
+  ...Array(5).fill(0).map((_, i) => ({ id: `csm-${i}`, name: 'Chain Stitch Machine', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: i < 2 })),
+  ...Array(5).fill(0).map((_, i) => ({ id: `btm-${i}`, name: 'Bar Tack Machine', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: i < 2 })),
 ];
-
-const sewingMachines = MACHINES.filter(m => m.processIds.includes('sewing'));
 
 const { lines: sewingLinesData } = ((): { lines: SewingLine[] } => {
     const lines: SewingLine[] = [];
     const numLines = 7;
+    const sewingMachines = MACHINES.filter(m => m.processIds.includes('sewing'));
+    const fixedMachines = sewingMachines.filter(m => !m.isMoveable);
+    const movableMachines = sewingMachines.filter(m => m.isMoveable);
 
     for (let i = 1; i <= numLines; i++) {
         const lineId = `L${i}`;
         lines.push({ id: lineId, name: `Line ${i}`, machines: [] });
     }
     
-    // Distribute non-movable machines into lines somewhat evenly for display
-    sewingMachines.forEach((machine, index) => {
-        if (!machine.isMoveable) {
-            const lineIndex = index % numLines;
-            lines[lineIndex].machines.push(machine);
-        }
+    fixedMachines.forEach((machine, index) => {
+        const lineIndex = index % numLines;
+        lines[lineIndex].machines.push(machine);
     });
     
-    // Put all movable machines in a buffer line
-    const bufferLine: SewingLine = { id: 'buffer', name: 'Buffer', machines: sewingMachines.filter(m => m.isMoveable) };
-    if (bufferLine.machines.length > 0) {
-      lines.push(bufferLine);
+    if (movableMachines.length > 0) {
+      lines.push({ id: 'buffer', name: 'Buffer', machines: movableMachines });
     }
 
     return { lines };
@@ -629,5 +625,7 @@ export const SEWING_OPERATIONS_BY_STYLE: Record<string, SewingOperation[]> = {
 
 // Assuming an 8-hour work day
 export const WORK_DAY_MINUTES = 8 * 60;
+
+    
 
     
