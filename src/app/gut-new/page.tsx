@@ -704,55 +704,62 @@ function GanttPageContent() {
     }
   };
   
-  const handleConfirmSplit = (originalProcesses: ScheduledProcess[], newQuantities: number[]) => {
-    const primaryProcess = originalProcesses[0];
-    const orderInfo = orders.find(o => o.id === primaryProcess.orderId)!;
-    const numLines = 1;
-  
-    const parentId = primaryProcess.parentId || `${primaryProcess.id}-split-${crypto.randomUUID()}`;
-    const originalIds = new Set(originalProcesses.map(p => p.id));
-  
-    const anchor = originalProcesses.reduce((earliest, p) => {
-      return compareAsc(p.startDateTime, earliest.startDateTime) < 0 ? p : earliest;
-    }, originalProcesses[0]);
-  
-    const newSplitProcesses: ScheduledProcess[] = newQuantities.map((quantity, index) => {
-      let durationMinutes;
-      if (primaryProcess.processId === SEWING_PROCESS_ID) {
-        durationMinutes = calculateSewingDuration(orderInfo, quantity, numLines);
-      } else {
-        const processInfo = PROCESSES.find(p => p.id === primaryProcess.processId)!;
-        durationMinutes = quantity * processInfo.sam;
+  const handleConfirmSplit = (originalProcesses: ScheduledProcess[], newDurationsInDays: number[]) => {
+      const primaryProcess = originalProcesses[0];
+      const orderInfo = orders.find(o => o.id === primaryProcess.orderId)!;
+      
+      const parentId = primaryProcess.parentId || `${primaryProcess.id}-split-${crypto.randomUUID()}`;
+      const originalIds = new Set(originalProcesses.map(p => p.id));
+      
+      const anchor = originalProcesses.reduce((earliest, p) => {
+          return compareAsc(p.startDateTime, earliest.startDateTime) < 0 ? p : earliest;
+      }, originalProcesses[0]);
+
+      const totalOriginalDuration = originalProcesses.reduce((sum, p) => sum + p.durationMinutes, 0);
+      const totalOriginalQuantity = primaryProcess.isSplit ? originalProcesses.reduce((acc, p) => acc + p.quantity, 0) : primaryProcess.quantity;
+      const totalNewDuration = newDurationsInDays.reduce((sum, d) => sum + d, 0) * WORK_DAY_MINUTES;
+
+      const newSplitProcesses: ScheduledProcess[] = newDurationsInDays.map((durationDays, index) => {
+          const durationMinutes = durationDays * WORK_DAY_MINUTES;
+          const quantityRatio = durationMinutes / totalOriginalDuration;
+          const newQuantity = Math.round(totalOriginalQuantity * quantityRatio);
+
+          return {
+              id: `${parentId}-child-${crypto.randomUUID()}`,
+              orderId: primaryProcess.orderId,
+              processId: primaryProcess.processId,
+              machineId: anchor.machineId,
+              quantity: newQuantity,
+              durationMinutes: durationMinutes,
+              startDateTime: new Date(),
+              endDateTime: new Date(),
+              isSplit: true,
+              parentId: parentId,
+              batchNumber: index + 1,
+          };
+      });
+      
+      // Adjust last batch quantity to match total
+      const quantitySum = newSplitProcesses.reduce((sum, p) => sum + p.quantity, 0);
+      const quantityDiff = totalOriginalQuantity - quantitySum;
+      if (newSplitProcesses.length > 0) {
+        newSplitProcesses[newSplitProcesses.length - 1].quantity += quantityDiff;
       }
-      return {
-        id: `${parentId}-child-${crypto.randomUUID()}`,
-        orderId: primaryProcess.orderId,
-        processId: primaryProcess.processId,
-        machineId: anchor.machineId,
-        quantity: quantity,
-        durationMinutes: durationMinutes,
-        startDateTime: new Date(), 
-        endDateTime: new Date(),
-        isSplit: true,
-        parentId: parentId,
-        batchNumber: index + 1,
-      };
-    });
-  
-    let lastProcessEnd = anchor.startDateTime;
-    const cascadedSplitProcesses = newSplitProcesses.map(p => {
-      const newStart = lastProcessEnd;
-      const newEnd = calculateEndDateTime(newStart, p.durationMinutes);
-      lastProcessEnd = newEnd;
-      return { ...p, startDateTime: newStart, endDateTime: newEnd };
-    });
-    
-    setScheduledProcesses(currentProcesses => {
-      const otherProcesses = currentProcesses.filter(p => !originalIds.has(p.id));
-      return [...otherProcesses, ...cascadedSplitProcesses];
-    });
-  
-    setProcessToSplit(null);
+
+      let lastProcessEnd = anchor.startDateTime;
+      const cascadedSplitProcesses = newSplitProcesses.map(p => {
+          const newStart = lastProcessEnd;
+          const newEnd = calculateEndDateTime(newStart, p.durationMinutes);
+          lastProcessEnd = newEnd;
+          return { ...p, startDateTime: newStart, endDateTime: newEnd };
+      });
+
+      setScheduledProcesses(currentProcesses => {
+          const otherProcesses = currentProcesses.filter(p => !originalIds.has(p.id));
+          return [...otherProcesses, ...cascadedSplitProcesses];
+      });
+
+      setProcessToSplit(null);
   };
 
 
@@ -1005,6 +1012,7 @@ function GanttPageContent() {
         isOpen={!!processToSplit}
         onOpenChange={(isOpen) => !isOpen && setProcessToSplit(null)}
         onConfirmSplit={handleConfirmSplit}
+        splitBy="duration"
       />
     </div>
   );
