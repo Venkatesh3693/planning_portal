@@ -129,6 +129,41 @@ export default function CapacityAllocationPage() {
     const activeGroupMachineTotals = useMemo(() => {
         return activeGroup ? calculateGroupMachineTotals(activeGroup) : {};
     }, [activeGroup, calculateGroupMachineTotals]);
+    
+    const handleMultiplierChange = (groupId: string, newMultiplier: number) => {
+        setSewingLineGroups(prevGroups => {
+            const groupIndex = prevGroups.findIndex(g => g.id === groupId);
+            if (groupIndex === -1) return prevGroups;
+
+            const originalGroup = prevGroups[groupIndex];
+            const order = orders.find(o => o.ocn === originalGroup.ccNo);
+            if (!order) return prevGroups;
+
+            // Recalculate requirements
+            const operations = (SEWING_OPERATIONS_BY_STYLE[order.style] || []).filter(op => sewingMachineTypes.includes(op.machine as any));
+            const machineCounts = operations.reduce((acc, op) => {
+                acc[op.machine] = (acc[op.machine] || 0) + op.operators;
+                return acc;
+            }, {} as Record<string, number>);
+
+            const newMachineRequirements: MachineRequirement[] = Object.entries(machineCounts).map(([type, count]) => ({
+                machineType: type,
+                required: count * newMultiplier,
+            }));
+            
+            const updatedGroup: SewingLineGroup = {
+                ...originalGroup,
+                outputMultiplier: newMultiplier,
+                machineRequirements: newMachineRequirements,
+                // De-allocate all lines when multiplier changes
+                allocatedLines: [],
+            };
+
+            const newGroups = [...prevGroups];
+            newGroups[groupIndex] = updatedGroup;
+            return newGroups;
+        });
+    };
 
     const handleCreateGroup = () => {
         if (!selectedCc) return;
@@ -421,14 +456,30 @@ export default function CapacityAllocationPage() {
                         
                         {activeGroup && (
                             <Card className="flex-1 flex flex-col">
-                                 <CardHeader className="flex flex-row items-center justify-between">
+                                 <CardHeader className="flex-row items-center justify-between">
                                     <div>
                                         <CardTitle>Details for {activeGroup.name}</CardTitle>
                                         <CardDescription>CC No: {activeGroup.ccNo}</CardDescription>
                                     </div>
-                                    <Button size="sm" onClick={handleSaveConfiguration}>
-                                        <Save className="mr-2 h-4 w-4" /> Save Configuration
-                                    </Button>
+                                     <div className="flex items-center gap-4">
+                                        <div className="w-24 space-y-1">
+                                            <Label htmlFor="active-multiplier-select" className="text-xs">Output</Label>
+                                            <Select 
+                                                value={String(activeGroup.outputMultiplier || 1)} 
+                                                onValueChange={(v) => handleMultiplierChange(activeGroup.id, Number(v))}
+                                            >
+                                                <SelectTrigger id="active-multiplier-select" className="h-8">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {[1, 2, 3, 4, 5].map(m => <SelectItem key={m} value={String(m)}>{m}x</SelectItem>)}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <Button size="sm" onClick={handleSaveConfiguration}>
+                                            <Save className="mr-2 h-4 w-4" /> Save Configuration
+                                        </Button>
+                                    </div>
                                  </CardHeader>
                                  <CardContent className="flex-1 flex flex-col gap-6">
                                     <div>
@@ -487,3 +538,4 @@ export default function CapacityAllocationPage() {
 }
 
     
+
