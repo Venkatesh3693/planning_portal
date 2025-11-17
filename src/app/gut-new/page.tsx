@@ -723,7 +723,7 @@ function GanttPageContent() {
 
       const newSplitProcesses: ScheduledProcess[] = newDurationsInDays.map((durationDays, index) => {
           const durationMinutes = durationDays * WORK_DAY_MINUTES;
-          const quantityRatio = durationMinutes / totalOriginalDuration;
+          const quantityRatio = totalOriginalDuration > 0 ? durationMinutes / totalOriginalDuration : 0;
           const newQuantity = Math.round(totalOriginalQuantity * quantityRatio);
 
           return {
@@ -920,6 +920,29 @@ function GanttPageContent() {
 
   }, [activePlanQtyProcessId, scheduledProcesses, orders]);
 
+  const dailyFgOi = useMemo(() => {
+      if (!activePlanQtyProcessId || !dailyPlanQty || !dailyPoFcQty) return null;
+      
+      const fgOiData: Record<string, number> = {};
+      let openingInventory = 0; // Assume initial opening inventory is 0
+
+      // Iterate through all days in the visible timeline
+      for (const day of dates) {
+          const dateKey = format(day, 'yyyy-MM-dd');
+          const yesterday = subDays(day, 1);
+          const yesterdayDateKey = format(yesterday, 'yyyy-MM-dd');
+
+          const planQtyYesterday = dailyPlanQty[yesterdayDateKey] || 0;
+          const poFcToday = dailyPoFcQty[dateKey] || 0;
+
+          const todayFgOi = openingInventory + planQtyYesterday - poFcToday;
+          fgOiData[dateKey] = todayFgOi;
+          openingInventory = todayFgOi;
+      }
+
+      return fgOiData;
+  }, [activePlanQtyProcessId, dailyPlanQty, dailyPoFcQty, dates]);
+
   const isPabView = selectedProcessId === 'pab';
 
   if (appMode !== 'gut-new') {
@@ -1068,6 +1091,7 @@ function GanttPageContent() {
                         activePlanQtyProcessId={activePlanQtyProcessId}
                         dailyPlanQty={dailyPlanQty}
                         dailyPoFcQty={dailyPoFcQty}
+                        dailyFgOi={dailyFgOi}
                       />
                   )}
                 </div>
@@ -1094,6 +1118,7 @@ export default function GutNewPage() {
     <GanttPageContent />
   );
 }
+
 
 
 

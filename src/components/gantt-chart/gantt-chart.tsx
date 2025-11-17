@@ -40,6 +40,7 @@ type GanttChartProps = {
   activePlanQtyProcessId?: string | null;
   dailyPlanQty?: Record<string, number> | null;
   dailyPoFcQty?: Record<string, number> | null;
+  dailyFgOi?: Record<string, number> | null;
 };
 
 const ROW_HEIGHT_PX = 40;
@@ -190,6 +191,7 @@ export default function GanttChart({
   activePlanQtyProcessId,
   dailyPlanQty,
   dailyPoFcQty,
+  dailyFgOi,
 }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const isDragging = !!draggedItem;
@@ -299,20 +301,13 @@ export default function GanttChart({
   }, [draggedItem, orders, allProcesses]);
   
   const flattenedRows = React.useMemo(() => {
-    const finalRows: (Row & { rowType?: 'main' | 'plan' | 'po_fc' })[] = [];
+    const finalRows: (Row & { rowType?: 'main' | 'plan' | 'po_fc' | 'fg_oi' })[] = [];
     rows.forEach(row => {
       finalRows.push({ ...row, rowType: 'main' });
       if (activeProcess && row.id === activeProcess.machineId) {
-        finalRows.push({
-          id: `${row.id}-po-fc`,
-          name: 'PO + FC',
-          rowType: 'po_fc',
-        });
-        finalRows.push({
-          id: `${row.id}-plan`,
-          name: 'Plan Qty',
-          rowType: 'plan',
-        });
+        finalRows.push({ id: `${row.id}-po-fc`, name: 'PO + FC', rowType: 'po_fc' });
+        finalRows.push({ id: `${row.id}-plan`, name: 'Plan Qty', rowType: 'plan' });
+        finalRows.push({ id: `${row.id}-fg-oi`, name: 'FG OI', rowType: 'fg_oi' });
       }
     });
     return finalRows;
@@ -359,7 +354,13 @@ export default function GanttChart({
               className="p-2 border-b border-border/60 whitespace-nowrap flex flex-col justify-center"
               style={{ height: `${ROW_HEIGHT_PX}px` }}
             >
-              <div className={cn("font-semibold text-sm", row.rowType === 'plan' ? 'text-primary' : row.rowType === 'po_fc' ? 'text-cyan-600' : 'text-foreground')}>{row.name}</div>
+              <div className={cn(
+                "font-semibold text-sm", 
+                row.rowType === 'plan' ? 'text-primary' 
+                : row.rowType === 'po_fc' ? 'text-cyan-600'
+                : row.rowType === 'fg_oi' ? 'text-purple-600'
+                : 'text-foreground'
+              )}>{row.name}</div>
               {row.ccNo && <div className="text-xs text-muted-foreground">{row.ccNo}</div>}
             </div>
           ))}
@@ -374,23 +375,19 @@ export default function GanttChart({
             {flattenedRows.map((row, rowIndex) => (
               <React.Fragment key={row.id}>
                 {timeColumns.map((col, dateIndex) => {
-                   if (row.rowType === 'plan') {
+                  let cellContent: React.ReactNode = null;
+                  if (row.rowType) {
                     const dateKey = format(startOfDay(col.date), 'yyyy-MM-dd');
-                    const qty = dailyPlanQty?.[dateKey];
-                    return (
-                       <div key={`${row.id}-${dateIndex}`} className="border-b border-r border-border/60 bg-blue-50 dark:bg-blue-900/10 flex items-center justify-center">
-                          {qty && qty > 0 && <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">{Math.round(qty).toLocaleString()}</span>}
-                       </div>
-                    );
-                  }
-                  if (row.rowType === 'po_fc') {
-                     const dateKey = format(startOfDay(col.date), 'yyyy-MM-dd');
-                     const qty = dailyPoFcQty?.[dateKey];
-                     return (
-                        <div key={`${row.id}-${dateIndex}`} className="border-b border-r border-border/60 bg-cyan-50 dark:bg-cyan-900/10 flex items-center justify-center">
-                           {qty && qty > 0 && <span className="text-xs font-semibold text-cyan-700 dark:text-cyan-300">{Math.round(qty).toLocaleString()}</span>}
-                        </div>
-                     );
+                    if (row.rowType === 'plan') {
+                      const qty = dailyPlanQty?.[dateKey];
+                      if (qty && qty > 0) cellContent = <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">{Math.round(qty).toLocaleString()}</span>;
+                    } else if (row.rowType === 'po_fc') {
+                      const qty = dailyPoFcQty?.[dateKey];
+                      if (qty && qty > 0) cellContent = <span className="text-xs font-semibold text-cyan-700 dark:text-cyan-300">{Math.round(qty).toLocaleString()}</span>;
+                    } else if (row.rowType === 'fg_oi') {
+                       const qty = dailyFgOi?.[dateKey];
+                       if (qty !== undefined) cellContent = <span className={cn("text-xs font-semibold", qty < 0 ? "text-red-700 dark:text-red-400" : "text-purple-700 dark:text-purple-300")}>{Math.round(qty).toLocaleString()}</span>;
+                    }
                   }
 
                   const isDragOver = dragOverCell?.rowId === row.id && dragOverCell.date.getTime() === col.date.getTime();
@@ -426,8 +423,12 @@ export default function GanttChart({
                           onDragOver={(e) => handleDragOver(e, row.id, col.date)}
                           onDragLeave={handleDragLeave}
                           onDrop={(e) => handleDrop(e, row.id, col.date)}
-                          className={cn('relative border-b border-r border-border/60',
-                              isDragOver ? 'bg-primary/20' : (rowIndex % 2 !== 0 ? 'bg-card' : 'bg-muted/20'),
+                          className={cn('relative border-b border-r border-border/60 flex items-center justify-center',
+                              isDragOver ? 'bg-primary/20' : '',
+                              row.rowType === 'plan' && 'bg-blue-50 dark:bg-blue-900/10',
+                              row.rowType === 'po_fc' && 'bg-cyan-50 dark:bg-cyan-900/10',
+                              row.rowType === 'fg_oi' && 'bg-purple-50 dark:bg-purple-900/10',
+                              !row.rowType && (rowIndex % 2 !== 0 ? 'bg-card' : 'bg-muted/20'),
                               isLatestEndDateColumn && !isDragOver && 'bg-red-200/50',
                               isCkDateColumn && !isDragOver && 'bg-green-200/50',
                               isPredecessorEndDateColumn && 'bg-blue-200/50',
@@ -438,6 +439,7 @@ export default function GanttChart({
                               'transition-colors duration-200'
                           )}
                       >
+                       {cellContent}
                       </div>
                   )
                 })}
