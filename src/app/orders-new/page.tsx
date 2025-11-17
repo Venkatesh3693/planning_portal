@@ -875,6 +875,7 @@ const OrderRow = forwardRef<HTMLTableRowElement, OrderRowProps>(
         if (process.id === 'sewing') {
           const durationMinutes = days * WORK_DAY_MINUTES;
           const peakEfficiency = (order.sewingRampUpScheme || []).reduce((max, s) => Math.max(max, s.efficiency), order.budgetedEfficiency || 85);
+          if (peakEfficiency <= 0) return;
           const effectiveSam = process.sam / (peakEfficiency / 100);
           const outputPerMinute = (1 / effectiveSam) * (sewingLines[order.id] || 1);
           currentMoq = Math.floor(outputPerMinute * durationMinutes);
@@ -1142,14 +1143,8 @@ const ForecastedOrderRow = forwardRef<
     const critical = (hash % 3); // 0, 1, or 2
     const notCritical = (hash % 4) + 1; // 1, 2, 3, or 4
     return {
-      critical: {
-        count: critical,
-        items: Array.from({ length: critical }, (_, i) => `Critical alert for ${order.ocn} #${i + 1}`)
-      },
-      notCritical: {
-        count: notCritical,
-        items: Array.from({ length: notCritical }, (_, i) => `Non-critical issue for ${order.ocn} #${i + 1}`)
-      },
+      critical,
+      notCritical
     };
   }, [order.id, order.ocn]);
 

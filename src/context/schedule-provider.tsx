@@ -233,10 +233,27 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
       }, {} as Record<string, number>);
 
       const finalOrders = initialOrdersWithOverrides.map(order => {
+          const currentWeek = getWeek(new Date());
+          let cumulativePoFc = 0;
+          if (order.orderType === 'Forecasted' && order.fcVsFcDetails) {
+              const latestSnapshot = [...order.fcVsFcDetails].sort((a,b) => b.snapshotWeek - a.snapshotWeek)[0];
+              if (latestSnapshot) {
+                  for (let i=1; i <= currentWeek; i++) {
+                      const weekKey = `W${i}`;
+                      cumulativePoFc += (latestSnapshot.forecasts[weekKey]?.total?.po || 0) + (latestSnapshot.forecasts[weekKey]?.total?.fc || 0);
+                  }
+              }
+          }
+          
+          const producedQty = Math.round(cumulativePoFc * 1.25);
+          const shippedQty = Math.round(cumulativePoFc * 0.95);
+
           if (order.orderType === 'Forecasted') {
               return {
                   ...order,
                   confirmedPoQty: poTotalsByOrder[order.id] || 0,
+                  produced: { total: producedQty, ...SIZES.reduce((acc, size) => ({...acc, [size]: Math.floor(producedQty/SIZES.length)}), {}) },
+                  shipped: { total: shippedQty, ...SIZES.reduce((acc, size) => ({...acc, [size]: Math.floor(shippedQty/SIZES.length)}), {}) },
               };
           }
           return order;
