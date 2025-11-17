@@ -17,16 +17,6 @@ export const sewingMachineTypes = [
     'Bar Tack Machine',
 ];
 
-const simpleSewingMachines: Machine[] = [
-    // Total 75 machines, distributed among types
-    ...Array(30).fill(0).map((_, i) => ({ id: `snls-${i}`, name: 'Single Needle Lock Stitch', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: Math.random() > 0.3 })),
-    ...Array(20).fill(0).map((_, i) => ({ id: `olm-${i}`, name: 'Over Lock Machine', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: Math.random() > 0.3 })),
-    ...Array(15).fill(0).map((_, i) => ({ id: `flm-${i}`, name: 'Flat Lock Machine', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: Math.random() > 0.3 })),
-    ...Array(5).fill(0).map((_, i) => ({ id: `csm-${i}`, name: 'Chain Stitch Machine', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: Math.random() > 0.3 })),
-    ...Array(5).fill(0).map((_, i) => ({ id: `btm-${i}`, name: 'Bar Tack Machine', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: Math.random() > 0.3 })),
-];
-
-
 export const MACHINES: Machine[] = [
   { id: 'm1', name: 'Cutting Machine Alpha', processIds: ['cutting'], unitId: 'u1', isMoveable: false },
   { id: 'm7', name: 'Cutting Machine Beta', processIds: ['cutting'], unitId: 'u3', isMoveable: false },
@@ -36,13 +26,18 @@ export const MACHINES: Machine[] = [
   { id: 'm11', name: 'Embroidery Station 2', processIds: ['embroidery'], unitId: 'u2', isMoveable: false },
   { id: 'm12', name: 'Packing table 1', processIds: ['packing'], unitId: 'u3', isMoveable: false },
   { id: 'm13', name: 'Packing table 2', processIds: ['packing'], unitId: 'u3', isMoveable: false },
-  ...simpleSewingMachines,
+  // 75 Sewing Machines
+  ...Array(30).fill(0).map((_, i) => ({ id: `snls-${i}`, name: 'Single Needle Lock Stitch', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: Math.random() > 0.3 })),
+  ...Array(20).fill(0).map((_, i) => ({ id: `olm-${i}`, name: 'Over Lock Machine', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: Math.random() > 0.3 })),
+  ...Array(15).fill(0).map((_, i) => ({ id: `flm-${i}`, name: 'Flat Lock Machine', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: Math.random() > 0.3 })),
+  ...Array(5).fill(0).map((_, i) => ({ id: `csm-${i}`, name: 'Chain Stitch Machine', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: Math.random() > 0.3 })),
+  ...Array(5).fill(0).map((_, i) => ({ id: `btm-${i}`, name: 'Bar Tack Machine', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: Math.random() > 0.3 })),
 ];
 
-// This remains for other parts of the app that might use it, but MACHINES is now the source of truth
-const { lines: sewingLinesData } = ((): { lines: SewingLine[], machines: Machine[] } => {
+const sewingMachines = MACHINES.filter(m => m.processIds.includes('sewing'));
+
+const { lines: sewingLinesData } = ((): { lines: SewingLine[] } => {
     const lines: SewingLine[] = [];
-    const machines = simpleSewingMachines;
     const numLines = 7;
 
     for (let i = 1; i <= numLines; i++) {
@@ -50,8 +45,8 @@ const { lines: sewingLinesData } = ((): { lines: SewingLine[], machines: Machine
         lines.push({ id: lineId, name: `Line ${i}`, machines: [] });
     }
     
-    // Distribute machines into lines somewhat evenly for display
-    machines.forEach((machine, index) => {
+    // Distribute non-movable machines into lines somewhat evenly for display
+    sewingMachines.forEach((machine, index) => {
         if (!machine.isMoveable) {
             const lineIndex = index % numLines;
             lines[lineIndex].machines.push(machine);
@@ -59,12 +54,12 @@ const { lines: sewingLinesData } = ((): { lines: SewingLine[], machines: Machine
     });
     
     // Put all movable machines in a buffer line
-    const bufferLine: SewingLine = { id: 'buffer', name: 'Buffer', machines: machines.filter(m => m.isMoveable) };
+    const bufferLine: SewingLine = { id: 'buffer', name: 'Buffer', machines: sewingMachines.filter(m => m.isMoveable) };
     if (bufferLine.machines.length > 0) {
       lines.push(bufferLine);
     }
 
-    return { lines, machines };
+    return { lines };
 })();
 export const SEWING_LINES: SewingLine[] = sewingLinesData;
 
@@ -634,3 +629,5 @@ export const SEWING_OPERATIONS_BY_STYLE: Record<string, SewingOperation[]> = {
 
 // Assuming an 8-hour work day
 export const WORK_DAY_MINUTES = 8 * 60;
+
+    
