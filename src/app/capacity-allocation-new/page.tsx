@@ -63,8 +63,9 @@ const RequirementsTable = ({ requirements, machineTotals }: { requirements: Mach
 const UnallocatedLineCard = ({ line, onAllocate, onEdit, activeGroup }: { line: SewingLine, onAllocate: (line: SewingLine) => void, onEdit: (line: SewingLine) => void, activeGroup: SewingLineGroup | undefined }) => {
     const machineCounts = useMemo(() => {
         return line.machines.reduce((acc, machine) => {
-            const machineType = MACHINE_NAME_ABBREVIATIONS[machine.name] || machine.name;
-            acc[machineType] = (acc[machineType] || 0) + 1;
+            const machineType = Object.keys(MACHINE_NAME_ABBREVIATIONS).find(key => machine.name.startsWith(key)) || machine.name.replace(/\s\d+$|\s\d+-\d+$|\s(Alpha|Beta)$/, '');
+            const machineAbbr = MACHINE_NAME_ABBREVIATIONS[machineType] || machineType;
+            acc[machineAbbr] = (acc[machineAbbr] || 0) + 1;
             return acc;
         }, {} as Record<string, number>);
     }, [line.machines]);
