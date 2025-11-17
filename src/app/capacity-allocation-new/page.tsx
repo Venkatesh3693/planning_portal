@@ -281,12 +281,11 @@ export default function CapacityAllocationPage() {
     }, [activeGroup, sewingLineGroups, setSewingLineGroups]);
     
     const ccOptions = useMemo(() => {
-        const assignedCcs = new Set(sewingLineGroups.map(g => g.ccNo));
         return orders
-            .filter(o => o.orderType === 'Forecasted' && o.ocn && !assignedCcs.has(o.ocn))
+            .filter(o => o.orderType === 'Forecasted' && o.ocn)
             .map(o => o.ocn)
             .filter((value, index, self) => self.indexOf(value) === index);
-    }, [orders, sewingLineGroups]);
+    }, [orders]);
     
     const handleReallocationSave = (sourceLineId: string, targetLineId: string, machineType: SewingMachineType, quantity: number) => {
         setSewingLines(prevLines => {
@@ -408,6 +407,7 @@ export default function CapacityAllocationPage() {
                                             <p className="text-lg font-semibold text-muted-foreground p-2 border rounded-md h-10">SLG-{sewingLineGroups.length + 1}</p>
                                         </div>
                                          <div className="space-y-2">
+                                            <Label>Output</Label>
                                             <Select value={String(outputMultiplier)} onValueChange={(v) => setOutputMultiplier(Number(v))}>
                                                 <SelectTrigger id="multiplier-select">
                                                     <SelectValue />
@@ -517,7 +517,7 @@ export default function CapacityAllocationPage() {
                                         <CardDescription>CC No: {activeGroup.ccNo}</CardDescription>
                                     </div>
                                      <div className="flex items-center gap-2">
-                                        <div className="w-40 space-y-2">
+                                        <div className="w-40">
                                             <Select 
                                                 value={String(activeGroup.outputMultiplier || 1)} 
                                                 onValueChange={(v) => handleMultiplierChange(activeGroup.id, Number(v))}
