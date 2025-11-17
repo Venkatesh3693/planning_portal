@@ -3,7 +3,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays, startOfWeek } from 'date-fns';
+import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays, startOfWeek, format } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, PROCESSES, WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE } from '@/lib/data';
@@ -1079,3 +1079,4 @@ export default function GutNewPage() {
     <GanttPageContent />
   );
 }
+
