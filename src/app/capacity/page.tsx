@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Header } from '@/components/layout/header';
 import Link from 'next/link';
-import { UNITS, PROCESSES } from '@/lib/data';
+import { UNITS, PROCESSES, MACHINE_NAME_ABBREVIATIONS } from '@/lib/data';
 import type { Machine, Process, Unit } from '@/lib/types';
 import {
   Table,
@@ -48,6 +48,8 @@ import { Button } from '@/components/ui/button';
 import { X, PlusCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useSchedule } from '@/context/schedule-provider';
+import { cn } from '@/lib/utils';
+
 
 type MachineGroup = {
   process: Process;
@@ -92,7 +94,7 @@ export default function CapacityPage() {
       }>> = {};
   
       machinesInProcess.forEach(machine => {
-        const machineType = machine.name.replace(/\s\d+$|\s(Alpha|Beta)$/, '');
+        const machineType = Object.keys(MACHINE_NAME_ABBREVIATIONS).find(key => machine.name.startsWith(key)) || machine.name.replace(/\s\d+$|\s\d+-\d+$|\s(Alpha|Beta)$/, '');
         const unit = UNITS.find(u => u.id === machine.unitId)!;
   
         if (!machineGroupsByUnit[machineType]) {
@@ -186,7 +188,7 @@ export default function CapacityPage() {
         const remainingMachines: Machine[] = [];
 
         updatedMachines.forEach(m => {
-            const machineType = m.name.replace(/\s\d+$|\s(Alpha|Beta)$/, '');
+            const machineType = Object.keys(MACHINE_NAME_ABBREVIATIONS).find(key => m.name.startsWith(key)) || m.name.replace(/\s\d+$|\s\d+-\d+$|\s(Alpha|Beta)$/, '');
             if (machineType === machineName && m.isMoveable) {
                 machinePool.push(m);
             } else {
