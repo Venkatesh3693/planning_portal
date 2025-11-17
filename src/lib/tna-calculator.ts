@@ -51,26 +51,26 @@ export function calculateSewingDurationMinutes(
     
     let remainingQty = quantity;
     let totalMinutes = 0;
-    let currentDay = 0; // Represents working days passed
+    let workingDayCounter = 0;
+    let calendarDayOffset = 0;
 
     while (remainingQty > 0) {
-        const currentDate = addBusinessDays(startDate, currentDay);
+        const currentDate = addBusinessDays(startDate, calendarDayOffset);
         const dateKey = format(startOfDay(currentDate), 'yyyy-MM-dd');
         
+        calendarDayOffset++;
+
         if (holidays.includes(dateKey)) {
-            // FIX: Do not add any minutes for a holiday, just skip to the next day.
-            currentDay++;
-            continue;
+            continue; // Skip holiday, don't increment working day counter
         }
 
+        workingDayCounter++;
         const isOvertime = overtimeDays.includes(dateKey);
         const effectiveWorkDayMinutes = WORK_DAY_MINUTES * (isOvertime ? 1.25 : 1);
         
-        currentDay++;
-
         let efficiency = rampUpScheme.length > 0 ? rampUpScheme[rampUpScheme.length - 1]?.efficiency : 100;
         for (const entry of rampUpScheme) {
-          if(currentDay >= entry.day) {
+          if(workingDayCounter >= entry.day) {
             efficiency = entry.efficiency;
           }
         }
@@ -89,7 +89,7 @@ export function calculateSewingDurationMinutes(
             remainingQty -= dailyOutput;
         }
 
-        if (totalMinutes > WORK_DAY_MINUTES * 10000) {
+        if (totalMinutes > WORK_DAY_MINUTES * 10000) { // Safety break
             return Infinity;
         }
     }
