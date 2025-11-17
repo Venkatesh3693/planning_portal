@@ -118,12 +118,12 @@ export default function CreateLineDialog({ isOpen, onOpenChange, allLines, onSav
         <div className="py-4 space-y-6">
             <div className="space-y-2">
                 <Label htmlFor="line-name">New Line Name</Label>
-                <Input 
+                <div 
                     id="line-name" 
-                    value={lineName} 
-                    onChange={(e) => setLineName(e.target.value)}
-                    placeholder="e.g., Line 7"
-                />
+                    className="flex items-center h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground"
+                >
+                    {lineName}
+                </div>
             </div>
 
             <div>
