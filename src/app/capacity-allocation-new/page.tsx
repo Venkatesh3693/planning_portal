@@ -106,6 +106,8 @@ export default function CapacityAllocationPage() {
     const [lineForReallocation, setLineForReallocation] = useState<SewingLine | null>(null);
     const [holidayDialogOpen, setHolidayDialogOpen] = useState(false);
     const [selectedHolidays, setSelectedHolidays] = useState<Date[] | undefined>(undefined);
+    const [overtimeDialogOpen, setOvertimeDialogOpen] = useState(false);
+    const [selectedOvertimeDays, setSelectedOvertimeDays] = useState<Date[] | undefined>(undefined);
     const { toast } = useToast();
     
     const unallocatedLines = useMemo(() => {
@@ -334,6 +336,32 @@ export default function CapacityAllocationPage() {
         });
     };
 
+    const handleOpenOvertimeDialog = () => {
+        if (!activeGroup) return;
+        const currentOvertime = activeGroup.overtimeDays?.map(d => new Date(d)) || [];
+        setSelectedOvertimeDays(currentOvertime);
+        setOvertimeDialogOpen(true);
+    };
+
+    const handleSaveOvertime = () => {
+        if (!activeGroup || !selectedOvertimeDays) return;
+        
+        const overtimeStrings = selectedOvertimeDays.map(d => d.toISOString().split('T')[0]);
+
+        setSewingLineGroups(prevGroups =>
+            prevGroups.map(g => 
+                g.id === activeGroup.id ? { ...g, overtimeDays: overtimeStrings } : g
+            )
+        );
+
+        setOvertimeDialogOpen(false);
+        toast({
+            title: "Overtime Updated",
+            description: `Overtime days for ${activeGroup.name} have been saved.`
+        });
+    };
+
+
     return (
         <div className="flex h-screen flex-col">
             <Header />
@@ -507,6 +535,9 @@ export default function CapacityAllocationPage() {
                                          <Button variant="outline" size="sm" onClick={handleOpenHolidayDialog}>
                                             <CalendarDays className="mr-2 h-4 w-4" /> Manage Holidays
                                         </Button>
+                                        <Button variant="outline" size="sm" onClick={handleOpenOvertimeDialog}>
+                                            <PlusCircle className="mr-2 h-4 w-4" /> Manage Overtime
+                                        </Button>
                                         <Button size="sm" onClick={handleSaveConfiguration}>
                                             <Save className="mr-2 h-4 w-4" /> Save Configuration
                                         </Button>
@@ -592,9 +623,39 @@ export default function CapacityAllocationPage() {
                     </DialogContent>
                 </Dialog>
             )}
+            {activeGroup && (
+                 <Dialog open={overtimeDialogOpen} onOpenChange={setOvertimeDialogOpen}>
+                    <DialogContent className="sm:max-w-2xl">
+                        <DialogHeader>
+                            <DialogTitle>Manage Overtime for {activeGroup.name}</DialogTitle>
+                            <DialogDescription>
+                                Select the dates that this sewing line group will have overtime.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="flex justify-center py-4">
+                           <Calendar
+                                mode="multiple"
+                                selected={selectedOvertimeDays}
+                                onSelect={setSelectedOvertimeDays}
+                                numberOfMonths={2}
+                            />
+                        </div>
+                        <DialogFooter>
+                            <Button type="button" variant="secondary" onClick={() => setOvertimeDialogOpen(false)}>
+                                Cancel
+                            </Button>
+                             <Button type="button" onClick={handleSaveOvertime}>
+                                Confirm
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            )}
         </div>
     );
 }
 
+
+    
 
     

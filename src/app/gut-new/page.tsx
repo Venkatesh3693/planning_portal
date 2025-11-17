@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -889,7 +888,7 @@ function GanttPageContent() {
     allProcessesForOrder.forEach(process => {
         let currentDate = new Date(process.startDateTime);
         while (isBefore(currentDate, process.endDateTime) || isSameDay(currentDate, process.endDateTime)) {
-             const dateKey = format(currentDate, 'yyyy-MM-dd');
+             const dateKey = format(startOfDay(currentDate), 'yyyy-MM-dd');
              const isHoliday = holidays.includes(dateKey);
              const isOvertime = overtimeDays.includes(dateKey);
 
@@ -1141,3 +1140,5 @@ export default function GutNewPage() {
     <GanttPageContent />
   );
 }
+
+    
