@@ -3,7 +3,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays, startOfWeek, format } from 'date-fns';
+import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays, startOfWeek, format, startOfDay } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, PROCESSES, WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE } from '@/lib/data';
@@ -872,12 +872,26 @@ function GanttPageContent() {
     const order = orders.find(o => o.id === activeProcess.orderId);
     if (!order || !order.budgetedEfficiency) return null;
   
-    const allProcessesForOrder = scheduledProcesses.filter(p =>
-      p.orderId === activeProcess.orderId &&
-      p.processId === activeProcess.processId
-    );
-  
-    if (allProcessesForOrder.length === 0) return null;
+    // Aggregate all processes for the same main order
+    const allProcessesForOrder = scheduledProcesses.filter(p => {
+        if (p.orderId === activeProcess.orderId && p.processId === activeProcess.processId) {
+            return true;
+        }
+        // If it's a split process, check if the parentId matches the active process's orderId context
+        if (activeProcess.parentId) {
+            return p.parentId === activeProcess.parentId && p.processId === activeProcess.processId;
+        }
+        // If the active process is not split, check if other processes are part of its potential split group
+        if (p.parentId) {
+            const baseId = p.parentId.split('-split-')[0];
+            return baseId === activeProcess.id && p.processId === activeProcess.processId;
+        }
+        return false;
+    });
+
+    if (allProcessesForOrder.length === 0) {
+        allProcessesForOrder.push(activeProcess);
+    }
   
     const operations = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
     if (operations.length === 0) return null;
@@ -891,19 +905,18 @@ function GanttPageContent() {
     const dailyData: Record<string, number> = {};
   
     allProcessesForOrder.forEach(process => {
-      let currentDate = new Date(process.startDateTime);
-      // Iterate day by day, not by duration, to correctly assign daily output
-      while (currentDate <= process.endDateTime) {
-          if (getDay(currentDate) !== 0) { // Exclude Sundays
-              const dateKey = format(startOfDay(currentDate), 'yyyy-MM-dd');
-              dailyData[dateKey] = (dailyData[dateKey] || 0) + dailyOutput;
-          }
-          currentDate = addDays(currentDate, 1);
-      }
+        let currentDate = new Date(process.startDateTime);
+        while (currentDate <= process.endDateTime) {
+            if (getDay(currentDate) !== 0) { // Exclude Sundays
+                const dateKey = format(startOfDay(currentDate), 'yyyy-MM-dd');
+                dailyData[dateKey] = (dailyData[dateKey] || 0) + dailyOutput;
+            }
+            currentDate = addDays(currentDate, 1);
+        }
     });
   
     return dailyData;
-  }, [activePlanQtyProcessId, scheduledProcesses, orders]);
+}, [activePlanQtyProcessId, scheduledProcesses, orders]);
 
 
 
