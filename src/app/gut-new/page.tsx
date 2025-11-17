@@ -3,7 +3,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays, format, startOfDay, startOfWeek } from 'date-fns';
+import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays, format, startOfWeek } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
 import { MACHINES, PROCESSES, WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE } from '@/lib/data';
@@ -52,36 +52,15 @@ type ProcessToSplitState = {
 
 
 // Helper function to calculate duration for sewing process
-const calculateSewingDuration = (order: Order, quantity: number, numLines: number): number => {
+const calculateSewingDuration = (order: Order, quantity: number, numLines: number, sewingLineGroups: SewingLineGroup[]): number => {
     const process = PROCESSES.find(p => p.id === SEWING_PROCESS_ID);
     if (!process || quantity <= 0 || process.sam <= 0) return 0;
+
+    const slg = sewingLineGroups.find(g => g.ccNo === order.ocn);
+    const multiplier = slg?.outputMultiplier || 1;
     
-    return calculateSewingDurationMinutes(quantity, process.sam, order.sewingRampUpScheme || [], numLines);
+    return calculateSewingDurationMinutes(quantity, process.sam, order.sewingRampUpScheme || [], numLines * multiplier);
 };
-
-const calculateProductionDays = (order: Order): number => {
-    const operations = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
-    const productionQtyLeft = Math.max(0, order.quantity - (order.produced?.total || 0));
-
-    if (operations.length === 0 || productionQtyLeft <= 0 || !order.budgetedEfficiency) {
-      return 0;
-    }
-  
-    const totalSam = operations.reduce((sum, op) => sum + op.sam, 0);
-    const totalTailors = operations.reduce((sum, op) => sum + op.operators, 0);
-  
-    if (totalSam === 0 || totalTailors === 0) {
-      return 0;
-    }
-  
-    const dailyTotalOutput = (WORK_DAY_MINUTES * totalTailors * (order.budgetedEfficiency / 100)) / totalSam;
-  
-    if (dailyTotalOutput <= 0) {
-      return Infinity;
-    }
-  
-    return productionQtyLeft / dailyTotalOutput;
-  };
 
 function GanttPageContent() {
   const { 
@@ -110,6 +89,34 @@ function GanttPageContent() {
   const [processToSplit, setProcessToSplit] = useState<ProcessToSplitState | null>(null);
   const [draggingProcessId, setDraggingProcessId] = useState<string | null>(null);
   const [activePlanQtyProcessId, setActivePlanQtyProcessId] = useState<string | null>(null);
+
+  const calculateProductionDays = (order: Order): number => {
+    const operations = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
+    const productionQtyLeft = Math.max(0, order.quantity - (order.produced?.total || 0));
+
+    if (operations.length === 0 || productionQtyLeft <= 0 || !order.budgetedEfficiency) {
+      return 0;
+    }
+  
+    const totalSam = operations.reduce((sum, op) => sum + op.sam, 0);
+    const baseTotalTailors = operations.reduce((sum, op) => sum + op.operators, 0);
+
+    const slg = sewingLineGroups.find(g => g.ccNo === order.ocn);
+    const multiplier = slg?.outputMultiplier || 1;
+    const totalTailors = baseTotalTailors * multiplier;
+  
+    if (totalSam === 0 || totalTailors === 0) {
+      return 0;
+    }
+  
+    const dailyTotalOutput = (WORK_DAY_MINUTES * totalTailors * (order.budgetedEfficiency / 100)) / totalSam;
+  
+    if (dailyTotalOutput <= 0) {
+      return Infinity;
+    }
+  
+    return productionQtyLeft / dailyTotalOutput;
+  };
 
   const dates = useMemo(() => {
     const today = startOfToday();
@@ -537,7 +544,7 @@ function GanttPageContent() {
         durationMinutes = productionDays * WORK_DAY_MINUTES;
       } else if (process.id === SEWING_PROCESS_ID) {
         const numLines = 1;
-        durationMinutes = calculateSewingDuration(order, droppedItem.quantity, numLines);
+        durationMinutes = calculateSewingDuration(order, droppedItem.quantity, numLines, sewingLineGroups);
       } else {
         durationMinutes = process.sam * droppedItem.quantity;
       }
@@ -1146,4 +1153,5 @@ export default function GutNewPage() {
     <GanttPageContent />
   );
 }
+
 
