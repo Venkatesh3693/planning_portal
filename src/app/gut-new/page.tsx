@@ -61,7 +61,9 @@ const calculateSewingDuration = (order: Order, quantity: number, numLines: numbe
 
 const calculateProductionDays = (order: Order): number => {
     const operations = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
-    if (operations.length === 0 || order.quantity <= 0 || !order.budgetedEfficiency) {
+    const productionQtyLeft = Math.max(0, order.quantity - (order.produced?.total || 0));
+
+    if (operations.length === 0 || productionQtyLeft <= 0 || !order.budgetedEfficiency) {
       return 0;
     }
   
@@ -78,7 +80,7 @@ const calculateProductionDays = (order: Order): number => {
       return Infinity;
     }
   
-    return order.quantity / dailyTotalOutput;
+    return productionQtyLeft / dailyTotalOutput;
   };
 
 function GanttPageContent() {
@@ -865,34 +867,21 @@ function GanttPageContent() {
   
   const dailyPlanQty = useMemo(() => {
     if (!activePlanQtyProcessId) return null;
-  
+
     const activeProcess = scheduledProcesses.find(p => p.id === activePlanQtyProcessId);
     if (!activeProcess) return null;
-  
+
     const order = orders.find(o => o.id === activeProcess.orderId);
     if (!order || !order.budgetedEfficiency) return null;
-  
-    // Aggregate all processes for the same main order
+
     const allProcessesForOrder = scheduledProcesses.filter(p => {
-        if (p.orderId === activeProcess.orderId && p.processId === activeProcess.processId) {
-            return true;
-        }
-        // If it's a split process, check if the parentId matches the active process's orderId context
-        if (activeProcess.parentId) {
-            return p.parentId === activeProcess.parentId && p.processId === activeProcess.processId;
-        }
-        // If the active process is not split, check if other processes are part of its potential split group
-        if (p.parentId) {
-            const baseId = p.parentId.split('-split-')[0];
-            return baseId === activeProcess.id && p.processId === activeProcess.processId;
-        }
-        return false;
+        const parentId = p.parentId || p.id.split('-split-')[0];
+        const activeParentId = activeProcess.parentId || activeProcess.id.split('-split-')[0];
+        return parentId === activeParentId && p.processId === activeProcess.processId;
     });
 
-    if (allProcessesForOrder.length === 0) {
-        allProcessesForOrder.push(activeProcess);
-    }
-  
+    if (allProcessesForOrder.length === 0) return null;
+    
     const operations = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
     if (operations.length === 0) return null;
   
@@ -916,7 +905,7 @@ function GanttPageContent() {
     });
   
     return dailyData;
-}, [activePlanQtyProcessId, scheduledProcesses, orders]);
+  }, [activePlanQtyProcessId, scheduledProcesses, orders]);
 
 
 

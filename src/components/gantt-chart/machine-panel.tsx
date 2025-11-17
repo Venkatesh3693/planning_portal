@@ -269,15 +269,7 @@ export default function MachinePanel({
             })}
             {unplannedOrders.map((order) => {
               const process = PROCESSES.find(p => p.id === selectedProcessId)!;
-              let durationDays = 0;
-
-              if (appMode === 'gut-new') {
-                const calculatedDays = calculateProductionDays(order);
-                durationDays = isFinite(calculatedDays) ? calculatedDays : 0;
-              } else if (process) {
-                 const durationMinutes = process.sam * order.quantity;
-                 durationDays = durationMinutes / (8 * 60);
-              }
+              const durationDays = calculateProductionDays(order);
               
               const isSplit = splitOrderProcesses[`${order.id}_${selectedProcessId}`];
               
@@ -338,7 +330,7 @@ export default function MachinePanel({
                        <span>
                         {order.dueDate ? `Due: ${format(order.dueDate, 'MMM dd')}` : ''}
                       </span>
-                      <span>{durationDays.toFixed(1)} days</span>
+                      <span>{isFinite(durationDays) ? durationDays.toFixed(1) : '...'} days left</span>
                     </div>
                   </div>
                 </div>
