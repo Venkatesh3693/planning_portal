@@ -41,12 +41,7 @@ export type SewingLineGroup = {
   id: string;
   name: string;
   ccNo: string;
-  allocatedLines: {
-    lineId: string;
-    isPartial: boolean;
-    // This will need to be adapted if we move away from individual machines
-    allocatedMachines: { id: string; name: string }[];
-  }[];
+  allocatedLines: string[];
   machineRequirements: MachineRequirement[];
 };
 
@@ -285,3 +280,5 @@ export type FrcRow = {
     status: string;
     remarks: Remark[];
 };
+
+    
