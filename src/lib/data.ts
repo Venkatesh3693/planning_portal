@@ -18,52 +18,14 @@ export const sewingMachineTypes = [
     'Bar Tack Machine',
 ];
 
-const generateSewingLinesAndMachines = (): { lines: SewingLine[], machines: Machine[] } => {
-    const lines: SewingLine[] = [];
-    const machines: Machine[] = [];
-    const numLines = 7;
-
-    const lineCompositions = [
-        { 'Single Needle Lock Stitch': 10, 'Over Lock Machine': 8, 'Flat Lock Machine': 4, 'Chain Stitch Machine': 2, 'Bar Tack Machine': 1 },
-        { 'Single Needle Lock Stitch': 12, 'Over Lock Machine': 7, 'Flat Lock Machine': 3, 'Chain Stitch Machine': 2, 'Bar Tack Machine': 1 },
-        { 'Single Needle Lock Stitch': 8, 'Over Lock Machine': 10, 'Flat Lock Machine': 5, 'Chain Stitch Machine': 1, 'Bar Tack Machine': 1 },
-        { 'Single Needle Lock Stitch': 15, 'Over Lock Machine': 5, 'Flat Lock Machine': 2, 'Chain Stitch Machine': 2, 'Bar Tack Machine': 1 },
-        { 'Single Needle Lock Stitch': 9, 'Over Lock Machine': 9, 'Flat Lock Machine': 4, 'Chain Stitch Machine': 2, 'Bar Tack Machine': 1 },
-        { 'Single Needle Lock Stitch': 11, 'Over Lock Machine': 6, 'Flat Lock Machine': 5, 'Chain Stitch Machine': 2, 'Bar Tack Machine': 1 },
-        { 'Single Needle Lock Stitch': 10, 'Over Lock Machine': 7, 'Flat Lock Machine': 3, 'Chain Stitch Machine': 3, 'Bar Tack Machine': 2 },
-    ];
-
-    let machineIdCounter = 0;
-    for (let i = 1; i <= numLines; i++) {
-        const lineId = `L${i}`;
-        const line: SewingLine = {
-          id: lineId,
-          name: `Line ${i}`,
-          machines: []
-        };
-
-        const composition = lineCompositions[i-1];
-        
-        Object.entries(composition).forEach(([machineType, count]) => {
-            for (let j = 0; j < count; j++) {
-                const machine: Machine = {
-                    id: `sm-${machineIdCounter++}`,
-                    name: machineType, // Use the base machine type as the name
-                    processIds: ['sewing'],
-                    unitId: `u${(i % 3) + 1}`,
-                    isMoveable: Math.random() > 0.3,
-                };
-                machines.push(machine);
-                line.machines.push(machine);
-            }
-        });
-        lines.push(line);
-    }
-    return { lines, machines };
-}
-
-const { lines: sewingLinesData, machines: sewingMachinesData } = generateSewingLinesAndMachines();
-export const SEWING_LINES: SewingLine[] = sewingLinesData;
+const simpleSewingMachines: Machine[] = [
+    // Total 75 machines, distributed among types
+    ...Array(30).fill(0).map((_, i) => ({ id: `snls-${i}`, name: 'Single Needle Lock Stitch', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: Math.random() > 0.3 })),
+    ...Array(20).fill(0).map((_, i) => ({ id: `olm-${i}`, name: 'Over Lock Machine', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: Math.random() > 0.3 })),
+    ...Array(15).fill(0).map((_, i) => ({ id: `flm-${i}`, name: 'Flat Lock Machine', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: Math.random() > 0.3 })),
+    ...Array(5).fill(0).map((_, i) => ({ id: `csm-${i}`, name: 'Chain Stitch Machine', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: Math.random() > 0.3 })),
+    ...Array(5).fill(0).map((_, i) => ({ id: `btm-${i}`, name: 'Bar Tack Machine', processIds: ['sewing'], unitId: `u${(i % 3) + 1}`, isMoveable: Math.random() > 0.3 })),
+];
 
 
 export const MACHINES: Machine[] = [
@@ -75,8 +37,38 @@ export const MACHINES: Machine[] = [
   { id: 'm11', name: 'Embroidery Station 2', processIds: ['embroidery'], unitId: 'u2', isMoveable: false },
   { id: 'm12', name: 'Packing table 1', processIds: ['packing'], unitId: 'u3', isMoveable: false },
   { id: 'm13', name: 'Packing table 2', processIds: ['packing'], unitId: 'u3', isMoveable: false },
-  ...sewingMachinesData,
+  ...simpleSewingMachines,
 ];
+
+// This remains for other parts of the app that might use it, but MACHINES is now the source of truth
+const { lines: sewingLinesData } = ((): { lines: SewingLine[], machines: Machine[] } => {
+    const lines: SewingLine[] = [];
+    const machines = simpleSewingMachines;
+    const numLines = 7;
+
+    for (let i = 1; i <= numLines; i++) {
+        const lineId = `L${i}`;
+        lines.push({ id: lineId, name: `Line ${i}`, machines: [] });
+    }
+    
+    // Distribute machines into lines somewhat evenly for display
+    machines.forEach((machine, index) => {
+        if (!machine.isMoveable) {
+            const lineIndex = index % numLines;
+            lines[lineIndex].machines.push(machine);
+        }
+    });
+    
+    // Put all movable machines in a buffer line
+    const bufferLine: SewingLine = { id: 'buffer', name: 'Buffer', machines: machines.filter(m => m.isMoveable) };
+    if (bufferLine.machines.length > 0) {
+      lines.push(bufferLine);
+    }
+
+    return { lines, machines };
+})();
+export const SEWING_LINES: SewingLine[] = sewingLinesData;
+
 
 export const ORDER_COLORS = [
     'hsl(var(--chart-1))',
@@ -643,3 +635,4 @@ export const SEWING_OPERATIONS_BY_STYLE: Record<string, SewingOperation[]> = {
 
 // Assuming an 8-hour work day
 export const WORK_DAY_MINUTES = 8 * 60;
+
