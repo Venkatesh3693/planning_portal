@@ -31,10 +31,19 @@ export default function CreateLineDialog({ isOpen, onOpenChange, allLines, onSav
 
   useEffect(() => {
     if (isOpen) {
-      setLineName('');
+      const lineNumbers = allLines
+        .map(line => {
+            const match = line.name.match(/^Line (\d+)$/);
+            return match ? parseInt(match[1], 10) : 0;
+        })
+        .filter(num => num > 0);
+
+      const nextLineNumber = lineNumbers.length > 0 ? Math.max(...lineNumbers) + 1 : allLines.length + 1;
+      
+      setLineName(`Line ${nextLineNumber}`);
       setTransfers([{ id: crypto.randomUUID(), sourceLineId: '', machineType: '', quantity: 1 }]);
     }
-  }, [isOpen]);
+  }, [isOpen, allLines]);
 
   const sourceLineOptions = useMemo(() => {
     return allLines.filter(l => l.id !== 'buffer');
