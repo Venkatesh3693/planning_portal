@@ -52,39 +52,47 @@ export function calculateSewingDurationMinutes(
     let remainingQty = quantity;
     let totalMinutes = 0;
     let workingDayCounter = 0;
-    let calendarDayOffset = 0;
+    let calendarDayOffset = -1; // Start at -1 so the first loop iteration is Day 0
+    const obData: SewingOperation[] = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
+    const totalSam = obData.reduce((sum, op) => sum + op.sam, 0);
+    const totalTailors = obData.reduce((sum, op) => sum + op.operators, 0);
+
 
     while (remainingQty > 0) {
+        calendarDayOffset++;
         const currentDate = addBusinessDays(startDate, calendarDayOffset);
         const dateKey = format(startOfDay(currentDate), 'yyyy-MM-dd');
-        
-        calendarDayOffset++;
 
         if (holidays.includes(dateKey)) {
-            continue; // Skip holiday, don't increment working day counter
+            continue; // Skip holiday and move to the next day
         }
 
         workingDayCounter++;
+
         const isOvertime = overtimeDays.includes(dateKey);
         const effectiveWorkDayMinutes = WORK_DAY_MINUTES * (isOvertime ? 1.25 : 1);
-        
+
         let efficiency = rampUpScheme.length > 0 ? rampUpScheme[rampUpScheme.length - 1]?.efficiency : 100;
         for (const entry of rampUpScheme) {
-          if(workingDayCounter >= entry.day) {
-            efficiency = entry.efficiency;
-          }
+            if (workingDayCounter >= entry.day) {
+                efficiency = entry.efficiency;
+            }
         }
         
-        if (!efficiency || efficiency <= 0) return Infinity;
-
-        const effectiveSam = sam / (efficiency / 100);
-        const outputPerMinute = (1 / effectiveSam) * numLines;
-        const dailyOutput = effectiveWorkDayMinutes * outputPerMinute;
+        if (!efficiency || efficiency <= 0 || totalSam <= 0) {
+          return Infinity; // Cannot produce if efficiency or SAM is zero
+        }
+        
+        const dailyOutput = (effectiveWorkDayMinutes * efficiency/100 * totalTailors * numLines) / totalSam;
 
         if (remainingQty <= dailyOutput) {
-            totalMinutes += remainingQty / outputPerMinute;
-            remainingQty = 0;
+            // Last day of production
+            const outputPerMinute = dailyOutput / effectiveWorkDayMinutes;
+            const minutesForRemainder = remainingQty / outputPerMinute;
+            totalMinutes += minutesForRemainder;
+            remainingQty = 0; // End the loop
         } else {
+            // Full day of production
             totalMinutes += effectiveWorkDayMinutes;
             remainingQty -= dailyOutput;
         }
