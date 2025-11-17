@@ -32,7 +32,7 @@ function calculateDaysToProduceBatch(
 ): number {
     if (process.id === 'sewing') {
         // This is now an approximation for the TNA card, not for PAB/unplanned batches
-        return calculateSewingDurationDays(processBatchSize, process.sam, order.sewingRampUpScheme || [], numLines);
+        return calculateSewingDurationDays(processBatchSize, process.sam, order.sewingRampUpScheme || [], numLines, order.style);
     }
     const totalMinutes = processBatchSize * process.sam;
     return Math.ceil(totalMinutes / WORK_DAY_MINUTES);
@@ -43,6 +43,7 @@ export function calculateSewingDurationMinutes(
     sam: number, 
     rampUpScheme: RampUpEntry[], 
     numLines: number,
+    orderStyle: string,
     startDate: Date = new Date(),
     holidays: string[] = [],
     overtimeDays: string[] = []
@@ -53,7 +54,7 @@ export function calculateSewingDurationMinutes(
     let totalMinutes = 0;
     let workingDayCounter = 0;
     let calendarDayOffset = -1; // Start at -1 so the first loop iteration is Day 0
-    const obData: SewingOperation[] = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
+    const obData: SewingOperation[] = SEWING_OPERATIONS_BY_STYLE[orderStyle] || [];
     const totalSam = obData.reduce((sum, op) => sum + op.sam, 0);
     const totalTailors = obData.reduce((sum, op) => sum + op.operators, 0);
 
@@ -109,8 +110,8 @@ export function calculateSewingDurationMinutes(
  * Calculates the total sewing duration in days for a given quantity based on a *static* number of lines.
  * This is used for initial estimation and display on UI cards.
  */
-export function calculateSewingDurationDays(quantity: number, sam: number, rampUpScheme: RampUpEntry[], numLines: number): number {
-    const totalMinutes = calculateSewingDurationMinutes(quantity, sam, rampUpScheme, numLines);
+export function calculateSewingDurationDays(quantity: number, sam: number, rampUpScheme: RampUpEntry[], numLines: number, orderStyle: string): number {
+    const totalMinutes = calculateSewingDurationMinutes(quantity, sam, rampUpScheme, numLines, orderStyle);
     return totalMinutes === Infinity ? Infinity : Math.ceil(totalMinutes / WORK_DAY_MINUTES);
 };
 
@@ -306,7 +307,7 @@ export function generateTnaPlan(
         const process = processes.find(p => p.id === pid)!;
         let durationDays;
         if (pid === 'sewing') {
-            durationDays = calculateSewingDurationDays(order.quantity, process.sam, order.sewingRampUpScheme || [], numLinesForSewing);
+            durationDays = calculateSewingDurationDays(order.quantity, process.sam, order.sewingRampUpScheme || [], numLinesForSewing, order.style);
         } else {
             const totalMinutes = order.quantity * process.sam;
             durationDays = Math.ceil(totalMinutes / WORK_DAY_MINUTES);
@@ -435,7 +436,7 @@ export function calculateLatestSewingStartDate(order: Order, allProcesses: Proce
     const sewingFinishDeadline = calculateStartDateTime(order.dueDate, finalPackingDurationMinutes);
 
     // Step 4: Calculate the Total Duration of the Entire Sewing Process
-    const totalSewingDurationMinutes = calculateSewingDurationMinutes(order.quantity, sewingProcess.sam, order.sewingRampUpScheme || [], numLines);
+    const totalSewingDurationMinutes = calculateSewingDurationMinutes(order.quantity, sewingProcess.sam, order.sewingRampUpScheme || [], numLines, order.style);
     if (totalSewingDurationMinutes === Infinity) return null;
     
     // Step 5: Calculate the Final Latest Sewing Start Date

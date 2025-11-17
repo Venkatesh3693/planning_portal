@@ -60,7 +60,7 @@ const calculateSewingDuration = (order: Order, quantity: number, numLines: numbe
     const holidays = slg?.holidays || [];
     const overtimeDays = slg?.overtimeDays || [];
     
-    return calculateSewingDurationMinutes(quantity, process.sam, order.sewingRampUpScheme || [], numLines * multiplier, startDate, holidays, overtimeDays);
+    return calculateSewingDurationMinutes(quantity, process.sam, order.sewingRampUpScheme || [], numLines * multiplier, order.style, startDate, holidays, overtimeDays);
 };
 
 function GanttPageContent() {
