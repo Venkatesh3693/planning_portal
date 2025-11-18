@@ -4,7 +4,6 @@
 import * as React from "react"
 import { format } from "date-fns"
 import { Calendar as CalendarIcon, X } from "lucide-react"
-import { DateRange } from "react-day-picker"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -16,20 +15,17 @@ import {
 } from "@/components/ui/popover"
 
 type DatePickerProps = {
-  date?: DateRange;
-  setDate: (date: DateRange | undefined) => void;
+  date?: Date;
+  setDate: (date: Date | undefined) => void;
   className?: string;
 };
 
 export function DatePicker({ date, setDate, className }: DatePickerProps) {
   const [isOpen, setIsOpen] = React.useState(false);
 
-  const handleSelect = (selectedDate: DateRange | undefined) => {
+  const handleSelect = (selectedDate: Date | undefined) => {
     setDate(selectedDate);
-    // Auto-close popover if a full range is selected
-    if (selectedDate?.from && selectedDate?.to) {
-      setIsOpen(false);
-    }
+    setIsOpen(false);
   };
 
   const handleClear = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -50,17 +46,10 @@ export function DatePicker({ date, setDate, className }: DatePickerProps) {
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {date?.from ? (
-            date.to ? (
-              <>
-                {format(date.from, "LLL dd, y")} -{" "}
-                {format(date.to, "LLL dd, y")}
-              </>
-            ) : (
-              format(date.from, "LLL dd, y")
-            )
+          {date ? (
+            format(date, "LLL dd, y")
           ) : (
-            <span>Pick a date range</span>
+            <span>Pick a date</span>
           )}
           {date && (
             <div
@@ -77,15 +66,11 @@ export function DatePicker({ date, setDate, className }: DatePickerProps) {
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar
           initialFocus
-          mode="range"
-          defaultMonth={date?.from}
+          mode="single"
           selected={date}
           onSelect={handleSelect}
-          numberOfMonths={2}
         />
       </PopoverContent>
     </Popover>
   )
 }
-
-    

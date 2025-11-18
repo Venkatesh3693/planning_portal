@@ -339,7 +339,7 @@ function OrderDetailsContent() {
                             <h3 className="text-lg font-semibold md:col-span-3">Time-based Demand</h3>
                              <div className="space-y-2">
                                 <Label htmlFor="date-picker">Select Date</Label>
-                                <DatePicker date={selectedDate ? { from: selectedDate, to: selectedDate } : undefined} setDate={(range) => setSelectedDate(range?.from)} />
+                                <DatePicker date={selectedDate} setDate={setSelectedDate} />
                              </div>
                         </div>
                         <Table>
