@@ -56,7 +56,6 @@ type ProcessToSplitState = {
 const calculateSewingDuration = (order: Order, quantity: number): number => {
     const totalMinutes = calculateSewingDurationMinutes({
         quantity: quantity,
-        sam: PROCESSES.find(p => p.id === SEWING_PROCESS_ID)!.sam,
         orderStyle: order.style,
         budgetedEfficiency: order.budgetedEfficiency || 85,
     });
@@ -551,16 +550,11 @@ function GanttPageContent() {
       const process = PROCESSES.find(p => p.id === droppedItem.processId)!;
       
       let durationMinutes;
-      if (process.id === SEWING_PROCESS_ID) {
+      if (process.id === SEWING_PROCESS_ID && appMode === 'gut-new' && droppedItem.daysToComplete) {
+         durationMinutes = droppedItem.daysToComplete * WORK_DAY_MINUTES * (order.budgetedEfficiency || 85) / 100;
+      } else if (process.id === SEWING_PROCESS_ID) {
         const qtyLeft = droppedItem.quantity - (order.produced?.total || 0);
-        
-        durationMinutes = calculateSewingDurationMinutes({
-            quantity: qtyLeft,
-            sam: process.sam,
-            orderStyle: order.style,
-            budgetedEfficiency: order.budgetedEfficiency || 85
-        });
-
+        durationMinutes = calculateSewingDuration(order, qtyLeft);
       } else {
         durationMinutes = process.sam * droppedItem.quantity;
       }
