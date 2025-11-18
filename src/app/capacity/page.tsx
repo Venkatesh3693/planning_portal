@@ -1,8 +1,10 @@
 
-
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { useSchedule } from '@/context/schedule-provider';
+import { Header } from '@/components/layout/header';
+import Link from 'next/link';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -11,292 +13,192 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
-import { Header } from '@/components/layout/header';
-import Link from 'next/link';
-import { UNITS, PROCESSES, MACHINE_NAME_ABBREVIATIONS } from '@/lib/data';
-import type { Machine, Process, Unit } from '@/lib/types';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Card, CardContent } from '@/components/ui/card';
-import { FilterDropdown } from '@/components/capacity/filter-dropdown';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { X, PlusCircle } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { useSchedule } from '@/context/schedule-provider';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { PlusCircle, Trash2, ChevronRight, Edit } from 'lucide-react';
+import type { SewingLine, SewingMachineType, SewingLineGroup as ISewingLineGroup } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
+import LineReallocationDialog from '@/components/capacity/line-reallocation-dialog';
+import CreateLineDialog from '@/components/capacity/create-line-dialog';
+import { useToast } from '@/hooks/use-toast';
 
+// Simplified SewingLineGroup for GUP mode
+type SewingLineGroup = Omit<ISewingLineGroup, 'ccNo' | 'machineRequirements' | 'outputMultiplier'>;
 
-type MachineGroup = {
-  process: Process;
-  name: string;
-  unit: Unit;
-  quantity: number;
-  isMoveable: boolean;
-};
+const UnallocatedLineCard = ({ line, onAllocate, onEdit, activeGroup }: { line: SewingLine, onAllocate: (line: SewingLine) => void, onEdit: (line: SewingLine) => void, activeGroup: SewingLineGroup | undefined }) => {
+    const totalMachines = useMemo(() => {
+        return Object.values(line.machineCounts).reduce((sum, count) => sum + (count || 0), 0);
+    }, [line.machineCounts]);
 
-type ReallocationEntry = {
-  unitId: string;
-  quantity: number;
-};
-
-type ReallocationState = {
-  machineName: string;
-  sourceUnitId: string;
-  totalQuantity: number;
-  allocations: ReallocationEntry[];
-};
-
+    return (
+        <div className="p-3 rounded-md border">
+            <div className="flex items-center justify-between mb-2">
+                <div>
+                    <p className="font-medium">{line.name}</p>
+                    <p className="text-xs text-muted-foreground">{totalMachines} Machines</p>
+                </div>
+                 <div className="flex items-center gap-1">
+                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => onEdit(line)}>
+                        <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => onAllocate(line)} disabled={!activeGroup}>
+                        Allocate
+                    </Button>
+                 </div>
+            </div>
+            <div className="flex flex-wrap gap-1">
+                {Object.entries(line.machineCounts)
+                    .filter(([, count]) => count && count > 0)
+                    .map(([type, count]) => (
+                    <Badge key={type} variant="secondary" className="font-normal">{type}: {count}</Badge>
+                ))}
+            </div>
+        </div>
+    );
+}
 
 export default function CapacityPage() {
-  const { appMode, machines, setMachines } = useSchedule();
-  const [reallocationState, setReallocationState] = useState<ReallocationState | null>(null);
-
-  const [selectedProcesses, setSelectedProcesses] = useState<string[]>([]);
-  const [selectedMachineTypes, setSelectedMachineTypes] = useState<string[]>([]);
-  const [selectedUnits, setSelectedUnitsState] = useState<string[]>([]);
-  const [selectedMobilities, setSelectedMobilities] = useState<string[]>([]);
-
-  const allMachineGroups: MachineGroup[] = useMemo(() => {
-    return PROCESSES.flatMap(process => {
-      const machinesInProcess = machines.filter(m => m.processIds.includes(process.id));
-      
-      const machineGroupsByUnit: Record<string, Record<string, {
-          process: Process;
-          name: string;
-          unit: Unit;
-          quantity: number;
-          isMoveable: boolean;
-      }>> = {};
+  const { 
+    appMode, 
+    sewingLines, 
+    setSewingLines, 
+    sewingLineGroups: allGroups, 
+    setSewingLineGroups: setAllGroups,
+  } = useSchedule();
   
-      machinesInProcess.forEach(machine => {
-        const machineType = Object.keys(MACHINE_NAME_ABBREVIATIONS).find(key => machine.name.startsWith(key)) || machine.name.replace(/\s\d+$|\s\d+-\d+$|\s(Alpha|Beta)$/, '');
-        const unit = UNITS.find(u => u.id === machine.unitId)!;
-  
-        if (!machineGroupsByUnit[machineType]) {
-          machineGroupsByUnit[machineType] = {};
-        }
-        if (!machineGroupsByUnit[machineType][unit.id]) {
-          machineGroupsByUnit[machineType][unit.id] = {
-            process: process,
-            name: machineType,
-            unit: unit,
-            quantity: 0,
-            isMoveable: false,
-          };
-        }
-        machineGroupsByUnit[machineType][unit.id].quantity++;
-        if (machine.isMoveable) {
-          machineGroupsByUnit[machineType][unit.id].isMoveable = true;
-        }
-      });
-  
-      return Object.values(machineGroupsByUnit).flatMap(unitGroup => Object.values(unitGroup));
+  const sewingLineGroups = useMemo(() => allGroups.map(g => ({...g, allocatedLines: g.allocatedLines || [] })), [allGroups]) as SewingLineGroup[];
+  const setSewingLineGroups = setAllGroups as React.Dispatch<React.SetStateAction<SewingLineGroup[]>>;
 
-    }).sort((a, b) => {
-      if (a.process.name !== b.process.name) {
-        return a.process.name.localeCompare(b.process.name);
-      }
-      if (a.name !== b.name) {
-        return a.name.localeCompare(a.name);
-      }
-      return a.unit.name.localeCompare(a.unit.name);
-    });
-  }, [machines]);
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [isCreatingLine, setIsCreatingLine] = useState(false);
+  const [lineForReallocation, setLineForReallocation] = useState<SewingLine | null>(null);
+  const { toast } = useToast();
 
-  const handleOpenReallocation = (group: MachineGroup) => {
-    setReallocationState({
-      machineName: group.name,
-      sourceUnitId: group.unit.id,
-      totalQuantity: group.quantity,
-      allocations: [
-        { unitId: group.unit.id, quantity: group.quantity },
-        { unitId: '', quantity: 0 },
-      ],
-    });
+  const unallocatedLines = useMemo(() => {
+      const allocatedLineIds = new Set(sewingLineGroups.flatMap(g => g.allocatedLines));
+      return sewingLines.filter(line => !allocatedLineIds.has(line.id));
+  }, [sewingLines, sewingLineGroups]);
+
+  const activeGroup = useMemo(() => sewingLineGroups.find(g => g.id === activeGroupId), [sewingLineGroups, activeGroupId]);
+
+  const handleCreateGroup = () => {
+    const newGroupName = `SLG-${sewingLineGroups.length + 1}`;
+    const newGroup: SewingLineGroup = {
+      id: `lg-${crypto.randomUUID()}`,
+      name: newGroupName,
+      allocatedLines: [],
+    };
+
+    setSewingLineGroups([...sewingLineGroups, newGroup]);
+    setActiveGroupId(newGroup.id);
   };
 
-  const handleAllocationChange = (index: number, newEntry: ReallocationEntry) => {
-    setReallocationState(prev => {
-      if (!prev) return null;
-      
-      const newAllocations = [...prev.allocations];
-      newAllocations[index] = newEntry;
-
-      const allocatedQuantity = newAllocations.slice(1).reduce((sum, alloc) => sum + alloc.quantity, 0);
-      newAllocations[0] = { ...newAllocations[0], quantity: prev.totalQuantity - allocatedQuantity };
-
-      return { ...prev, allocations: newAllocations };
-    });
-  };
-
-  const addAllocationRow = () => {
-    setReallocationState(prev => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        allocations: [...prev.allocations, { unitId: '', quantity: 0 }],
-      };
-    });
-  };
-
-  const removeAllocationRow = (index: number) => {
-    setReallocationState(prev => {
-      if (!prev) return null;
-      const newAllocations = prev.allocations.filter((_, i) => i !== index);
-      const allocatedQuantity = newAllocations.slice(1).reduce((sum, alloc) => sum + alloc.quantity, 0);
-      newAllocations[0] = { ...newAllocations[0], quantity: prev.totalQuantity - allocatedQuantity };
-
-      return { ...prev, allocations: newAllocations };
-    });
-  };
-  
-  const handleConfirmReallocation = () => {
-    if (!reallocationState) return;
-    const { machineName, allocations } = reallocationState;
-    
-    setMachines(prevMachines => {
-        let updatedMachines = [...prevMachines];
-        
-        // Pool of all movable machines of this type
-        const machinePool: Machine[] = [];
-        // All other machines that are not of this type or not movable
-        const remainingMachines: Machine[] = [];
-
-        updatedMachines.forEach(m => {
-            const machineType = Object.keys(MACHINE_NAME_ABBREVIATIONS).find(key => m.name.startsWith(key)) || m.name.replace(/\s\d+$|\s\d+-\d+$|\s(Alpha|Beta)$/, '');
-            if (machineType === machineName && m.isMoveable) {
-                machinePool.push(m);
-            } else {
-                remainingMachines.push(m);
-            }
-        });
-        
-        let poolIndex = 0;
-        allocations.forEach(({ unitId, quantity }) => {
-            if (!unitId || quantity === 0) return;
-
-            for (let i = 0; i < quantity; i++) {
-                if (poolIndex < machinePool.length) {
-                    const machineToPlace = { ...machinePool[poolIndex], unitId: unitId };
-                    remainingMachines.push(machineToPlace);
-                    poolIndex++;
-                }
-            }
-        });
-        
-        // Add back any un-allocated movable machines to their original unit
-        while (poolIndex < machinePool.length) {
-            remainingMachines.push(machinePool[poolIndex]);
-            poolIndex++;
-        }
-
-        return remainingMachines;
-    });
-
-    setReallocationState(null);
-  };
-
-
-  const remainingQuantity = reallocationState?.allocations[0]?.quantity ?? 0;
-  const isReallocationInvalid = remainingQuantity < 0 || reallocationState?.allocations.slice(1).some(a => !a.unitId && a.quantity > 0);
-  
-  const processOptions = useMemo(() => [...new Set(allMachineGroups.map(g => g.process.name))], [allMachineGroups]);
-  const machineTypeOptions = useMemo(() => [...new Set(allMachineGroups.map(g => g.name))], [allMachineGroups]);
-  const unitOptions = useMemo(() => [...new Set(allMachineGroups.map(g => g.unit.name))], [allMachineGroups]);
-  const mobilityOptions = ['Moveable', 'Fixed'];
-  
-  const filteredMachineGroups = useMemo(() => {
-    return allMachineGroups.filter(group => {
-      const processMatch = selectedProcesses.length === 0 || selectedProcesses.includes(group.process.name);
-      const machineTypeMatch = selectedMachineTypes.length === 0 || selectedMachineTypes.includes(group.name);
-      const unitMatch = selectedUnits.length === 0 || selectedUnits.includes(group.unit.name);
-      const mobilityMatch = selectedMobilities.length === 0 || selectedMobilities.includes(group.isMoveable ? 'Moveable' : 'Fixed');
-      return processMatch && machineTypeMatch && unitMatch && mobilityMatch;
-    });
-  }, [allMachineGroups, selectedProcesses, selectedMachineTypes, selectedUnits, selectedMobilities]);
-
-  const activeFilters = [
-    ...selectedProcesses.map(v => ({ type: 'process', value: v })),
-    ...selectedMachineTypes.map(v => ({ type: 'machine', value: v })),
-    ...selectedUnits.map(v => ({ type: 'unit', value: v })),
-    ...selectedMobilities.map(v => ({ type: 'mobility', value: v })),
-  ];
-
-  const removeFilter = (type: string, value: string) => {
-    switch (type) {
-      case 'process':
-        setSelectedProcesses(prev => prev.filter(p => p !== value));
-        break;
-      case 'machine':
-        setSelectedMachineTypes(prev => prev.filter(m => m !== value));
-        break;
-      case 'unit':
-        setSelectedUnitsState(prev => prev.filter(u => u !== value));
-        break;
-      case 'mobility':
-        setSelectedMobilities(prev => prev.filter(m => m !== value));
-        break;
+  const handleDeleteGroup = (groupId: string) => {
+    setSewingLineGroups(prev => prev.filter(g => g.id !== groupId));
+    if (activeGroupId === groupId) {
+      setActiveGroupId(null);
     }
   };
 
-  const availableUnitsForAllocation = (index: number) => {
-    if (!reallocationState) return UNITS;
-    const usedUnitIds = reallocationState.allocations
-      .map(a => a.unitId)
-      .filter((id, i) => id && i !== index);
-    return UNITS.filter(u => !usedUnitIds.includes(u.id));
+  const allocateLine = useCallback((line: SewingLine) => {
+    if (!activeGroup) return;
+    setSewingLineGroups(prevGroups => prevGroups.map(group => {
+      if (group.id !== activeGroup.id) return group;
+      return { ...group, allocatedLines: [...group.allocatedLines, line.id] };
+    }));
+  }, [activeGroup, setSewingLineGroups]);
+
+  const deallocateLine = useCallback((lineId: string) => {
+    if (!activeGroup) return;
+    setSewingLineGroups(prevGroups => prevGroups.map(group => {
+      if (group.id !== activeGroup.id) return group;
+      return { ...group, allocatedLines: group.allocatedLines.filter(lId => lId !== lineId) };
+    }));
+  }, [activeGroup, setSewingLineGroups]);
+
+  const handleReallocationSave = (sourceLineId: string, targetLineId: string, machineType: SewingMachineType, quantity: number) => {
+    setSewingLines(prevLines => {
+      const newLines = JSON.parse(JSON.stringify(prevLines)) as SewingLine[];
+      const sourceLine = newLines.find(l => l.id === sourceLineId);
+      const targetLine = newLines.find(l => l.id === targetLineId);
+
+      if (sourceLine && targetLine) {
+        sourceLine.machineCounts[machineType] = (sourceLine.machineCounts[machineType] || 0) - quantity;
+        targetLine.machineCounts[machineType] = (targetLine.machineCounts[machineType] || 0) + quantity;
+      }
+      return newLines;
+    });
+    setLineForReallocation(null);
   };
 
+  const handleCreateNewLine = (
+    lineName: string,
+    transfers: { sourceLineId: string; machineType: SewingMachineType; quantity: number }[]
+  ) => {
+    setSewingLines(prevLines => {
+      const newLines = JSON.parse(JSON.stringify(prevLines)) as SewingLine[];
+      const newLine: SewingLine = {
+        id: `L${prevLines.length + 1}`,
+        name: lineName,
+        unitId: 'u1',
+        machineCounts: {},
+      };
 
-  if (appMode === 'gut') {
+      transfers.forEach(({ sourceLineId, machineType, quantity }) => {
+        const sourceLine = newLines.find(l => l.id === sourceLineId);
+        if (sourceLine) {
+          sourceLine.machineCounts[machineType] = (sourceLine.machineCounts[machineType] || 0) - quantity;
+          newLine.machineCounts[machineType] = (newLine.machineCounts[machineType] || 0) + quantity;
+        }
+      });
+
+      return [...newLines, newLine];
+    });
+
+    toast({
+      title: "Sewing Line Created",
+      description: `Line "${lineName}" has been created successfully.`,
+    });
+    setIsCreatingLine(false);
+  };
+  
+    const calculateGroupMachineTotals = useCallback((group: SewingLineGroup) => {
+        if (!group) return {};
+        const totals: Record<string, number> = {};
+        const allocatedLineDetails = sewingLines.filter(line => group.allocatedLines.includes(line.id));
+
+        allocatedLineDetails.forEach(line => {
+            (Object.keys(line.machineCounts) as SewingMachineType[]).forEach(type => {
+                totals[type] = (totals[type] || 0) + (line.machineCounts[type] || 0);
+            });
+        });
+        return totals;
+    }, [sewingLines]);
+
+
+  if (appMode !== 'gup') {
     return (
-        <div className="flex h-screen flex-col">
-          <Header />
-          <main className="flex-1 p-4 sm:p-6 lg:p-8 flex items-center justify-center">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold">Capacity Management Not Available</h2>
-              <p className="mt-2 text-muted-foreground">
-                This view is only applicable for GUP mode.
-              </p>
-              <Button asChild className="mt-6">
-                <Link href="/orders">View GUT Orders</Link>
-              </Button>
-            </div>
-          </main>
-        </div>
-    )
+      <div className="flex h-screen flex-col">
+        <Header />
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 flex items-center justify-center">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold">Capacity Management Not Available</h2>
+            <p className="mt-2 text-muted-foreground">This view is only applicable for GUP mode.</p>
+            <Button asChild className="mt-6">
+              <Link href="/orders">View Orders</Link>
+            </Button>
+          </div>
+        </main>
+      </div>
+    );
   }
 
   return (
     <div className="flex h-screen flex-col">
       <Header />
-      <main className="flex-1 p-4 sm:p-6 lg:p-8">
-        <Breadcrumb className="mb-4">
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 flex flex-col space-y-6">
+        <Breadcrumb className="flex-shrink-0">
           <BreadcrumbList>
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
@@ -309,168 +211,140 @@ export default function CapacityPage() {
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
-        <div className="space-y-4">
-          <h1 className="text-2xl font-bold">Capacity Management</h1>
-          <p className="text-muted-foreground">
-            View your manufacturing resources. Use filters to narrow down your view.
-          </p>
+        <div className="flex justify-between items-center flex-shrink-0">
+          <div>
+            <h1 className="text-2xl font-bold">Sewing Line Grouping</h1>
+            <p className="text-muted-foreground">Create line groups by allocating sewing lines.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setIsCreatingLine(true)}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Create New Sewing Line
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleCreateGroup}>
+              <PlusCircle className="mr-2 h-4 w-4" /> Create New Line Group
+            </Button>
+          </div>
+        </div>
 
-          <Card>
-            <CardContent className="p-0">
-                {activeFilters.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-2 p-4 border-b">
-                    <span className="text-sm font-medium">Active Filters:</span>
-                    {activeFilters.map(({type, value}) => (
-                      <Badge key={`${type}-${value}`} variant="secondary" className="gap-1">
-                        {value}
-                        <button onClick={() => removeFilter(type, value)} className="rounded-full hover:bg-muted-foreground/20">
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
+          {/* Left Column: Unallocated Lines */}
+          <div className="lg:col-span-1 flex flex-col gap-6">
+            <Card className="flex-1 flex flex-col">
+              <CardHeader>
+                <CardTitle>Unallocated Lines</CardTitle>
+              </CardHeader>
+              <CardContent className="flex-1 overflow-y-auto">
+                <div className="space-y-2">
+                  {unallocatedLines.length > 0 ? (
+                    unallocatedLines.map(line => (
+                      <UnallocatedLineCard 
+                        key={line.id} 
+                        line={line} 
+                        onAllocate={allocateLine} 
+                        onEdit={setLineForReallocation} 
+                        activeGroup={activeGroup} 
+                      />
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-8">All sewing lines are allocated.</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right Column: Groups */}
+          <div className="lg:col-span-2 flex flex-col gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Sewing Line Groups</CardTitle>
+                <CardDescription>Select a group to view its details and allocated lines.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {sewingLineGroups.length > 0 ? (
+                  <div className="space-y-2">
+                    {sewingLineGroups.map(group => {
+                        const groupMachineTotals = calculateGroupMachineTotals(group);
+                        return (
+                            <div key={group.id} className={cn("p-3 rounded-md border flex flex-col cursor-pointer", activeGroupId === group.id && "ring-2 ring-primary border-primary")} onClick={() => setActiveGroupId(group.id)}>
+                                <div className="flex items-center justify-between">
+                                    <p className="font-semibold">{group.name}</p>
+                                    <div className="flex items-center gap-2">
+                                        <Button variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={(e) => { e.stopPropagation(); handleDeleteGroup(group.id); }}>
+                                            <Trash2 />
+                                        </Button>
+                                        <ChevronRight className={cn("h-5 w-5 text-muted-foreground transition-transform", activeGroupId === group.id && "text-primary")} />
+                                    </div>
+                                </div>
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                    {Object.entries(groupMachineTotals).map(([type, count]) => (
+                                        <Badge key={type} variant="secondary" className="font-normal">{type}: {count}</Badge>
+                                    ))}
+                                </div>
+                            </div>
+                        )
+                    })}
                   </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-8">No line groups created yet.</p>
                 )}
-                <AlertDialog onOpenChange={(isOpen) => !isOpen && setReallocationState(null)}>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>
-                          <FilterDropdown title="Process" options={processOptions} selected={selectedProcesses} onSelectedChange={setSelectedProcesses} />
-                        </TableHead>
-                        <TableHead>
-                          <FilterDropdown title="Machine" options={machineTypeOptions} selected={selectedMachineTypes} onSelectedChange={setSelectedMachineTypes} />
-                        </TableHead>
-                        <TableHead>
-                          <FilterDropdown title="Unit" options={unitOptions} selected={selectedUnits} onSelectedChange={setSelectedUnitsState} />
-                        </TableHead>
-                        <TableHead>
-                          <FilterDropdown title="Mobility" options={mobilityOptions} selected={selectedMobilities} onSelectedChange={setSelectedMobilities} />
-                        </TableHead>
-                        <TableHead className="text-right">Quantity</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredMachineGroups.map((group, index) => (
-                        <TableRow key={index}>
-                          <TableCell className="font-medium">{group.process.name}</TableCell>
-                          <TableCell>{group.name}</TableCell>
-                          <TableCell>
-                            {group.isMoveable ? (
-                              <AlertDialogTrigger 
-                                asChild
-                                onClick={() => handleOpenReallocation(group)}
-                              >
-                                <span className="cursor-pointer font-medium text-primary hover:underline">
-                                  {group.unit.name}
-                                </span>
-                              </AlertDialogTrigger>
-                            ) : (
-                              <span>{group.unit.name}</span>
-                            )}
-                          </TableCell>
-                          <TableCell>{group.isMoveable ? `Moveable` : 'Fixed'}</TableCell>
-                          <TableCell className="text-right">{group.quantity}</TableCell>
-                        </TableRow>
-                      ))}
-                      {filteredMachineGroups.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={5} className="h-24 text-center">
-                            No results found.
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-
-                  {reallocationState && (
-                    <AlertDialogContent className="max-w-2xl">
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Reallocate {reallocationState.machineName}</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Distribute the total of {reallocationState.totalQuantity} machines across different units.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
+              </CardContent>
+            </Card>
+            
+            {activeGroup && (
+              <Card className="flex-1 flex flex-col">
+                <CardHeader>
+                  <CardTitle>Allocated Lines for {activeGroup.name}</CardTitle>
+                </CardHeader>
+                <CardContent className="flex-1 overflow-y-auto space-y-2 border p-2 rounded-md bg-muted/30">
+                  {activeGroup.allocatedLines.length > 0 ? (
+                    activeGroup.allocatedLines.map(lineId => {
+                      const line = sewingLines.find(l => l.id === lineId);
+                      if (!line) return null;
                       
-                      <div className="space-y-4 py-4">
-                        <div className="grid grid-cols-[1fr_100px_40px] items-center gap-x-4 gap-y-2 text-sm font-medium text-muted-foreground px-4">
-                          <span>Unit</span>
-                          <span className="text-right">Quantity</span>
-                          <span></span>
-                        </div>
+                      const totalMachines = Object.values(line.machineCounts).reduce((s, c) => s + (c || 0), 0);
 
-                        {reallocationState.allocations.map((alloc, index) => (
-                          <div key={index} className="grid grid-cols-[1fr_100px_40px] items-center gap-x-4 px-4">
-                            <Input
-                                readOnly
-                                value={UNITS.find(u => u.id === alloc.unitId)?.name || 'Source Unit'}
-                                className={cn("border-none bg-transparent shadow-none px-0", index > 0 && "hidden")}
-                              />
-                            {index > 0 && (
-                              <Select
-                                value={alloc.unitId}
-                                onValueChange={(unitId) => handleAllocationChange(index, { ...alloc, unitId })}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select unit" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {availableUnitsForAllocation(index).map(unit => (
-                                    <SelectItem key={unit.id} value={unit.id}>
-                                      {unit.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            )}
-
-                            <Input
-                              type="number"
-                              min="0"
-                              max={reallocationState.totalQuantity}
-                              value={alloc.quantity}
-                              readOnly={index === 0}
-                              onChange={(e) => {
-                                const newQuantity = parseInt(e.target.value, 10) || 0;
-                                handleAllocationChange(index, { ...alloc, quantity: newQuantity });
-                              }}
-                              className="text-right"
-                            />
-
-                            {index > 0 && (
-                               <Button variant="ghost" size="icon" onClick={() => removeAllocationRow(index)} className="justify-self-center">
-                                <X className="h-4 w-4" />
-                              </Button>
-                            )}
+                      return (
+                        <div key={lineId} className="p-3 rounded-md border bg-background flex items-start justify-between">
+                          <div>
+                            <p className="font-medium">{line.name}</p>
+                            <p className="text-xs text-muted-foreground">{totalMachines} Machines</p>
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {Object.entries(line.machineCounts).map(([type, count]) => (
+                                <Badge key={type} variant="secondary" className="font-normal">{type}: {count}</Badge>
+                              ))}
+                            </div>
                           </div>
-                        ))}
-                         
-                        {remainingQuantity < 0 && (
-                          <p className="px-4 text-sm text-destructive">Total allocated quantity cannot exceed {reallocationState.totalQuantity}.</p>
-                        )}
-                        
-                        <div className="px-4">
-                          <Button variant="link" size="sm" onClick={addAllocationRow} className="p-0 h-auto">
-                            <PlusCircle className="mr-2 h-4 w-4" />
-                            Add unit
+                          <Button size="sm" variant="destructive" onClick={() => deallocateLine(lineId)}>
+                            Deallocate
                           </Button>
                         </div>
-
-                      </div>
-                      
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleConfirmReallocation} disabled={isReallocationInvalid}>
-                          Confirm
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
+                      );
+                    })
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-8">No lines allocated to this group yet.</p>
                   )}
-
-                </AlertDialog>
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
       </main>
+      {lineForReallocation && (
+        <LineReallocationDialog
+          targetLine={lineForReallocation}
+          allLines={sewingLines}
+          isOpen={!!lineForReallocation}
+          onOpenChange={(isOpen) => !isOpen && setLineForReallocation(null)}
+          onSave={handleReallocationSave}
+        />
+      )}
+       <CreateLineDialog
+          isOpen={isCreatingLine}
+          onOpenChange={setIsCreatingLine}
+          allLines={sewingLines}
+          onSave={handleCreateNewLine}
+      />
     </div>
   );
 }
