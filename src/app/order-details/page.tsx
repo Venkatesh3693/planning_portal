@@ -170,6 +170,33 @@ function OrderDetailsContent() {
     return result;
   }, [order, selectedDate]);
 
+  const frcGrnQty = useMemo(() => {
+    const result: SizeBreakdown = { total: 0 };
+    SIZES.forEach(s => result[s] = 0);
+
+    if (!order || !selectedDate) {
+      return result;
+    }
+
+    const selectedWeek = getWeek(selectedDate);
+    const modelString = `${order.style} / ${order.color}`;
+
+    const relevantFrcs = frcData.filter(frc => 
+        frc.ccNo === order.ocn && 
+        frc.model === modelString &&
+        parseInt(frc.ckWeek.replace('W', '')) < selectedWeek
+    );
+
+    relevantFrcs.forEach(frc => {
+      SIZES.forEach(size => {
+        result[size] = (result[size] || 0) + (frc.sizes?.[size] || 0);
+      });
+      result.total += frc.frcQty || 0;
+    });
+
+    return result;
+  }, [order, selectedDate, frcData]);
+
 
   const excessFrc = useMemo(() => {
     if (!frcQty || !poPlusFcQty) return null;
@@ -373,6 +400,17 @@ function OrderDetailsContent() {
                                     ))}
                                     <TableCell className="text-right font-bold">
                                         {(timeBasedQuantities.fc.total || 0).toLocaleString()}
+                                    </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell className="font-medium">FRC GRN before {selectedDate ? `W${getWeek(selectedDate)}` : '...'}</TableCell>
+                                    {SIZES.map(size => (
+                                        <TableCell key={size} className="text-right">
+                                            {(frcGrnQty[size] || 0).toLocaleString()}
+                                        </TableCell>
+                                    ))}
+                                    <TableCell className="text-right font-bold">
+                                        {(frcGrnQty.total || 0).toLocaleString()}
                                     </TableCell>
                                 </TableRow>
                             </TableBody>
