@@ -35,6 +35,7 @@ function OrderDetailsContent() {
   const [selectedCc, setSelectedCc] = useState('');
   const [selectedColor, setSelectedColor] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [coSelectedDate, setCoSelectedDate] = useState<Date | undefined>(undefined);
 
   const ccOptions = useMemo(() => {
     return [...new Set(orders.filter(o => o.orderType === 'Forecasted').map(o => o.ocn))].sort();
@@ -220,6 +221,37 @@ function OrderDetailsContent() {
     result.total = frcQty.total - poPlusFcQty.total;
     return result;
   }, [frcQty, poPlusFcQty]);
+
+  const coPendingQty = useMemo(() => {
+      const result: SizeBreakdown = SIZES.reduce((acc, s) => ({...acc, [s]: 0}), {total: 0} as SizeBreakdown);
+      if (!order || !cutOrderQty || !coSelectedDate) {
+          return result;
+      }
+      const selectedWeek = getWeek(coSelectedDate);
+      
+      const futurePoQty: SizeBreakdown = SIZES.reduce((acc, s) => ({...acc, [s]: 0}), {total: 0} as SizeBreakdown);
+
+      syntheticPoRecords.forEach(po => {
+          if (po.orderId === order.id) {
+              const ehdWeek = parseInt(po.originalEhdWeek.replace('W', ''));
+              if (ehdWeek > selectedWeek) {
+                  SIZES.forEach(size => {
+                      futurePoQty[size] = (futurePoQty[size] || 0) + (po.quantities[size] || 0);
+                  });
+                  futurePoQty.total += po.quantities.total;
+              }
+          }
+      });
+      
+      SIZES.forEach(size => {
+          result[size] = (cutOrderQty[size] || 0) - (futurePoQty[size] || 0);
+      });
+      result.total = (cutOrderQty.total || 0) - futurePoQty.total;
+
+      return result;
+
+  }, [order, cutOrderQty, coSelectedDate, syntheticPoRecords]);
+
 
   const handleCcChange = (cc: string) => {
       setSelectedCc(cc);
@@ -442,6 +474,55 @@ function OrderDetailsContent() {
                             </TableBody>
                         </Table>
                     </div>
+
+                    <div className="space-y-4 pt-8 border-t">
+                        <div className="grid grid-cols-1 md:grid-cols-4 items-end gap-4">
+                            <h3 className="text-lg font-semibold md:col-span-3">Time-based Cut Order</h3>
+                             <div className="space-y-2">
+                                <Label htmlFor="co-date-picker">Select Date</Label>
+                                <DatePicker date={coSelectedDate} setDate={setCoSelectedDate} />
+                             </div>
+                        </div>
+                        <Table>
+                             <TableHeader>
+                                <TableRow>
+                                <TableHead>Metric</TableHead>
+                                {SIZES.map(size => (
+                                    <TableHead key={size} className="text-right">{size}</TableHead>
+                                ))}
+                                <TableHead className="text-right font-bold">Total</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {cutOrderQty && (
+                                    <TableRow>
+                                        <TableCell className="font-medium">Cut Order released</TableCell>
+                                        {SIZES.map(size => (
+                                            <TableCell key={size} className="text-right">
+                                                {(cutOrderQty[size] || 0).toLocaleString()}
+                                            </TableCell>
+                                        ))}
+                                        <TableCell className="text-right font-bold">
+                                            {(cutOrderQty.total || 0).toLocaleString()}
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                                {coPendingQty && (
+                                     <TableRow className="font-semibold">
+                                        <TableCell>CO pending</TableCell>
+                                        {SIZES.map(size => (
+                                            <TableCell key={size} className={cn("text-right", (coPendingQty[size] || 0) < 0 && 'text-destructive')}>
+                                                {(coPendingQty[size] || 0).toLocaleString()}
+                                            </TableCell>
+                                        ))}
+                                        <TableCell className={cn("text-right font-bold", (coPendingQty.total || 0) < 0 && 'text-destructive')}>
+                                            {(coPendingQty.total || 0).toLocaleString()}
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
                   </>
                 ) : (
                     <div className="text-center text-muted-foreground p-8 border rounded-lg">
@@ -463,5 +544,3 @@ export default function OrderDetailsPage() {
         </Suspense>
     );
 }
-
-    
