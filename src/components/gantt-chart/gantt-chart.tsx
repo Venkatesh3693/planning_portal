@@ -172,8 +172,12 @@ const Header = React.forwardRef<
       {midHeaders.length > 0 && (
          <div className="grid" style={{ gridTemplateColumns }}>
             {midHeaders.map(({ name, span }, i) => (
-              <div key={`mid-header-${i}`} className="border-r border-b border-border/60 text-center h-7 flex items-center justify-center" style={{ gridColumn: `span ${span}` }}>
+              <div key={`mid-header-${i}`} className="border-r border-b border-border/60 text-center h-7 flex items-center justify-center relative group" style={{ gridColumn: `span ${span}` }}>
                 <span className="text-xs font-semibold text-muted-foreground">{name}</span>
+                 <div
+                    className="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-primary opacity-0 group-hover:opacity-100 transition-opacity"
+                    onMouseDown={(e) => onResizeStart(i, e.clientX)}
+                  />
               </div>
             ))}
         </div>
@@ -208,10 +212,6 @@ const Header = React.forwardRef<
                     {viewMode === 'day' ? format(col.date, 'd') : viewMode === 'week' ? `W${getWeek(col.date)}` : format(col.date, 'ha').toLowerCase()}
                   </div>
                 )}
-                 <div
-                    className="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-primary opacity-0 group-hover:opacity-100 transition-opacity"
-                    onMouseDown={(e) => onResizeStart(i, e.clientX)}
-                  />
               </div>
            );
         })}
@@ -627,4 +627,3 @@ export default function GanttChart({
     </div>
   );
 }
-
