@@ -46,7 +46,7 @@ import { cn } from '@/lib/utils';
 import { useSchedule } from '@/context/schedule-provider';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { LineChart, Zap, AlertCircle, X, Info, ChevronsRight, ChevronDown, PlusCircle } from 'lucide-react';
+import { LineChart, Zap, AlertCircle, X, Info, ChevronsRight, ChevronDown, PlusCircle, ExternalLink } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { generateTnaPlan } from '@/lib/tna-calculator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -1173,6 +1173,11 @@ const ForecastedOrderRow = forwardRef<
                 </DialogDescription>
               </div>
               <div className="flex items-center gap-2">
+                <Button asChild variant="outline" size="sm">
+                    <Link href={`/order-details?orderId=${order.id}`} target="_blank">
+                        Details <ExternalLink className="ml-2 h-4 w-4" />
+                    </Link>
+                </Button>
                 <div className="flex items-center gap-1 rounded-md bg-muted p-1">
                   <Button size="sm" variant={activeView === 'tna' ? 'default' : 'ghost'} onClick={() => setActiveView('tna')}>T&A Plan</Button>
                   <Button size="sm" variant={activeView === 'ob' ? 'default' : 'ghost'} onClick={() => setActiveView('ob')}>OB</Button>
