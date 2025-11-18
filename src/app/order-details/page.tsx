@@ -1,8 +1,8 @@
 
 'use client';
 
-import { useMemo, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useMemo, Suspense, useState, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useSchedule } from '@/context/schedule-provider';
 import { Header } from '@/components/layout/header';
 import { SIZES } from '@/lib/data';
@@ -19,18 +19,44 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 
 
 function OrderDetailsContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const orderId = searchParams.get('orderId');
+  const orderIdFromUrl = searchParams.get('orderId');
+  
   const { orders, frcData, isScheduleLoaded, syntheticPoRecords } = useSchedule();
+  
+  const [selectedCc, setSelectedCc] = useState('');
+  const [selectedColor, setSelectedColor] = useState('');
+
+  const ccOptions = useMemo(() => {
+    return [...new Set(orders.filter(o => o.orderType === 'Forecasted').map(o => o.ocn))].sort();
+  }, [orders]);
+
+  const colorOptions = useMemo(() => {
+    if (!selectedCc) return [];
+    return [...new Set(orders.filter(o => o.ocn === selectedCc).map(o => o.color))].sort();
+  }, [selectedCc, orders]);
+
+  useEffect(() => {
+    if (orderIdFromUrl) {
+      const initialOrder = orders.find(o => o.id === orderIdFromUrl);
+      if (initialOrder) {
+        setSelectedCc(initialOrder.ocn);
+        setSelectedColor(initialOrder.color);
+      }
+    }
+  }, [orderIdFromUrl, orders]);
 
   const order = useMemo(() => {
-    if (!orderId) return null;
-    return orders.find(o => o.id === orderId);
-  }, [orderId, orders]);
-  
+    if (!selectedCc || !selectedColor) return null;
+    return orders.find(o => o.ocn === selectedCc && o.color === selectedColor);
+  }, [selectedCc, selectedColor, orders]);
+
   const calculateTotalSizeBreakdown = (items: { quantities: SizeBreakdown }[]): SizeBreakdown => {
     const totals: SizeBreakdown = { total: 0 };
     SIZES.forEach(s => totals[s] = 0);
@@ -117,13 +143,23 @@ function OrderDetailsContent() {
     return result;
   }, [frcQty, poPlusFcQty]);
 
+  const handleCcChange = (cc: string) => {
+      setSelectedCc(cc);
+      setSelectedColor('');
+      router.push('/order-details');
+  };
+  
+  const handleColorChange = (color: string) => {
+      setSelectedColor(color);
+      const newOrder = orders.find(o => o.ocn === selectedCc && o.color === color);
+      if (newOrder) {
+          router.push(`/order-details?orderId=${newOrder.id}`);
+      }
+  };
+
 
   if (!isScheduleLoaded) {
     return <div className="text-center p-8">Loading order data...</div>;
-  }
-
-  if (!order) {
-    return <div className="text-center p-8 text-destructive">Order not found.</div>;
   }
 
   return (
@@ -144,109 +180,127 @@ function OrderDetailsContent() {
           </BreadcrumbList>
         </Breadcrumb>
         
-        <Card>
-          <CardHeader>
-            <CardTitle>Order Details: {order.ocn} - {order.color}</CardTitle>
-            <CardDescription>
-              A detailed breakdown of the FRC, PO, and inventory quantities for this order.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {frcQty ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Metric</TableHead>
-                    {SIZES.map(size => (
-                      <TableHead key={size} className="text-right">{size}</TableHead>
-                    ))}
-                    <TableHead className="text-right font-bold">Total</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow>
-                    <TableCell className="font-medium">FRC Qty</TableCell>
-                    {SIZES.map(size => (
-                      <TableCell key={size} className="text-right">
-                        {(frcQty[size] || 0).toLocaleString()}
-                      </TableCell>
-                    ))}
-                    <TableCell className="text-right font-bold">
-                      {(frcQty.total || 0).toLocaleString()}
-                    </TableCell>
-                  </TableRow>
-                   <TableRow>
-                    <TableCell className="font-medium">Cut Order Qty</TableCell>
-                    {SIZES.map(size => (
-                      <TableCell key={size} className="text-right text-destructive">
-                        ({(cutOrderQty?.[size] || 0).toLocaleString()})
-                      </TableCell>
-                    ))}
-                    <TableCell className="text-right font-bold text-destructive">
-                      ({(cutOrderQty?.total || 0).toLocaleString()})
-                    </TableCell>
-                  </TableRow>
-                  {frcAvailable && (
-                    <TableRow className="bg-muted font-semibold">
-                      <TableCell>FRC Available</TableCell>
-                       {SIZES.map(size => (
-                        <TableCell key={size} className="text-right">
-                          {(frcAvailable[size] || 0).toLocaleString()}
-                        </TableCell>
-                      ))}
-                      <TableCell className="text-right font-bold">
-                        {(frcAvailable.total || 0).toLocaleString()}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {poQty && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="space-y-2">
+                <Label htmlFor="cc-select">CC No.</Label>
+                <Select value={selectedCc} onValueChange={handleCcChange}>
+                    <SelectTrigger id="cc-select">
+                        <SelectValue placeholder="Select CC" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {ccOptions.map(cc => <SelectItem key={cc} value={cc}>{cc}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="color-select">Color</Label>
+                <Select value={selectedColor} onValueChange={handleColorChange} disabled={!selectedCc}>
+                    <SelectTrigger id="color-select">
+                        <SelectValue placeholder="Select Color" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {colorOptions.map(color => <SelectItem key={color} value={color}>{color}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+            </div>
+        </div>
+
+        {order ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Order Details: {order.ocn} - {order.color}</CardTitle>
+              <CardDescription>
+                A detailed breakdown of the FRC, PO, and inventory quantities for this order.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {frcQty ? (
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell className="font-medium">PO Qty</TableCell>
+                      <TableHead>Metric</TableHead>
+                      {SIZES.map(size => (
+                        <TableHead key={size} className="text-right">{size}</TableHead>
+                      ))}
+                      <TableHead className="text-right font-bold">Total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className="font-medium">FRC Qty</TableCell>
                       {SIZES.map(size => (
                         <TableCell key={size} className="text-right">
-                          {(poQty[size] || 0).toLocaleString()}
+                          {(frcQty[size] || 0).toLocaleString()}
                         </TableCell>
                       ))}
                       <TableCell className="text-right font-bold">
-                        {(poQty.total || 0).toLocaleString()}
+                        {(frcQty.total || 0).toLocaleString()}
                       </TableCell>
                     </TableRow>
-                  )}
-                  {poPlusFcQty && (
                     <TableRow>
-                      <TableCell className="font-medium">PO+FC Qty</TableCell>
+                      <TableCell className="font-medium">Cut Order Qty</TableCell>
                       {SIZES.map(size => (
-                        <TableCell key={size} className="text-right">
-                          {(poPlusFcQty[size] || 0).toLocaleString()}
+                        <TableCell key={size} className="text-right text-destructive">
+                          ({(cutOrderQty?.[size] || 0).toLocaleString()})
                         </TableCell>
                       ))}
-                      <TableCell className="text-right font-bold">
-                        {(poPlusFcQty.total || 0).toLocaleString()}
+                      <TableCell className="text-right font-bold text-destructive">
+                        ({(cutOrderQty?.total || 0).toLocaleString()})
                       </TableCell>
                     </TableRow>
-                  )}
-                  {excessFrc && (
-                     <TableRow className="bg-muted font-semibold">
-                      <TableCell>Excess FRC</TableCell>
-                       {SIZES.map(size => (
-                        <TableCell key={size} className={cn("text-right", (excessFrc[size] || 0) < 0 && 'text-destructive')}>
-                          {(excessFrc[size] || 0).toLocaleString()}
+                    {frcAvailable && (
+                      <TableRow className="font-semibold">
+                        <TableCell>FRC Available</TableCell>
+                        {SIZES.map(size => (
+                          <TableCell key={size} className="text-right">
+                            {(frcAvailable[size] || 0).toLocaleString()}
+                          </TableCell>
+                        ))}
+                        <TableCell className="text-right font-bold">
+                          {(frcAvailable.total || 0).toLocaleString()}
                         </TableCell>
-                      ))}
-                      <TableCell className={cn("text-right font-bold", (excessFrc.total || 0) < 0 && 'text-destructive')}>
-                        {(excessFrc.total || 0).toLocaleString()}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            ) : (
-              <div className="text-center text-muted-foreground p-8">
-                No FRC data available for this order.
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                      </TableRow>
+                    )}
+                    {poQty && (
+                      <TableRow>
+                        <TableCell className="font-medium">PO Qty</TableCell>
+                        {SIZES.map(size => (
+                          <TableCell key={size} className="text-right">
+                            {(poQty[size] || 0).toLocaleString()}
+                          </TableCell>
+                        ))}
+                        <TableCell className="text-right font-bold">
+                          {(poQty.total || 0).toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {excessFrc && (
+                      <TableRow className="bg-muted font-semibold">
+                        <TableCell>Excess FRC</TableCell>
+                        {SIZES.map(size => (
+                          <TableCell key={size} className={cn("text-right", (excessFrc[size] || 0) < 0 && 'text-destructive')}>
+                            {(excessFrc[size] || 0).toLocaleString()}
+                          </TableCell>
+                        ))}
+                        <TableCell className={cn("text-right font-bold", (excessFrc.total || 0) < 0 && 'text-destructive')}>
+                          {(excessFrc.total || 0).toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center text-muted-foreground p-8">
+                  No FRC data available for this order.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="text-center text-muted-foreground p-8 border rounded-lg">
+            Please select a CC and Color to view order details.
+          </div>
+        )}
       </main>
     </div>
   );
