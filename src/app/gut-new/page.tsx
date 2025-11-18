@@ -32,6 +32,7 @@ export type DraggedItemData = {
     orderId: string;
     processId: string;
     quantity: number;
+    daysToComplete?: number;
     tna: {
         startDate: Date;
         endDate: Date;
@@ -191,6 +192,44 @@ function GanttPageContent() {
     return map;
   }, [orders, isScheduleLoaded]);
   
+    const daysToCompleteMap = useMemo(() => {
+        const newMap = new Map<string, number>();
+        if (appMode !== 'gut-new' || selectedProcessId !== 'sewing') return newMap;
+
+        for (const order of orders) {
+            if (order.orderType !== 'Forecasted') continue;
+
+            const slg = sewingLineGroups.find(g => g.ccNo === order.ocn);
+            if (!slg) {
+                newMap.set(order.id, Infinity);
+                continue;
+            }
+
+            const obData = SEWING_OPERATIONS_BY_STYLE[order.style] || [];
+            const totalSam = obData.reduce((sum, op) => sum + op.sam, 0);
+            const totalTailors = obData.reduce((sum, op) => sum + op.operators, 0);
+
+            if (totalSam <= 0 || totalTailors <= 0) {
+                newMap.set(order.id, Infinity);
+                continue;
+            }
+
+            const multiplier = slg.outputMultiplier || 1;
+            const dailyOutput = (WORK_DAY_MINUTES * (order.budgetedEfficiency || 85) / 100 * totalTailors * multiplier) / totalSam;
+
+            if (dailyOutput <= 0) {
+                newMap.set(order.id, Infinity);
+                continue;
+            }
+
+            const qtyLeft = order.quantity - (order.produced?.total || 0);
+            const days = qtyLeft / dailyOutput;
+            newMap.set(order.id, days);
+        }
+
+        return newMap;
+    }, [orders, sewingLineGroups, appMode, selectedProcessId]);
+
 
   const { unplannedOrderItems, unplannedBatches } = useMemo(() => {
     if (selectedProcessId === 'pab' || !isScheduleLoaded) {
@@ -204,7 +243,7 @@ function GanttPageContent() {
         scheduledQuantities.set(key, currentQty + p.quantity);
     });
 
-    const orderItems: Order[] = [];
+    const orderItems: (Order & { daysToComplete?: number })[] = [];
     const batches: UnplannedBatch[] = [];
     
     for (const order of orders) {
@@ -257,12 +296,12 @@ function GanttPageContent() {
                 }
             }
         } else if (!isSplit) {
-           orderItems.push(order);
+           orderItems.push({ ...order, daysToComplete: daysToCompleteMap.get(order.id) });
         }
     }
 
     return { unplannedOrderItems: orderItems.sort((a,b) => (a.dueDate && b.dueDate) ? compareAsc(a.dueDate, b.dueDate) : 0), unplannedBatches: batches };
-  }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, splitOrderProcesses, latestStartDatesMap, processBatchSizes, packingBatchSizes, appMode]);
+  }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, splitOrderProcesses, latestStartDatesMap, processBatchSizes, packingBatchSizes, appMode, daysToCompleteMap]);
   
   const predecessorEndDateMap = useMemo(() => {
     const map = new Map<string, Date>();
@@ -514,7 +553,14 @@ function GanttPageContent() {
       let durationMinutes;
       if (process.id === SEWING_PROCESS_ID) {
         const qtyLeft = droppedItem.quantity - (order.produced?.total || 0);
-        durationMinutes = calculateSewingDuration(order, qtyLeft);
+        
+        durationMinutes = calculateSewingDurationMinutes({
+            quantity: qtyLeft,
+            sam: process.sam,
+            orderStyle: order.style,
+            budgetedEfficiency: order.budgetedEfficiency || 85
+        });
+
       } else {
         durationMinutes = process.sam * droppedItem.quantity;
       }

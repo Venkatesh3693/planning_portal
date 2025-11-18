@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import {
@@ -41,7 +42,7 @@ const PACKING_PROCESS_ID = 'packing';
 
 type MachinePanelProps = {
   selectedProcessId: string;
-  unplannedOrders: Order[];
+  unplannedOrders: (Order & { daysToComplete?: number })[];
   unplannedBatches: UnplannedBatch[];
   handleDragStart: (e: React.DragEvent<HTMLDivElement>, item: DraggedItemData) => void;
   sewingScheduledOrderIds: Set<string>;
@@ -277,6 +278,7 @@ export default function MachinePanel({
                 orderId: order.id,
                 processId: selectedProcessId,
                 quantity: order.quantity,
+                daysToComplete: order.daysToComplete,
                 tna: null,
               };
               
@@ -324,6 +326,11 @@ export default function MachinePanel({
                       <span>
                         Qty Left: {productionQtyLeft.toLocaleString()}
                       </span>
+                       {order.daysToComplete !== undefined && (
+                        <span>
+                            Days: {isFinite(order.daysToComplete) ? order.daysToComplete.toFixed(1) : 'N/A'}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
