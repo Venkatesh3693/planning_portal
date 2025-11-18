@@ -8,6 +8,7 @@ import type { Order, ScheduledProcess, SewingLineGroup } from '@/lib/types';
 import type { DraggedItemData } from '@/app/gut-new/page';
 import { cn } from '@/lib/utils';
 import ScheduledProcessBar from './scheduled-process';
+import { Input } from '../ui/input';
 
 type Row = {
   id: string;
@@ -41,6 +42,8 @@ type GanttChartProps = {
   dailyPlanQty?: Record<string, number> | null;
   dailyPoFcQty?: Record<string, number> | null;
   dailyFgOi?: Record<string, number> | null;
+  dailyEfficiencies?: Record<string, number> | null;
+  onDailyEfficiencyChange?: (newEffs: Record<string, number>) => void;
 };
 
 const ROW_HEIGHT_PX = 40;
@@ -204,6 +207,8 @@ export default function GanttChart({
   dailyPlanQty,
   dailyPoFcQty,
   dailyFgOi,
+  dailyEfficiencies,
+  onDailyEfficiencyChange,
 }: GanttChartProps) {
   const [dragOverCell, setDragOverCell] = React.useState<{ rowId: string; date: Date } | null>(null);
   const isDragging = !!draggedItem;
@@ -338,11 +343,12 @@ export default function GanttChart({
   }, [draggedItem, orders, allProcesses]);
   
   const flattenedRows = React.useMemo(() => {
-    const finalRows: (Row & { rowType?: 'main' | 'plan' | 'po_fc' | 'fg_oi' })[] = [];
+    const finalRows: (Row & { rowType?: 'main' | 'plan' | 'po_fc' | 'fg_oi' | 'efficiency' })[] = [];
     rows.forEach(row => {
       finalRows.push({ ...row, rowType: 'main' });
       if (activeProcess && row.id === activeProcess.machineId) {
         finalRows.push({ id: `${row.id}-po-fc`, name: 'PO + FC', rowType: 'po_fc' });
+        finalRows.push({ id: `${row.id}-efficiency`, name: 'Efficiency', rowType: 'efficiency' });
         finalRows.push({ id: `${row.id}-plan`, name: 'Plan Qty', rowType: 'plan' });
         finalRows.push({ id: `${row.id}-fg-oi`, name: 'FG OI', rowType: 'fg_oi' });
       }
@@ -352,6 +358,13 @@ export default function GanttChart({
 
   const gridTemplateColumns = `repeat(${timeColumns.length}, ${cellWidth}px)`;
   const totalGridWidth = timeColumns.length * cellWidth;
+
+  const handleEfficiencyChange = (dateKey: string, value: string) => {
+    if (onDailyEfficiencyChange && dailyEfficiencies) {
+      const newEffs = { ...dailyEfficiencies, [dateKey]: Number(value) };
+      onDailyEfficiencyChange(newEffs);
+    }
+  }
 
   return (
     <div 
@@ -395,9 +408,10 @@ export default function GanttChart({
             >
               <div className={cn(
                 "font-semibold text-sm", 
-                row.rowType === 'plan' ? 'text-primary' 
+                row.rowType === 'plan' ? 'text-blue-600'
                 : row.rowType === 'po_fc' ? 'text-cyan-600'
                 : row.rowType === 'fg_oi' ? 'text-purple-600'
+                : row.rowType === 'efficiency' ? 'text-orange-600'
                 : 'text-foreground'
               )}>{row.name}</div>
               {row.ccNo && <div className="text-xs text-muted-foreground">{row.ccNo}</div>}
@@ -426,6 +440,17 @@ export default function GanttChart({
                     } else if (row.rowType === 'fg_oi') {
                        const qty = dailyFgOi?.[dateKey];
                        if (qty !== undefined) cellContent = <span className={cn("text-xs font-semibold", qty < 0 ? "text-red-700 dark:text-red-400" : "text-purple-700 dark:text-purple-300")}>{Math.round(qty).toLocaleString()}</span>;
+                    } else if (row.rowType === 'efficiency') {
+                        if (dailyEfficiencies) {
+                          cellContent = (
+                            <Input
+                              type="number"
+                              value={dailyEfficiencies[dateKey] || ''}
+                              onChange={(e) => handleEfficiencyChange(dateKey, e.target.value)}
+                              className="w-16 h-7 text-center text-xs p-1 bg-transparent border-0 hover:border focus:ring-1 focus:ring-orange-500"
+                            />
+                          );
+                        }
                     }
                   }
 
@@ -464,10 +489,11 @@ export default function GanttChart({
                           onDrop={(e) => handleDrop(e, row.id, col.date)}
                           className={cn('relative border-b border-r border-border/60 flex items-center justify-center',
                               isDragOver ? 'bg-primary/20' : '',
-                              row.rowType === 'plan' && 'bg-blue-50 dark:bg-blue-900/10',
-                              row.rowType === 'po_fc' && 'bg-cyan-50 dark:bg-cyan-900/10',
-                              row.rowType === 'fg_oi' && 'bg-purple-50 dark:bg-purple-900/10',
-                              !row.rowType && (rowIndex % 2 !== 0 ? 'bg-card' : 'bg-muted/20'),
+                              row.rowType === 'plan' ? 'bg-blue-50 dark:bg-blue-900/10'
+                              : row.rowType === 'efficiency' ? 'bg-orange-50 dark:bg-orange-900/10'
+                              : row.rowType === 'po_fc' ? 'bg-cyan-50 dark:bg-cyan-900/10'
+                              : row.rowType === 'fg_oi' ? 'bg-purple-50 dark:bg-purple-900/10'
+                              : (rowIndex % 2 !== 0 ? 'bg-card' : 'bg-muted/20'),
                               isLatestEndDateColumn && !isDragOver && 'bg-red-200/50',
                               isCkDateColumn && !isDragOver && 'bg-green-200/50',
                               isPredecessorEndDateColumn && 'bg-blue-200/50',

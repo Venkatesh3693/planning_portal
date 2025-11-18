@@ -90,6 +90,8 @@ function GanttPageContent() {
   const [processToSplit, setProcessToSplit] = useState<ProcessToSplitState | null>(null);
   const [draggingProcessId, setDraggingProcessId] = useState<string | null>(null);
   const [activePlanQtyProcessId, setActivePlanQtyProcessId] = useState<string | null>(null);
+  
+  const [dailyEfficiencies, setDailyEfficiencies] = useState<Record<string, number>>({});
 
   const dates = useMemo(() => {
     const today = startOfToday();
@@ -550,8 +552,10 @@ function GanttPageContent() {
       const process = PROCESSES.find(p => p.id === droppedItem.processId)!;
       
       let durationMinutes;
-      if (process.id === SEWING_PROCESS_ID && appMode === 'gut-new' && droppedItem.daysToComplete) {
-         durationMinutes = droppedItem.daysToComplete * WORK_DAY_MINUTES * (order.budgetedEfficiency || 85) / 100;
+       if (appMode === 'gut-new' && droppedItem.daysToComplete) {
+         // Use pre-calculated days and convert to minutes based on simple efficiency
+         const dayMinutes = WORK_DAY_MINUTES * ((order.budgetedEfficiency || 100) / 100);
+         durationMinutes = droppedItem.daysToComplete * dayMinutes;
       } else if (process.id === SEWING_PROCESS_ID) {
         const qtyLeft = droppedItem.quantity - (order.produced?.total || 0);
         durationMinutes = calculateSewingDuration(order, qtyLeft);
@@ -573,7 +577,7 @@ function GanttPageContent() {
         processId: droppedItem.processId,
         machineId: rowId,
         startDateTime: finalStartDateTime,
-        endDateTime: calculateEndDateTime(finalStartDateTime, durationMinutes, order.budgetedEfficiency),
+        endDateTime: calculateEndDateTime(finalStartDateTime, durationMinutes),
         durationMinutes,
         quantity: droppedItem.quantity,
         latestStartDate: latestStartDate,
@@ -596,7 +600,7 @@ function GanttPageContent() {
         processId: batch.processId,
         machineId: rowId,
         startDateTime: finalStartDateTime,
-        endDateTime: calculateEndDateTime(finalStartDateTime, durationMinutes, order.budgetedEfficiency),
+        endDateTime: calculateEndDateTime(finalStartDateTime, durationMinutes),
         durationMinutes,
         quantity: batch.quantity,
         isSplit: true,
@@ -620,7 +624,7 @@ function GanttPageContent() {
         ...originalProcess,
         machineId: rowId,
         startDateTime: finalStartDateTime,
-        endDateTime: calculateEndDateTime(finalStartDateTime, originalProcess.durationMinutes, order.budgetedEfficiency),
+        endDateTime: calculateEndDateTime(finalStartDateTime, originalProcess.durationMinutes),
         isAutoScheduled: false, // Manually replanned
       };
       otherProcesses = scheduledProcesses.filter(p => p.id !== originalProcess.id);
@@ -650,7 +654,7 @@ function GanttPageContent() {
     for (const processToShift of processesToCascade) {
       const newStart = isAfter(processToShift.startDateTime, lastProcessEnd) ? processToShift.startDateTime : lastProcessEnd;
       const order = orders.find(o => o.id === processToShift.orderId)!;
-      const newEnd = calculateEndDateTime(newStart, processToShift.durationMinutes, order.budgetedEfficiency);
+      const newEnd = calculateEndDateTime(newStart, processToShift.durationMinutes);
   
       finalProcesses.push({
         ...processToShift,
@@ -742,7 +746,7 @@ function GanttPageContent() {
       const totalOriginalDuration = originalProcesses.reduce((sum, p) => sum + p.durationMinutes, 0);
       const totalOriginalQuantity = primaryProcess.isSplit ? originalProcesses.reduce((acc, p) => acc + p.quantity, 0) : primaryProcess.quantity;
       
-      const minutesPerDay = (orderInfo.budgetedEfficiency || 85) / 100 * WORK_DAY_MINUTES;
+      const minutesPerDay = WORK_DAY_MINUTES * ((orderInfo.budgetedEfficiency || 100) / 100);
 
       const newSplitProcesses: ScheduledProcess[] = newDurationsInDays.map((durationDays, index) => {
           const durationMinutes = durationDays * minutesPerDay;
@@ -774,7 +778,7 @@ function GanttPageContent() {
       let lastProcessEnd = anchor.startDateTime;
       const cascadedSplitProcesses = newSplitProcesses.map(p => {
           const newStart = lastProcessEnd;
-          const newEnd = calculateEndDateTime(newStart, p.durationMinutes, orderInfo.budgetedEfficiency);
+          const newEnd = calculateEndDateTime(newStart, p.durationMinutes);
           lastProcessEnd = newEnd;
           return { ...p, startDateTime: newStart, endDateTime: newEnd };
       });
@@ -881,11 +885,55 @@ function GanttPageContent() {
       setScheduledProcesses(prev => prev.filter(p => p.processId !== selectedProcessId));
     }
   };
+  
+    useEffect(() => {
+        if (!activePlanQtyProcessId) {
+            setDailyEfficiencies({});
+            return;
+        }
+        const process = scheduledProcesses.find(p => p.id === activePlanQtyProcessId);
+        if (!process) return;
+        const order = orders.find(o => o.id === process.orderId);
+        if (!order) return;
+
+        const initialEffs: Record<string, number> = {};
+        dates.forEach(d => {
+            initialEffs[format(d, 'yyyy-MM-dd')] = order.budgetedEfficiency || 85;
+        });
+        setDailyEfficiencies(initialEffs);
+
+    }, [activePlanQtyProcessId, scheduledProcesses, orders, dates]);
 
   const handleProcessBarClick = (processId: string) => {
     setActivePlanQtyProcessId(prevId => prevId === processId ? null : processId);
   };
   
+  const dailyPoFcQty = useMemo(() => {
+    if (!activePlanQtyProcessId) return null;
+    const process = scheduledProcesses.find(p => p.id === activePlanQtyProcessId);
+    if (!process) return null;
+    const order = orders.find(o => o.id === process.orderId);
+    if (!order || !order.fcVsFcDetails || order.fcVsFcDetails.length === 0) return null;
+    
+    const latestSnapshot = [...order.fcVsFcDetails].sort((a,b) => b.snapshotWeek - a.snapshotWeek)[0];
+    if (!latestSnapshot) return null;
+
+    const dailyData: Record<string, number> = {};
+    Object.entries(latestSnapshot.forecasts).forEach(([weekStr, weekData]) => {
+      const weekNum = parseInt(weekStr.replace('W',''));
+      const poFcTotal = (weekData.total?.po || 0) + (weekData.total?.fc || 0);
+
+      if (poFcTotal > 0) {
+        const firstDayOfWeek = startOfWeek(new Date(process.startDateTime.getFullYear(), 0, (weekNum-1)*7 + 1), { weekStartsOn: 1});
+        const dateKey = format(firstDayOfWeek, 'yyyy-MM-dd');
+        dailyData[dateKey] = poFcTotal;
+      }
+    });
+
+    return dailyData;
+
+  }, [activePlanQtyProcessId, scheduledProcesses, orders]);
+
   const dailyPlanQty = useMemo(() => {
     if (!activePlanQtyProcessId) return null;
 
@@ -916,8 +964,6 @@ function GanttPageContent() {
 
     if (totalSam === 0 || totalTailors === 0) return null;
   
-    const baseDailyOutput = (WORK_DAY_MINUTES * totalTailors * (order.budgetedEfficiency / 100)) / totalSam;
-  
     const dailyData: Record<string, number> = {};
   
     allProcessesForOrder.forEach(process => {
@@ -927,11 +973,10 @@ function GanttPageContent() {
              const isHoliday = holidays.includes(dateKey);
              const isOvertime = overtimeDays.includes(dateKey);
 
-            if (getDay(currentDate) !== 0 && !isHoliday) { // Exclude Sundays and holidays
-                let dailyOutput = baseDailyOutput;
-                if(isOvertime) {
-                    dailyOutput *= 1.25;
-                }
+            if (getDay(currentDate) !== 0 && !isHoliday) {
+                const efficiencyForDay = dailyEfficiencies[dateKey] || order.budgetedEfficiency || 85;
+                const effectiveWorkDayMinutes = WORK_DAY_MINUTES * (isOvertime ? 1.25 : 1);
+                const dailyOutput = (effectiveWorkDayMinutes * totalTailors * (efficiencyForDay / 100)) / totalSam;
                 dailyData[dateKey] = (dailyData[dateKey] || 0) + dailyOutput;
             }
             currentDate = addDays(currentDate, 1);
@@ -939,35 +984,7 @@ function GanttPageContent() {
     });
   
     return dailyData;
-  }, [activePlanQtyProcessId, scheduledProcesses, orders, sewingLineGroups]);
-
-
-
-  const dailyPoFcQty = useMemo(() => {
-    if (!activePlanQtyProcessId) return null;
-    const process = scheduledProcesses.find(p => p.id === activePlanQtyProcessId);
-    if (!process) return null;
-    const order = orders.find(o => o.id === process.orderId);
-    if (!order || !order.fcVsFcDetails || order.fcVsFcDetails.length === 0) return null;
-    
-    const latestSnapshot = [...order.fcVsFcDetails].sort((a,b) => b.snapshotWeek - a.snapshotWeek)[0];
-    if (!latestSnapshot) return null;
-
-    const dailyData: Record<string, number> = {};
-    Object.entries(latestSnapshot.forecasts).forEach(([weekStr, weekData]) => {
-      const weekNum = parseInt(weekStr.replace('W',''));
-      const poFcTotal = (weekData.total?.po || 0) + (weekData.total?.fc || 0);
-
-      if (poFcTotal > 0) {
-        const firstDayOfWeek = startOfWeek(new Date(process.startDateTime.getFullYear(), 0, (weekNum-1)*7 + 1), { weekStartsOn: 1});
-        const dateKey = format(firstDayOfWeek, 'yyyy-MM-dd');
-        dailyData[dateKey] = poFcTotal;
-      }
-    });
-
-    return dailyData;
-
-  }, [activePlanQtyProcessId, scheduledProcesses, orders]);
+  }, [activePlanQtyProcessId, scheduledProcesses, orders, sewingLineGroups, dailyEfficiencies]);
 
   const dailyFgOi = useMemo(() => {
     if (!activePlanQtyProcessId || !dailyPlanQty || !dailyPoFcQty) return null;
@@ -1149,6 +1166,8 @@ function GanttPageContent() {
                         dailyPlanQty={dailyPlanQty}
                         dailyPoFcQty={dailyPoFcQty}
                         dailyFgOi={dailyFgOi}
+                        dailyEfficiencies={dailyEfficiencies}
+                        onDailyEfficiencyChange={setDailyEfficiencies}
                       />
                   )}
                 </div>
