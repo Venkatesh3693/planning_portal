@@ -266,6 +266,39 @@ function OrderDetailsContent() {
     return result;
   }, [poQty, producedQty]);
 
+  const frcWithoutPo = useMemo(() => {
+    if (!poQty) return null;
+    const result: SizeBreakdown = { total: 0 };
+    SIZES.forEach(size => {
+        const val = Math.floor((poQty[size] || 0) * 0.1); // Mock 10%
+        result[size] = val;
+        result.total += val;
+    });
+    return result;
+  }, [poQty]);
+
+  const frcWithPoGrnPending = useMemo(() => {
+    if (!poQty) return null;
+    const result: SizeBreakdown = { total: 0 };
+    SIZES.forEach(size => {
+        const val = Math.floor((poQty[size] || 0) * 0.2); // Mock 20%
+        result[size] = val;
+        result.total += val;
+    });
+    return result;
+  }, [poQty]);
+
+  const frcWithGrn = useMemo(() => {
+    if (!poQty) return null;
+    const result: SizeBreakdown = { total: 0 };
+    SIZES.forEach(size => {
+        const val = Math.floor((poQty[size] || 0) * 0.7); // Mock 70%
+        result[size] = val;
+        result.total += val;
+    });
+    return result;
+  }, [poQty]);
+
   const handleCcChange = (cc: string) => {
       setSelectedCc(cc);
       setSelectedColor('');
@@ -556,6 +589,45 @@ function OrderDetailsContent() {
                                             {(poLeftToProduce.total || 0).toLocaleString()}
                                         </TableCell>
                                     </TableRow>
+                                )}
+                                {frcWithoutPo && (
+                                <TableRow>
+                                    <TableCell className="font-medium">FRC without PO</TableCell>
+                                    {SIZES.map(size => (
+                                        <TableCell key={size} className="text-right">
+                                            {(frcWithoutPo[size] || 0).toLocaleString()}
+                                        </TableCell>
+                                    ))}
+                                    <TableCell className="text-right font-bold">
+                                        {(frcWithoutPo.total || 0).toLocaleString()}
+                                    </TableCell>
+                                </TableRow>
+                                )}
+                                {frcWithPoGrnPending && (
+                                <TableRow>
+                                    <TableCell className="font-medium">FRC with PO GRN pending</TableCell>
+                                    {SIZES.map(size => (
+                                        <TableCell key={size} className="text-right">
+                                            {(frcWithPoGrnPending[size] || 0).toLocaleString()}
+                                        </TableCell>
+                                    ))}
+                                    <TableCell className="text-right font-bold">
+                                        {(frcWithPoGrnPending.total || 0).toLocaleString()}
+                                    </TableCell>
+                                </TableRow>
+                                )}
+                                {frcWithGrn && (
+                                <TableRow>
+                                    <TableCell className="font-medium">FRC with GRN</TableCell>
+                                    {SIZES.map(size => (
+                                        <TableCell key={size} className="text-right">
+                                            {(frcWithGrn[size] || 0).toLocaleString()}
+                                        </TableCell>
+                                    ))}
+                                    <TableCell className="text-right font-bold">
+                                        {(frcWithGrn.total || 0).toLocaleString()}
+                                    </TableCell>
+                                </TableRow>
                                 )}
                             </TableBody>
                         </Table>
