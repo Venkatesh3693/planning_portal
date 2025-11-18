@@ -34,7 +34,7 @@ function OrderDetailsContent() {
   
   const [selectedCc, setSelectedCc] = useState('');
   const [selectedColor, setSelectedColor] = useState('');
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(startOfToday());
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
   const ccOptions = useMemo(() => {
     return [...new Set(orders.filter(o => o.orderType === 'Forecasted').map(o => o.ocn))].sort();
