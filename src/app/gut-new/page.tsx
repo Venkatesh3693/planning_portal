@@ -52,16 +52,20 @@ type ProcessToSplitState = {
 
 
 // Helper function to calculate duration for sewing process
-const calculateSewingDuration = (order: Order, quantity: number, numLines: number, sewingLineGroups: SewingLineGroup[], slgId?: string, startDate?: Date): number => {
+const calculateSewingDuration = (order: Order, quantity: number): number => {
     const process = PROCESSES.find(p => p.id === SEWING_PROCESS_ID);
     if (!process || quantity <= 0 || process.sam <= 0) return 0;
-
-    const slg = sewingLineGroups.find(g => g.id === slgId);
-    const multiplier = slg?.outputMultiplier || 1;
-    const holidays = slg?.holidays || [];
-    const overtimeDays = slg?.overtimeDays || [];
     
-    return calculateSewingDurationMinutes(quantity, process.sam, order.sewingRampUpScheme || [], numLines * multiplier, order.style, startDate, holidays, overtimeDays);
+    // Calculate pure work minutes
+    const totalWorkMinutes = quantity * process.sam;
+    
+    // Adjust for budgeted efficiency
+    const budgetedEfficiency = order.budgetedEfficiency || 100;
+    if (budgetedEfficiency <= 0) return Infinity;
+
+    const effectiveTotalMinutes = totalWorkMinutes / (budgetedEfficiency / 100);
+    
+    return effectiveTotalMinutes;
 };
 
 function GanttPageContent() {
@@ -514,9 +518,8 @@ function GanttPageContent() {
       
       let durationMinutes;
       if (process.id === SEWING_PROCESS_ID) {
-        const slg = sewingLineGroups.find(g => g.id === rowId);
-        const numLines = slg ? 1 : (sewingLineGroups.length > 0 ? sewingLineGroups.length : 1);
-        durationMinutes = calculateSewingDuration(order, droppedItem.quantity, numLines, sewingLineGroups, rowId, startDateTime);
+        const qtyLeft = droppedItem.quantity - (order.produced?.total || 0);
+        durationMinutes = calculateSewingDuration(order, qtyLeft);
       } else {
         durationMinutes = process.sam * droppedItem.quantity;
       }
@@ -1133,3 +1136,4 @@ export default function Home() {
     <GanttPageContent />
   );
 }
+
