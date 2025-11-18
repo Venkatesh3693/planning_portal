@@ -554,13 +554,12 @@ function GanttPageContent() {
       const process = PROCESSES.find(p => p.id === droppedItem.processId)!;
       
       let durationMinutes;
-       if (appMode === 'gut-new' && droppedItem.daysToComplete) {
-         // Use pre-calculated days and convert to minutes based on simple efficiency
-         const dayMinutes = WORK_DAY_MINUTES * ((order.budgetedEfficiency || 100) / 100);
+       if (appMode === 'gut-new' && droppedItem.daysToComplete && droppedItem.daysToComplete > 0 && isFinite(droppedItem.daysToComplete)) {
+         const dayMinutes = WORK_DAY_MINUTES * ((order.budgetedEfficiency || 85) / 100);
          durationMinutes = droppedItem.daysToComplete * dayMinutes;
       } else if (process.id === SEWING_PROCESS_ID) {
         const qtyLeft = droppedItem.quantity - (order.produced?.total || 0);
-        durationMinutes = calculateSewingDuration(order, qtyLeft);
+        durationMinutes = calculateSewingDurationMinutes({ quantity: qtyLeft, orderStyle: order.style, budgetedEfficiency: order.budgetedEfficiency || 85 });
       } else {
         durationMinutes = process.sam * droppedItem.quantity;
       }
@@ -742,7 +741,7 @@ function GanttPageContent() {
       const totalOriginalDuration = originalProcesses.reduce((sum, p) => sum + p.durationMinutes, 0);
       const totalOriginalQuantity = primaryProcess.isSplit ? originalProcesses.reduce((acc, p) => acc + p.quantity, 0) : primaryProcess.quantity;
       
-      const minutesPerDay = WORK_DAY_MINUTES * ((orderInfo.budgetedEfficiency || 100) / 100);
+      const minutesPerDay = WORK_DAY_MINUTES * ((orderInfo.budgetedEfficiency || 85) / 100);
 
       const newSplitProcesses: ScheduledProcess[] = newDurationsInDays.map((durationDays, index) => {
           const durationMinutes = durationDays * minutesPerDay;
@@ -1190,5 +1189,6 @@ export default function Home() {
     <GanttPageContent />
   );
 }
+
 
 
