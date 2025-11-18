@@ -6,8 +6,8 @@ import { useState, useMemo, useEffect } from 'react';
 import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
-import { MACHINES, PROCESSES, WORK_DAY_MINUTES } from '@/lib/data';
-import type { Order, ScheduledProcess, UnplannedBatch, SewingLine } from '@/lib/types';
+import { MACHINES, PROCESSES, WORK_DAY_MINUTES, SEWING_LINES } from '@/lib/data';
+import type { Order, ScheduledProcess, UnplannedBatch, SewingLine, SewingLineGroup } from '@/lib/types';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Trash2, ShoppingCart } from 'lucide-react';
@@ -732,7 +732,7 @@ function GanttPageContent() {
 
   const chartRows = useMemo(() => {
     if (selectedProcessId === 'sewing') {
-      return sewingLines || [];
+      return SEWING_LINES || [];
     }
     return MACHINES.filter(m => m.processIds.includes(selectedProcessId));
   }, [selectedProcessId, sewingLines]);

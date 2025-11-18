@@ -1,6 +1,6 @@
 
 
-import type { Order, Process, TnaProcess, RampUpEntry, ScheduledProcess, SewingOperation, Size, FcComposition, FcSnapshot, ProjectionRow, FrcRow, SewingLineGroup } from './types';
+import type { Order, Process, TnaProcess, RampUpEntry, ScheduledProcess, SewingOperation, Size, FcComposition, FcSnapshot, ProjectionRow, FrcRow, SewingLine, SewingLineGroup } from './types';
 import { WORK_DAY_MINUTES, SEWING_OPERATIONS_BY_STYLE, SIZES, PROCESSES as allProcesses } from './data';
 import { addDays, subDays, getDay, format, startOfDay, differenceInMinutes, isBefore, isAfter } from 'date-fns';
 import { calculateStartDateTime, subBusinessDays } from './utils';
@@ -61,13 +61,14 @@ export function calculateSewingDurationMinutes(
     if (totalSam <= 0 || totalTailors <= 0) return Infinity;
 
     while (remainingQty > 0) {
-        const currentDate = addDays(startOfDay(startDate), calendarDayOffset);
-        const dateKey = format(currentDate, 'yyyy-MM-dd');
+        let currentDate = new Date(startDate);
+        currentDate.setDate(currentDate.getDate() + calendarDayOffset);
+
+        const dateKey = format(startOfDay(currentDate), 'yyyy-MM-dd');
         
-        // Check for non-working days (Sunday or Holiday)
         if (getDay(currentDate) === 0 || holidays.includes(dateKey)) {
             calendarDayOffset++;
-            continue; // Skip this day entirely
+            continue;
         }
 
         workingDayCounter++;
@@ -90,18 +91,15 @@ export function calculateSewingDurationMinutes(
         const dailyOutput = (effectiveWorkDayMinutes * efficiency / 100 * totalTailors * numLines) / totalSam;
 
         if (remainingQty <= dailyOutput) {
-            // Last day of production
             const outputPerMinute = dailyOutput / effectiveWorkDayMinutes;
-            const minutesForRemainder = remainingQty / outputPerMinute;
+            const minutesForRemainder = outputPerMinute > 0 ? remainingQty / outputPerMinute : 0;
             totalMinutes += minutesForRemainder;
-            remainingQty = 0; // End the loop
+            remainingQty = 0;
         } else {
-            // Full day of production
             totalMinutes += effectiveWorkDayMinutes;
             remainingQty -= dailyOutput;
+            calendarDayOffset++;
         }
-
-        calendarDayOffset++;
         
         if (calendarDayOffset > 10000) return Infinity; // Safety break
     }
@@ -127,13 +125,13 @@ export function calculateDailySewingOutput(
     order: Order,
     allSewingProcessesForOrder: ScheduledProcess[],
     processInfo: Process,
-    sewingLineGroups: SewingLineGroup[]
+    sewingLineGroups?: SewingLineGroup[]
 ): Record<string, number> {
     const dailyOutput: Record<string, number> = {};
     const processProductionDayCounter: Record<string, number> = {}; // Tracks ramp-up day per scheduled instance
 
     for (const p of allSewingProcessesForOrder) {
-        const slg = sewingLineGroups.find(g => g.id === p.machineId);
+        const slg = sewingLineGroups?.find(g => g.id === p.machineId);
         const multiplier = slg?.outputMultiplier || 1;
         const holidays = slg?.holidays?.map(h => h.split('T')[0]) || [];
         const overtimeDays = slg?.overtimeDays?.map(o => o.split('T')[0]) || [];
@@ -175,7 +173,10 @@ export function calculateDailySewingOutput(
             processProductionDayCounter[p.id]++;
             
             const rampUpScheme = order.sewingRampUpScheme || [];
-            let efficiency = rampUpScheme.length > 0 ? rampUpScheme[rampUpScheme.length - 1].efficiency : order.budgetedEfficiency || 100;
+            let efficiency = order.budgetedEfficiency || 100;
+            if (rampUpScheme.length > 0) {
+                efficiency = rampUpScheme[rampUpScheme.length - 1].efficiency
+            }
             
             for (const entry of rampUpScheme) {
                 if (processProductionDayCounter[p.id] >= entry.day) {
