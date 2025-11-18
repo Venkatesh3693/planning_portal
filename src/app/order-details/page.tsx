@@ -252,6 +252,19 @@ function OrderDetailsContent() {
 
   }, [order, cutOrderQty, coSelectedDate, syntheticPoRecords]);
 
+  const producedQty = useMemo(() => {
+    return order?.produced || { total: 0 };
+  }, [order]);
+
+  const poLeftToProduce = useMemo(() => {
+    if (!poQty || !producedQty) return null;
+    const result: SizeBreakdown = { total: 0 };
+    SIZES.forEach(size => {
+      result[size] = (poQty[size] || 0) - (producedQty[size] || 0);
+    });
+    result.total = poQty.total - producedQty.total;
+    return result;
+  }, [poQty, producedQty]);
 
   const handleCcChange = (cc: string) => {
       setSelectedCc(cc);
@@ -477,7 +490,7 @@ function OrderDetailsContent() {
 
                     <div className="space-y-4 pt-8 border-t">
                         <div className="grid grid-cols-1 md:grid-cols-4 items-end gap-4">
-                            <h3 className="text-lg font-semibold md:col-span-3">Time-based Cut Order</h3>
+                            <h3 className="text-lg font-semibold md:col-span-3">Time-based Cut Order & Production</h3>
                              <div className="space-y-2">
                                 <Label htmlFor="co-date-picker">Select Date</Label>
                                 <DatePicker date={coSelectedDate} setDate={setCoSelectedDate} />
@@ -508,8 +521,8 @@ function OrderDetailsContent() {
                                     </TableRow>
                                 )}
                                 {coPendingQty && (
-                                     <TableRow className="font-semibold">
-                                        <TableCell>CO pending</TableCell>
+                                     <TableRow>
+                                        <TableCell className="font-medium">CO pending</TableCell>
                                         {SIZES.map(size => (
                                             <TableCell key={size} className={cn("text-right", (coPendingQty[size] || 0) < 0 && 'text-destructive')}>
                                                 {(coPendingQty[size] || 0).toLocaleString()}
@@ -517,6 +530,30 @@ function OrderDetailsContent() {
                                         ))}
                                         <TableCell className={cn("text-right font-bold", (coPendingQty.total || 0) < 0 && 'text-destructive')}>
                                             {(coPendingQty.total || 0).toLocaleString()}
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                                <TableRow>
+                                    <TableCell className="font-medium">Production</TableCell>
+                                    {SIZES.map(size => (
+                                        <TableCell key={size} className="text-right">
+                                            {(producedQty[size] || 0).toLocaleString()}
+                                        </TableCell>
+                                    ))}
+                                    <TableCell className="text-right font-bold">
+                                        {(producedQty.total || 0).toLocaleString()}
+                                    </TableCell>
+                                </TableRow>
+                                {poLeftToProduce && (
+                                    <TableRow className="font-semibold">
+                                        <TableCell>PO left to produce</TableCell>
+                                        {SIZES.map(size => (
+                                            <TableCell key={size} className={cn("text-right", (poLeftToProduce[size] || 0) < 0 && 'text-destructive')}>
+                                                {(poLeftToProduce[size] || 0).toLocaleString()}
+                                            </TableCell>
+                                        ))}
+                                        <TableCell className={cn("text-right font-bold", (poLeftToProduce.total || 0) < 0 && 'text-destructive')}>
+                                            {(poLeftToProduce.total || 0).toLocaleString()}
                                         </TableCell>
                                     </TableRow>
                                 )}
