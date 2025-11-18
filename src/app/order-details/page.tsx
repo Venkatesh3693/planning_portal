@@ -6,7 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useSchedule } from '@/context/schedule-provider';
 import { Header } from '@/components/layout/header';
 import { SIZES } from '@/lib/data';
-import type { Size, SizeBreakdown } from '@/lib/types';
+import type { Size, SizeBreakdown, FcSnapshot } from '@/lib/types';
 import Link from 'next/link';
 import {
   Breadcrumb,
@@ -21,6 +21,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { DatePicker } from '@/components/ui/date-picker';
+import { getWeek, startOfToday } from 'date-fns';
 
 
 function OrderDetailsContent() {
@@ -32,6 +34,7 @@ function OrderDetailsContent() {
   
   const [selectedCc, setSelectedCc] = useState('');
   const [selectedColor, setSelectedColor] = useState('');
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(startOfToday());
 
   const ccOptions = useMemo(() => {
     return [...new Set(orders.filter(o => o.orderType === 'Forecasted').map(o => o.ocn))].sort();
@@ -109,9 +112,9 @@ function OrderDetailsContent() {
     if (!frcQty || !cutOrderQty) return null;
     const result: SizeBreakdown = { total: 0 };
     SIZES.forEach(size => {
-      result[size] = (frcQty[size] || 0) - (cutOrderQty[size] || 0);
+      result[size] = (frcQty[size] || 0) - (cutOrderQty?.[size] || 0);
     });
-    result.total = frcQty.total - cutOrderQty.total;
+    result.total = frcQty.total - (cutOrderQty?.total || 0);
     return result;
   }, [frcQty, cutOrderQty]);
 
@@ -132,6 +135,41 @@ function OrderDetailsContent() {
     return totals;
 
   }, [order]);
+  
+  const timeBasedQuantities = useMemo(() => {
+    const result: { po: SizeBreakdown, fc: SizeBreakdown } = {
+        po: { total: 0 },
+        fc: { total: 0 }
+    };
+    SIZES.forEach(s => {
+        result.po[s] = 0;
+        result.fc[s] = 0;
+    });
+
+    if (!order?.fcVsFcDetails || order.fcVsFcDetails.length === 0 || !selectedDate) {
+      return result;
+    }
+
+    const targetWeek = getWeek(selectedDate);
+    const latestSnapshot = [...order.fcVsFcDetails].sort((a,b) => b.snapshotWeek - a.snapshotWeek)[0];
+
+    Object.entries(latestSnapshot.forecasts).forEach(([weekStr, weekData]) => {
+      const weekNum = parseInt(weekStr.replace('W', ''));
+      if (weekNum <= targetWeek) {
+        SIZES.forEach(size => {
+          const poQty = weekData[size]?.po || 0;
+          const fcQty = weekData[size]?.fc || 0;
+          result.po[size] = (result.po[size] || 0) + poQty;
+          result.fc[size] = (result.fc[size] || 0) + fcQty;
+          result.po.total += poQty;
+          result.fc.total += fcQty;
+        });
+      }
+    });
+
+    return result;
+  }, [order, selectedDate]);
+
 
   const excessFrc = useMemo(() => {
     if (!frcQty || !poPlusFcQty) return null;
@@ -179,128 +217,176 @@ function OrderDetailsContent() {
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="space-y-2">
-                <Label htmlFor="cc-select">CC No.</Label>
-                <Select value={selectedCc} onValueChange={handleCcChange}>
-                    <SelectTrigger id="cc-select">
-                        <SelectValue placeholder="Select CC" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {ccOptions.map(cc => <SelectItem key={cc} value={cc}>{cc}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="color-select">Color</Label>
-                <Select value={selectedColor} onValueChange={handleColorChange} disabled={!selectedCc}>
-                    <SelectTrigger id="color-select">
-                        <SelectValue placeholder="Select Color" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {colorOptions.map(color => <SelectItem key={color} value={color}>{color}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-            </div>
-        </div>
 
-        {order ? (
-          <Card>
+        <Card>
             <CardHeader>
-              <CardTitle>Order Details: {order.ocn} - {order.color}</CardTitle>
+              <CardTitle>Order Details {order ? `: ${order.ocn} - ${order.color}`: ''}</CardTitle>
               <CardDescription>
                 A detailed breakdown of the FRC, PO, and inventory quantities for this order.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              {frcQty ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Metric</TableHead>
-                      {SIZES.map(size => (
-                        <TableHead key={size} className="text-right">{size}</TableHead>
-                      ))}
-                      <TableHead className="text-right font-bold">Total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell className="font-medium">FRC Qty</TableCell>
-                      {SIZES.map(size => (
-                        <TableCell key={size} className="text-right">
-                          {(frcQty[size] || 0).toLocaleString()}
-                        </TableCell>
-                      ))}
-                      <TableCell className="text-right font-bold">
-                        {(frcQty.total || 0).toLocaleString()}
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell className="font-medium">Cut Order Qty</TableCell>
-                      {SIZES.map(size => (
-                        <TableCell key={size} className="text-right text-destructive">
-                          ({(cutOrderQty?.[size] || 0).toLocaleString()})
-                        </TableCell>
-                      ))}
-                      <TableCell className="text-right font-bold text-destructive">
-                        ({(cutOrderQty?.total || 0).toLocaleString()})
-                      </TableCell>
-                    </TableRow>
-                    {frcAvailable && (
-                      <TableRow className="font-semibold">
-                        <TableCell>FRC Available</TableCell>
-                        {SIZES.map(size => (
-                          <TableCell key={size} className="text-right">
-                            {(frcAvailable[size] || 0).toLocaleString()}
-                          </TableCell>
-                        ))}
-                        <TableCell className="text-right font-bold">
-                          {(frcAvailable.total || 0).toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                    {poQty && (
-                      <TableRow>
-                        <TableCell className="font-medium">PO Qty</TableCell>
-                        {SIZES.map(size => (
-                          <TableCell key={size} className="text-right">
-                            {(poQty[size] || 0).toLocaleString()}
-                          </TableCell>
-                        ))}
-                        <TableCell className="text-right font-bold">
-                          {(poQty.total || 0).toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                    {excessFrc && (
-                      <TableRow className="bg-muted font-semibold">
-                        <TableCell>Excess FRC</TableCell>
-                        {SIZES.map(size => (
-                          <TableCell key={size} className={cn("text-right", (excessFrc[size] || 0) < 0 && 'text-destructive')}>
-                            {(excessFrc[size] || 0).toLocaleString()}
-                          </TableCell>
-                        ))}
-                        <TableCell className={cn("text-right font-bold", (excessFrc.total || 0) < 0 && 'text-destructive')}>
-                          {(excessFrc.total || 0).toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              ) : (
-                <div className="text-center text-muted-foreground p-8">
-                  No FRC data available for this order.
+            <CardContent className="space-y-8">
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="cc-select">CC No.</Label>
+                        <Select value={selectedCc} onValueChange={handleCcChange}>
+                            <SelectTrigger id="cc-select">
+                                <SelectValue placeholder="Select CC" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {ccOptions.map(cc => <SelectItem key={cc} value={cc}>{cc}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="color-select">Color</Label>
+                        <Select value={selectedColor} onValueChange={handleColorChange} disabled={!selectedCc}>
+                            <SelectTrigger id="color-select">
+                                <SelectValue placeholder="Select Color" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {colorOptions.map(color => <SelectItem key={color} value={color}>{color}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
-              )}
+                
+                {order ? (
+                  <>
+                    {frcQty ? (
+                        <Table>
+                        <TableHeader>
+                            <TableRow>
+                            <TableHead>Metric</TableHead>
+                            {SIZES.map(size => (
+                                <TableHead key={size} className="text-right">{size}</TableHead>
+                            ))}
+                            <TableHead className="text-right font-bold">Total</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            <TableRow>
+                            <TableCell className="font-medium">FRC Qty</TableCell>
+                            {SIZES.map(size => (
+                                <TableCell key={size} className="text-right">
+                                {(frcQty[size] || 0).toLocaleString()}
+                                </TableCell>
+                            ))}
+                            <TableCell className="text-right font-bold">
+                                {(frcQty.total || 0).toLocaleString()}
+                            </TableCell>
+                            </TableRow>
+                            <TableRow>
+                            <TableCell className="font-medium">Cut Order Qty</TableCell>
+                            {SIZES.map(size => (
+                                <TableCell key={size} className="text-right text-destructive">
+                                ({(cutOrderQty?.[size] || 0).toLocaleString()})
+                                </TableCell>
+                            ))}
+                            <TableCell className="text-right font-bold text-destructive">
+                                ({(cutOrderQty?.total || 0).toLocaleString()})
+                            </TableCell>
+                            </TableRow>
+                            {frcAvailable && (
+                            <TableRow className="font-semibold">
+                                <TableCell>FRC Available</TableCell>
+                                {SIZES.map(size => (
+                                <TableCell key={size} className="text-right">
+                                    {(frcAvailable[size] || 0).toLocaleString()}
+                                </TableCell>
+                                ))}
+                                <TableCell className="text-right font-bold">
+                                {(frcAvailable.total || 0).toLocaleString()}
+                                </TableCell>
+                            </TableRow>
+                            )}
+                            {poQty && (
+                            <TableRow>
+                                <TableCell className="font-medium">PO Qty</TableCell>
+                                {SIZES.map(size => (
+                                <TableCell key={size} className="text-right">
+                                    {(poQty[size] || 0).toLocaleString()}
+                                </TableCell>
+                                ))}
+                                <TableCell className="text-right font-bold">
+                                {(poQty.total || 0).toLocaleString()}
+                                </TableCell>
+                            </TableRow>
+                            )}
+                            {excessFrc && (
+                            <TableRow className="font-semibold">
+                                <TableCell>Excess FRC</TableCell>
+                                {SIZES.map(size => (
+                                <TableCell key={size} className={cn("text-right", (excessFrc[size] || 0) < 0 && 'text-destructive')}>
+                                    {(excessFrc[size] || 0).toLocaleString()}
+                                </TableCell>
+                                ))}
+                                <TableCell className={cn("text-right font-bold", (excessFrc.total || 0) < 0 && 'text-destructive')}>
+                                {(excessFrc.total || 0).toLocaleString()}
+                                </TableCell>
+                            </TableRow>
+                            )}
+                        </TableBody>
+                        </Table>
+                    ) : (
+                        <div className="text-center text-muted-foreground p-8">
+                        No FRC data available for this order.
+                        </div>
+                    )}
+
+                    <div className="space-y-4 pt-8 border-t">
+                        <div className="grid grid-cols-1 md:grid-cols-4 items-end gap-4">
+                            <h3 className="text-lg font-semibold md:col-span-3">Time-based Demand</h3>
+                             <div className="space-y-2">
+                                <Label htmlFor="date-picker">Select Date</Label>
+                                <DatePicker date={selectedDate ? { from: selectedDate, to: selectedDate } : undefined} setDate={(range) => setSelectedDate(range?.from)} />
+                             </div>
+                        </div>
+                        <Table>
+                             <TableHeader>
+                                <TableRow>
+                                <TableHead>Metric</TableHead>
+                                {SIZES.map(size => (
+                                    <TableHead key={size} className="text-right">{size}</TableHead>
+                                ))}
+                                <TableHead className="text-right font-bold">Total</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow>
+                                    <TableCell className="font-medium">PO up to {selectedDate ? `W${getWeek(selectedDate)}` : '...'}</TableCell>
+                                    {SIZES.map(size => (
+                                        <TableCell key={size} className="text-right">
+                                            {(timeBasedQuantities.po[size] || 0).toLocaleString()}
+                                        </TableCell>
+                                    ))}
+                                    <TableCell className="text-right font-bold">
+                                        {(timeBasedQuantities.po.total || 0).toLocaleString()}
+                                    </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell className="font-medium">FC up to {selectedDate ? `W${getWeek(selectedDate)}` : '...'}</TableCell>
+                                    {SIZES.map(size => (
+                                        <TableCell key={size} className="text-right">
+                                            {(timeBasedQuantities.fc[size] || 0).toLocaleString()}
+                                        </TableCell>
+                                    ))}
+                                    <TableCell className="text-right font-bold">
+                                        {(timeBasedQuantities.fc.total || 0).toLocaleString()}
+                                    </TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+                    </div>
+                  </>
+                ) : (
+                    <div className="text-center text-muted-foreground p-8 border rounded-lg">
+                        Please select a CC and Color to view order details.
+                    </div>
+                )}
             </CardContent>
-          </Card>
-        ) : (
-          <div className="text-center text-muted-foreground p-8 border rounded-lg">
-            Please select a CC and Color to view order details.
-          </div>
-        )}
+        </Card>
+
       </main>
     </div>
   );
@@ -313,4 +399,3 @@ export default function OrderDetailsPage() {
         </Suspense>
     );
 }
-
