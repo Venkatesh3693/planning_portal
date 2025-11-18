@@ -1174,7 +1174,7 @@ const ForecastedOrderRow = forwardRef<
               </div>
               <div className="flex items-center gap-2">
                 <Button asChild variant="outline" size="sm">
-                    <Link href={`/order-details?orderId=${order.id}`} target="_blank">
+                    <Link href={`/order-details?orderId=${order.id}`}>
                         Details <ExternalLink className="ml-2 h-4 w-4" />
                     </Link>
                 </Button>
