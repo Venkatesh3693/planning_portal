@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { addDays, startOfToday, getDay, set, isAfter, isBefore, addMinutes, compareAsc, compareDesc, subDays, format, startOfWeek, isSameDay, startOfDay } from 'date-fns';
 import { Header } from '@/components/layout/header';
 import GanttChart from '@/components/gantt-chart/gantt-chart';
@@ -53,19 +53,14 @@ type ProcessToSplitState = {
 
 // Helper function to calculate duration for sewing process
 const calculateSewingDuration = (order: Order, quantity: number): number => {
-    const process = PROCESSES.find(p => p.id === SEWING_PROCESS_ID);
-    if (!process || quantity <= 0 || process.sam <= 0) return 0;
+    const totalMinutes = calculateSewingDurationMinutes({
+        quantity: quantity,
+        sam: PROCESSES.find(p => p.id === SEWING_PROCESS_ID)!.sam,
+        orderStyle: order.style,
+        budgetedEfficiency: order.budgetedEfficiency || 85,
+    });
     
-    // Calculate pure work minutes
-    const totalWorkMinutes = quantity * process.sam;
-    
-    // Adjust for budgeted efficiency
-    const budgetedEfficiency = order.budgetedEfficiency || 100;
-    if (budgetedEfficiency <= 0) return Infinity;
-
-    const effectiveTotalMinutes = totalWorkMinutes / (budgetedEfficiency / 100);
-    
-    return effectiveTotalMinutes;
+    return totalMinutes;
 };
 
 function GanttPageContent() {
@@ -538,7 +533,7 @@ function GanttPageContent() {
         processId: droppedItem.processId,
         machineId: rowId,
         startDateTime: finalStartDateTime,
-        endDateTime: calculateEndDateTime(finalStartDateTime, durationMinutes),
+        endDateTime: calculateEndDateTime(finalStartDateTime, durationMinutes, order.budgetedEfficiency),
         durationMinutes,
         quantity: droppedItem.quantity,
         latestStartDate: latestStartDate,
@@ -561,7 +556,7 @@ function GanttPageContent() {
         processId: batch.processId,
         machineId: rowId,
         startDateTime: finalStartDateTime,
-        endDateTime: calculateEndDateTime(finalStartDateTime, durationMinutes),
+        endDateTime: calculateEndDateTime(finalStartDateTime, durationMinutes, order.budgetedEfficiency),
         durationMinutes,
         quantity: batch.quantity,
         isSplit: true,
@@ -578,12 +573,14 @@ function GanttPageContent() {
       const finalStartDateTime = viewMode === 'day'
         ? set(startDateTime, { hours: WORKING_HOURS_START, minutes: 0, seconds: 0, milliseconds: 0 })
         : startDateTime;
+        
+      const order = orders.find(o => o.id === originalProcess.orderId)!;
   
       processToPlace = {
         ...originalProcess,
         machineId: rowId,
         startDateTime: finalStartDateTime,
-        endDateTime: calculateEndDateTime(finalStartDateTime, originalProcess.durationMinutes),
+        endDateTime: calculateEndDateTime(finalStartDateTime, originalProcess.durationMinutes, order.budgetedEfficiency),
         isAutoScheduled: false, // Manually replanned
       };
       otherProcesses = scheduledProcesses.filter(p => p.id !== originalProcess.id);
@@ -612,7 +609,8 @@ function GanttPageContent() {
   
     for (const processToShift of processesToCascade) {
       const newStart = isAfter(processToShift.startDateTime, lastProcessEnd) ? processToShift.startDateTime : lastProcessEnd;
-      const newEnd = calculateEndDateTime(newStart, processToShift.durationMinutes);
+      const order = orders.find(o => o.id === processToShift.orderId)!;
+      const newEnd = calculateEndDateTime(newStart, processToShift.durationMinutes, order.budgetedEfficiency);
   
       finalProcesses.push({
         ...processToShift,
@@ -703,10 +701,11 @@ function GanttPageContent() {
 
       const totalOriginalDuration = originalProcesses.reduce((sum, p) => sum + p.durationMinutes, 0);
       const totalOriginalQuantity = primaryProcess.isSplit ? originalProcesses.reduce((acc, p) => acc + p.quantity, 0) : primaryProcess.quantity;
-      const totalNewDuration = newDurationsInDays.reduce((sum, d) => sum + d, 0) * WORK_DAY_MINUTES;
+      
+      const minutesPerDay = (orderInfo.budgetedEfficiency || 85) / 100 * WORK_DAY_MINUTES;
 
       const newSplitProcesses: ScheduledProcess[] = newDurationsInDays.map((durationDays, index) => {
-          const durationMinutes = durationDays * WORK_DAY_MINUTES;
+          const durationMinutes = durationDays * minutesPerDay;
           const quantityRatio = totalOriginalDuration > 0 ? durationMinutes / totalOriginalDuration : 0;
           const newQuantity = Math.round(totalOriginalQuantity * quantityRatio);
 
@@ -735,7 +734,7 @@ function GanttPageContent() {
       let lastProcessEnd = anchor.startDateTime;
       const cascadedSplitProcesses = newSplitProcesses.map(p => {
           const newStart = lastProcessEnd;
-          const newEnd = calculateEndDateTime(newStart, p.durationMinutes);
+          const newEnd = calculateEndDateTime(newStart, p.durationMinutes, orderInfo.budgetedEfficiency);
           lastProcessEnd = newEnd;
           return { ...p, startDateTime: newStart, endDateTime: newEnd };
       });

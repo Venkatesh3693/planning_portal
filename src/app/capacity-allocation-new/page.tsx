@@ -283,11 +283,12 @@ export default function CapacityAllocationPage() {
     }, [activeGroup, sewingLineGroups, setSewingLineGroups]);
     
     const ccOptions = useMemo(() => {
+        const assignedCcs = new Set(sewingLineGroups.map(g => g.ccNo));
         return orders
-            .filter(o => o.orderType === 'Forecasted' && o.ocn)
+            .filter(o => o.orderType === 'Forecasted' && o.ocn && !assignedCcs.has(o.ocn))
             .map(o => o.ocn)
             .filter((value, index, self) => self.indexOf(value) === index);
-    }, [orders]);
+    }, [orders, sewingLineGroups]);
     
     const handleReallocationSave = (sourceLineId: string, targetLineId: string, machineType: SewingMachineType, quantity: number) => {
         setSewingLines(prevLines => {
