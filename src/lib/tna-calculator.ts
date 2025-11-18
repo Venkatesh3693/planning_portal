@@ -38,45 +38,56 @@ function calculateDaysToProduceBatch(
     return Math.ceil(totalMinutes / WORK_DAY_MINUTES);
 };
 
-export function calculateSewingDurationMinutes(
+export function calculateSewingDurationMinutes(config: {
     quantity: number, 
-    sam: number, 
-    rampUpScheme: RampUpEntry[], 
-    numLines: number,
     orderStyle: string,
-    startDate: Date = new Date(),
-    holidays: string[] = [],
-    overtimeDays: string[] = []
-): number {
-    if (quantity <= 0 || sam <= 0 || numLines <= 0) return 0;
+    budgetedEfficiency: number,
+    rampUpScheme?: RampUpEntry[], 
+    numLines?: number,
+    startDate?: Date,
+    holidays?: string[],
+    overtimeDays?: string[]
+}): number {
+    const {
+        quantity,
+        orderStyle,
+        budgetedEfficiency,
+        rampUpScheme = [],
+        numLines = 1,
+        startDate = new Date(),
+        holidays = [],
+        overtimeDays = []
+    } = config;
 
-    let remainingQty = quantity;
-    let totalMinutes = 0;
-    let workingDayCounter = 0;
-    let calendarDayOffset = 0;
+    if (quantity <= 0 || numLines <= 0) return 0;
+    
     const obData: SewingOperation[] = SEWING_OPERATIONS_BY_STYLE[orderStyle] || [];
     const totalSam = obData.reduce((sum, op) => sum + op.sam, 0);
     const totalTailors = obData.reduce((sum, op) => sum + op.operators, 0);
 
     if (totalSam <= 0 || totalTailors <= 0) return Infinity;
 
+    let remainingQty = quantity;
+    let totalMinutes = 0;
+    let calendarDayOffset = 0;
+    let workingDayCounter = 0;
+
     while (remainingQty > 0) {
         let currentDate = new Date(startDate);
         currentDate.setDate(currentDate.getDate() + calendarDayOffset);
-
         const dateKey = format(startOfDay(currentDate), 'yyyy-MM-dd');
-        
+
         if (getDay(currentDate) === 0 || holidays.includes(dateKey)) {
             calendarDayOffset++;
             continue;
         }
 
         workingDayCounter++;
-        
+
         const isOvertime = overtimeDays.includes(dateKey);
         const effectiveWorkDayMinutes = WORK_DAY_MINUTES * (isOvertime ? 1.25 : 1);
 
-        let efficiency = rampUpScheme.length > 0 ? rampUpScheme[rampUpScheme.length - 1]?.efficiency : 100;
+        let efficiency = rampUpScheme.length > 0 ? rampUpScheme[rampUpScheme.length - 1]?.efficiency : budgetedEfficiency;
         for (const entry of rampUpScheme) {
             if (workingDayCounter >= entry.day) {
                 efficiency = entry.efficiency;
@@ -91,7 +102,7 @@ export function calculateSewingDurationMinutes(
         const dailyOutput = (effectiveWorkDayMinutes * efficiency / 100 * totalTailors * numLines) / totalSam;
 
         if (remainingQty <= dailyOutput) {
-            const outputPerMinute = dailyOutput / effectiveWorkDayMinutes;
+            const outputPerMinute = dailyOutput > 0 ? dailyOutput / effectiveWorkDayMinutes : 0;
             const minutesForRemainder = outputPerMinute > 0 ? remainingQty / outputPerMinute : 0;
             totalMinutes += minutesForRemainder;
             remainingQty = 0;
@@ -101,7 +112,7 @@ export function calculateSewingDurationMinutes(
             calendarDayOffset++;
         }
         
-        if (calendarDayOffset > 10000) return Infinity; // Safety break
+        if (calendarDayOffset > 20000) return Infinity; // Safety break
     }
 
     return totalMinutes;
@@ -113,7 +124,7 @@ export function calculateSewingDurationMinutes(
  * This is used for initial estimation and display on UI cards.
  */
 export function calculateSewingDurationDays(quantity: number, sam: number, rampUpScheme: RampUpEntry[], numLines: number, orderStyle: string): number {
-    const totalMinutes = calculateSewingDurationMinutes(quantity, sam, rampUpScheme, numLines, orderStyle);
+    const totalMinutes = calculateSewingDurationMinutes({quantity, orderStyle, budgetedEfficiency: 85, rampUpScheme, numLines });
     return totalMinutes === Infinity ? Infinity : Math.ceil(totalMinutes / WORK_DAY_MINUTES);
 };
 
@@ -441,7 +452,13 @@ export function calculateLatestSewingStartDate(order: Order, allProcesses: Proce
     const sewingFinishDeadline = calculateStartDateTime(order.dueDate, finalPackingDurationMinutes);
 
     // Step 4: Calculate the Total Duration of the Entire Sewing Process
-    const totalSewingDurationMinutes = calculateSewingDurationMinutes(order.quantity, sewingProcess.sam, order.sewingRampUpScheme || [], numLines, order.style);
+    const totalSewingDurationMinutes = calculateSewingDurationMinutes({
+      quantity: order.quantity, 
+      orderStyle: order.style,
+      budgetedEfficiency: order.budgetedEfficiency || 85,
+      rampUpScheme: order.sewingRampUpScheme, 
+      numLines: numLines, 
+    });
     if (totalSewingDurationMinutes === Infinity) return null;
     
     // Step 5: Calculate the Final Latest Sewing Start Date
@@ -477,6 +494,8 @@ export type CcWisePlanResult = {
     offset?: number;
     lines?: number;
     modelWiseDemand?: Record<string, Record<string, number>>;
+    budgetedEfficiency?: number;
+    maxWeeklyOutput: number;
 };
 
 type CcProdPlannerArgs = {
@@ -541,7 +560,7 @@ export const CcProdPlanner = ({
         .sort((a,b) => a-b);
 
     if (allDemandWeeks.length === 0) {
-        return { weeklyDemand: {}, producedData: {}, planData: {}, allWeeks: [], fgoiData: {}, modelWiseDemand: {} };
+        return { weeklyDemand: {}, producedData: {}, planData: {}, allWeeks: [], fgoiData: {}, modelWiseDemand: {}, maxWeeklyOutput: 0 };
     }
     
     const firstPoFcWeek = allDemandWeeks[0];
@@ -578,6 +597,7 @@ export const CcProdPlanner = ({
     let finalLines = 1;
     let finalOffset = 0;
     let finalProdStartWeek = firstPoFcWeek - 1;
+    let maxWeeklyOutputForFinalLines = 0;
 
     while (true) {
         const capacity = getMaxWeeklyOutput(lines);
@@ -606,6 +626,7 @@ export const CcProdPlanner = ({
             finalProdStartWeek = currentStartWeek;
             finalLines = lines;
             finalOffset = offset;
+            maxWeeklyOutputForFinalLines = capacity;
             break;
         } else {
             lines++;
@@ -650,6 +671,7 @@ export const CcProdPlanner = ({
             if (minFgOiFuture >= 0) {
                 finalPlan = futurePlan;
                 finalLines = futureLines; // Update final lines for the reactive plan
+                maxWeeklyOutputForFinalLines = capacity;
                 break;
             } else {
                 futureLines++;
@@ -674,6 +696,8 @@ export const CcProdPlanner = ({
         offset: finalOffset,
         lines: finalLines,
         modelWiseDemand,
+        budgetedEfficiency: order.budgetedEfficiency || 85,
+        maxWeeklyOutput: maxWeeklyOutputForFinalLines
     };
 };
 

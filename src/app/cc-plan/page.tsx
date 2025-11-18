@@ -107,7 +107,7 @@ const ModelWisePlanTable = ({ planResult }: { planResult: any }) => {
                                                     ))}
                                                      <TableCell className={cn("sticky right-0 z-10 text-center font-bold", metricIndex > 0 ? 'bg-muted' : 'bg-background', metric.name === 'FG OI' && (metric.total || 0) < 0 && 'text-destructive', metric.name === 'Produced Qty' && 'text-green-600')}>
                                                         {metric.isMin ? Math.round(metric.total).toLocaleString() : metric.total.toLocaleString()}
-                                                    </TableCell>
+                                                     </TableCell>
                                                  </TableRow>
                                             ))}
                                         </React.Fragment>
