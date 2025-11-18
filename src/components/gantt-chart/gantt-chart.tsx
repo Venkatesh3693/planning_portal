@@ -16,7 +16,7 @@ type Row = {
   ccNo?: string;
 };
 
-type ViewMode = 'day' | 'hour' | 'week';
+type ViewMode = 'day' | 'hour';
 
 type GanttChartProps = {
   rows: Row[];
@@ -30,7 +30,6 @@ type GanttChartProps = {
   onProcessClick?: (processId: string) => void;
   onSplitProcess: (process: ScheduledProcess) => void;
   viewMode: ViewMode;
-  setViewMode: (mode: ViewMode) => void;
   draggedItem: DraggedItemData | null;
   latestStartDatesMap: Map<string, Date>;
   latestSewingStartDateMap: Map<string, Date>;
@@ -53,10 +52,10 @@ const WORKING_HOURS_END = 17;
 const WORKING_HOURS = Array.from({ length: WORKING_HOURS_END - WORKING_HOURS_START }, (_, i) => i + WORKING_HOURS_START);
 const DAY_CELL_WIDTH_INITIAL = 40;
 const HOUR_CELL_WIDTH_INITIAL = 56;
-const WEEK_CELL_WIDTH_INITIAL = 120;
-const DAY_TO_WEEK_THRESHOLD = 20;
+const DAY_VIEW_COLLAPSE_THRESHOLD = 40;
 
-const TopLeftCorner = () => (
+
+const TopLeftCorner = ({ isDayViewCollapsed }: { isDayViewCollapsed: boolean }) => (
   <div className="sticky top-0 left-0 z-40 bg-muted/30 border-r border-b border-border/60">
     <div className="flex h-full flex-col">
       <div className="flex h-7 items-center justify-end border-b border-border/60 p-2">
@@ -65,9 +64,11 @@ const TopLeftCorner = () => (
        <div className="flex h-7 items-center justify-end border-b border-border/60 p-2">
         <span className="text-xs font-normal text-muted-foreground leading-tight">Week</span>
       </div>
-      <div className="flex h-7 flex-1 items-center justify-end p-2">
-        <span className="text-xs font-normal text-muted-foreground leading-tight">Day</span>
-      </div>
+      { !isDayViewCollapsed && (
+        <div className="flex h-7 flex-1 items-center justify-end p-2">
+            <span className="text-xs font-normal text-muted-foreground leading-tight">Day</span>
+        </div>
+      )}
     </div>
   </div>
 );
@@ -75,7 +76,7 @@ const TopLeftCorner = () => (
 const Header = React.forwardRef<
   HTMLDivElement,
   { 
-    timeColumns: { date: Date; type: 'day' | 'hour' | 'week' }[]; 
+    timeColumns: { date: Date; type: 'day' | 'hour' }[]; 
     viewMode: ViewMode; 
     draggedItemLatestStartDate: Date | null; 
     predecessorEndDate: Date | null; 
@@ -83,8 +84,9 @@ const Header = React.forwardRef<
     draggedItemCkDate: Date | null;
     cellWidth: number;
     onResizeStart: (index: number, startX: number) => void;
+    isDayViewCollapsed: boolean;
   }
->(({ timeColumns, viewMode, draggedItemLatestStartDate, predecessorEndDate, draggedItemLatestEndDate, draggedItemCkDate, cellWidth, onResizeStart }, ref) => {
+>(({ timeColumns, viewMode, draggedItemLatestStartDate, predecessorEndDate, draggedItemLatestEndDate, draggedItemCkDate, cellWidth, onResizeStart, isDayViewCollapsed }, ref) => {
   const monthHeaders = React.useMemo(() => {
     const headers: { name: string; span: number }[] = [];
     if (timeColumns.length === 0) return headers;
@@ -107,7 +109,7 @@ const Header = React.forwardRef<
       }
     });
     return headers;
-  }, [timeColumns, viewMode]);
+  }, [timeColumns]);
 
   const weekHeaders = React.useMemo(() => {
     if (viewMode !== 'day' || timeColumns.length === 0) return [];
@@ -155,8 +157,7 @@ const Header = React.forwardRef<
     return headers;
   }, [timeColumns, viewMode]);
 
-  const topHeaders = viewMode === 'day' ? monthHeaders : (viewMode === 'week' ? monthHeaders : dayHeaders);
-  const midHeaders = viewMode === 'day' ? weekHeaders : [];
+  const topHeaders = viewMode === 'day' ? monthHeaders : dayHeaders;
   
   const gridTemplateColumns = `repeat(${timeColumns.length}, ${cellWidth}px)`;
 
@@ -169,53 +170,53 @@ const Header = React.forwardRef<
           </div>
         ))}
       </div>
-      {midHeaders.length > 0 && (
-         <div className="grid" style={{ gridTemplateColumns }}>
-            {midHeaders.map(({ name, span }, i) => (
-              <div key={`mid-header-${i}`} className="border-r border-b border-border/60 text-center h-7 flex items-center justify-center relative group" style={{ gridColumn: `span ${span}` }}>
-                <span className="text-xs font-semibold text-muted-foreground">{name}</span>
-                 <div
-                    className="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-primary opacity-0 group-hover:opacity-100 transition-opacity"
-                    onMouseDown={(e) => onResizeStart(i, e.clientX)}
-                  />
-              </div>
-            ))}
+      <div className="grid" style={{ gridTemplateColumns }}>
+        {weekHeaders.map(({ name, span }, i) => (
+            <div key={`week-header-${i}`} className="border-r border-b border-border/60 text-center h-7 flex items-center justify-center relative group" style={{ gridColumn: `span ${span}` }}>
+            <span className="text-xs font-semibold text-muted-foreground">{name}</span>
+                <div
+                className="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-primary opacity-0 group-hover:opacity-100 transition-opacity"
+                onMouseDown={(e) => onResizeStart(i, e.clientX)}
+                />
+            </div>
+        ))}
+      </div>
+      { !isDayViewCollapsed && (
+        <div className="grid" style={{ gridTemplateColumns }}>
+            {timeColumns.map((col, i) => {
+            const isLatestStartDate = draggedItemLatestStartDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemLatestStartDate) : isSameHour(col.date, draggedItemLatestStartDate));
+            const isPredecessorEnd = predecessorEndDate && (viewMode === 'day' ? isSameDay(col.date, predecessorEndDate) : isSameHour(col.date, predecessorEndDate));
+            const isLatestEndDate = draggedItemLatestEndDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemLatestEndDate) : isSameHour(col.date, draggedItemLatestEndDate));
+            const isCkDate = draggedItemCkDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemCkDate) : isSameHour(col.date, draggedItemCkDate));
+
+            return (
+                <div key={`bottom-header-${i}`} className="border-r border-border/60 text-center h-7 flex items-center justify-center relative group">
+                    {isLatestEndDate ? (
+                        <div className="absolute inset-0 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold z-10">
+                            FINISH BY
+                        </div>
+                    ) : isLatestStartDate ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-amber-500 text-white text-[10px] font-bold z-10">
+                        START BY
+                    </div>
+                    ) : isPredecessorEnd ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-blue-500 text-white text-[10px] font-bold">
+                        PRED. END
+                    </div>
+                    ) : isCkDate ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-green-500 text-white text-[10px] font-bold">
+                        CK DATE
+                    </div>
+                    ) : (
+                    <div className="text-xs font-normal text-muted-foreground leading-tight">
+                        {viewMode === 'day' ? format(col.date, 'd') : format(col.date, 'ha').toLowerCase()}
+                    </div>
+                    )}
+                </div>
+            );
+            })}
         </div>
       )}
-      <div className="grid" style={{ gridTemplateColumns }}>
-        {timeColumns.map((col, i) => {
-           const isLatestStartDate = draggedItemLatestStartDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemLatestStartDate) : viewMode === 'hour' ? isSameHour(col.date, draggedItemLatestStartDate) : getWeek(col.date) === getWeek(draggedItemLatestStartDate));
-           const isPredecessorEnd = predecessorEndDate && (viewMode === 'day' ? isSameDay(col.date, predecessorEndDate) : viewMode === 'hour' ? isSameHour(col.date, predecessorEndDate) : getWeek(col.date) === getWeek(predecessorEndDate));
-           const isLatestEndDate = draggedItemLatestEndDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemLatestEndDate) : viewMode === 'hour' ? isSameHour(col.date, draggedItemLatestEndDate) : getWeek(col.date) === getWeek(draggedItemLatestEndDate));
-           const isCkDate = draggedItemCkDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemCkDate) : viewMode === 'hour' ? isSameHour(col.date, draggedItemCkDate) : getWeek(col.date) === getWeek(draggedItemCkDate));
-
-           return (
-              <div key={`bottom-header-${i}`} className="border-r border-border/60 text-center h-7 flex items-center justify-center relative group">
-                 {isLatestEndDate ? (
-                    <div className="absolute inset-0 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold z-10">
-                        FINISH BY
-                    </div>
-                ) : isLatestStartDate ? (
-                   <div className="absolute inset-0 flex items-center justify-center bg-amber-500 text-white text-[10px] font-bold z-10">
-                     START BY
-                   </div>
-                ) : isPredecessorEnd ? (
-                  <div className="absolute inset-0 flex items-center justify-center bg-blue-500 text-white text-[10px] font-bold">
-                    PRED. END
-                  </div>
-                ) : isCkDate ? (
-                  <div className="absolute inset-0 flex items-center justify-center bg-green-500 text-white text-[10px] font-bold">
-                    CK DATE
-                  </div>
-                ) : (
-                  <div className="text-xs font-normal text-muted-foreground leading-tight">
-                    {viewMode === 'day' ? format(col.date, 'd') : viewMode === 'week' ? `W${getWeek(col.date)}` : format(col.date, 'ha').toLowerCase()}
-                  </div>
-                )}
-              </div>
-           );
-        })}
-      </div>
     </div>
   );
 });
@@ -234,7 +235,6 @@ export default function GanttChart({
   onProcessClick,
   onSplitProcess,
   viewMode,
-  setViewMode,
   draggedItem,
   latestStartDatesMap,
   latestSewingStartDateMap,
@@ -259,13 +259,15 @@ export default function GanttChart({
   const sidebarWidthRef = React.useRef<HTMLDivElement>(null);
 
   const [sidebarWidth, setSidebarWidth] = React.useState(150);
+  const [isDayViewCollapsed, setIsDayViewCollapsed] = React.useState(false);
   
-  const [cellWidth, setCellWidth] = React.useState(viewMode === 'day' ? DAY_CELL_WIDTH_INITIAL : viewMode === 'week' ? WEEK_CELL_WIDTH_INITIAL : HOUR_CELL_WIDTH_INITIAL);
+  const [cellWidth, setCellWidth] = React.useState(viewMode === 'day' ? DAY_CELL_WIDTH_INITIAL : HOUR_CELL_WIDTH_INITIAL);
 
   const resizeData = React.useRef<{ startIndex: number, startX: number, startWidth: number } | null>(null);
 
   React.useEffect(() => {
-    setCellWidth(viewMode === 'day' ? DAY_CELL_WIDTH_INITIAL : viewMode === 'week' ? WEEK_CELL_WIDTH_INITIAL : HOUR_CELL_WIDTH_INITIAL);
+    setCellWidth(viewMode === 'day' ? DAY_CELL_WIDTH_INITIAL : HOUR_CELL_WIDTH_INITIAL);
+    if(viewMode === 'hour') setIsDayViewCollapsed(false);
   }, [viewMode]);
   
   const handleResizeStart = (index: number, startX: number) => {
@@ -277,15 +279,13 @@ export default function GanttChart({
   const handleResizeMove = (e: MouseEvent) => {
     if (!resizeData.current) return;
     const dx = e.clientX - resizeData.current.startX;
-    const newWidth = Math.max(20, resizeData.current.startWidth + dx); // Minimum width of 20px
+    const newWidth = resizeData.current.startWidth + dx;
     setCellWidth(newWidth);
   };
 
   const handleResizeEnd = () => {
-    if (viewMode === 'day' && cellWidth < DAY_TO_WEEK_THRESHOLD) {
-      setViewMode('week');
-    } else if (viewMode === 'week' && cellWidth > DAY_TO_WEEK_THRESHOLD) {
-      setViewMode('day');
+    if (viewMode === 'day') {
+        setIsDayViewCollapsed(cellWidth < DAY_VIEW_COLLAPSE_THRESHOLD);
     }
     resizeData.current = null;
     window.removeEventListener('mousemove', handleResizeMove);
@@ -300,17 +300,6 @@ export default function GanttChart({
   const timeColumns = React.useMemo(() => {
     if (viewMode === 'day') {
       return dates.map(date => ({ date, type: 'day' as const }));
-    }
-    if (viewMode === 'week') {
-      const weeks = new Set<string>();
-      dates.forEach(date => {
-        weeks.add(format(startOfDay(date), 'yyyy-ww'));
-      });
-      return Array.from(weeks).map(weekStr => {
-        const [year, week] = weekStr.split('-').map(Number);
-        const firstDayOfWeek = new Date(year, 0, (week - 1) * 7 + 1);
-        return { date: firstDayOfWeek, type: 'week' as const };
-      });
     }
     const columns: { date: Date; type: 'hour' }[] = [];
     dates.forEach(day => {
@@ -421,16 +410,18 @@ export default function GanttChart({
       onDailyEfficiencyChange(newEffs);
     }
   }
+  
+  const headerHeight = isDayViewCollapsed ? 'calc(2*1.75rem + 2px)' : 'calc(3*1.75rem + 3px)';
 
   return (
     <div 
       className={cn("h-full w-full overflow-hidden relative grid", isDragging && 'is-dragging')}
       style={{
         gridTemplateColumns: `${sidebarWidth}px 1fr`,
-        gridTemplateRows: `auto 1fr`,
+        gridTemplateRows: `${headerHeight} 1fr`,
       }}
     >
-      <TopLeftCorner />
+      <TopLeftCorner isDayViewCollapsed={isDayViewCollapsed} />
 
       <Header 
         ref={headerRef} 
@@ -442,6 +433,7 @@ export default function GanttChart({
         draggedItemCkDate={draggedItemCkDate}
         cellWidth={cellWidth}
         onResizeStart={handleResizeStart}
+        isDayViewCollapsed={isDayViewCollapsed}
       />
 
       {/* Bottom-Left Sidebar (Machine Names) */}
@@ -533,10 +525,10 @@ export default function GanttChart({
                       isInValidRange = isWithinInterval(col.date, range);
                   }
                   
-                  const isLatestStartDateColumn = draggedItemLatestStartDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemLatestStartDate) : viewMode === 'hour' ? isSameHour(col.date, draggedItemLatestStartDate) : getWeek(col.date) === getWeek(draggedItemLatestStartDate));
-                  const isPredecessorEndDateColumn = predecessorEndDate && (viewMode === 'day' ? isSameDay(col.date, predecessorEndDate) : viewMode === 'hour' ? isSameHour(col.date, predecessorEndDate) : getWeek(col.date) === getWeek(predecessorEndDate));
-                  const isLatestEndDateColumn = draggedItemLatestEndDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemLatestEndDate) : viewMode === 'hour' ? isSameHour(col.date, draggedItemLatestEndDate) : getWeek(col.date) === getWeek(draggedItemLatestEndDate));
-                  const isCkDateColumn = draggedItemCkDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemCkDate) : viewMode === 'hour' ? isSameHour(col.date, draggedItemCkDate) : getWeek(col.date) === getWeek(draggedItemCkDate));
+                  const isLatestStartDateColumn = draggedItemLatestStartDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemLatestStartDate) : isSameHour(col.date, draggedItemLatestStartDate));
+                  const isPredecessorEndDateColumn = predecessorEndDate && (viewMode === 'day' ? isSameDay(col.date, predecessorEndDate) : isSameHour(col.date, predecessorEndDate));
+                  const isLatestEndDateColumn = draggedItemLatestEndDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemLatestEndDate) : isSameHour(col.date, draggedItemLatestEndDate));
+                  const isCkDateColumn = draggedItemCkDate && (viewMode === 'day' ? isSameDay(col.date, draggedItemCkDate) : isSameHour(col.date, draggedItemCkDate));
 
                   return (
                       <div
@@ -578,10 +570,6 @@ export default function GanttChart({
                 if (viewMode === 'day') {
                   const startOfTargetDay = startOfDay(date);
                   return timeColumns.findIndex(col => col.date.getTime() === startOfTargetDay.getTime());
-                }
-                 if (viewMode === 'week') {
-                  const startOfTargetWeek = format(startOfDay(date), 'yyyy-ww');
-                  return timeColumns.findIndex(col => format(startOfDay(col.date), 'yyyy-ww') === startOfTargetWeek);
                 }
                 const startOfTargetHour = startOfHour(date);
                 return timeColumns.findIndex(col => col.date.getTime() === startOfTargetHour.getTime());
