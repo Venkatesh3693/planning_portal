@@ -197,6 +197,19 @@ function OrderDetailsContent() {
     return result;
   }, [order, selectedDate, frcData]);
 
+    const frcPending = useMemo(() => {
+        if (!frcGrnQty || !timeBasedQuantities) return null;
+        const result: SizeBreakdown = { total: 0 };
+        SIZES.forEach(size => {
+            const frcGrn = frcGrnQty[size] || 0;
+            const po = timeBasedQuantities.po[size] || 0;
+            const fc = timeBasedQuantities.fc[size] || 0;
+            result[size] = frcGrn - (po + fc);
+        });
+        result.total = frcGrnQty.total - (timeBasedQuantities.po.total + timeBasedQuantities.fc.total);
+        return result;
+    }, [frcGrnQty, timeBasedQuantities]);
+
 
   const excessFrc = useMemo(() => {
     if (!frcQty || !poPlusFcQty) return null;
@@ -413,6 +426,19 @@ function OrderDetailsContent() {
                                         {(frcGrnQty.total || 0).toLocaleString()}
                                     </TableCell>
                                 </TableRow>
+                                {frcPending && (
+                                    <TableRow className="font-semibold">
+                                        <TableCell>FRC Pending</TableCell>
+                                        {SIZES.map(size => (
+                                            <TableCell key={size} className={cn("text-right", (frcPending[size] || 0) < 0 && 'text-destructive')}>
+                                                {(frcPending[size] || 0).toLocaleString()}
+                                            </TableCell>
+                                        ))}
+                                        <TableCell className={cn("text-right font-bold", (frcPending.total || 0) < 0 && 'text-destructive')}>
+                                            {(frcPending.total || 0).toLocaleString()}
+                                        </TableCell>
+                                    </TableRow>
+                                )}
                             </TableBody>
                         </Table>
                     </div>
@@ -437,3 +463,5 @@ export default function OrderDetailsPage() {
         </Suspense>
     );
 }
+
+    
