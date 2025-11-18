@@ -4,7 +4,7 @@
 
 import { PROCESSES } from '@/lib/data';
 import type { ScheduledProcess, Order } from '@/lib/types';
-import type { DraggedItemData } from '@/app/page';
+import type { DraggedItemData } from '@/app/gut-new/page';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover';
 import { Undo2, GripVertical, SlidersHorizontal } from 'lucide-react';
@@ -93,6 +93,8 @@ export default function ScheduledProcessBar({
   };
   
   const baseColor = orderDetails.displayColor || processDetails.color || 'hsl(var(--accent))';
+  
+  const displayName = orderDetails.ocn ? `${orderDetails.ocn}-${orderDetails.color}` : orderDetails.id;
 
 
   return (
@@ -112,7 +114,7 @@ export default function ScheduledProcessBar({
           style={{
             backgroundColor: baseColor,
           }}
-          title={`${orderDetails.id}: ${processDetails.name} (${durationText})`}
+          title={`${displayName}: ${processDetails.name} (${durationText})`}
         >
           <div className="flex h-full w-full items-center">
               <div className="flex items-center justify-center h-full w-6 bg-black/10">
@@ -120,7 +122,7 @@ export default function ScheduledProcessBar({
               </div>
             <div className="flex items-center gap-2 px-2 pointer-events-none w-full">
               <Icon className="h-4 w-4 shrink-0" />
-              <span className="truncate text-xs font-semibold">{orderDetails.ocn ? `${orderDetails.ocn}-${orderDetails.color}` : orderDetails.id}</span>
+              <span className="truncate text-xs font-semibold">{displayName}</span>
               {item.isSplit && <span className="text-xs opacity-80">({item.quantity})</span>}
             </div>
           </div>
@@ -130,7 +132,7 @@ export default function ScheduledProcessBar({
       <PopoverContent className="w-80" side="right" align="start">
         <div className="grid gap-2 p-2">
           <div className="space-y-1">
-            <h4 className="font-medium leading-none">{orderDetails.id}</h4>
+            <h4 className="font-medium leading-none">{displayName}</h4>
             <p className="text-sm text-muted-foreground">{processDetails.name}</p>
           </div>
           

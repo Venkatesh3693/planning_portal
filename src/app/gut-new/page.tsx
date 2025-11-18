@@ -238,10 +238,15 @@ function GanttPageContent() {
     }
 
     const scheduledQuantities = new Map<string, number>();
+    const scheduledBatches = new Set<string>(); // key: `${orderId}_${processId}_${batchNumber}`
+
     scheduledProcesses.forEach(p => {
         const key = `${p.orderId}_${p.processId}`;
         const currentQty = scheduledQuantities.get(key) || 0;
         scheduledQuantities.set(key, currentQty + p.quantity);
+        if (p.batchNumber) {
+            scheduledBatches.add(`${p.orderId}_${p.processId}_${p.batchNumber}`);
+        }
     });
 
     const orderItems: (Order & { daysToComplete?: number })[] = [];
@@ -273,11 +278,8 @@ function GanttPageContent() {
             const totalBatches = Math.ceil(order.quantity / batchSize);
             for (let i = 0; i < totalBatches; i++) {
                 const batchNumber = i + 1;
-                const scheduledBatches = new Set(scheduledProcesses
-                    .filter(p => p.orderId === order.id && p.processId === selectedProcessId && p.batchNumber)
-                    .map(p => p.batchNumber!)
-                );
-                if (scheduledBatches.has(batchNumber)) continue;
+                const batchKey = `${order.id}_${selectedProcessId}_${batchNumber}`;
+                if (scheduledBatches.has(batchKey)) continue;
                 
                 const currentBatchQty = Math.min(batchSize, order.quantity - (i * batchSize));
                 if (currentBatchQty <= 0) continue;
@@ -712,13 +714,7 @@ function GanttPageContent() {
   };
 
   const handleUndoSchedule = (scheduledProcessId: string) => {
-    setScheduledProcesses(prev => {
-      const processToUnschedule = prev.find(p => p.id === scheduledProcessId);
-      if (processToUnschedule?.parentId && processToUnschedule?.isAutoScheduled) {
-         return prev.filter(p => p.parentId !== processToUnschedule.parentId);
-      }
-      return prev.filter(p => p.id !== scheduledProcessId);
-    });
+    setScheduledProcesses(prev => prev.filter(p => p.id !== scheduledProcessId));
   };
 
   const handleOpenSplitDialog = (process: ScheduledProcess) => {
@@ -1194,4 +1190,5 @@ export default function Home() {
     <GanttPageContent />
   );
 }
+
 
