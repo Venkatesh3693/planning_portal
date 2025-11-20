@@ -283,15 +283,15 @@ function OrderDetailsContent() {
   }, [order, coSelectedDate, syntheticPoRecords]);
 
   const lineIssuedQty = useMemo(() => {
-    if (!coToBeIssuedQty) return null;
+    if (!cutOrderQty) return null;
     const result: SizeBreakdown = { total: 0 };
     SIZES.forEach(size => {
-        const val = Math.floor((coToBeIssuedQty[size] || 0) * 0.8);
+        const val = Math.floor((cutOrderQty[size] || 0) * 0.8);
         result[size] = val;
         result.total += val;
     });
     return result;
-  }, [coToBeIssuedQty]);
+  }, [cutOrderQty]);
 
   const toBeIssuedQty = useMemo(() => {
     if (!lineIssuedQty || !poUpToDate) return null;
@@ -626,19 +626,6 @@ function OrderDetailsContent() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {cutOrderQty && (
-                                    <TableRow>
-                                        <TableCell className="font-medium">Cut Order released</TableCell>
-                                        {SIZES.map(size => (
-                                            <TableCell key={size} className="text-right">
-                                                {(cutOrderQty[size] || 0).toLocaleString()}
-                                            </TableCell>
-                                        ))}
-                                        <TableCell className="text-right font-bold">
-                                            {(cutOrderQty.total || 0).toLocaleString()}
-                                        </TableCell>
-                                    </TableRow>
-                                )}
                                 {poUpToDate && (
                                     <TableRow>
                                         <TableCell className="font-medium">PO up to {coSelectedDate ? `W${getWeek(coSelectedDate)}` : '...'}</TableCell>
@@ -649,6 +636,19 @@ function OrderDetailsContent() {
                                         ))}
                                         <TableCell className="text-right font-bold">
                                             {(poUpToDate.total || 0).toLocaleString()}
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                                {cutOrderQty && (
+                                    <TableRow>
+                                        <TableCell className="font-medium">Cut Order released</TableCell>
+                                        {SIZES.map(size => (
+                                            <TableCell key={size} className="text-right">
+                                                {(cutOrderQty[size] || 0).toLocaleString()}
+                                            </TableCell>
+                                        ))}
+                                        <TableCell className="text-right font-bold">
+                                            {(cutOrderQty.total || 0).toLocaleString()}
                                         </TableCell>
                                     </TableRow>
                                 )}
@@ -795,4 +795,3 @@ export default function OrderDetailsPage() {
         </Suspense>
     );
 }
-
