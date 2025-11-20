@@ -499,7 +499,7 @@ function OrderDetailsContent() {
 
                     <div className="space-y-4 pt-8 border-t">
                         <div className="grid grid-cols-1 md:grid-cols-4 items-end gap-4">
-                            <h3 className="text-lg font-semibold md:col-span-3">Time-based Demand</h3>
+                            <h3 className="text-lg font-semibold md:col-span-3">Time-based alerts</h3>
                              <div className="space-y-2">
                                 <Label htmlFor="date-picker">Select Date</Label>
                                 <DatePicker date={selectedDate} setDate={setSelectedDate} />
