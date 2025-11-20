@@ -394,7 +394,6 @@ function OrderDetailsContent() {
                                 <TableHead key={size} className="text-right">{size}</TableHead>
                             ))}
                             <TableHead className="text-right font-bold">Total</TableHead>
-                            <TableHead className="text-right font-bold">Shipped</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -402,7 +401,6 @@ function OrderDetailsContent() {
                                 <TableCell className="font-medium">PRJ Qty</TableCell>
                                 <TableCell colSpan={SIZES.length}></TableCell>
                                 <TableCell className="text-right font-bold">{(order.totalProjectionQty || 0).toLocaleString()}</TableCell>
-                                <TableCell></TableCell>
                             </TableRow>
                             <TableRow>
                             <TableCell className="font-medium">FRC Qty</TableCell>
@@ -414,7 +412,6 @@ function OrderDetailsContent() {
                             <TableCell className="text-right font-bold">
                                 {(frcQty.total || 0).toLocaleString()}
                             </TableCell>
-                            <TableCell></TableCell>
                             </TableRow>
                             <TableRow>
                             <TableCell className="font-medium">Cut Order Qty</TableCell>
@@ -426,7 +423,6 @@ function OrderDetailsContent() {
                             <TableCell className="text-right font-bold text-destructive">
                                 ({(cutOrderQty?.total || 0).toLocaleString()})
                             </TableCell>
-                             <TableCell></TableCell>
                             </TableRow>
                             {frcAvailable && (
                             <TableRow className="font-semibold">
@@ -439,7 +435,6 @@ function OrderDetailsContent() {
                                 <TableCell className="text-right font-bold">
                                 {(frcAvailable.total || 0).toLocaleString()}
                                 </TableCell>
-                                 <TableCell></TableCell>
                             </TableRow>
                             )}
                             {poQty && (
@@ -453,7 +448,6 @@ function OrderDetailsContent() {
                                 <TableCell className="text-right font-bold">
                                 {(poQty.total || 0).toLocaleString()}
                                 </TableCell>
-                                 <TableCell></TableCell>
                             </TableRow>
                             )}
                             {fcQtyOnly && (
@@ -467,7 +461,6 @@ function OrderDetailsContent() {
                                 <TableCell className="text-right font-bold">
                                 {(fcQtyOnly.total || 0).toLocaleString()}
                                 </TableCell>
-                                <TableCell></TableCell>
                             </TableRow>
                             )}
                             {excessFrc && (
@@ -481,10 +474,20 @@ function OrderDetailsContent() {
                                 <TableCell className={cn("text-right font-bold", (excessFrc.total || 0) < 0 && 'text-destructive')}>
                                 {(excessFrc.total || 0).toLocaleString()}
                                 </TableCell>
-                                 <TableCell className="text-right font-bold">
-                                  {(shippedQty.total || 0).toLocaleString()}
-                                </TableCell>
                             </TableRow>
+                            )}
+                            {shippedQty && (
+                                <TableRow className="font-semibold">
+                                <TableCell>Shipped Qty</TableCell>
+                                {SIZES.map(size => (
+                                    <TableCell key={size} className="text-right">
+                                        {(shippedQty[size] || 0).toLocaleString()}
+                                    </TableCell>
+                                ))}
+                                <TableCell className="text-right font-bold">
+                                    {(shippedQty.total || 0).toLocaleString()}
+                                </TableCell>
+                                </TableRow>
                             )}
                         </TableBody>
                         </Table>
