@@ -635,6 +635,23 @@ function OrderDetailsContent() {
                                         </TableCell>
                                     </TableRow>
                                 )}
+                            </TableBody>
+                        </Table>
+                    </div>
+
+                    <div className="space-y-4 pt-8 border-t">
+                        <h3 className="text-lg font-semibold">Trim status</h3>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Metric</TableHead>
+                                    {SIZES.map(size => (
+                                        <TableHead key={size} className="text-right">{size}</TableHead>
+                                    ))}
+                                    <TableHead className="text-right font-bold">Total</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
                                 {frcWithoutPo && (
                                 <TableRow>
                                     <TableCell className="font-medium">FRC without PO</TableCell>
