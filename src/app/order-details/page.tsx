@@ -349,9 +349,9 @@ function OrderDetailsContent() {
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
-
+        
         <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex-row items-start justify-between">
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   {order && (
                     <>
@@ -406,11 +406,6 @@ function OrderDetailsContent() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            <TableRow>
-                                <TableCell className="font-medium">PRJ Qty</TableCell>
-                                <TableCell colSpan={SIZES.length}></TableCell>
-                                <TableCell className="text-right font-bold">{(order.totalProjectionQty || 0).toLocaleString()}</TableCell>
-                            </TableRow>
                             <TableRow>
                             <TableCell className="font-medium">FRC Qty</TableCell>
                             {SIZES.map(size => (
@@ -724,3 +719,4 @@ export default function OrderDetailsPage() {
         </Suspense>
     );
 }
+
