@@ -80,7 +80,7 @@ function GanttPageContent() {
   } = useSchedule();
 
   const [selectedProcessId, setSelectedProcessId] = useState<string>('sewing');
-  const [viewMode, setViewMode] = useState<'day' | 'hour' | 'week'>('day');
+  const [viewMode, setViewMode] = useState<'day' | 'hour'>('day');
   
   const [filterOcn, setFilterOcn] = useState('');
   const [filterBuyer, setFilterBuyer] = useState<string[]>([]);
@@ -216,7 +216,7 @@ function GanttPageContent() {
             }
 
             const multiplier = slg.outputMultiplier || 1;
-            const dailyOutput = (WORK_DAY_MINUTES * (order.budgetedEfficiency || 85) / 100 * totalTailors * multiplier) / totalSam;
+            const dailyOutput = (WORK_DAY_MINUTES * ((order.budgetedEfficiency || 85) / 100) * totalTailors * multiplier) / totalSam;
 
             if (dailyOutput <= 0) {
                 newMap.set(order.id, Infinity);
@@ -1054,11 +1054,10 @@ function GanttPageContent() {
           </Tabs>
           <div className="flex items-center gap-4">
             {!isPabView && (
-              <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'day' | 'hour' | 'week')}>
+              <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'day' | 'hour')}>
                 <TabsList>
                   <TabsTrigger value="day">Day View</TabsTrigger>
                   <TabsTrigger value="hour">Hour View</TabsTrigger>
-                  <TabsTrigger value="week">Week View</TabsTrigger>
                 </TabsList>
               </Tabs>
             )}
@@ -1132,7 +1131,6 @@ function GanttPageContent() {
                         onProcessClick={handleProcessBarClick}
                         onSplitProcess={handleOpenSplitDialog}
                         viewMode={viewMode}
-                        setViewMode={setViewMode}
                         draggedItem={draggedItem}
                         latestStartDatesMap={latestStartDatesMap}
                         latestSewingStartDateMap={latestSewingStartDateMap}

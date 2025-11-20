@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from 'react';
@@ -15,7 +16,7 @@ type Row = {
   ccNo?: string;
 };
 
-type ViewMode = 'day' | 'hour' | 'week';
+type ViewMode = 'day' | 'hour';
 
 type GanttChartProps = {
   rows: Row[];
@@ -29,7 +30,6 @@ type GanttChartProps = {
   onProcessClick?: (processId: string) => void;
   onSplitProcess: (process: ScheduledProcess) => void;
   viewMode: ViewMode;
-  setViewMode: (mode: ViewMode) => void;
   draggedItem: DraggedItemData | null;
   latestStartDatesMap: Map<string, Date>;
   latestSewingStartDateMap: Map<string, Date>;
@@ -50,9 +50,8 @@ const ROW_HEIGHT_PX = 40;
 const WORKING_HOURS_START = 9;
 const WORKING_HOURS_END = 17;
 const WORKING_HOURS = Array.from({ length: WORKING_HOURS_END - WORKING_HOURS_START }, (_, i) => i + WORKING_HOURS_START);
-const DAY_CELL_WIDTH_INITIAL = 40;
+const DAY_CELL_WIDTH_INITIAL = 60;
 const HOUR_CELL_WIDTH_INITIAL = 56;
-const WEEK_CELL_WIDTH_INITIAL = 120;
 const DAY_VIEW_COLLAPSE_THRESHOLD = 40;
 
 
@@ -77,7 +76,7 @@ const TopLeftCorner = ({ isDayViewCollapsed }: { isDayViewCollapsed: boolean }) 
 const Header = React.forwardRef<
   HTMLDivElement,
   { 
-    timeColumns: { date: Date; type: 'day' | 'hour' | 'week' }[]; 
+    timeColumns: { date: Date; type: 'day' | 'hour' }[]; 
     viewMode: ViewMode; 
     draggedItemLatestStartDate: Date | null; 
     predecessorEndDate: Date | null; 
@@ -113,13 +112,9 @@ const Header = React.forwardRef<
   }, [timeColumns]);
 
   const weekHeaders = React.useMemo(() => {
+    const headers: { name: string; span: number }[] = [];
     if (timeColumns.length === 0) return [];
     
-    if (viewMode === 'week') {
-        return timeColumns.map(col => ({ name: `W${getWeek(col.date, { weekStartsOn: 1 })}`, span: 1 }));
-    }
-
-    const headers: { name: string; span: number }[] = [];
     let currentWeek = -1;
     let span = 0;
     timeColumns.forEach((col, index) => {
@@ -163,7 +158,7 @@ const Header = React.forwardRef<
     return headers;
   }, [timeColumns, viewMode]);
 
-  const topHeaders = viewMode === 'day' || viewMode === 'week' ? monthHeaders : dayHeaders;
+  const topHeaders = viewMode === 'day' ? monthHeaders : dayHeaders;
   
   const gridTemplateColumns = `repeat(${timeColumns.length}, ${cellWidth}px)`;
 
@@ -241,7 +236,6 @@ export default function GanttChart({
   onProcessClick,
   onSplitProcess,
   viewMode,
-  setViewMode,
   draggedItem,
   latestStartDatesMap,
   latestSewingStartDateMap,
@@ -271,7 +265,6 @@ export default function GanttChart({
   const [cellWidth, setCellWidth] = React.useState(() => {
     switch (viewMode) {
       case 'hour': return HOUR_CELL_WIDTH_INITIAL;
-      case 'week': return WEEK_CELL_WIDTH_INITIAL;
       default: return DAY_CELL_WIDTH_INITIAL;
     }
   });
@@ -283,10 +276,6 @@ export default function GanttChart({
       case 'hour':
         setCellWidth(HOUR_CELL_WIDTH_INITIAL);
         setIsDayViewCollapsed(false);
-        break;
-      case 'week':
-        setCellWidth(WEEK_CELL_WIDTH_INITIAL);
-        setIsDayViewCollapsed(true);
         break;
       default:
         setCellWidth(DAY_CELL_WIDTH_INITIAL);
@@ -316,13 +305,6 @@ export default function GanttChart({
 
   const handleResizeEnd = () => {
     if (resizeData.current === null) return;
-    
-    if (viewMode === 'day' && cellWidth < DAY_VIEW_COLLAPSE_THRESHOLD) {
-        setViewMode('week');
-    } else if (viewMode === 'week' && cellWidth >= DAY_VIEW_COLLAPSE_THRESHOLD) {
-        setViewMode('day');
-    }
-
     resizeData.current = null;
     window.removeEventListener('mousemove', handleResizeMove);
     window.removeEventListener('mouseup', handleResizeEnd);
@@ -336,13 +318,6 @@ export default function GanttChart({
   const timeColumns = React.useMemo(() => {
     if (viewMode === 'day') {
       return dates.map(date => ({ date, type: 'day' as const }));
-    }
-    if (viewMode === 'week') {
-        const weekSet = new Set<string>();
-        dates.forEach(d => {
-            weekSet.add(`W${getWeek(d, { weekStartsOn: 1 })}`);
-        });
-        return Array.from(weekSet).map(w => ({ date: dates.find(d => `W${getWeek(d, {weekStartsOn: 1})}` === w)!, type: 'week' as const }));
     }
     const columns: { date: Date; type: 'hour' }[] = [];
     dates.forEach(day => {
@@ -579,7 +554,7 @@ export default function GanttChart({
                           onDragOver={(e) => handleDragOver(e, row.id, col.date)}
                           onDragLeave={handleDragLeave}
                           onDrop={(e) => handleDrop(e, row.id, col.date)}
-                          className={cn('relative border-b border-r border-border/60 flex items-center justify-center',
+                          className={cn('relative border-b border-r border-border/60 flex items-center justify-center p-1',
                               isDragOver ? 'bg-primary/20' : '',
                               row.rowType === 'plan' ? 'bg-blue-50 dark:bg-blue-900/10'
                               : row.rowType === 'efficiency' ? 'bg-orange-50 dark:bg-orange-900/10'
@@ -613,10 +588,6 @@ export default function GanttChart({
                 if (viewMode === 'day') {
                   const startOfTargetDay = startOfDay(date);
                   return timeColumns.findIndex(col => col.date.getTime() === startOfTargetDay.getTime());
-                }
-                if (viewMode === 'week') {
-                    const weekOfDate = getWeek(date, { weekStartsOn: 1 });
-                    return timeColumns.findIndex(col => getWeek(col.date, { weekStartsOn: 1 }) === weekOfDate);
                 }
                 const startOfTargetHour = startOfHour(date);
                 return timeColumns.findIndex(col => col.date.getTime() === startOfTargetHour.getTime());
@@ -662,6 +633,3 @@ export default function GanttChart({
     </div>
   );
 }
-
-
-    
