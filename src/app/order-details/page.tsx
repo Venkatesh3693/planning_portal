@@ -539,7 +539,7 @@ function OrderDetailsContent() {
                                     </TableCell>
                                 </TableRow>
                                 <TableRow>
-                                    <TableCell className="font-medium">FRC GRN before {selectedDate ? `W${getWeek(selectedDate)}` : '...'}</TableCell>
+                                    <TableCell className="font-medium">FRC with CK before {selectedDate ? `W${getWeek(selectedDate)}` : '...'}</TableCell>
                                     {SIZES.map(size => (
                                         <TableCell key={size} className="text-right">
                                             {(frcGrnQty[size] || 0).toLocaleString()}
