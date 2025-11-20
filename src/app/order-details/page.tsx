@@ -119,21 +119,31 @@ function OrderDetailsContent() {
     return result;
   }, [frcQty, cutOrderQty]);
 
-  const poPlusFcQty = useMemo(() => {
-    if (!order?.fcVsFcDetails || order.fcVsFcDetails.length === 0) return null;
+  const { poPlusFcQty, fcQtyOnly } = useMemo(() => {
+    const defaultResult = { poPlusFcQty: null, fcQtyOnly: null };
+    if (!order?.fcVsFcDetails || order.fcVsFcDetails.length === 0) return defaultResult;
     
     const latestSnapshot = [...order.fcVsFcDetails].sort((a,b) => b.snapshotWeek - a.snapshotWeek)[0];
-    const totals: SizeBreakdown = { total: 0 };
-    SIZES.forEach(s => totals[s] = 0);
+    const poFcTotals: SizeBreakdown = { total: 0 };
+    const fcOnlyTotals: SizeBreakdown = { total: 0 };
+
+    SIZES.forEach(s => {
+      poFcTotals[s] = 0;
+      fcOnlyTotals[s] = 0;
+    });
 
     Object.values(latestSnapshot.forecasts).forEach(weekData => {
       SIZES.forEach(size => {
-        totals[size] = (totals[size] || 0) + (weekData[size]?.po || 0) + (weekData[size]?.fc || 0);
+        const poVal = weekData[size]?.po || 0;
+        const fcVal = weekData[size]?.fc || 0;
+        poFcTotals[size] = (poFcTotals[size] || 0) + poVal + fcVal;
+        fcOnlyTotals[size] = (fcOnlyTotals[size] || 0) + fcVal;
       });
-      totals.total += (weekData.total?.po || 0) + (weekData.total?.fc || 0);
+      poFcTotals.total += (weekData.total?.po || 0) + (weekData.total?.fc || 0);
+      fcOnlyTotals.total += (weekData.total?.fc || 0);
     });
 
-    return totals;
+    return { poPlusFcQty: poFcTotals, fcQtyOnly: fcOnlyTotals };
 
   }, [order]);
   
@@ -254,6 +264,10 @@ function OrderDetailsContent() {
 
   const producedQty = useMemo(() => {
     return order?.produced || { total: 0 };
+  }, [order]);
+
+  const shippedQty = useMemo(() => {
+    return order?.shipped || { total: 0 };
   }, [order]);
 
   const poLeftToProduce = useMemo(() => {
@@ -380,9 +394,16 @@ function OrderDetailsContent() {
                                 <TableHead key={size} className="text-right">{size}</TableHead>
                             ))}
                             <TableHead className="text-right font-bold">Total</TableHead>
+                            <TableHead className="text-right font-bold">Shipped</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
+                            <TableRow>
+                                <TableCell className="font-medium">PRJ Qty</TableCell>
+                                <TableCell colSpan={SIZES.length}></TableCell>
+                                <TableCell className="text-right font-bold">{(order.totalProjectionQty || 0).toLocaleString()}</TableCell>
+                                <TableCell></TableCell>
+                            </TableRow>
                             <TableRow>
                             <TableCell className="font-medium">FRC Qty</TableCell>
                             {SIZES.map(size => (
@@ -393,6 +414,7 @@ function OrderDetailsContent() {
                             <TableCell className="text-right font-bold">
                                 {(frcQty.total || 0).toLocaleString()}
                             </TableCell>
+                            <TableCell></TableCell>
                             </TableRow>
                             <TableRow>
                             <TableCell className="font-medium">Cut Order Qty</TableCell>
@@ -404,6 +426,7 @@ function OrderDetailsContent() {
                             <TableCell className="text-right font-bold text-destructive">
                                 ({(cutOrderQty?.total || 0).toLocaleString()})
                             </TableCell>
+                             <TableCell></TableCell>
                             </TableRow>
                             {frcAvailable && (
                             <TableRow className="font-semibold">
@@ -416,6 +439,7 @@ function OrderDetailsContent() {
                                 <TableCell className="text-right font-bold">
                                 {(frcAvailable.total || 0).toLocaleString()}
                                 </TableCell>
+                                 <TableCell></TableCell>
                             </TableRow>
                             )}
                             {poQty && (
@@ -429,6 +453,21 @@ function OrderDetailsContent() {
                                 <TableCell className="text-right font-bold">
                                 {(poQty.total || 0).toLocaleString()}
                                 </TableCell>
+                                 <TableCell></TableCell>
+                            </TableRow>
+                            )}
+                            {fcQtyOnly && (
+                            <TableRow>
+                                <TableCell className="font-medium">FC Qty</TableCell>
+                                {SIZES.map(size => (
+                                <TableCell key={size} className="text-right">
+                                    {(fcQtyOnly[size] || 0).toLocaleString()}
+                                </TableCell>
+                                ))}
+                                <TableCell className="text-right font-bold">
+                                {(fcQtyOnly.total || 0).toLocaleString()}
+                                </TableCell>
+                                <TableCell></TableCell>
                             </TableRow>
                             )}
                             {excessFrc && (
@@ -441,6 +480,9 @@ function OrderDetailsContent() {
                                 ))}
                                 <TableCell className={cn("text-right font-bold", (excessFrc.total || 0) < 0 && 'text-destructive')}>
                                 {(excessFrc.total || 0).toLocaleString()}
+                                </TableCell>
+                                 <TableCell className="text-right font-bold">
+                                  {(shippedQty.total || 0).toLocaleString()}
                                 </TableCell>
                             </TableRow>
                             )}
