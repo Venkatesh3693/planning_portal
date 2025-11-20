@@ -232,7 +232,7 @@ function OrderDetailsContent() {
     return result;
   }, [frcQty, poPlusFcQty]);
 
-  const coPendingQty = useMemo(() => {
+  const coToBeIssuedQty = useMemo(() => {
       const result: SizeBreakdown = SIZES.reduce((acc, s) => ({...acc, [s]: 0}), {total: 0} as SizeBreakdown);
       if (!order || !cutOrderQty || !coSelectedDate) {
           return result;
@@ -261,6 +261,47 @@ function OrderDetailsContent() {
       return result;
 
   }, [order, cutOrderQty, coSelectedDate, syntheticPoRecords]);
+  
+  const poUpToDate = useMemo(() => {
+      const result: SizeBreakdown = SIZES.reduce((acc, s) => ({...acc, [s]: 0}), {total: 0} as SizeBreakdown);
+       if (!order || !coSelectedDate) {
+          return result;
+      }
+      const selectedWeek = getWeek(coSelectedDate);
+      syntheticPoRecords.forEach(po => {
+          if (po.orderId === order.id) {
+              const ehdWeek = parseInt(po.originalEhdWeek.replace('W', ''));
+              if (ehdWeek <= selectedWeek) {
+                  SIZES.forEach(size => {
+                      result[size] = (result[size] || 0) + (po.quantities[size] || 0);
+                  });
+                  result.total += po.quantities.total;
+              }
+          }
+      });
+      return result;
+  }, [order, coSelectedDate, syntheticPoRecords]);
+
+  const lineIssuedQty = useMemo(() => {
+    if (!coToBeIssuedQty) return null;
+    const result: SizeBreakdown = { total: 0 };
+    SIZES.forEach(size => {
+        const val = Math.floor((coToBeIssuedQty[size] || 0) * 0.8);
+        result[size] = val;
+        result.total += val;
+    });
+    return result;
+  }, [coToBeIssuedQty]);
+
+  const toBeIssuedQty = useMemo(() => {
+    if (!lineIssuedQty || !poUpToDate) return null;
+    const result: SizeBreakdown = { total: 0 };
+    SIZES.forEach(size => {
+      result[size] = (lineIssuedQty[size] || 0) - (poUpToDate[size] || 0);
+    });
+    result.total = lineIssuedQty.total - poUpToDate.total;
+    return result;
+  }, [lineIssuedQty, poUpToDate]);
 
   const producedQty = useMemo(() => {
     return order?.produced || { total: 0 };
@@ -352,16 +393,12 @@ function OrderDetailsContent() {
         
         <Card>
             <CardHeader className="flex-row items-start justify-between">
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="flex items-center gap-4">
                   {order && (
                     <>
                       <div className="p-3 bg-muted rounded-md text-center">
                           <div className="font-medium text-muted-foreground text-xs">Selection Qty</div>
                           <div className="font-semibold text-2xl">{(order.quantity || 0).toLocaleString()}</div>
-                      </div>
-                      <div className="p-3 bg-muted rounded-md text-center">
-                          <div className="font-medium text-muted-foreground text-xs">PRJ Qty</div>
-                          <div className="font-semibold text-2xl">{(order.totalProjectionQty || 0).toLocaleString()}</div>
                       </div>
                     </>
                   )}
@@ -482,7 +519,7 @@ function OrderDetailsContent() {
                             )}
                             {shippedQty && (
                                 <TableRow className="font-semibold">
-                                <TableCell>Shipped Qty</TableCell>
+                                <TableCell>Shipped</TableCell>
                                 {SIZES.map(size => (
                                     <TableCell key={size} className="text-right">
                                         {(shippedQty[size] || 0).toLocaleString()}
@@ -602,16 +639,55 @@ function OrderDetailsContent() {
                                         </TableCell>
                                     </TableRow>
                                 )}
-                                {coPendingQty && (
-                                     <TableRow>
-                                        <TableCell className="font-medium">Cut Order - PO Qty</TableCell>
+                                {poUpToDate && (
+                                    <TableRow>
+                                        <TableCell className="font-medium">PO up to {coSelectedDate ? `W${getWeek(coSelectedDate)}` : '...'}</TableCell>
                                         {SIZES.map(size => (
-                                            <TableCell key={size} className={cn("text-right", (coPendingQty[size] || 0) < 0 && 'text-destructive')}>
-                                                {(coPendingQty[size] || 0).toLocaleString()}
+                                            <TableCell key={size} className="text-right">
+                                                {(poUpToDate[size] || 0).toLocaleString()}
                                             </TableCell>
                                         ))}
-                                        <TableCell className={cn("text-right font-bold", (coPendingQty.total || 0) < 0 && 'text-destructive')}>
-                                            {(coPendingQty.total || 0).toLocaleString()}
+                                        <TableCell className="text-right font-bold">
+                                            {(poUpToDate.total || 0).toLocaleString()}
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                                {coToBeIssuedQty && (
+                                     <TableRow>
+                                        <TableCell className="font-medium">CO to be issued</TableCell>
+                                        {SIZES.map(size => (
+                                            <TableCell key={size} className={cn("text-right", (coToBeIssuedQty[size] || 0) < 0 && 'text-destructive')}>
+                                                {(coToBeIssuedQty[size] || 0).toLocaleString()}
+                                            </TableCell>
+                                        ))}
+                                        <TableCell className={cn("text-right font-bold", (coToBeIssuedQty.total || 0) < 0 && 'text-destructive')}>
+                                            {(coToBeIssuedQty.total || 0).toLocaleString()}
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                                 {lineIssuedQty && (
+                                    <TableRow>
+                                        <TableCell className="font-medium">Line issued</TableCell>
+                                        {SIZES.map(size => (
+                                            <TableCell key={size} className="text-right">
+                                                {(lineIssuedQty[size] || 0).toLocaleString()}
+                                            </TableCell>
+                                        ))}
+                                        <TableCell className="text-right font-bold">
+                                            {(lineIssuedQty.total || 0).toLocaleString()}
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                                {toBeIssuedQty && (
+                                    <TableRow className="font-semibold">
+                                        <TableCell>To be Issued</TableCell>
+                                        {SIZES.map(size => (
+                                            <TableCell key={size} className={cn("text-right", (toBeIssuedQty[size] || 0) < 0 && 'text-destructive')}>
+                                                {(toBeIssuedQty[size] || 0).toLocaleString()}
+                                            </TableCell>
+                                        ))}
+                                        <TableCell className={cn("text-right font-bold", (toBeIssuedQty.total || 0) < 0 && 'text-destructive')}>
+                                            {(toBeIssuedQty.total || 0).toLocaleString()}
                                         </TableCell>
                                     </TableRow>
                                 )}
