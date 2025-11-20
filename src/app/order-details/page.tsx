@@ -307,10 +307,6 @@ function OrderDetailsContent() {
     return order?.produced || { total: 0 };
   }, [order]);
 
-  const shippedQty = useMemo(() => {
-    return order?.shipped || { total: 0 };
-  }, [order]);
-
   const poLeftToProduce = useMemo(() => {
     if (!poQty || !producedQty) return null;
     const result: SizeBreakdown = { total: 0 };
@@ -320,6 +316,10 @@ function OrderDetailsContent() {
     result.total = poQty.total - producedQty.total;
     return result;
   }, [poQty, producedQty]);
+
+  const shippedQty = useMemo(() => {
+    return order?.shipped || { total: 0 };
+  }, [order]);
 
   const frcWithoutPo = useMemo(() => {
     if (!poQty) return null;
@@ -367,6 +367,73 @@ function OrderDetailsContent() {
           router.push(`/order-details?orderId=${newOrder.id}`);
       }
   };
+  
+  const materialGrnQty = useMemo(() => {
+    if (!poUpToDate) return null;
+    const result: SizeBreakdown = { total: 0 };
+    SIZES.forEach(size => {
+      const val = Math.floor((poUpToDate[size] || 0) * 0.9); // Mock 90%
+      result[size] = val;
+      result.total += val;
+    });
+    return result;
+  }, [poUpToDate]);
+
+  const extraMaterialRequired = useMemo(() => {
+    if (!poUpToDate || !materialGrnQty) return null;
+    const result: SizeBreakdown = { total: 0 };
+    SIZES.forEach(size => {
+      result[size] = (poUpToDate[size] || 0) - (materialGrnQty[size] || 0);
+    });
+    result.total = poUpToDate.total - materialGrnQty.total;
+    return result;
+  }, [poUpToDate, materialGrnQty]);
+
+  const wipQty = useMemo(() => {
+    if (!lineIssuedQty) return null;
+    const result: SizeBreakdown = { total: 0 };
+    SIZES.forEach(size => {
+      const val = Math.floor((lineIssuedQty[size] || 0) * 0.75); // Mock 75% of line issued
+      result[size] = val;
+      result.total += val;
+    });
+    return result;
+  }, [lineIssuedQty]);
+
+  const fgScannedQty = useMemo(() => {
+    if (!wipQty) return null;
+    const result: SizeBreakdown = { total: 0 };
+    SIZES.forEach(size => {
+      const val = Math.floor((wipQty[size] || 0) * 0.95); // Mock 95% of WIP
+      result[size] = val;
+      result.total += val;
+    });
+    return result;
+  }, [wipQty]);
+
+  const toBeScannedQty = useMemo(() => {
+    if (!fgScannedQty || !poUpToDate) return null;
+    const result: SizeBreakdown = { total: 0 };
+    SIZES.forEach(size => {
+      result[size] = (poUpToDate[size] || 0) - (fgScannedQty[size] || 0);
+    });
+    result.total = poUpToDate.total - fgScannedQty.total;
+    return result;
+  }, [fgScannedQty, poUpToDate]);
+  
+  const fgStockAndShippedQty = useMemo(() => {
+      return shippedQty; // Mocking this as equal to shipped for now
+  }, [shippedQty]);
+
+  const toBeMappedQty = useMemo(() => {
+    if (!fgStockAndShippedQty || !poUpToDate) return null;
+    const result: SizeBreakdown = { total: 0 };
+    SIZES.forEach(size => {
+      result[size] = (poUpToDate[size] || 0) - (fgStockAndShippedQty[size] || 0);
+    });
+    result.total = poUpToDate.total - fgStockAndShippedQty.total;
+    return result;
+  }, [fgStockAndShippedQty, poUpToDate]);
 
 
   if (!isScheduleLoaded) {
@@ -392,13 +459,17 @@ function OrderDetailsContent() {
         </Breadcrumb>
         
         <Card>
-            <CardHeader className="flex-row items-start justify-between">
+            <CardHeader className="flex-row items-center justify-between">
                 <div className="flex items-center gap-4">
                   {order && (
                     <>
                       <div className="p-3 bg-muted rounded-md text-center">
                           <div className="font-medium text-muted-foreground text-xs">Selection Qty</div>
                           <div className="font-semibold text-2xl">{(order.quantity || 0).toLocaleString()}</div>
+                      </div>
+                       <div className="p-3 bg-muted rounded-md text-center">
+                          <div className="font-medium text-muted-foreground text-xs">PRJ Qty</div>
+                          <div className="font-semibold text-2xl">{(order.totalProjectionQty || 0).toLocaleString()}</div>
                       </div>
                     </>
                   )}
@@ -609,7 +680,7 @@ function OrderDetailsContent() {
 
                     <div className="space-y-4 pt-8 border-t">
                         <div className="grid grid-cols-1 md:grid-cols-4 items-end gap-4">
-                            <h3 className="text-lg font-semibold md:col-span-3">Time-based Cut Order & Production</h3>
+                            <h3 className="text-lg font-semibold md:col-span-3">Time-based Cut Order &amp; Production</h3>
                              <div className="space-y-2">
                                 <Label htmlFor="co-date-picker">Select Date</Label>
                                 <DatePicker date={coSelectedDate} setDate={setCoSelectedDate} />
@@ -714,6 +785,110 @@ function OrderDetailsContent() {
                                             {(poLeftToProduce.total || 0).toLocaleString()}
                                         </TableCell>
                                     </TableRow>
+                                )}
+                                {frcWithGrn && (
+                                <TableRow>
+                                    <TableCell className="font-medium">FRC with GRN</TableCell>
+                                    {SIZES.map(size => (
+                                        <TableCell key={size} className="text-right">
+                                            {(frcWithGrn[size] || 0).toLocaleString()}
+                                        </TableCell>
+                                    ))}
+                                    <TableCell className="text-right font-bold">
+                                        {(frcWithGrn.total || 0).toLocaleString()}
+                                    </TableCell>
+                                </TableRow>
+                                )}
+                                {materialGrnQty && (
+                                <TableRow>
+                                    <TableCell className="font-medium">Material GRN</TableCell>
+                                    {SIZES.map(size => (
+                                        <TableCell key={size} className="text-right">
+                                            {(materialGrnQty[size] || 0).toLocaleString()}
+                                        </TableCell>
+                                    ))}
+                                    <TableCell className="text-right font-bold">
+                                        {(materialGrnQty.total || 0).toLocaleString()}
+                                    </TableCell>
+                                </TableRow>
+                                )}
+                                {extraMaterialRequired && (
+                                <TableRow className="font-semibold">
+                                    <TableCell>Extra Material required</TableCell>
+                                    {SIZES.map(size => (
+                                        <TableCell key={size} className={cn("text-right", (extraMaterialRequired[size] || 0) > 0 && 'text-destructive')}>
+                                            {(extraMaterialRequired[size] || 0).toLocaleString()}
+                                        </TableCell>
+                                    ))}
+                                    <TableCell className={cn("text-right font-bold", extraMaterialRequired.total > 0 && 'text-destructive')}>
+                                        {(extraMaterialRequired.total || 0).toLocaleString()}
+                                    </TableCell>
+                                </TableRow>
+                                )}
+                                {wipQty && (
+                                <TableRow>
+                                    <TableCell className="font-medium">WIP</TableCell>
+                                    {SIZES.map(size => (
+                                        <TableCell key={size} className="text-right">
+                                            {(wipQty[size] || 0).toLocaleString()}
+                                        </TableCell>
+                                    ))}
+                                    <TableCell className="text-right font-bold">
+                                        {(wipQty.total || 0).toLocaleString()}
+                                    </TableCell>
+                                </TableRow>
+                                )}
+                                {fgScannedQty && (
+                                <TableRow>
+                                    <TableCell className="font-medium">FG scanned</TableCell>
+                                    {SIZES.map(size => (
+                                        <TableCell key={size} className="text-right">
+                                            {(fgScannedQty[size] || 0).toLocaleString()}
+                                        </TableCell>
+                                    ))}
+                                    <TableCell className="text-right font-bold">
+                                        {(fgScannedQty.total || 0).toLocaleString()}
+                                    </TableCell>
+                                </TableRow>
+                                )}
+                                {toBeScannedQty && (
+                                <TableRow className="font-semibold">
+                                    <TableCell>To be scanned</TableCell>
+                                    {SIZES.map(size => (
+                                        <TableCell key={size} className={cn("text-right", (toBeScannedQty[size] || 0) > 0 && 'text-destructive')}>
+                                            {(toBeScannedQty[size] || 0).toLocaleString()}
+                                        </TableCell>
+                                    ))}
+                                    <TableCell className={cn("text-right font-bold", toBeScannedQty.total > 0 && 'text-destructive')}>
+                                        {(toBeScannedQty.total || 0).toLocaleString()}
+                                    </TableCell>
+                                </TableRow>
+                                )}
+                                {fgStockAndShippedQty && (
+                                <TableRow>
+                                    <TableCell className="font-medium">FG Stock + Shipped</TableCell>
+                                    {SIZES.map(size => (
+                                        <TableCell key={size} className="text-right">
+                                            {(fgStockAndShippedQty[size] || 0).toLocaleString()}
+                                        </TableCell>
+                                    ))}
+                                    <TableCell className="text-right font-bold">
+                                        {(fgStockAndShippedQty.total || 0).toLocaleString()}
+                                    </TableCell>
+                                </TableRow>
+                                )}
+                                {toBeMappedQty && (
+                                <TableRow className="font-semibold">
+                                    <TableCell>To be mapped</TableCell>
+                                    {SIZES.map(size => (
+                                        <TableCell key={size} className={cn("text-right", (toBeMappedQty[size] || 0) > 0 && 'text-destructive')}>
+                                            {(toBeMappedQty[size] || 0).toLocaleString()}
+                                        </TableCell>
+                                    ))}
+                                    <TableCell className={cn("text-right font-bold", toBeMappedQty.total > 0 && 'text-destructive')}>
+                                        {(toBeMappedQty.total || 0).toLocaleString()}
+                                    </TableCell>
+                                </TableRow>
                                 )}
                             </TableBody>
                         </Table>
