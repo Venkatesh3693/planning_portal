@@ -382,9 +382,19 @@ function OrderDetailsContent() {
                         </Select>
                     </div>
                 </div>
-                
+
                 {order ? (
                   <>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div className="p-3 bg-muted rounded-md text-center">
+                            <div className="font-medium text-muted-foreground text-xs">Selection Qty</div>
+                            <div className="font-semibold text-2xl">{(order.quantity || 0).toLocaleString()}</div>
+                        </div>
+                        <div className="p-3 bg-muted rounded-md text-center">
+                            <div className="font-medium text-muted-foreground text-xs">PRJ Qty</div>
+                            <div className="font-semibold text-2xl">{(order.totalProjectionQty || 0).toLocaleString()}</div>
+                        </div>
+                    </div>
                     {frcQty ? (
                         <Table>
                         <TableHeader>
