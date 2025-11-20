@@ -351,18 +351,26 @@ function OrderDetailsContent() {
         </Breadcrumb>
 
         <Card>
-            <CardHeader>
-              <CardTitle>Order Details {order ? `: ${order.ocn} - ${order.color}`: ''}</CardTitle>
-              <CardDescription>
-                A detailed breakdown of the FRC, PO, and inventory quantities for this order.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-8">
-                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <CardHeader className="flex flex-row items-center justify-between">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  {order && (
+                    <>
+                      <div className="p-3 bg-muted rounded-md text-center">
+                          <div className="font-medium text-muted-foreground text-xs">Selection Qty</div>
+                          <div className="font-semibold text-2xl">{(order.quantity || 0).toLocaleString()}</div>
+                      </div>
+                      <div className="p-3 bg-muted rounded-md text-center">
+                          <div className="font-medium text-muted-foreground text-xs">PRJ Qty</div>
+                          <div className="font-semibold text-2xl">{(order.totalProjectionQty || 0).toLocaleString()}</div>
+                      </div>
+                    </>
+                  )}
+                </div>
+                 <div className="flex items-center gap-4">
                     <div className="space-y-2">
                         <Label htmlFor="cc-select">CC No.</Label>
                         <Select value={selectedCc} onValueChange={handleCcChange}>
-                            <SelectTrigger id="cc-select">
+                            <SelectTrigger id="cc-select" className="w-[180px]">
                                 <SelectValue placeholder="Select CC" />
                             </SelectTrigger>
                             <SelectContent>
@@ -373,7 +381,7 @@ function OrderDetailsContent() {
                     <div className="space-y-2">
                         <Label htmlFor="color-select">Color</Label>
                         <Select value={selectedColor} onValueChange={handleColorChange} disabled={!selectedCc}>
-                            <SelectTrigger id="color-select">
+                            <SelectTrigger id="color-select" className="w-[180px]">
                                 <SelectValue placeholder="Select Color" />
                             </SelectTrigger>
                             <SelectContent>
@@ -382,19 +390,10 @@ function OrderDetailsContent() {
                         </Select>
                     </div>
                 </div>
-
+            </CardHeader>
+            <CardContent className="space-y-8">
                 {order ? (
                   <>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div className="p-3 bg-muted rounded-md text-center">
-                            <div className="font-medium text-muted-foreground text-xs">Selection Qty</div>
-                            <div className="font-semibold text-2xl">{(order.quantity || 0).toLocaleString()}</div>
-                        </div>
-                        <div className="p-3 bg-muted rounded-md text-center">
-                            <div className="font-medium text-muted-foreground text-xs">PRJ Qty</div>
-                            <div className="font-semibold text-2xl">{(order.totalProjectionQty || 0).toLocaleString()}</div>
-                        </div>
-                    </div>
                     {frcQty ? (
                         <Table>
                         <TableHeader>
