@@ -600,7 +600,7 @@ function OrderDetailsContent() {
                                 )}
                                 {coPendingQty && (
                                      <TableRow>
-                                        <TableCell className="font-medium">CO pending</TableCell>
+                                        <TableCell className="font-medium">Cut Order - PO Qty</TableCell>
                                         {SIZES.map(size => (
                                             <TableCell key={size} className={cn("text-right", (coPendingQty[size] || 0) < 0 && 'text-destructive')}>
                                                 {(coPendingQty[size] || 0).toLocaleString()}
