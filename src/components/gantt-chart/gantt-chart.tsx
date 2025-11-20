@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import * as React from 'react';
@@ -16,7 +15,7 @@ type Row = {
   ccNo?: string;
 };
 
-type ViewMode = 'day' | 'hour';
+type ViewMode = 'day' | 'hour' | 'week';
 
 type GanttChartProps = {
   rows: Row[];
@@ -30,6 +29,7 @@ type GanttChartProps = {
   onProcessClick?: (processId: string) => void;
   onSplitProcess: (process: ScheduledProcess) => void;
   viewMode: ViewMode;
+  setViewMode: (mode: ViewMode) => void;
   draggedItem: DraggedItemData | null;
   latestStartDatesMap: Map<string, Date>;
   latestSewingStartDateMap: Map<string, Date>;
@@ -52,6 +52,7 @@ const WORKING_HOURS_END = 17;
 const WORKING_HOURS = Array.from({ length: WORKING_HOURS_END - WORKING_HOURS_START }, (_, i) => i + WORKING_HOURS_START);
 const DAY_CELL_WIDTH_INITIAL = 40;
 const HOUR_CELL_WIDTH_INITIAL = 56;
+const WEEK_CELL_WIDTH_INITIAL = 120;
 const DAY_VIEW_COLLAPSE_THRESHOLD = 40;
 
 
@@ -76,7 +77,7 @@ const TopLeftCorner = ({ isDayViewCollapsed }: { isDayViewCollapsed: boolean }) 
 const Header = React.forwardRef<
   HTMLDivElement,
   { 
-    timeColumns: { date: Date; type: 'day' | 'hour' }[]; 
+    timeColumns: { date: Date; type: 'day' | 'hour' | 'week' }[]; 
     viewMode: ViewMode; 
     draggedItemLatestStartDate: Date | null; 
     predecessorEndDate: Date | null; 
@@ -112,7 +113,12 @@ const Header = React.forwardRef<
   }, [timeColumns]);
 
   const weekHeaders = React.useMemo(() => {
-    if (viewMode !== 'day' || timeColumns.length === 0) return [];
+    if (timeColumns.length === 0) return [];
+    
+    if (viewMode === 'week') {
+        return timeColumns.map(col => ({ name: `W${getWeek(col.date, { weekStartsOn: 1 })}`, span: 1 }));
+    }
+
     const headers: { name: string; span: number }[] = [];
     let currentWeek = -1;
     let span = 0;
@@ -157,7 +163,7 @@ const Header = React.forwardRef<
     return headers;
   }, [timeColumns, viewMode]);
 
-  const topHeaders = viewMode === 'day' ? monthHeaders : dayHeaders;
+  const topHeaders = viewMode === 'day' || viewMode === 'week' ? monthHeaders : dayHeaders;
   
   const gridTemplateColumns = `repeat(${timeColumns.length}, ${cellWidth}px)`;
 
@@ -235,6 +241,7 @@ export default function GanttChart({
   onProcessClick,
   onSplitProcess,
   viewMode,
+  setViewMode,
   draggedItem,
   latestStartDatesMap,
   latestSewingStartDateMap,
@@ -261,13 +268,30 @@ export default function GanttChart({
   const [sidebarWidth, setSidebarWidth] = React.useState(150);
   const [isDayViewCollapsed, setIsDayViewCollapsed] = React.useState(false);
   
-  const [cellWidth, setCellWidth] = React.useState(viewMode === 'day' ? DAY_CELL_WIDTH_INITIAL : HOUR_CELL_WIDTH_INITIAL);
+  const [cellWidth, setCellWidth] = React.useState(() => {
+    switch (viewMode) {
+      case 'hour': return HOUR_CELL_WIDTH_INITIAL;
+      case 'week': return WEEK_CELL_WIDTH_INITIAL;
+      default: return DAY_CELL_WIDTH_INITIAL;
+    }
+  });
 
   const resizeData = React.useRef<{ startIndex: number, startX: number, startWidth: number } | null>(null);
 
   React.useEffect(() => {
-    setCellWidth(viewMode === 'day' ? DAY_CELL_WIDTH_INITIAL : HOUR_CELL_WIDTH_INITIAL);
-    if(viewMode === 'hour') setIsDayViewCollapsed(false);
+    switch (viewMode) {
+      case 'hour':
+        setCellWidth(HOUR_CELL_WIDTH_INITIAL);
+        setIsDayViewCollapsed(false);
+        break;
+      case 'week':
+        setCellWidth(WEEK_CELL_WIDTH_INITIAL);
+        setIsDayViewCollapsed(true);
+        break;
+      default:
+        setCellWidth(DAY_CELL_WIDTH_INITIAL);
+        setIsDayViewCollapsed(false);
+    }
   }, [viewMode]);
   
   const handleResizeStart = (index: number, startX: number) => {
@@ -280,13 +304,25 @@ export default function GanttChart({
     if (!resizeData.current) return;
     const dx = e.clientX - resizeData.current.startX;
     const newWidth = resizeData.current.startWidth + dx;
+    
     setCellWidth(newWidth);
+    
+    if (viewMode === 'day' && newWidth < DAY_VIEW_COLLAPSE_THRESHOLD) {
+      setIsDayViewCollapsed(true);
+    } else if (viewMode === 'day') {
+      setIsDayViewCollapsed(false);
+    }
   };
 
   const handleResizeEnd = () => {
-    if (viewMode === 'day') {
-        setIsDayViewCollapsed(cellWidth < DAY_VIEW_COLLAPSE_THRESHOLD);
+    if (resizeData.current === null) return;
+    
+    if (viewMode === 'day' && cellWidth < DAY_VIEW_COLLAPSE_THRESHOLD) {
+        setViewMode('week');
+    } else if (viewMode === 'week' && cellWidth >= DAY_VIEW_COLLAPSE_THRESHOLD) {
+        setViewMode('day');
     }
+
     resizeData.current = null;
     window.removeEventListener('mousemove', handleResizeMove);
     window.removeEventListener('mouseup', handleResizeEnd);
@@ -300,6 +336,13 @@ export default function GanttChart({
   const timeColumns = React.useMemo(() => {
     if (viewMode === 'day') {
       return dates.map(date => ({ date, type: 'day' as const }));
+    }
+    if (viewMode === 'week') {
+        const weekSet = new Set<string>();
+        dates.forEach(d => {
+            weekSet.add(`W${getWeek(d, { weekStartsOn: 1 })}`);
+        });
+        return Array.from(weekSet).map(w => ({ date: dates.find(d => `W${getWeek(d, {weekStartsOn: 1})}` === w)!, type: 'week' as const }));
     }
     const columns: { date: Date; type: 'hour' }[] = [];
     dates.forEach(day => {
@@ -571,6 +614,10 @@ export default function GanttChart({
                   const startOfTargetDay = startOfDay(date);
                   return timeColumns.findIndex(col => col.date.getTime() === startOfTargetDay.getTime());
                 }
+                if (viewMode === 'week') {
+                    const weekOfDate = getWeek(date, { weekStartsOn: 1 });
+                    return timeColumns.findIndex(col => getWeek(col.date, { weekStartsOn: 1 }) === weekOfDate);
+                }
                 const startOfTargetHour = startOfHour(date);
                 return timeColumns.findIndex(col => col.date.getTime() === startOfTargetHour.getTime());
               };
@@ -615,3 +662,6 @@ export default function GanttChart({
     </div>
   );
 }
+
+
+    

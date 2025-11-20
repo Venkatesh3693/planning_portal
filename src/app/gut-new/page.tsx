@@ -80,7 +80,7 @@ function GanttPageContent() {
   } = useSchedule();
 
   const [selectedProcessId, setSelectedProcessId] = useState<string>('sewing');
-  const [viewMode, setViewMode] = useState<'day' | 'hour'>('day');
+  const [viewMode, setViewMode] = useState<'day' | 'hour' | 'week'>('day');
   
   const [filterOcn, setFilterOcn] = useState('');
   const [filterBuyer, setFilterBuyer] = useState<string[]>([]);
@@ -234,74 +234,57 @@ function GanttPageContent() {
 
   const { unplannedOrderItems, unplannedBatches } = useMemo(() => {
     if (selectedProcessId === 'pab' || !isScheduleLoaded) {
-        return { unplannedOrderItems: [], unplannedBatches: [] };
+      return { unplannedOrderItems: [], unplannedBatches: [] };
     }
 
     const scheduledBatches = new Set<string>(); // key: `${orderId}_${processId}_${batchNumber}`
     const scheduledQuantities = new Map<string, number>(); // key: `${orderId}_${processId}`
 
     scheduledProcesses.forEach(p => {
-        if (p.processId === selectedProcessId) {
-            if (p.isSplit && p.batchNumber) {
-                scheduledBatches.add(`${p.orderId}_${p.processId}_${p.batchNumber}`);
-            }
-            const key = `${p.orderId}_${p.processId}`;
-            scheduledQuantities.set(key, (scheduledQuantities.get(key) || 0) + p.quantity);
+      if (p.processId === selectedProcessId) {
+        if (p.isSplit && p.batchNumber) {
+          scheduledBatches.add(`${p.orderId}_${p.processId}_${p.batchNumber}`);
         }
+        const key = `${p.orderId}_${p.processId}`;
+        scheduledQuantities.set(key, (scheduledQuantities.get(key) || 0) + p.quantity);
+      }
     });
 
     const orderItems: (Order & { daysToComplete?: number })[] = [];
     const batches: UnplannedBatch[] = [];
-    
+
     for (const order of orders) {
-        if (appMode === 'gut-new' && order.orderType !== 'Forecasted') continue;
-        if (appMode !== 'gut-new' && order.orderType !== 'Firm PO') continue;
+      if (appMode === 'gut-new' && order.orderType !== 'Forecasted') continue;
+      if (appMode !== 'gut-new' && order.orderType !== 'Firm PO') continue;
 
-        if (!order.processIds.includes(selectedProcessId)) continue;
+      if (!order.processIds.includes(selectedProcessId)) continue;
 
-        const isSplit = splitOrderProcesses[`${order.id}_${selectedProcessId}`];
+      const isSplit = splitOrderProcesses[`${order.id}_${selectedProcessId}`];
 
-        if (isSplit) {
-            const batchSize = selectedProcessId === PACKING_PROCESS_ID 
-                ? (packingBatchSizes[order.id] || 0) 
-                : (processBatchSizes[order.id] || 0);
-
-            if (batchSize > 0 && (order.orderType === 'Firm PO' || selectedProcessId === 'sewing')) {
-                const totalBatches = Math.ceil(order.quantity / batchSize);
-                for (let i = 0; i < totalBatches; i++) {
-                    const batchNumber = i + 1;
-                    const batchKey = `${order.id}_${selectedProcessId}_${batchNumber}`;
-                    
-                    if (scheduledBatches.has(batchKey)) continue;
-                    
-                    const currentBatchQty = (i < totalBatches - 1) ? batchSize : order.quantity - (i * batchSize);
-                    if (currentBatchQty <= 0) continue;
-
-                    const dateMapKey = `${order.id}-${selectedProcessId}-${batchNumber}`;
-                    const latestStartDate = (selectedProcessId === SEWING_PROCESS_ID)
-                        ? latestSewingStartDateMap.get(order.id)
-                        : latestStartDatesMap.get(dateMapKey);
-
-                    if (latestStartDate) {
-                        batches.push({
-                            orderId: order.id,
-                            processId: selectedProcessId,
-                            quantity: currentBatchQty,
-                            batchNumber: batchNumber,
-                            totalBatches: totalBatches,
-                            latestStartDate: latestStartDate,
-                        });
-                    }
-                }
+      if (isSplit) {
+        const batchSize = selectedProcessId === PACKING_PROCESS_ID ? (packingBatchSizes[order.id] || 0) : (processBatchSizes[order.id] || 0);
+        if (batchSize > 0 && (order.orderType === 'Firm PO' || selectedProcessId === 'sewing')) {
+          const totalBatches = Math.ceil(order.quantity / batchSize);
+          for (let i = 0; i < totalBatches; i++) {
+            const batchNumber = i + 1;
+            const batchKey = `${order.id}_${selectedProcessId}_${batchNumber}`;
+            if (scheduledBatches.has(batchKey)) continue;
+            const currentBatchQty = (i < totalBatches - 1) ? batchSize : order.quantity - (i * batchSize);
+            if (currentBatchQty <= 0) continue;
+            const dateMapKey = `${order.id}-${selectedProcessId}-${batchNumber}`;
+            const latestStartDate = (selectedProcessId === SEWING_PROCESS_ID) ? latestSewingStartDateMap.get(order.id) : latestStartDatesMap.get(dateMapKey);
+            if (latestStartDate) {
+              batches.push({ orderId: order.id, processId: selectedProcessId, quantity: currentBatchQty, batchNumber: batchNumber, totalBatches: totalBatches, latestStartDate: latestStartDate });
             }
-        } else {
-            const scheduledQty = scheduledQuantities.get(`${order.id}_${selectedProcessId}`) || 0;
-            if (scheduledQty < order.quantity) {
-                orderItems.push({ ...order, daysToComplete: daysToCompleteMap.get(order.id) });
-            }
+          }
         }
+      } else {
+        const scheduledQty = scheduledQuantities.get(`${order.id}_${selectedProcessId}`) || 0;
+        if (scheduledQty < order.quantity) {
+          orderItems.push({ ...order, daysToComplete: daysToCompleteMap.get(order.id) });
+        }
+      }
     }
-
     return { unplannedOrderItems: orderItems.sort((a,b) => (a.dueDate && b.dueDate) ? compareAsc(a.dueDate, b.dueDate) : 0), unplannedBatches: batches };
   }, [scheduledProcesses, selectedProcessId, orders, isScheduleLoaded, splitOrderProcesses, latestStartDatesMap, latestSewingStartDateMap, processBatchSizes, packingBatchSizes, appMode, daysToCompleteMap]);
   
@@ -1071,10 +1054,11 @@ function GanttPageContent() {
           </Tabs>
           <div className="flex items-center gap-4">
             {!isPabView && (
-              <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'day' | 'hour')}>
+              <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'day' | 'hour' | 'week')}>
                 <TabsList>
                   <TabsTrigger value="day">Day View</TabsTrigger>
                   <TabsTrigger value="hour">Hour View</TabsTrigger>
+                  <TabsTrigger value="week">Week View</TabsTrigger>
                 </TabsList>
               </Tabs>
             )}
@@ -1148,6 +1132,7 @@ function GanttPageContent() {
                         onProcessClick={handleProcessBarClick}
                         onSplitProcess={handleOpenSplitDialog}
                         viewMode={viewMode}
+                        setViewMode={setViewMode}
                         draggedItem={draggedItem}
                         latestStartDatesMap={latestStartDatesMap}
                         latestSewingStartDateMap={latestSewingStartDateMap}
@@ -1192,3 +1177,6 @@ export default function Home() {
 
 
 
+
+
+    
