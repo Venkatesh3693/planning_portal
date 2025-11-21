@@ -31,40 +31,56 @@ const PoDetailsTable = ({ records, orders, cutOrderRecords }: { records: Synthet
 
     const productionStatuses = useMemo(() => {
         const statuses: Record<string, { status: string, coNumber: string | null }> = {};
-        const cutOrderProgress = new Map<string, number>();
 
+        // Create a map for quick CO lookup
+        const poToCoMap = new Map<string, CutOrderRecord>();
         cutOrderRecords.forEach(co => {
-            if (co.status === 'In Progress' && co.producedQuantities) {
-                cutOrderProgress.set(co.coNumber, co.producedQuantities.total);
-            }
+            co.poNumbers.forEach(poNumber => {
+                poToCoMap.set(poNumber, co);
+            });
         });
 
-        for (const co of cutOrderRecords) {
-            const posInCo = records
-                .filter(rec => co.poNumbers.includes(rec.poNumber))
-                .sort((a, b) => parseInt(a.originalEhdWeek.slice(1)) - parseInt(b.originalEhdWeek.slice(1)));
-
-            if (co.status === 'Produced') {
-                posInCo.forEach(po => {
-                    statuses[`${po.poNumber}-${po.destination}`] = { status: 'Produced', coNumber: co.coNumber };
-                });
-            } else if (co.status === 'In Progress') {
-                let producedSoFar = cutOrderProgress.get(co.coNumber) || 0;
-                for (const po of posInCo) {
-                    if (producedSoFar >= po.quantities.total) {
-                        statuses[`${po.poNumber}-${po.destination}`] = { status: 'Produced', coNumber: co.coNumber };
-                        producedSoFar -= po.quantities.total;
-                    } else {
-                        statuses[`${po.poNumber}-${po.destination}`] = { status: 'CO Issued', coNumber: co.coNumber };
-                    }
-                }
-            }
-        }
-        
         records.forEach(record => {
             const key = `${record.poNumber}-${record.destination}`;
-            if (!statuses[key]) {
+            const cutOrder = poToCoMap.get(record.poNumber);
+
+            if (!cutOrder) {
                 statuses[key] = { status: 'Not Planned', coNumber: null };
+                return;
+            }
+
+            if (cutOrder.status === 'Produced') {
+                statuses[key] = { status: 'Produced', coNumber: cutOrder.coNumber };
+                return;
+            }
+            
+            if (cutOrder.status === 'In Progress' && cutOrder.producedQuantities) {
+                const posInCo = records
+                    .filter(rec => cutOrder.poNumbers.includes(rec.poNumber))
+                    .sort((a, b) => parseInt(a.originalEhdWeek.slice(1)) - parseInt(b.originalEhdWeek.slice(1)));
+
+                let producedSoFar = cutOrder.producedQuantities.total;
+
+                let isThisPoProduced = false;
+                for (const po of posInCo) {
+                    if (producedSoFar >= po.quantities.total) {
+                        if (po.poNumber === record.poNumber) {
+                           isThisPoProduced = true;
+                           break;
+                        }
+                        producedSoFar -= po.quantities.total;
+                    } else {
+                        break; 
+                    }
+                }
+                
+                statuses[key] = { 
+                    status: isThisPoProduced ? 'Produced' : 'CO Issued', 
+                    coNumber: cutOrder.coNumber 
+                };
+
+            } else {
+                 statuses[key] = { status: 'CO Issued', coNumber: cutOrder.coNumber };
             }
         });
         
@@ -185,6 +201,7 @@ const PoDetailsTable = ({ records, orders, cutOrderRecords }: { records: Synthet
                            PO Qty
                         </div>
                     </TableHead>
+                    <TableHead>CO #</TableHead>
                     <TableHead>Production</TableHead>
                     <TableHead
                         className="cursor-pointer"
@@ -217,11 +234,6 @@ const PoDetailsTable = ({ records, orders, cutOrderRecords }: { records: Synthet
                     const prodInfo = productionStatuses[key] || { status: 'Not Planned', coNumber: null };
                     const prodStatusStyle = getProductionStatusVariant(prodInfo.status);
                     
-                    let productionContent: React.ReactNode = prodInfo.coNumber || prodInfo.status;
-                    if (prodInfo.status === 'Not Planned') {
-                        productionContent = 'Not Planned';
-                    }
-
                     return (
                         <TableRow key={key}>
                             <TableCell>{orderInfo?.ocn || 'N/A'}</TableCell>
@@ -240,8 +252,11 @@ const PoDetailsTable = ({ records, orders, cutOrderRecords }: { records: Synthet
                                 {(record.quantities.total || 0).toLocaleString()}
                             </TableCell>
                             <TableCell>
+                                {prodInfo.coNumber || '-'}
+                            </TableCell>
+                            <TableCell>
                                 <Badge variant={prodStatusStyle.variant} className={prodStatusStyle.className}>
-                                    {productionContent}
+                                    {prodInfo.status}
                                 </Badge>
                             </TableCell>
                             <TableCell>
@@ -274,7 +289,7 @@ const PoDetailsTable = ({ records, orders, cutOrderRecords }: { records: Synthet
                             {totals.grandTotal.toLocaleString()}
                         </div>
                     </TableCell>
-                    <TableCell colSpan={isDfqcExpanded ? 6 : 3}></TableCell>
+                    <TableCell colSpan={isDfqcExpanded ? 7 : 4}></TableCell>
                 </TableRow>
             </TableFooter>
         </Table>
