@@ -38,79 +38,20 @@ import type { CutOrderRecord, SizeBreakdown, SyntheticPoRecord } from '@/lib/typ
 import { Badge } from '@/components/ui/badge';
 
 
-type MockCutOrderRecord = CutOrderRecord & {
-    producedQuantities?: SizeBreakdown;
-};
-
 function CutOrderPageContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get('orderId');
-    const { orders, isScheduleLoaded, appMode, syntheticPoRecords } = useSchedule();
+    const { orders, isScheduleLoaded, appMode, cutOrderRecords } = useSchedule();
     
     const order = useMemo(() => {
         if (!isScheduleLoaded || !orderId) return null;
         return orders.find(o => o.id === orderId);
     }, [orderId, orders, isScheduleLoaded]);
 
-    const filteredCutOrders: MockCutOrderRecord[] = useMemo(() => {
+    const filteredCutOrders: CutOrderRecord[] = useMemo(() => {
         if (!orderId) return [];
-
-        const allPosForOrder = syntheticPoRecords.filter(po => po.orderId === orderId);
-        
-        if(allPosForOrder.length === 0) return [];
-
-        const calculateQuantities = (poNumbers: string[]): SizeBreakdown => {
-            const quantities: SizeBreakdown = SIZES.reduce((acc, size) => ({...acc, [size]: 0}), { total: 0 });
-            allPosForOrder.forEach(po => {
-                if (poNumbers.includes(po.poNumber)) {
-                    SIZES.forEach(size => {
-                        quantities[size] = (quantities[size] || 0) + (po.quantities[size] || 0);
-                    });
-                    quantities.total += po.quantities.total;
-                }
-            });
-            return quantities;
-        };
-        
-        const numPosToInclude = Math.ceil(allPosForOrder.length / 2);
-        const poChunks = [];
-        for (let i = 0; i < numPosToInclude; i += 2) {
-          const chunk = allPosForOrder.slice(i, i + 2);
-          if (chunk.length > 0) {
-            poChunks.push(chunk.map(p => p.poNumber));
-          }
-        }
-        
-        const mockRecords: MockCutOrderRecord[] = poChunks.map((chunk, index) => {
-            const firstPo = allPosForOrder.find(p => p.poNumber === chunk[0]);
-            const firstPoWeek = firstPo ? parseInt(firstPo.originalEhdWeek.replace('W', ''), 10) : 0;
-            const quantities = calculateQuantities(chunk);
-            const status = index < poChunks.length - 2 ? 'Produced' : 'In Progress'; // Make last two 'In Progress'
-
-            let producedQuantities: SizeBreakdown | undefined = undefined;
-            if (status === 'In Progress') {
-                producedQuantities = SIZES.reduce((acc, size) => ({...acc, [size]: 0}), { total: 0 });
-                const productionProgress = 0.5 + Math.random() * 0.4; // 50% to 90%
-                SIZES.forEach(size => {
-                    const produced = Math.floor((quantities[size] || 0) * productionProgress);
-                    producedQuantities![size] = produced;
-                    producedQuantities!.total += produced;
-                });
-            }
-            
-            return {
-                coNumber: `CO-7890${12 + index}`,
-                orderId: orderId,
-                coWeekCoverage: `W${firstPoWeek}-W${firstPoWeek + 1}`,
-                poNumbers: chunk,
-                quantities: quantities,
-                status: status,
-                producedQuantities: producedQuantities,
-            }
-        });
-        
-        return mockRecords.filter(co => co.orderId === orderId);
-    }, [orderId, syntheticPoRecords]);
+        return cutOrderRecords.filter(co => co.orderId === orderId);
+    }, [orderId, cutOrderRecords]);
 
 
     const totals = useMemo(() => {
@@ -143,7 +84,7 @@ function CutOrderPageContent() {
                 <div className="text-center">
                   <h2 className="text-xl font-semibold">Cut Order Not Available</h2>
                   <p className="mt-2 text-muted-foreground">
-                    This view is only applicable for GUT mode.
+                    This view is only applicable for GUP mode.
                   </p>
                   <Button asChild className="mt-6">
                     <Link href="/">View GUP Schedule</Link>

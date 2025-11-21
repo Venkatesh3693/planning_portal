@@ -186,7 +186,6 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
           };
         });
         setScheduledProcesses(loadedProcesses);
-        setCutOrderRecords((storedData.cutOrderRecords || []).map((co: any) => ({...co, poNumbers: co.poNumbers || []})));
         
         if (storedData.timelineEndDate) {
             const storedEndDate = new Date(storedData.timelineEndDate);
@@ -226,6 +225,54 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
 
       const newPos = generateSyntheticPos(initialOrdersWithOverrides);
       setSyntheticPoRecords(newPos);
+
+      // Moved mock Cut Order logic here
+      const allPosForOrder = newPos.filter(po => po.orderId === '114227-Purple');
+      const poChunks = [];
+      const numPosToInclude = Math.ceil(allPosForOrder.length / 2);
+      for (let i = 0; i < numPosToInclude; i += 2) {
+        const chunk = allPosForOrder.slice(i, i + 2);
+        if (chunk.length > 0) poChunks.push(chunk.map(p => p.poNumber));
+      }
+
+      const calculateQuantities = (poNumbers: string[]): SizeBreakdown => {
+        const quantities: SizeBreakdown = SIZES.reduce((acc, size) => ({...acc, [size]: 0}), { total: 0 });
+        allPosForOrder.forEach(po => {
+            if (poNumbers.includes(po.poNumber)) {
+                SIZES.forEach(size => { quantities[size] = (quantities[size] || 0) + (po.quantities[size] || 0); });
+                quantities.total += po.quantities.total;
+            }
+        });
+        return quantities;
+      };
+
+      const mockCutOrders: CutOrderRecord[] = poChunks.map((chunk, index) => {
+          const firstPo = allPosForOrder.find(p => p.poNumber === chunk[0]);
+          const firstPoWeek = firstPo ? parseInt(firstPo.originalEhdWeek.replace('W', ''), 10) : 0;
+          const quantities = calculateQuantities(chunk);
+          const status = index < poChunks.length - 2 ? 'Produced' : 'In Progress';
+          let producedQuantities: SizeBreakdown | undefined = undefined;
+          if (status === 'In Progress') {
+              producedQuantities = SIZES.reduce((acc, size) => ({...acc, [size]: 0}), { total: 0 });
+              const productionProgress = 0.5 + Math.random() * 0.4;
+              SIZES.forEach(size => {
+                  const produced = Math.floor((quantities[size] || 0) * productionProgress);
+                  producedQuantities![size] = produced;
+                  producedQuantities!.total += produced;
+              });
+          }
+          return {
+              coNumber: `CO-7890${12 + index}`,
+              orderId: '114227-Purple',
+              coWeekCoverage: `W${firstPoWeek}-W${firstPoWeek + 1}`,
+              poNumbers: chunk,
+              quantities: quantities,
+              status: status,
+              producedQuantities: producedQuantities,
+          };
+      });
+      setCutOrderRecords(mockCutOrders);
+      // End moved logic
       
       const poTotalsByOrder = newPos.reduce((acc, po) => {
           acc[po.orderId] = (acc[po.orderId] || 0) + po.quantities.total;
@@ -254,6 +301,7 @@ export function ScheduleProvider({ children }: { children: ReactNode }) {
                   confirmedPoQty: poTotalsByOrder[order.id] || 0,
                   produced: { total: producedQty, ...SIZES.reduce((acc, size) => ({...acc, [size]: Math.floor(producedQty/SIZES.length)}), {}) },
                   shipped: { total: shippedQty, ...SIZES.reduce((acc, size) => ({...acc, [size]: Math.floor(shippedQty/SIZES.length)}), {}) },
+                  cutOrder: { total: mockCutOrders.filter(co => co.orderId === order.id).reduce((sum, co) => sum + co.quantities.total, 0) }
               };
           }
           return order;
