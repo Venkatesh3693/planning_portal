@@ -31,8 +31,7 @@ const PoDetailsTable = ({ records, orders, cutOrderRecords }: { records: Synthet
 
     const productionStatuses = useMemo(() => {
         const statuses: Record<string, { status: string, coNumber: string | null }> = {};
-
-        // Create a map for quick CO lookup
+        
         const poToCoMap = new Map<string, CutOrderRecord>();
         cutOrderRecords.forEach(co => {
             co.poNumbers.forEach(poNumber => {
@@ -60,8 +59,8 @@ const PoDetailsTable = ({ records, orders, cutOrderRecords }: { records: Synthet
                     .sort((a, b) => parseInt(a.originalEhdWeek.slice(1)) - parseInt(b.originalEhdWeek.slice(1)));
 
                 let producedSoFar = cutOrder.producedQuantities.total;
-
                 let isThisPoProduced = false;
+
                 for (const po of posInCo) {
                     if (producedSoFar >= po.quantities.total) {
                         if (po.poNumber === record.poNumber) {
@@ -428,4 +427,5 @@ export default function PoStatusPage() {
             <PoStatusPageContent />
         </Suspense>
     );
-}
+
+    
