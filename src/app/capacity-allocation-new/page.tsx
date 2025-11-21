@@ -115,6 +115,7 @@ export default function CapacityAllocationPage() {
     const [groupCalendarState, setGroupCalendarState] = useState<{
         mode: 'holiday' | 'overtime';
         groupId: string;
+        isOpen: boolean;
     } | null>(null);
 
     const [groupSpecificDates, setGroupSpecificDates] = useState<Date[] | undefined>([]);
@@ -358,13 +359,14 @@ export default function CapacityAllocationPage() {
         toast({ title: "Factory Calendar Updated", description: `Holidays and overtime days have been saved for all groups.` });
     };
 
-    const handleOpenGroupCalendar = (groupId: string, mode: 'holiday' | 'overtime') => {
+    const handleOpenGroupCalendar = (groupId: string) => {
         const group = sewingLineGroups.find(g => g.id === groupId);
         if (!group) return;
 
-        const dates = mode === 'holiday' ? group.holidays : group.overtimeDays;
+        setGroupCalendarState({ mode: 'holiday', groupId, isOpen: true });
+        
+        const dates = group.holidays; // Default to showing holidays first
         setGroupSpecificDates((dates || []).map(d => new Date(d)));
-        setGroupCalendarState({ mode, groupId });
     };
 
     const handleSaveGroupCalendar = () => {
@@ -395,8 +397,8 @@ export default function CapacityAllocationPage() {
       if (!groupCalendarState) return {};
       const { mode } = groupCalendarState;
       
-      const globalHolidaysAsDates = globalHolidays.map(d => new Date(d));
-      const globalOvertimeAsDates = globalOvertimeDays.map(d => new Date(d));
+      const globalHolidaysAsDates = globalHolidays.map(d => new Date(d.setHours(0,0,0,0)));
+      const globalOvertimeAsDates = globalOvertimeDays.map(d => new Date(d.setHours(0,0,0,0)));
       
       const modifiers: {
         globalHoliday?: Date[];
@@ -407,7 +409,9 @@ export default function CapacityAllocationPage() {
       } = {
         globalHoliday: globalHolidaysAsDates,
         globalOvertime: globalOvertimeAsDates,
-        disabled: [...globalHolidaysAsDates, ...globalOvertimeAsDates]
+        disabled: [...globalHolidaysAsDates, ...globalOvertimeAsDates],
+        localHoliday: [],
+        localOvertime: [],
       };
 
       if (mode === 'holiday') {
@@ -588,11 +592,8 @@ export default function CapacityAllocationPage() {
                                         <CardDescription>CC No: {activeGroup.ccNo}</CardDescription>
                                     </div>
                                      <div className="flex items-center gap-2">
-                                        <Button size="sm" variant="outline" onClick={() => handleOpenGroupCalendar(activeGroup.id, 'holiday')}>
-                                            <CalendarDays className="mr-2 h-4 w-4" /> Holidays
-                                        </Button>
-                                        <Button size="sm" variant="outline" onClick={() => handleOpenGroupCalendar(activeGroup.id, 'overtime')}>
-                                            <CalendarDays className="mr-2 h-4 w-4" /> Overtime
+                                        <Button size="sm" variant="outline" onClick={() => handleOpenGroupCalendar(activeGroup.id)}>
+                                            <CalendarDays className="mr-2 h-4 w-4" /> SLG Calendar
                                         </Button>
                                         <div className="w-40">
                                             <Select 
@@ -726,13 +727,37 @@ export default function CapacityAllocationPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-            <Dialog open={!!groupCalendarState} onOpenChange={(isOpen) => !isOpen && setGroupCalendarState(null)}>
-                 <DialogContent className="sm:max-w-2xl">
-                    <DialogHeader>
-                        <DialogTitle>Manage Group {groupCalendarState?.mode === 'holiday' ? 'Holidays' : 'Overtime'}</DialogTitle>
-                        <DialogDescription>
-                           Select dates for {sewingLineGroups.find(g => g.id === groupCalendarState?.groupId)?.name}. Global dates are shown but cannot be changed here.
-                        </DialogDescription>
+            <Dialog open={!!groupCalendarState?.isOpen} onOpenChange={(isOpen) => setGroupCalendarState(prev => prev ? {...prev, isOpen} : null)}>
+                 <DialogContent className="sm:max-w-4xl" data-mode={groupCalendarState?.mode}>
+                    <DialogHeader className="flex-row items-center justify-between">
+                       <div>
+                            <DialogTitle>Manage SLG Calendar for {sewingLineGroups.find(g => g.id === groupCalendarState?.groupId)?.name}</DialogTitle>
+                            <DialogDescription>
+                               Set group-specific holidays or overtime. Global dates are shown for context.
+                            </DialogDescription>
+                       </div>
+                       <div className="w-64">
+                             <Select 
+                                value={groupCalendarState?.mode} 
+                                onValueChange={(v) => {
+                                    const mode = v as 'holiday' | 'overtime';
+                                    const group = sewingLineGroups.find(g => g.id === groupCalendarState?.groupId);
+                                    if(group){
+                                        const dates = mode === 'holiday' ? group.holidays : group.overtimeDays;
+                                        setGroupSpecificDates((dates || []).map(d => new Date(d)));
+                                    }
+                                    setGroupCalendarState(prev => prev ? {...prev, mode } : null)
+                                }}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="holiday">Setting Holidays</SelectItem>
+                                    <SelectItem value="overtime">Setting Overtime</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </DialogHeader>
                      <div className="flex justify-center py-4">
                        <Calendar
@@ -743,23 +768,29 @@ export default function CapacityAllocationPage() {
                             modifiersClassNames={{
                                 globalHoliday: 'day-global-holiday',
                                 globalOvertime: 'day-global-overtime',
-                                localHoliday: 'day-local-holiday',
-                                localOvertime: 'day-local-overtime',
+                                selected: groupCalendarState?.mode === 'holiday' ? 'day-local-holiday' : 'day-local-overtime'
                             }}
                             numberOfMonths={2}
                         />
                     </div>
-                    <DialogFooter>
-                         <Button type="button" variant="secondary" onClick={() => setGroupCalendarState(null)}>
-                            Cancel
-                        </Button>
-                         <Button type="button" onClick={handleSaveGroupCalendar}>
-                            Confirm
-                        </Button>
+                     <DialogFooter className="flex-col-reverse sm:flex-row sm:justify-between sm:space-x-2">
+                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-red-500" /> Global Holiday</div>
+                            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-purple-500" /> Global Overtime</div>
+                            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-orange-500" /> Local Holiday</div>
+                            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-pink-500" /> Local Overtime</div>
+                        </div>
+                        <div className="flex gap-2">
+                             <Button type="button" variant="secondary" onClick={() => setGroupCalendarState(null)}>
+                                Cancel
+                            </Button>
+                             <Button type="button" onClick={handleSaveGroupCalendar}>
+                                Confirm
+                            </Button>
+                        </div>
                     </DialogFooter>
                  </DialogContent>
             </Dialog>
         </div>
     );
 }
-
