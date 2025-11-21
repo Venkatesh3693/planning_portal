@@ -458,7 +458,7 @@ export default function CapacityAllocationPage() {
                             <CalendarDays className="mr-2 h-4 w-4" /> Factory Holidays
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => setOvertimeDialogOpen(true)}>
-                            <PlusCircle className="mr-2 h-4 w-4" /> Factory Overtime
+                            <CalendarDays className="mr-2 h-4 w-4" /> Factory Overtime
                         </Button>
                     </div>
                 </div>
@@ -585,8 +585,12 @@ export default function CapacityAllocationPage() {
                                         <CardTitle>Details for {activeGroup.name}</CardTitle>
                                         <CardDescription>CC No: {activeGroup.ccNo}</CardDescription>
                                         <div className="flex items-center gap-2 mt-4">
-                                            <Button size="sm" variant="outline" onClick={() => handleOpenGroupCalendar(activeGroup.id, 'holiday')}>Manage Holidays</Button>
-                                            <Button size="sm" variant="outline" onClick={() => handleOpenGroupCalendar(activeGroup.id, 'overtime')}>Manage Overtime</Button>
+                                            <Button size="sm" variant="outline" onClick={() => handleOpenGroupCalendar(activeGroup.id, 'holiday')}>
+                                                <CalendarDays className="mr-2 h-4 w-4" /> Holidays
+                                            </Button>
+                                            <Button size="sm" variant="outline" onClick={() => handleOpenGroupCalendar(activeGroup.id, 'overtime')}>
+                                                <CalendarDays className="mr-2 h-4 w-4" /> Overtime
+                                            </Button>
                                         </div>
                                     </div>
                                      <div className="flex items-center gap-2">
