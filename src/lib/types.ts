@@ -240,7 +240,6 @@ export type CutOrderRecord = {
     coWeekCoverage: string;
     quantities: SizeBreakdown;
     poNumbers: string[];
-    carryoverQty: number;
     status?: 'Produced' | 'In Progress';
 };
 

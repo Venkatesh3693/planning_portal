@@ -38,6 +38,10 @@ import type { CutOrderRecord, SizeBreakdown, SyntheticPoRecord } from '@/lib/typ
 import { Badge } from '@/components/ui/badge';
 
 
+type MockCutOrderRecord = CutOrderRecord & {
+    producedQuantities?: SizeBreakdown;
+};
+
 function CutOrderPageContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get('orderId');
@@ -48,7 +52,7 @@ function CutOrderPageContent() {
         return orders.find(o => o.id === orderId);
     }, [orderId, orders, isScheduleLoaded]);
 
-    const filteredCutOrders: CutOrderRecord[] = useMemo(() => {
+    const filteredCutOrders: MockCutOrderRecord[] = useMemo(() => {
         if (!orderId) return [];
 
         const allPosForOrder = syntheticPoRecords.filter(po => po.orderId === orderId);
@@ -77,18 +81,31 @@ function CutOrderPageContent() {
           }
         }
         
-        const mockRecords: CutOrderRecord[] = poChunks.map((chunk, index) => {
+        const mockRecords: MockCutOrderRecord[] = poChunks.map((chunk, index) => {
             const firstPo = allPosForOrder.find(p => p.poNumber === chunk[0]);
             const firstPoWeek = firstPo ? parseInt(firstPo.originalEhdWeek.replace('W', ''), 10) : 0;
+            const quantities = calculateQuantities(chunk);
+            const status = index < poChunks.length - 2 ? 'Produced' : 'In Progress'; // Make last two 'In Progress'
+
+            let producedQuantities: SizeBreakdown | undefined = undefined;
+            if (status === 'In Progress') {
+                producedQuantities = SIZES.reduce((acc, size) => ({...acc, [size]: 0}), { total: 0 });
+                const productionProgress = 0.5 + Math.random() * 0.4; // 50% to 90%
+                SIZES.forEach(size => {
+                    const produced = Math.floor((quantities[size] || 0) * productionProgress);
+                    producedQuantities![size] = produced;
+                    producedQuantities!.total += produced;
+                });
+            }
             
             return {
                 coNumber: `CO-7890${12 + index}`,
                 orderId: orderId,
                 coWeekCoverage: `W${firstPoWeek}-W${firstPoWeek + 1}`,
                 poNumbers: chunk,
-                quantities: calculateQuantities(chunk),
-                carryoverQty: 0, // This is no longer displayed but kept for data structure consistency
-                status: index % 2 === 0 ? 'Produced' : 'In Progress',
+                quantities: quantities,
+                status: status,
+                producedQuantities: producedQuantities,
             }
         });
         
@@ -199,11 +216,23 @@ function CutOrderPageContent() {
                                             <TableCell>{co.coWeekCoverage}</TableCell>
                                             {SIZES.map(size => (
                                                 <TableCell key={size} className="text-right">
-                                                    {(co.quantities[size] || 0) > 0 ? (co.quantities[size] || 0).toLocaleString() : '-'}
+                                                    {co.status === 'In Progress' && co.producedQuantities ? (
+                                                        <span>
+                                                            {(co.producedQuantities[size] || 0).toLocaleString()} / {(co.quantities[size] || 0).toLocaleString()}
+                                                        </span>
+                                                    ) : (
+                                                        (co.quantities[size] || 0) > 0 ? (co.quantities[size] || 0).toLocaleString() : '-'
+                                                    )}
                                                 </TableCell>
                                             ))}
                                             <TableCell className="text-right font-bold">
-                                                {co.quantities.total.toLocaleString()}
+                                                {co.status === 'In Progress' && co.producedQuantities ? (
+                                                    <span>
+                                                        {(co.producedQuantities.total || 0).toLocaleString()} / {co.quantities.total.toLocaleString()}
+                                                    </span>
+                                                ) : (
+                                                    co.quantities.total.toLocaleString()
+                                                )}
                                             </TableCell>
                                             <TableCell className="text-center">
                                                 {co.poNumbers && co.poNumbers.length > 0 && (
