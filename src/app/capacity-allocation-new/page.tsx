@@ -395,20 +395,14 @@ export default function CapacityAllocationPage() {
         });
     };
 
-    const groupCalendarDates = useMemo(() => {
-        if (!groupCalendarState) return { selected: undefined, disabled: undefined };
-        
-        const group = sewingLineGroups.find(g => g.id === groupCalendarState.groupId);
-        if (!group) return { selected: undefined, disabled: undefined };
+    const groupCalendarModifiers = useMemo(() => {
+        if (!groupCalendarState) return {};
 
         const globalDates = groupCalendarState.mode === 'holiday' ? globalHolidays : globalOvertimeDays;
-        const groupDates = (groupCalendarState.mode === 'holiday' ? group.holidays : group.overtimeDays) || [];
-        
-        const selected = groupDates.map(d => new Date(d));
-        const disabled = globalDates;
-
-        return { selected, disabled };
-    }, [groupCalendarState, sewingLineGroups, globalHolidays, globalOvertimeDays]);
+        return {
+            global: globalDates
+        };
+    }, [groupCalendarState, globalHolidays, globalOvertimeDays]);
 
 
     return (
@@ -719,7 +713,10 @@ export default function CapacityAllocationPage() {
                             mode="multiple"
                             selected={groupSpecificDates}
                             onSelect={setGroupSpecificDates}
-                            disabled={groupCalendarDates.disabled}
+                            modifiers={groupCalendarModifiers}
+                            modifiersClassNames={{
+                                global: 'day-global',
+                            }}
                             numberOfMonths={2}
                         />
                     </div>

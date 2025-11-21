@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -94,4 +95,10 @@ body {
   input[type=number] {
     -moz-appearance: textfield;
   }
+}
+
+@layer utilities {
+    .day-global {
+        @apply bg-muted text-muted-foreground;
+    }
 }
