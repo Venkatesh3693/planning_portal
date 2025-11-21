@@ -448,12 +448,6 @@ export default function CapacityAllocationPage() {
                         </p>
                     </div>
                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setIsCreatingLine(true)}>
-                            <PlusCircle className="mr-2 h-4 w-4" /> Sewing Line
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => setIsCreatingGroup(true)}>
-                            <PlusCircle className="mr-2 h-4 w-4" /> Line Group
-                        </Button>
                         <Button variant="outline" size="sm" onClick={() => setHolidayDialogOpen(true)}>
                             <CalendarDays className="mr-2 h-4 w-4" /> Factory Holidays
                         </Button>
@@ -509,8 +503,11 @@ export default function CapacityAllocationPage() {
                             </Card>
                         )}
                         <Card className="flex-1 flex flex-col">
-                             <CardHeader>
+                             <CardHeader className="flex-row items-center justify-between">
                                 <CardTitle>Unallocated Lines</CardTitle>
+                                <Button variant="outline" size="sm" onClick={() => setIsCreatingLine(true)}>
+                                    <PlusCircle className="mr-2 h-4 w-4" /> Sewing Line
+                                </Button>
                              </CardHeader>
                              <CardContent className="flex-1 overflow-y-auto">
                                 <div className="space-y-2">
@@ -537,9 +534,14 @@ export default function CapacityAllocationPage() {
 
                     <div className="lg:col-span-2 flex flex-col gap-6">
                         <Card>
-                            <CardHeader>
-                                <CardTitle>Sewing Line Groups</CardTitle>
-                                <CardDescription>Select a group to view its details and allocated lines.</CardDescription>
+                            <CardHeader className="flex-row items-center justify-between">
+                                <div>
+                                    <CardTitle>Sewing Line Groups</CardTitle>
+                                    <CardDescription>Select a group to view its details and allocated lines.</CardDescription>
+                                </div>
+                                <Button variant="outline" size="sm" onClick={() => setIsCreatingGroup(true)}>
+                                    <PlusCircle className="mr-2 h-4 w-4" /> Line Group
+                                </Button>
                             </CardHeader>
                             <CardContent>
                                 {sewingLineGroups.length > 0 ? (
