@@ -391,10 +391,10 @@ export default function CapacityAllocationPage() {
                     </div>
                      <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" onClick={() => setIsCreatingLine(true)}>
-                            <PlusCircle className="mr-2 h-4 w-4" /> Create New Sewing Line
+                            <PlusCircle className="mr-2 h-4 w-4" /> Sewing Line
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => setIsCreatingGroup(true)}>
-                            <PlusCircle className="mr-2 h-4 w-4" /> Create New Line Group
+                            <PlusCircle className="mr-2 h-4 w-4" /> Line Group
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => setHolidayDialogOpen(true)}>
                             <CalendarDays className="mr-2 h-4 w-4" /> Manage Holidays
