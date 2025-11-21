@@ -23,6 +23,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { DatePicker } from '@/components/ui/date-picker';
 import { getWeek, startOfToday } from 'date-fns';
+import { Info } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 function OrderDetailsContent() {
@@ -343,17 +345,6 @@ function OrderDetailsContent() {
     return result;
   }, [poQty]);
 
-  const frcWithGrn = useMemo(() => {
-    if (!poQty) return null;
-    const result: SizeBreakdown = { total: 0 };
-    SIZES.forEach(size => {
-        const val = Math.floor((poQty[size] || 0) * 0.7); // Mock 70%
-        result[size] = val;
-        result.total += val;
-    });
-    return result;
-  }, [poQty]);
-
   const handleCcChange = (cc: string) => {
       setSelectedCc(cc);
       setSelectedColor('');
@@ -663,7 +654,21 @@ function OrderDetailsContent() {
                                 </TableRow>
                                 {frcPending && (
                                     <TableRow className="font-semibold">
-                                        <TableCell>FRC Pending</TableCell>
+                                        <TableCell>
+                                          <div className="flex items-center gap-2">
+                                            <span>FRC Pending</span>
+                                            <TooltipProvider>
+                                              <Tooltip>
+                                                <TooltipTrigger>
+                                                  <Info className="h-4 w-4 text-muted-foreground" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                  <p>FRC with CK before Date - (PO up to Date + FC up to Date)</p>
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            </TooltipProvider>
+                                          </div>
+                                        </TableCell>
                                         {SIZES.map(size => (
                                             <TableCell key={size} className={cn("text-right", (frcPending[size] || 0) < 0 && 'text-destructive')}>
                                                 {(frcPending[size] || 0).toLocaleString()}
@@ -725,7 +730,21 @@ function OrderDetailsContent() {
                                 )}
                                 {coToBeIssuedQty && (
                                      <TableRow>
-                                        <TableCell className="font-medium">CO to be issued</TableCell>
+                                        <TableCell>
+                                          <div className="flex items-center gap-2">
+                                            <span>CO to be issued</span>
+                                            <TooltipProvider>
+                                              <Tooltip>
+                                                <TooltipTrigger>
+                                                  <Info className="h-4 w-4 text-muted-foreground" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                  <p>Cut Order released - PO Qty with EHD after selected Date</p>
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            </TooltipProvider>
+                                          </div>
+                                        </TableCell>
                                         {SIZES.map(size => (
                                             <TableCell key={size} className={cn("text-right", (coToBeIssuedQty[size] || 0) < 0 && 'text-destructive')}>
                                                 {(coToBeIssuedQty[size] || 0).toLocaleString()}
@@ -786,19 +805,6 @@ function OrderDetailsContent() {
                                         </TableCell>
                                     </TableRow>
                                 )}
-                                {frcWithGrn && (
-                                <TableRow>
-                                    <TableCell className="font-medium">FRC with GRN</TableCell>
-                                    {SIZES.map(size => (
-                                        <TableCell key={size} className="text-right">
-                                            {(frcWithGrn[size] || 0).toLocaleString()}
-                                        </TableCell>
-                                    ))}
-                                    <TableCell className="text-right font-bold">
-                                        {(frcWithGrn.total || 0).toLocaleString()}
-                                    </TableCell>
-                                </TableRow>
-                                )}
                                 {materialGrnQty && (
                                 <TableRow>
                                     <TableCell className="font-medium">Material GRN</TableCell>
@@ -814,7 +820,21 @@ function OrderDetailsContent() {
                                 )}
                                 {extraMaterialRequired && (
                                 <TableRow className="font-semibold">
-                                    <TableCell>Extra Material required</TableCell>
+                                    <TableCell>
+                                      <div className="flex items-center gap-2">
+                                        <span>Extra Material required</span>
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger>
+                                              <Info className="h-4 w-4 text-muted-foreground" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                              <p>PO up to Date - Material GRN</p>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      </div>
+                                    </TableCell>
                                     {SIZES.map(size => (
                                         <TableCell key={size} className={cn("text-right", (extraMaterialRequired[size] || 0) > 0 && 'text-destructive')}>
                                             {(extraMaterialRequired[size] || 0).toLocaleString()}
@@ -930,19 +950,6 @@ function OrderDetailsContent() {
                                     ))}
                                     <TableCell className="text-right font-bold">
                                         {(frcWithPoGrnPending.total || 0).toLocaleString()}
-                                    </TableCell>
-                                </TableRow>
-                                )}
-                                {frcWithGrn && (
-                                <TableRow>
-                                    <TableCell className="font-medium">FRC with GRN</TableCell>
-                                    {SIZES.map(size => (
-                                        <TableCell key={size} className="text-right">
-                                            {(frcWithGrn[size] || 0).toLocaleString()}
-                                        </TableCell>
-                                    ))}
-                                    <TableCell className="text-right font-bold">
-                                        {(frcWithGrn.total || 0).toLocaleString()}
                                     </TableCell>
                                 </TableRow>
                                 )}
