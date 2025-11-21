@@ -16,7 +16,7 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, PlusCircle, Info } from 'lucide-react';
+import { ArrowLeft, Info } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -26,7 +26,7 @@ import {
   TableRow,
   TableFooter,
 } from "@/components/ui/table";
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { SIZES } from '@/lib/data';
 import {
   Tooltip,
@@ -34,22 +34,47 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import type { CutOrderRecord } from '@/lib/types';
+import { Badge } from '@/components/ui/badge';
 
 
 function CutOrderPageContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get('orderId');
-    const { orders, isScheduleLoaded, appMode, cutOrderRecords } = useSchedule();
+    const { orders, isScheduleLoaded, appMode } = useSchedule();
     
     const order = useMemo(() => {
         if (!isScheduleLoaded || !orderId) return null;
         return orders.find(o => o.id === orderId);
     }, [orderId, orders, isScheduleLoaded]);
 
-    const filteredCutOrders = useMemo(() => {
+    const filteredCutOrders: CutOrderRecord[] = useMemo(() => {
         if (!orderId) return [];
-        return cutOrderRecords.filter(co => co.orderId === orderId);
-    }, [orderId, cutOrderRecords])
+
+        const mockRecords: CutOrderRecord[] = [
+            {
+                coNumber: 'CO-789012',
+                orderId: '114227-Purple',
+                coWeekCoverage: 'W40-W42',
+                quantities: { 'S': 5000, 'M': 10000, 'L': 5000, total: 20000 },
+                poNumbers: ['PO-DMI-001', 'PO-DMI-002'],
+                carryoverQty: 0,
+                status: 'Produced'
+            },
+            {
+                coNumber: 'CO-789013',
+                orderId: '114227-Purple',
+                coWeekCoverage: 'W43-W45',
+                quantities: { 'XS': 2000, 'S': 3000, 'M': 5000, total: 10000 },
+                poNumbers: ['PO-DMI-003'],
+                carryoverQty: 0,
+                status: 'In Progress'
+            },
+        ];
+        
+        return mockRecords.filter(co => co.orderId === orderId);
+    }, [orderId]);
+
 
     const totals = useMemo(() => {
         const sizeTotals = SIZES.reduce((acc, size) => {
@@ -58,17 +83,15 @@ function CutOrderPageContent() {
         }, {} as Record<string, number>);
 
         let grandTotal = 0;
-        let carryoverTotal = 0;
 
         filteredCutOrders.forEach(record => {
             grandTotal += record.quantities.total || 0;
-            carryoverTotal += record.carryoverQty || 0;
             SIZES.forEach(size => {
                 sizeTotals[size] += record.quantities[size] || 0;
             });
         });
 
-        return { sizeTotals, grandTotal, carryoverTotal };
+        return { sizeTotals, grandTotal };
     }, [filteredCutOrders]);
 
     if (!isScheduleLoaded) {
@@ -145,7 +168,7 @@ function CutOrderPageContent() {
                                     ))}
                                     <TableHead className="text-right font-bold">Total</TableHead>
                                     <TableHead className="text-center">POs</TableHead>
-                                    <TableHead className="text-right">Carryover Qty</TableHead>
+                                    <TableHead>Status</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -156,7 +179,7 @@ function CutOrderPageContent() {
                                             <TableCell>{co.coWeekCoverage}</TableCell>
                                             {SIZES.map(size => (
                                                 <TableCell key={size} className="text-right">
-                                                    {(co.quantities[size] || 0).toLocaleString()}
+                                                    {(co.quantities[size] || 0) > 0 ? (co.quantities[size] || 0).toLocaleString() : '-'}
                                                 </TableCell>
                                             ))}
                                             <TableCell className="text-right font-bold">
@@ -178,9 +201,11 @@ function CutOrderPageContent() {
                                                     </TooltipProvider>
                                                 )}
                                             </TableCell>
-                                             <TableCell className="text-right font-medium">
-                                                {(co.carryoverQty || 0).toLocaleString()}
-                                             </TableCell>
+                                            <TableCell>
+                                                <Badge variant={co.status === 'Produced' ? 'default' : 'secondary'} className={co.status === 'Produced' ? 'bg-green-600' : 'bg-yellow-500'}>
+                                                    {co.status}
+                                                </Badge>
+                                            </TableCell>
                                         </TableRow>
                                     ))
                                 ) : (
@@ -203,10 +228,7 @@ function CutOrderPageContent() {
                                         <TableCell className="text-right font-bold">
                                             {totals.grandTotal.toLocaleString()}
                                         </TableCell>
-                                        <TableCell></TableCell>
-                                        <TableCell className="text-right font-bold">
-                                            {totals.carryoverTotal.toLocaleString()}
-                                        </TableCell>
+                                        <TableCell colSpan={2}></TableCell>
                                     </TableRow>
                                 </TableFooter>
                             )}

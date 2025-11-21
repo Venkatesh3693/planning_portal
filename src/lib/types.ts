@@ -1,4 +1,5 @@
 
+
 import type { LucideIcon } from 'lucide-react';
 
 export type Unit = {
@@ -240,6 +241,7 @@ export type CutOrderRecord = {
     quantities: SizeBreakdown;
     poNumbers: string[];
     carryoverQty: number;
+    status?: 'Produced' | 'In Progress';
 };
 
 export type Remark = {
