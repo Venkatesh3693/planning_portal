@@ -67,22 +67,28 @@ function CutOrderPageContent() {
             });
             return quantities;
         };
-
-        const poChunks = [
-            allPosForOrder.slice(0, 2).map(p => p.poNumber),
-            allPosForOrder.slice(2, 4).map(p => p.poNumber)
-        ].filter(chunk => chunk.length > 0);
+        
+        const numPosToInclude = Math.ceil(allPosForOrder.length / 2);
+        const poChunks = [];
+        for (let i = 0; i < numPosToInclude; i += 2) {
+          const chunk = allPosForOrder.slice(i, i + 2);
+          if (chunk.length > 0) {
+            poChunks.push(chunk.map(p => p.poNumber));
+          }
+        }
         
         const mockRecords: CutOrderRecord[] = poChunks.map((chunk, index) => {
-            const firstPoWeek = parseInt(allPosForOrder.find(p => p.poNumber === chunk[0])?.originalEhdWeek.replace('W', '') || '0');
+            const firstPo = allPosForOrder.find(p => p.poNumber === chunk[0]);
+            const firstPoWeek = firstPo ? parseInt(firstPo.originalEhdWeek.replace('W', ''), 10) : 0;
+            
             return {
-                coNumber: `CO-78901${2 + index}`,
+                coNumber: `CO-7890${12 + index}`,
                 orderId: orderId,
-                coWeekCoverage: `W${firstPoWeek}-W${firstPoWeek + 2}`,
+                coWeekCoverage: `W${firstPoWeek}-W${firstPoWeek + 1}`,
                 poNumbers: chunk,
                 quantities: calculateQuantities(chunk),
-                carryoverQty: 0,
-                status: index === 0 ? 'Produced' : 'In Progress',
+                carryoverQty: 0, // This is no longer displayed but kept for data structure consistency
+                status: index % 2 === 0 ? 'Produced' : 'In Progress',
             }
         });
         
