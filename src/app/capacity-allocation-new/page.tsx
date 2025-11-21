@@ -107,10 +107,9 @@ export default function CapacityAllocationPage() {
 
     const [lineForReallocation, setLineForReallocation] = useState<SewingLine | null>(null);
 
-    const [holidayDialogOpen, setHolidayDialogOpen] = useState(false);
+    const [factoryCalendarOpen, setFactoryCalendarOpen] = useState(false);
+    const [factoryCalendarMode, setFactoryCalendarMode] = useState<'holiday' | 'overtime'>('holiday');
     const [globalHolidays, setGlobalHolidays] = useState<Date[]>([]);
-    
-    const [overtimeDialogOpen, setOvertimeDialogOpen] = useState(false);
     const [globalOvertimeDays, setGlobalOvertimeDays] = useState<Date[]>([]);
 
     const [groupCalendarState, setGroupCalendarState] = useState<{
@@ -344,22 +343,19 @@ export default function CapacityAllocationPage() {
         setActiveGroupId(null);
     };
     
-    const handleSaveGlobalHolidays = () => {
+    const handleSaveFactoryCalendar = () => {
         const holidayStrings = globalHolidays.map(d => d.toISOString().split('T')[0]);
-        setSewingLineGroups(prevGroups =>
-            prevGroups.map(g => ({ ...g, holidays: Array.from(new Set([...(g.holidays || []), ...holidayStrings])) }))
-        );
-        setHolidayDialogOpen(false);
-        toast({ title: "Global Holidays Updated", description: `Holidays have been saved for all groups.` });
-    };
-
-    const handleSaveGlobalOvertime = () => {
         const overtimeStrings = globalOvertimeDays.map(d => d.toISOString().split('T')[0]);
+        
         setSewingLineGroups(prevGroups =>
-            prevGroups.map(g => ({ ...g, overtimeDays: Array.from(new Set([...(g.overtimeDays || []), ...overtimeStrings])) }))
+            prevGroups.map(g => ({ 
+                ...g, 
+                holidays: Array.from(new Set([...(g.holidays || []), ...holidayStrings])),
+                overtimeDays: Array.from(new Set([...(g.overtimeDays || []), ...overtimeStrings]))
+            }))
         );
-        setOvertimeDialogOpen(false);
-        toast({ title: "Global Overtime Updated", description: `Overtime days have been saved for all groups.` });
+        setFactoryCalendarOpen(false);
+        toast({ title: "Factory Calendar Updated", description: `Holidays and overtime days have been saved for all groups.` });
     };
 
     const handleOpenGroupCalendar = (groupId: string, mode: 'holiday' | 'overtime') => {
@@ -421,6 +417,11 @@ export default function CapacityAllocationPage() {
       return modifiers;
 
     }, [groupCalendarState, globalHolidays, globalOvertimeDays, groupSpecificDates]);
+    
+    const factoryCalendarModifiers = useMemo(() => ({
+        holiday: globalHolidays,
+        overtime: globalOvertimeDays,
+    }), [globalHolidays, globalOvertimeDays]);
 
 
     return (
@@ -448,11 +449,8 @@ export default function CapacityAllocationPage() {
                         </p>
                     </div>
                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setHolidayDialogOpen(true)}>
-                            <CalendarDays className="mr-2 h-4 w-4" /> Factory Holidays
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => setOvertimeDialogOpen(true)}>
-                            <CalendarDays className="mr-2 h-4 w-4" /> Factory Overtime
+                        <Button variant="outline" size="sm" onClick={() => setFactoryCalendarOpen(true)}>
+                            <CalendarDays className="mr-2 h-4 w-4" /> Factory Calendar
                         </Button>
                     </div>
                 </div>
@@ -673,53 +671,58 @@ export default function CapacityAllocationPage() {
                 allLines={sewingLines}
                 onSave={handleCreateNewLine}
             />
-             <Dialog open={holidayDialogOpen} onOpenChange={setHolidayDialogOpen}>
-                <DialogContent className="sm:max-w-2xl">
+             <Dialog open={factoryCalendarOpen} onOpenChange={setFactoryCalendarOpen}>
+                <DialogContent className="sm:max-w-4xl">
                     <DialogHeader>
-                        <DialogTitle>Manage Factory Holidays</DialogTitle>
+                        <DialogTitle>Manage Factory Calendar</DialogTitle>
                         <DialogDescription>
-                            Select the dates that all sewing line groups will be on holiday.
+                            Select dates for factory-wide holidays and overtime.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="flex justify-center py-4">
-                       <Calendar
-                            mode="multiple"
-                            selected={globalHolidays}
-                            onSelect={setGlobalHolidays}
-                            numberOfMonths={2}
-                        />
+                    <div className="flex flex-col md:flex-row gap-4 py-4">
+                        <div className="flex-1 flex flex-col items-center">
+                            <div className="w-full max-w-sm mb-4">
+                                <Label>Mode</Label>
+                                <Select value={factoryCalendarMode} onValueChange={(v) => setFactoryCalendarMode(v as 'holiday' | 'overtime')}>
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="holiday">Setting Holidays</SelectItem>
+                                        <SelectItem value="overtime">Setting Overtime</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                           <Calendar
+                                mode="multiple"
+                                selected={factoryCalendarMode === 'holiday' ? globalHolidays : globalOvertimeDays}
+                                onSelect={factoryCalendarMode === 'holiday' ? setGlobalHolidays : setGlobalOvertimeDays}
+                                modifiers={factoryCalendarModifiers}
+                                modifiersClassNames={{
+                                    holiday: 'day-global-holiday',
+                                    overtime: 'day-global-overtime',
+                                    selected: factoryCalendarMode === 'holiday' ? 'day-global-holiday-selected' : 'day-global-overtime-selected'
+                                }}
+                                numberOfMonths={2}
+                            />
+                        </div>
+                        <div className="md:border-l md:pl-4 space-y-2 w-full md:w-40 flex-shrink-0">
+                            <h4 className="font-semibold">Legend</h4>
+                             <div className="flex items-center gap-2 text-sm">
+                                <div className="w-4 h-4 rounded-full bg-red-500" />
+                                <span>Holiday</span>
+                            </div>
+                             <div className="flex items-center gap-2 text-sm">
+                                <div className="w-4 h-4 rounded-full bg-purple-500" />
+                                <span>Overtime</span>
+                            </div>
+                        </div>
                     </div>
                     <DialogFooter>
-                        <Button type="button" variant="secondary" onClick={() => setHolidayDialogOpen(false)}>
+                        <Button type="button" variant="secondary" onClick={() => setFactoryCalendarOpen(false)}>
                             Cancel
                         </Button>
-                         <Button type="button" onClick={handleSaveGlobalHolidays}>
-                            Confirm
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-            <Dialog open={overtimeDialogOpen} onOpenChange={setOvertimeDialogOpen}>
-                <DialogContent className="sm:max-w-2xl">
-                    <DialogHeader>
-                        <DialogTitle>Manage Factory Overtime</DialogTitle>
-                        <DialogDescription>
-                            Select the dates that all sewing line groups will have overtime.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="flex justify-center py-4">
-                       <Calendar
-                            mode="multiple"
-                            selected={globalOvertimeDays}
-                            onSelect={setGlobalOvertimeDays}
-                            numberOfMonths={2}
-                        />
-                    </div>
-                    <DialogFooter>
-                        <Button type="button" variant="secondary" onClick={() => setOvertimeDialogOpen(false)}>
-                            Cancel
-                        </Button>
-                         <Button type="button" onClick={handleSaveGlobalOvertime}>
+                         <Button type="button" onClick={handleSaveFactoryCalendar}>
                             Confirm
                         </Button>
                     </DialogFooter>
@@ -761,3 +764,4 @@ export default function CapacityAllocationPage() {
         </div>
     );
 }
+

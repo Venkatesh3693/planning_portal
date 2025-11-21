@@ -98,8 +98,10 @@ body {
 }
 
 @layer utilities {
-    .day-global-holiday { @apply bg-red-200 text-red-800 dark:bg-red-900/50 dark:text-red-200; }
-    .day-global-overtime { @apply bg-purple-200 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200; }
+    .day-global-holiday, .rdp-day_holiday { @apply bg-red-200 text-red-800 dark:bg-red-900/50 dark:text-red-200; }
+    .day-global-overtime, .rdp-day_overtime { @apply bg-purple-200 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200; }
     .day-local-holiday:not([aria-selected]) { @apply bg-orange-200 text-orange-800 dark:bg-orange-900/50 dark:text-orange-200; }
     .day-local-overtime:not([aria-selected]) { @apply bg-pink-200 text-pink-800 dark:bg-pink-900/50 dark:text-pink-200; }
+    .day-global-holiday-selected.rdp-day_selected, .day-global-holiday-selected.rdp-day_selected:hover { @apply bg-red-500 text-white; }
+    .day-global-overtime-selected.rdp-day_selected, .day-global-overtime-selected.rdp-day_selected:hover { @apply bg-purple-500 text-white; }
 }
