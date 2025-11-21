@@ -671,28 +671,29 @@ export default function CapacityAllocationPage() {
                 allLines={sewingLines}
                 onSave={handleCreateNewLine}
             />
-             <Dialog open={factoryCalendarOpen} onOpenChange={setFactoryCalendarOpen}>
-                <DialogContent className="sm:max-w-4xl">
-                    <DialogHeader>
-                        <DialogTitle>Manage Factory Calendar</DialogTitle>
-                        <DialogDescription>
-                            Select dates for factory-wide holidays and overtime.
-                        </DialogDescription>
+            <Dialog open={factoryCalendarOpen} onOpenChange={setFactoryCalendarOpen}>
+                <DialogContent className={cn("sm:max-w-4xl", factoryCalendarMode === 'holiday' && '[&_[aria-selected]]:hover:bg-red-500', factoryCalendarMode === 'overtime' && '[&_[aria-selected]]:hover:bg-purple-500')}>
+                    <DialogHeader className="flex-row items-center justify-between">
+                       <div>
+                            <DialogTitle>Manage Factory Calendar</DialogTitle>
+                            <DialogDescription>
+                                Select dates for factory-wide holidays and overtime.
+                            </DialogDescription>
+                       </div>
+                       <div className="w-full max-w-xs">
+                            <Select value={factoryCalendarMode} onValueChange={(v) => setFactoryCalendarMode(v as 'holiday' | 'overtime')}>
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="holiday">Setting Holidays</SelectItem>
+                                    <SelectItem value="overtime">Setting Overtime</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </DialogHeader>
-                    <div className="flex flex-col md:flex-row gap-4 py-4">
-                        <div className="flex-1 flex flex-col items-center">
-                            <div className="w-full max-w-sm mb-4">
-                                <Label>Mode</Label>
-                                <Select value={factoryCalendarMode} onValueChange={(v) => setFactoryCalendarMode(v as 'holiday' | 'overtime')}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="holiday">Setting Holidays</SelectItem>
-                                        <SelectItem value="overtime">Setting Overtime</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                    <div className="flex flex-col md:flex-row gap-4 py-4 items-center">
+                        <div className="flex-1 flex justify-center">
                            <Calendar
                                 mode="multiple"
                                 selected={factoryCalendarMode === 'holiday' ? globalHolidays : globalOvertimeDays}
@@ -706,25 +707,20 @@ export default function CapacityAllocationPage() {
                                 numberOfMonths={2}
                             />
                         </div>
-                        <div className="md:border-l md:pl-4 space-y-2 w-full md:w-40 flex-shrink-0">
-                            <h4 className="font-semibold">Legend</h4>
-                             <div className="flex items-center gap-2 text-sm">
-                                <div className="w-4 h-4 rounded-full bg-red-500" />
-                                <span>Holiday</span>
-                            </div>
-                             <div className="flex items-center gap-2 text-sm">
-                                <div className="w-4 h-4 rounded-full bg-purple-500" />
-                                <span>Overtime</span>
-                            </div>
-                        </div>
                     </div>
-                    <DialogFooter>
-                        <Button type="button" variant="secondary" onClick={() => setFactoryCalendarOpen(false)}>
-                            Cancel
-                        </Button>
-                         <Button type="button" onClick={handleSaveFactoryCalendar}>
-                            Confirm
-                        </Button>
+                    <DialogFooter className="flex-col-reverse sm:flex-row sm:justify-between sm:space-x-2">
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-red-500" /> Holiday</div>
+                            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-purple-500" /> Overtime</div>
+                        </div>
+                        <div className="flex gap-2">
+                            <Button type="button" variant="secondary" onClick={() => setFactoryCalendarOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button type="button" onClick={handleSaveFactoryCalendar}>
+                                Confirm
+                            </Button>
+                        </div>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
