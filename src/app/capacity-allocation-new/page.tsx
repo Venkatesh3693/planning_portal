@@ -455,10 +455,10 @@ export default function CapacityAllocationPage() {
                             <PlusCircle className="mr-2 h-4 w-4" /> Line Group
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => setHolidayDialogOpen(true)}>
-                            <CalendarDays className="mr-2 h-4 w-4" /> Manage Holidays
+                            <CalendarDays className="mr-2 h-4 w-4" /> Factory Holidays
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => setOvertimeDialogOpen(true)}>
-                            <PlusCircle className="mr-2 h-4 w-4" /> Manage Overtime
+                            <PlusCircle className="mr-2 h-4 w-4" /> Factory Overtime
                         </Button>
                     </div>
                 </div>
@@ -669,7 +669,7 @@ export default function CapacityAllocationPage() {
              <Dialog open={holidayDialogOpen} onOpenChange={setHolidayDialogOpen}>
                 <DialogContent className="sm:max-w-2xl">
                     <DialogHeader>
-                        <DialogTitle>Manage Global Holidays</DialogTitle>
+                        <DialogTitle>Manage Factory Holidays</DialogTitle>
                         <DialogDescription>
                             Select the dates that all sewing line groups will be on holiday.
                         </DialogDescription>
@@ -695,7 +695,7 @@ export default function CapacityAllocationPage() {
             <Dialog open={overtimeDialogOpen} onOpenChange={setOvertimeDialogOpen}>
                 <DialogContent className="sm:max-w-2xl">
                     <DialogHeader>
-                        <DialogTitle>Manage Global Overtime</DialogTitle>
+                        <DialogTitle>Manage Factory Overtime</DialogTitle>
                         <DialogDescription>
                             Select the dates that all sewing line groups will have overtime.
                         </DialogDescription>
