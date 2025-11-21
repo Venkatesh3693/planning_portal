@@ -396,13 +396,31 @@ export default function CapacityAllocationPage() {
     };
 
     const groupCalendarModifiers = useMemo(() => {
-        if (!groupCalendarState) return {};
+      if (!groupCalendarState) return {};
+      const { mode } = groupCalendarState;
+      
+      const globalHolidaysAsDates = globalHolidays.map(d => new Date(d));
+      const globalOvertimeAsDates = globalOvertimeDays.map(d => new Date(d));
+      
+      const modifiers: {
+        globalHoliday?: Date[];
+        globalOvertime?: Date[];
+        localHoliday?: Date[];
+        localOvertime?: Date[];
+      } = {
+        globalHoliday: globalHolidaysAsDates,
+        globalOvertime: globalOvertimeAsDates,
+      };
 
-        const globalDates = groupCalendarState.mode === 'holiday' ? globalHolidays : globalOvertimeDays;
-        return {
-            global: globalDates
-        };
-    }, [groupCalendarState, globalHolidays, globalOvertimeDays]);
+      if (mode === 'holiday') {
+        modifiers.localHoliday = groupSpecificDates;
+      } else {
+        modifiers.localOvertime = groupSpecificDates;
+      }
+
+      return modifiers;
+
+    }, [groupCalendarState, globalHolidays, globalOvertimeDays, groupSpecificDates]);
 
 
     return (
@@ -715,7 +733,10 @@ export default function CapacityAllocationPage() {
                             onSelect={setGroupSpecificDates}
                             modifiers={groupCalendarModifiers}
                             modifiersClassNames={{
-                                global: 'day-global',
+                                globalHoliday: 'day-global-holiday',
+                                globalOvertime: 'day-global-overtime',
+                                localHoliday: 'day-local-holiday',
+                                localOvertime: 'day-local-overtime',
                             }}
                             numberOfMonths={2}
                         />
