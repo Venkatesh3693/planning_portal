@@ -403,9 +403,11 @@ export default function CapacityAllocationPage() {
         globalOvertime?: Date[];
         localHoliday?: Date[];
         localOvertime?: Date[];
+        disabled: Date[];
       } = {
         globalHoliday: globalHolidaysAsDates,
         globalOvertime: globalOvertimeAsDates,
+        disabled: [...globalHolidaysAsDates, ...globalOvertimeAsDates]
       };
 
       if (mode === 'holiday') {
@@ -680,7 +682,7 @@ export default function CapacityAllocationPage() {
                                 Select dates for factory-wide holidays and overtime.
                             </DialogDescription>
                        </div>
-                       <div className="w-full max-w-xs">
+                       <div className="w-64">
                             <Select value={factoryCalendarMode} onValueChange={(v) => setFactoryCalendarMode(v as 'holiday' | 'overtime')}>
                                 <SelectTrigger>
                                     <SelectValue />
