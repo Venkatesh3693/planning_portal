@@ -672,7 +672,7 @@ export default function CapacityAllocationPage() {
                 onSave={handleCreateNewLine}
             />
             <Dialog open={factoryCalendarOpen} onOpenChange={setFactoryCalendarOpen}>
-                <DialogContent className={cn("sm:max-w-4xl", factoryCalendarMode === 'holiday' && '[&_[aria-selected]]:hover:bg-red-500', factoryCalendarMode === 'overtime' && '[&_[aria-selected]]:hover:bg-purple-500')}>
+                <DialogContent className="sm:max-w-4xl" data-mode={factoryCalendarMode}>
                     <DialogHeader className="flex-row items-center justify-between">
                        <div>
                             <DialogTitle>Manage Factory Calendar</DialogTitle>
