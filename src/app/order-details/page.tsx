@@ -641,17 +641,6 @@ function OrderDetailsContent() {
                                         {(timeBasedQuantities.fc.total || 0).toLocaleString()}
                                     </TableCell>
                                 </TableRow>
-                                <TableRow>
-                                    <TableCell className="font-medium">FRC with CK before {selectedDate ? `W${getWeek(selectedDate) - 2}` : '...'}</TableCell>
-                                    {SIZES.map(size => (
-                                        <TableCell key={size} className="text-right">
-                                            {(frcGrnQty[size] || 0).toLocaleString()}
-                                        </TableCell>
-                                    ))}
-                                    <TableCell className="text-right font-bold">
-                                        {(frcGrnQty.total || 0).toLocaleString()}
-                                    </TableCell>
-                                </TableRow>
                                 {frcPending && (
                                     <TableRow className="font-semibold">
                                         <TableCell>
@@ -678,6 +667,32 @@ function OrderDetailsContent() {
                                             {(frcPending.total || 0).toLocaleString()}
                                         </TableCell>
                                     </TableRow>
+                                )}
+                                {frcWithoutPo && (
+                                <TableRow>
+                                    <TableCell className="font-medium">FRC without PO</TableCell>
+                                    {SIZES.map(size => (
+                                        <TableCell key={size} className="text-right">
+                                            {(frcWithoutPo[size] || 0).toLocaleString()}
+                                        </TableCell>
+                                    ))}
+                                    <TableCell className="text-right font-bold">
+                                        {(frcWithoutPo.total || 0).toLocaleString()}
+                                    </TableCell>
+                                </TableRow>
+                                )}
+                                {frcWithPoGrnPending && (
+                                <TableRow>
+                                    <TableCell className="font-medium">FRC with PO GRN pending</TableCell>
+                                    {SIZES.map(size => (
+                                        <TableCell key={size} className="text-right">
+                                            {(frcWithPoGrnPending[size] || 0).toLocaleString()}
+                                        </TableCell>
+                                    ))}
+                                    <TableCell className="text-right font-bold">
+                                        {(frcWithPoGrnPending.total || 0).toLocaleString()}
+                                    </TableCell>
+                                </TableRow>
                                 )}
                             </TableBody>
                         </Table>
@@ -907,49 +922,6 @@ function OrderDetailsContent() {
                                     ))}
                                     <TableCell className={cn("text-right font-bold", toBeMappedQty.total > 0 && 'text-destructive')}>
                                         {(toBeMappedQty.total || 0).toLocaleString()}
-                                    </TableCell>
-                                </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
-
-                    <div className="space-y-4 pt-8 border-t">
-                        <h3 className="text-lg font-semibold">Trim status</h3>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Metric</TableHead>
-                                    {SIZES.map(size => (
-                                        <TableHead key={size} className="text-right">{size}</TableHead>
-                                    ))}
-                                    <TableHead className="text-right font-bold">Total</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {frcWithoutPo && (
-                                <TableRow>
-                                    <TableCell className="font-medium">FRC without PO</TableCell>
-                                    {SIZES.map(size => (
-                                        <TableCell key={size} className="text-right">
-                                            {(frcWithoutPo[size] || 0).toLocaleString()}
-                                        </TableCell>
-                                    ))}
-                                    <TableCell className="text-right font-bold">
-                                        {(frcWithoutPo.total || 0).toLocaleString()}
-                                    </TableCell>
-                                </TableRow>
-                                )}
-                                {frcWithPoGrnPending && (
-                                <TableRow>
-                                    <TableCell className="font-medium">FRC with PO GRN pending</TableCell>
-                                    {SIZES.map(size => (
-                                        <TableCell key={size} className="text-right">
-                                            {(frcWithPoGrnPending[size] || 0).toLocaleString()}
-                                        </TableCell>
-                                    ))}
-                                    <TableCell className="text-right font-bold">
-                                        {(frcWithPoGrnPending.total || 0).toLocaleString()}
                                     </TableCell>
                                 </TableRow>
                                 )}
