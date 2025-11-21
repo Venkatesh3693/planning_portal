@@ -197,7 +197,7 @@ function OrderDetailsContent() {
     const relevantFrcs = frcData.filter(frc => 
         frc.ccNo === order.ocn && 
         frc.model === modelString &&
-        parseInt(frc.ckWeek.replace('W', '')) < selectedWeek
+        parseInt(frc.ckWeek.replace('W', '')) < selectedWeek - 2
     );
 
     relevantFrcs.forEach(frc => {
@@ -602,7 +602,7 @@ function OrderDetailsContent() {
 
                     <div className="space-y-4 pt-8 border-t">
                         <div className="grid grid-cols-1 md:grid-cols-4 items-end gap-4">
-                            <h3 className="text-lg font-semibold md:col-span-3">Time-based alerts</h3>
+                            <h3 className="text-lg font-semibold md:col-span-3">Time-based Material alerts</h3>
                              <div className="space-y-2">
                                 <Label htmlFor="date-picker">Select Date</Label>
                                 <DatePicker date={selectedDate} setDate={setSelectedDate} />
@@ -642,7 +642,7 @@ function OrderDetailsContent() {
                                     </TableCell>
                                 </TableRow>
                                 <TableRow>
-                                    <TableCell className="font-medium">FRC with CK before {selectedDate ? `W${getWeek(selectedDate)}` : '...'}</TableCell>
+                                    <TableCell className="font-medium">FRC with CK before {selectedDate ? `W${getWeek(selectedDate) - 2}` : '...'}</TableCell>
                                     {SIZES.map(size => (
                                         <TableCell key={size} className="text-right">
                                             {(frcGrnQty[size] || 0).toLocaleString()}
@@ -685,7 +685,7 @@ function OrderDetailsContent() {
 
                     <div className="space-y-4 pt-8 border-t">
                         <div className="grid grid-cols-1 md:grid-cols-4 items-end gap-4">
-                            <h3 className="text-lg font-semibold md:col-span-3">Time-based Cut Order &amp; Production</h3>
+                            <h3 className="text-lg font-semibold md:col-span-3">Time-based Production alerts</h3>
                              <div className="space-y-2">
                                 <Label htmlFor="co-date-picker">Select Date</Label>
                                 <DatePicker date={coSelectedDate} setDate={setCoSelectedDate} />
@@ -977,3 +977,5 @@ export default function OrderDetailsPage() {
         </Suspense>
     );
 }
+
+    
