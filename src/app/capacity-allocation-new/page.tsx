@@ -106,10 +106,20 @@ export default function CapacityAllocationPage() {
     const [isCreatingLine, setIsCreatingLine] = useState(false);
 
     const [lineForReallocation, setLineForReallocation] = useState<SewingLine | null>(null);
+
     const [holidayDialogOpen, setHolidayDialogOpen] = useState(false);
-    const [selectedHolidays, setSelectedHolidays] = useState<Date[] | undefined>(undefined);
+    const [globalHolidays, setGlobalHolidays] = useState<Date[]>([]);
+    
     const [overtimeDialogOpen, setOvertimeDialogOpen] = useState(false);
-    const [selectedOvertimeDays, setSelectedOvertimeDays] = useState<Date[] | undefined>(undefined);
+    const [globalOvertimeDays, setGlobalOvertimeDays] = useState<Date[]>([]);
+
+    const [groupCalendarState, setGroupCalendarState] = useState<{
+        mode: 'holiday' | 'overtime';
+        groupId: string;
+    } | null>(null);
+
+    const [groupSpecificDates, setGroupSpecificDates] = useState<Date[] | undefined>([]);
+    
     const { toast } = useToast();
     
     const unallocatedLines = useMemo(() => {
@@ -147,7 +157,6 @@ export default function CapacityAllocationPage() {
             const order = orders.find(o => o.ocn === originalGroup.ccNo);
             if (!order) return prevGroups;
 
-            // Recalculate requirements
             const operations = (SEWING_OPERATIONS_BY_STYLE[order.style] || []).filter(op => sewingMachineTypes.includes(op.machine as any));
             const machineCounts = operations.reduce((acc, op) => {
                 acc[op.machine] = (acc[op.machine] || 0) + op.operators;
@@ -163,7 +172,6 @@ export default function CapacityAllocationPage() {
                 ...originalGroup,
                 outputMultiplier: newMultiplier,
                 machineRequirements: newMachineRequirements,
-                // De-allocate all lines when multiplier changes
                 allocatedLines: [],
             };
 
@@ -212,7 +220,7 @@ export default function CapacityAllocationPage() {
         const groupToDeallocate = sewingLineGroups.find(g => g.id === groupId);
         if (groupToDeallocate) {
             groupToDeallocate.allocatedLines.forEach(lineId => {
-                deallocateLine(lineId, groupId, true); // Deallocate all lines without group context
+                deallocateLine(lineId, groupId, true);
             });
         }
         setSewingLineGroups(prev => prev.filter(g => g.id !== groupId));
@@ -243,15 +251,12 @@ export default function CapacityAllocationPage() {
             if (moveToBuffer > 0) machinesToBuffer[type] = moveToBuffer;
         });
         
-        // This is a simplified model. We are not tracking individual machines, only counts.
-        // So we adjust the counts on the original line, the group (implicitly), and the buffer.
         setSewingLines(prevLines => {
             const newLines = JSON.parse(JSON.stringify(prevLines));
             const sourceLine = newLines.find((l: SewingLine) => l.id === line.id);
             const newBufferLine = newLines.find((l: SewingLine) => l.id === 'buffer');
 
             if(sourceLine && newBufferLine) {
-                 // Move excess to buffer
                 (Object.keys(machinesToBuffer) as SewingMachineType[]).forEach(type => {
                     sourceLine.machineCounts[type] = (sourceLine.machineCounts[type] || 0) - machinesToBuffer[type]!;
                     newBufferLine.machineCounts[type] = (newBufferLine.machineCounts[type] || 0) + machinesToBuffer[type]!;
@@ -269,11 +274,6 @@ export default function CapacityAllocationPage() {
     const deallocateLine = useCallback((lineId: string, fromGroupId: string, isGroupDelete = false) => {
         const groupToUpdate = sewingLineGroups.find(g => g.id === (isGroupDelete ? fromGroupId : activeGroup?.id));
         if (!groupToUpdate) return;
-        
-        // This logic simplifies by moving ALL machines back to the original line configuration.
-        // A more complex implementation would track partially allocated machines.
-        // For now, we assume de-allocation returns the line to its "original" state pre-allocation.
-        // Let's just remove the line from the group. The machine counts are implicitly recalculated.
         
         setSewingLineGroups(prevGroups => prevGroups.map(group => {
             if (group.id !== groupToUpdate.id) return group;
@@ -314,7 +314,7 @@ export default function CapacityAllocationPage() {
             const newLine: SewingLine = {
                 id: `L${prevLines.length + 1}`,
                 name: lineName,
-                unitId: 'u1', // Default or ask user?
+                unitId: 'u1',
                 machineCounts: {},
             };
 
@@ -343,26 +343,72 @@ export default function CapacityAllocationPage() {
         });
         setActiveGroupId(null);
     };
-
-    const handleSaveHolidays = () => {
-        if (!selectedHolidays) return;
-        const holidayStrings = selectedHolidays.map(d => d.toISOString().split('T')[0]);
+    
+    const handleSaveGlobalHolidays = () => {
+        const holidayStrings = globalHolidays.map(d => d.toISOString().split('T')[0]);
         setSewingLineGroups(prevGroups =>
-            prevGroups.map(g => ({ ...g, holidays: holidayStrings }))
+            prevGroups.map(g => ({ ...g, holidays: Array.from(new Set([...(g.holidays || []), ...holidayStrings])) }))
         );
         setHolidayDialogOpen(false);
-        toast({ title: "Holidays Updated", description: `Holidays have been saved for all groups.` });
+        toast({ title: "Global Holidays Updated", description: `Holidays have been saved for all groups.` });
     };
 
-    const handleSaveOvertime = () => {
-        if (!selectedOvertimeDays) return;
-        const overtimeStrings = selectedOvertimeDays.map(d => d.toISOString().split('T')[0]);
+    const handleSaveGlobalOvertime = () => {
+        const overtimeStrings = globalOvertimeDays.map(d => d.toISOString().split('T')[0]);
         setSewingLineGroups(prevGroups =>
-            prevGroups.map(g => ({ ...g, overtimeDays: overtimeStrings }))
+            prevGroups.map(g => ({ ...g, overtimeDays: Array.from(new Set([...(g.overtimeDays || []), ...overtimeStrings])) }))
         );
         setOvertimeDialogOpen(false);
-        toast({ title: "Overtime Updated", description: `Overtime days have been saved for all groups.` });
+        toast({ title: "Global Overtime Updated", description: `Overtime days have been saved for all groups.` });
     };
+
+    const handleOpenGroupCalendar = (groupId: string, mode: 'holiday' | 'overtime') => {
+        const group = sewingLineGroups.find(g => g.id === groupId);
+        if (!group) return;
+
+        const dates = mode === 'holiday' ? group.holidays : group.overtimeDays;
+        setGroupSpecificDates((dates || []).map(d => new Date(d)));
+        setGroupCalendarState({ mode, groupId });
+    };
+
+    const handleSaveGroupCalendar = () => {
+        if (!groupCalendarState) return;
+        
+        const dateStrings = groupSpecificDates?.map(d => d.toISOString().split('T')[0]) || [];
+
+        setSewingLineGroups(prevGroups =>
+            prevGroups.map(g => {
+                if (g.id === groupCalendarState.groupId) {
+                    if (groupCalendarState.mode === 'holiday') {
+                        return { ...g, holidays: dateStrings };
+                    }
+                    return { ...g, overtimeDays: dateStrings };
+                }
+                return g;
+            })
+        );
+        
+        setGroupCalendarState(null);
+        toast({
+            title: `${groupCalendarState.mode === 'holiday' ? 'Holidays' : 'Overtime'} Updated`,
+            description: `Dates have been updated for the selected group.`
+        });
+    };
+
+    const groupCalendarDates = useMemo(() => {
+        if (!groupCalendarState) return { selected: undefined, disabled: undefined };
+        
+        const group = sewingLineGroups.find(g => g.id === groupCalendarState.groupId);
+        if (!group) return { selected: undefined, disabled: undefined };
+
+        const globalDates = groupCalendarState.mode === 'holiday' ? globalHolidays : globalOvertimeDays;
+        const groupDates = (groupCalendarState.mode === 'holiday' ? group.holidays : group.overtimeDays) || [];
+        
+        const selected = groupDates.map(d => new Date(d));
+        const disabled = globalDates;
+
+        return { selected, disabled };
+    }, [groupCalendarState, sewingLineGroups, globalHolidays, globalOvertimeDays]);
 
 
     return (
@@ -406,7 +452,6 @@ export default function CapacityAllocationPage() {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
-                    {/* Left Column: Groups & Unallocated */}
                     <div className="lg:col-span-1 flex flex-col gap-6">
                         {isCreatingGroup && (
                             <Card>
@@ -478,7 +523,6 @@ export default function CapacityAllocationPage() {
                         </Card>
                     </div>
 
-                    {/* Right Column: Active Group Details */}
                     <div className="lg:col-span-2 flex flex-col gap-6">
                         <Card>
                             <CardHeader>
@@ -528,6 +572,10 @@ export default function CapacityAllocationPage() {
                                     <div>
                                         <CardTitle>Details for {activeGroup.name}</CardTitle>
                                         <CardDescription>CC No: {activeGroup.ccNo}</CardDescription>
+                                        <div className="flex items-center gap-2 mt-4">
+                                            <Button size="sm" variant="outline" onClick={() => handleOpenGroupCalendar(activeGroup.id, 'holiday')}>Manage Holidays</Button>
+                                            <Button size="sm" variant="outline" onClick={() => handleOpenGroupCalendar(activeGroup.id, 'overtime')}>Manage Overtime</Button>
+                                        </div>
                                     </div>
                                      <div className="flex items-center gap-2">
                                         <div className="w-40">
@@ -617,8 +665,8 @@ export default function CapacityAllocationPage() {
                     <div className="flex justify-center py-4">
                        <Calendar
                             mode="multiple"
-                            selected={selectedHolidays}
-                            onSelect={setSelectedHolidays}
+                            selected={globalHolidays}
+                            onSelect={setGlobalHolidays}
                             numberOfMonths={2}
                         />
                     </div>
@@ -626,7 +674,7 @@ export default function CapacityAllocationPage() {
                         <Button type="button" variant="secondary" onClick={() => setHolidayDialogOpen(false)}>
                             Cancel
                         </Button>
-                         <Button type="button" onClick={handleSaveHolidays}>
+                         <Button type="button" onClick={handleSaveGlobalHolidays}>
                             Confirm
                         </Button>
                     </DialogFooter>
@@ -643,8 +691,8 @@ export default function CapacityAllocationPage() {
                     <div className="flex justify-center py-4">
                        <Calendar
                             mode="multiple"
-                            selected={selectedOvertimeDays}
-                            onSelect={setSelectedOvertimeDays}
+                            selected={globalOvertimeDays}
+                            onSelect={setGlobalOvertimeDays}
                             numberOfMonths={2}
                         />
                     </div>
@@ -652,12 +700,40 @@ export default function CapacityAllocationPage() {
                         <Button type="button" variant="secondary" onClick={() => setOvertimeDialogOpen(false)}>
                             Cancel
                         </Button>
-                         <Button type="button" onClick={handleSaveOvertime}>
+                         <Button type="button" onClick={handleSaveGlobalOvertime}>
                             Confirm
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            <Dialog open={!!groupCalendarState} onOpenChange={(isOpen) => !isOpen && setGroupCalendarState(null)}>
+                 <DialogContent className="sm:max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>Manage Group {groupCalendarState?.mode === 'holiday' ? 'Holidays' : 'Overtime'}</DialogTitle>
+                        <DialogDescription>
+                           Select dates for {sewingLineGroups.find(g => g.id === groupCalendarState?.groupId)?.name}. Global dates are shown but cannot be changed here.
+                        </DialogDescription>
+                    </DialogHeader>
+                     <div className="flex justify-center py-4">
+                       <Calendar
+                            mode="multiple"
+                            selected={groupSpecificDates}
+                            onSelect={setGroupSpecificDates}
+                            disabled={groupCalendarDates.disabled}
+                            numberOfMonths={2}
+                        />
+                    </div>
+                    <DialogFooter>
+                         <Button type="button" variant="secondary" onClick={() => setGroupCalendarState(null)}>
+                            Cancel
+                        </Button>
+                         <Button type="button" onClick={handleSaveGroupCalendar}>
+                            Confirm
+                        </Button>
+                    </DialogFooter>
+                 </DialogContent>
+            </Dialog>
         </div>
     );
 }
+
