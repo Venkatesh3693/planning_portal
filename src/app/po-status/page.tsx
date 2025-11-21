@@ -318,7 +318,7 @@ function PoStatusPageContent() {
     }, [selectedCc, colorOptions, selectedColor]);
 
     const filteredRecords = useMemo(() => {
-        if (!selectedCc) return [];
+        if (!selectedCc) return syntheticPoRecords;
 
         const filteredOrderIds = new Set(
             orders
@@ -364,9 +364,10 @@ function PoStatusPageContent() {
                            <Label htmlFor="cc-select">CC No.</Label>
                            <Select value={selectedCc} onValueChange={setSelectedCc}>
                              <SelectTrigger id="cc-select" className="w-[180px]">
-                               <SelectValue placeholder="Select CC" />
+                               <SelectValue placeholder="All CCs" />
                              </SelectTrigger>
                              <SelectContent>
+                               <SelectItem value="">All CCs</SelectItem>
                                {ccOptions.map(cc => <SelectItem key={cc} value={cc}>{cc}</SelectItem>)}
                              </SelectContent>
                            </Select>
@@ -401,3 +402,5 @@ export default function PoStatusPage() {
         </Suspense>
     );
 }
+
+    
