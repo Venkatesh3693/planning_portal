@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PlusCircle, Trash2, ChevronRight, Edit, Save, CalendarDays } from 'lucide-react';
+import { PlusCircle, Trash2, ChevronRight, Edit, Save, CalendarDays, X } from 'lucide-react';
 import { SEWING_OPERATIONS_BY_STYLE, sewingMachineTypes } from '@/lib/data';
 import type { Order, SewingLine, SewingMachineType, SewingLineGroup, MachineRequirement } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -584,16 +584,14 @@ export default function CapacityAllocationPage() {
                                     <div>
                                         <CardTitle>Details for {activeGroup.name}</CardTitle>
                                         <CardDescription>CC No: {activeGroup.ccNo}</CardDescription>
-                                        <div className="flex items-center gap-2 mt-4">
-                                            <Button size="sm" variant="outline" onClick={() => handleOpenGroupCalendar(activeGroup.id, 'holiday')}>
-                                                <CalendarDays className="mr-2 h-4 w-4" /> Holidays
-                                            </Button>
-                                            <Button size="sm" variant="outline" onClick={() => handleOpenGroupCalendar(activeGroup.id, 'overtime')}>
-                                                <CalendarDays className="mr-2 h-4 w-4" /> Overtime
-                                            </Button>
-                                        </div>
                                     </div>
                                      <div className="flex items-center gap-2">
+                                        <Button size="sm" variant="outline" onClick={() => handleOpenGroupCalendar(activeGroup.id, 'holiday')}>
+                                            <CalendarDays className="mr-2 h-4 w-4" /> Holidays
+                                        </Button>
+                                        <Button size="sm" variant="outline" onClick={() => handleOpenGroupCalendar(activeGroup.id, 'overtime')}>
+                                            <CalendarDays className="mr-2 h-4 w-4" /> Overtime
+                                        </Button>
                                         <div className="w-40">
                                             <Select 
                                                 value={String(activeGroup.outputMultiplier || 1)} 
@@ -607,8 +605,11 @@ export default function CapacityAllocationPage() {
                                                 </SelectContent>
                                             </Select>
                                         </div>
+                                        <Button variant="outline" size="sm" onClick={() => setActiveGroupId(null)}>
+                                            <X className="mr-2 h-4 w-4" /> Cancel
+                                        </Button>
                                         <Button size="sm" onClick={handleSaveConfiguration}>
-                                            <Save className="mr-2 h-4 w-4" /> Save Configuration
+                                            <Save className="mr-2 h-4 w-4" /> Save
                                         </Button>
                                     </div>
                                  </CardHeader>
@@ -758,4 +759,3 @@ export default function CapacityAllocationPage() {
         </div>
     );
 }
-
