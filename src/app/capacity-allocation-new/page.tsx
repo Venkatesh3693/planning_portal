@@ -343,55 +343,25 @@ export default function CapacityAllocationPage() {
         });
         setActiveGroupId(null);
     };
-    
-    const handleOpenHolidayDialog = () => {
-        if (!activeGroup) return;
-        const currentHolidays = activeGroup.holidays?.map(h => new Date(h)) || [];
-        setSelectedHolidays(currentHolidays);
-        setHolidayDialogOpen(true);
-    };
 
     const handleSaveHolidays = () => {
-        if (!activeGroup || !selectedHolidays) return;
-        
+        if (!selectedHolidays) return;
         const holidayStrings = selectedHolidays.map(d => d.toISOString().split('T')[0]);
-
         setSewingLineGroups(prevGroups =>
-            prevGroups.map(g => 
-                g.id === activeGroup.id ? { ...g, holidays: holidayStrings } : g
-            )
+            prevGroups.map(g => ({ ...g, holidays: holidayStrings }))
         );
-
         setHolidayDialogOpen(false);
-        toast({
-            title: "Holidays Updated",
-            description: `Holidays for ${activeGroup.name} have been saved.`
-        });
-    };
-
-    const handleOpenOvertimeDialog = () => {
-        if (!activeGroup) return;
-        const currentOvertime = activeGroup.overtimeDays?.map(d => new Date(d)) || [];
-        setSelectedOvertimeDays(currentOvertime);
-        setOvertimeDialogOpen(true);
+        toast({ title: "Holidays Updated", description: `Holidays have been saved for all groups.` });
     };
 
     const handleSaveOvertime = () => {
-        if (!activeGroup || !selectedOvertimeDays) return;
-        
+        if (!selectedOvertimeDays) return;
         const overtimeStrings = selectedOvertimeDays.map(d => d.toISOString().split('T')[0]);
-
         setSewingLineGroups(prevGroups =>
-            prevGroups.map(g => 
-                g.id === activeGroup.id ? { ...g, overtimeDays: overtimeStrings } : g
-            )
+            prevGroups.map(g => ({ ...g, overtimeDays: overtimeStrings }))
         );
-
         setOvertimeDialogOpen(false);
-        toast({
-            title: "Overtime Updated",
-            description: `Overtime days for ${activeGroup.name} have been saved.`
-        });
+        toast({ title: "Overtime Updated", description: `Overtime days have been saved for all groups.` });
     };
 
 
@@ -425,6 +395,12 @@ export default function CapacityAllocationPage() {
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => setIsCreatingGroup(true)}>
                             <PlusCircle className="mr-2 h-4 w-4" /> Create New Line Group
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setHolidayDialogOpen(true)}>
+                            <CalendarDays className="mr-2 h-4 w-4" /> Manage Holidays
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setOvertimeDialogOpen(true)}>
+                            <PlusCircle className="mr-2 h-4 w-4" /> Manage Overtime
                         </Button>
                     </div>
                 </div>
@@ -567,12 +543,6 @@ export default function CapacityAllocationPage() {
                                                 </SelectContent>
                                             </Select>
                                         </div>
-                                         <Button variant="outline" size="sm" onClick={handleOpenHolidayDialog}>
-                                            <CalendarDays className="mr-2 h-4 w-4" /> Manage Holidays
-                                        </Button>
-                                        <Button variant="outline" size="sm" onClick={handleOpenOvertimeDialog}>
-                                            <PlusCircle className="mr-2 h-4 w-4" /> Manage Overtime
-                                        </Button>
                                         <Button size="sm" onClick={handleSaveConfiguration}>
                                             <Save className="mr-2 h-4 w-4" /> Save Configuration
                                         </Button>
@@ -636,62 +606,58 @@ export default function CapacityAllocationPage() {
                 allLines={sewingLines}
                 onSave={handleCreateNewLine}
             />
-            {activeGroup && (
-                 <Dialog open={holidayDialogOpen} onOpenChange={setHolidayDialogOpen}>
-                    <DialogContent className="sm:max-w-2xl">
-                        <DialogHeader>
-                            <DialogTitle>Manage Holidays for {activeGroup.name}</DialogTitle>
-                            <DialogDescription>
-                                Select the dates that this sewing line group will be on holiday.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="flex justify-center py-4">
-                           <Calendar
-                                mode="multiple"
-                                selected={selectedHolidays}
-                                onSelect={setSelectedHolidays}
-                                numberOfMonths={2}
-                            />
-                        </div>
-                        <DialogFooter>
-                            <Button type="button" variant="secondary" onClick={() => setHolidayDialogOpen(false)}>
-                                Cancel
-                            </Button>
-                             <Button type="button" onClick={handleSaveHolidays}>
-                                Confirm
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-            )}
-            {activeGroup && (
-                 <Dialog open={overtimeDialogOpen} onOpenChange={setOvertimeDialogOpen}>
-                    <DialogContent className="sm:max-w-2xl">
-                        <DialogHeader>
-                            <DialogTitle>Manage Overtime for {activeGroup.name}</DialogTitle>
-                            <DialogDescription>
-                                Select the dates that this sewing line group will have overtime.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="flex justify-center py-4">
-                           <Calendar
-                                mode="multiple"
-                                selected={selectedOvertimeDays}
-                                onSelect={setSelectedOvertimeDays}
-                                numberOfMonths={2}
-                            />
-                        </div>
-                        <DialogFooter>
-                            <Button type="button" variant="secondary" onClick={() => setOvertimeDialogOpen(false)}>
-                                Cancel
-                            </Button>
-                             <Button type="button" onClick={handleSaveOvertime}>
-                                Confirm
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-            )}
+             <Dialog open={holidayDialogOpen} onOpenChange={setHolidayDialogOpen}>
+                <DialogContent className="sm:max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>Manage Global Holidays</DialogTitle>
+                        <DialogDescription>
+                            Select the dates that all sewing line groups will be on holiday.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex justify-center py-4">
+                       <Calendar
+                            mode="multiple"
+                            selected={selectedHolidays}
+                            onSelect={setSelectedHolidays}
+                            numberOfMonths={2}
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button type="button" variant="secondary" onClick={() => setHolidayDialogOpen(false)}>
+                            Cancel
+                        </Button>
+                         <Button type="button" onClick={handleSaveHolidays}>
+                            Confirm
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            <Dialog open={overtimeDialogOpen} onOpenChange={setOvertimeDialogOpen}>
+                <DialogContent className="sm:max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>Manage Global Overtime</DialogTitle>
+                        <DialogDescription>
+                            Select the dates that all sewing line groups will have overtime.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex justify-center py-4">
+                       <Calendar
+                            mode="multiple"
+                            selected={selectedOvertimeDays}
+                            onSelect={setSelectedOvertimeDays}
+                            numberOfMonths={2}
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button type="button" variant="secondary" onClick={() => setOvertimeDialogOpen(false)}>
+                            Cancel
+                        </Button>
+                         <Button type="button" onClick={handleSaveOvertime}>
+                            Confirm
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
