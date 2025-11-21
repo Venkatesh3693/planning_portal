@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, ChevronsRight, ChevronDown } from 'lucide-react';
-import type { SyntheticPoRecord, Size, SizeBreakdown, Order } from '@/lib/types';
+import type { SyntheticPoRecord, Size, SizeBreakdown, Order, CutOrderRecord } from '@/lib/types';
 import { SIZES } from '@/lib/data';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
@@ -25,7 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 
 
-const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], orders: Order[] }) => {
+const PoDetailsTable = ({ records, orders, cutOrderRecords }: { records: SyntheticPoRecord[], orders: Order[], cutOrderRecords: CutOrderRecord[] }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [isDfqcExpanded, setIsDfqcExpanded] = useState(false);
 
@@ -140,6 +140,10 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
     const getOrderInfo = (orderId: string) => {
         return orders.find(o => o.id === orderId);
     };
+
+    const findCutOrderForPo = (poNumber: string) => {
+        return cutOrderRecords.find(co => co.poNumbers.includes(poNumber));
+    }
     
     return (
         <Table>
@@ -194,6 +198,17 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
                     const shipStatusStyle = getShipStatusVariant(shippingStatus);
                     const currentProdStatus = productionStatuses[key] || "Not Planned";
                     const prodStatusStyle = getProductionStatusVariant(currentProdStatus);
+                    const cutOrder = findCutOrderForPo(record.poNumber);
+                    
+                    let productionContent: React.ReactNode;
+                    if (currentProdStatus === 'Not Planned') {
+                        productionContent = currentProdStatus;
+                    } else if (cutOrder) {
+                        productionContent = cutOrder.coNumber;
+                    } else {
+                        productionContent = currentProdStatus; // Fallback
+                    }
+
                     return (
                         <TableRow key={key}>
                             <TableCell>{orderInfo?.ocn || 'N/A'}</TableCell>
@@ -213,7 +228,7 @@ const PoDetailsTable = ({ records, orders }: { records: SyntheticPoRecord[], ord
                             </TableCell>
                             <TableCell>
                                 <Badge variant={prodStatusStyle.variant} className={prodStatusStyle.className}>
-                                    {currentProdStatus}
+                                    {productionContent}
                                 </Badge>
                             </TableCell>
                             <TableCell>
@@ -258,7 +273,7 @@ function PoStatusPageContent() {
     const searchParams = useSearchParams();
     const orderIdFromUrl = searchParams.get('orderId');
     
-    const { orders, isScheduleLoaded, syntheticPoRecords, updatePoEhd } = useSchedule();
+    const { orders, isScheduleLoaded, syntheticPoRecords, cutOrderRecords } = useSchedule();
     
     const [selectedCc, setSelectedCc] = useState('');
     const [selectedColor, setSelectedColor] = useState('');
@@ -371,7 +386,7 @@ function PoStatusPageContent() {
                 </div>
                 
                 <div className="border rounded-lg overflow-auto flex-1">
-                   <PoDetailsTable records={filteredRecords} orders={orders} />
+                   <PoDetailsTable records={filteredRecords} orders={orders} cutOrderRecords={cutOrderRecords} />
                 </div>
             </main>
         </div>
@@ -385,5 +400,3 @@ export default function PoStatusPage() {
         </Suspense>
     );
 }
-
-    
