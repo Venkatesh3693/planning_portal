@@ -142,7 +142,7 @@ const PoDetailsTable = ({ records, orders, cutOrderRecords }: { records: Synthet
     };
 
     const findCutOrderForPo = (poNumber: string) => {
-        return cutOrderRecords.find(co => co.poNumbers.includes(poNumber));
+        return cutOrderRecords.find(co => co.poNumbers && co.poNumbers.includes(poNumber));
     }
     
     return (
@@ -206,7 +206,8 @@ const PoDetailsTable = ({ records, orders, cutOrderRecords }: { records: Synthet
                     } else if (cutOrder) {
                         productionContent = cutOrder.coNumber;
                     } else {
-                        productionContent = currentProdStatus; // Fallback
+                        // Fallback in case CO is not found, but status says it should be there.
+                        productionContent = currentProdStatus;
                     }
 
                     return (
