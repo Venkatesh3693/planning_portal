@@ -29,11 +29,47 @@ const PoDetailsTable = ({ records, orders, cutOrderRecords }: { records: Synthet
     const [isExpanded, setIsExpanded] = useState(false);
     const [isDfqcExpanded, setIsDfqcExpanded] = useState(false);
 
-    const [productionStatuses, setProductionStatuses] = useState<Record<string, string>>({});
+    const productionStatuses = useMemo(() => {
+        const statuses: Record<string, { status: string, coNumber: string | null }> = {};
+        const cutOrderProgress = new Map<string, number>();
 
-    const handleProductionStatusChange = (key: string, status: string) => {
-        setProductionStatuses(prev => ({ ...prev, [key]: status }));
-    };
+        cutOrderRecords.forEach(co => {
+            if (co.status === 'In Progress' && co.producedQuantities) {
+                cutOrderProgress.set(co.coNumber, co.producedQuantities.total);
+            }
+        });
+
+        for (const co of cutOrderRecords) {
+            const posInCo = records
+                .filter(rec => co.poNumbers.includes(rec.poNumber))
+                .sort((a, b) => parseInt(a.originalEhdWeek.slice(1)) - parseInt(b.originalEhdWeek.slice(1)));
+
+            if (co.status === 'Produced') {
+                posInCo.forEach(po => {
+                    statuses[`${po.poNumber}-${po.destination}`] = { status: 'Produced', coNumber: co.coNumber };
+                });
+            } else if (co.status === 'In Progress') {
+                let producedSoFar = cutOrderProgress.get(co.coNumber) || 0;
+                for (const po of posInCo) {
+                    if (producedSoFar >= po.quantities.total) {
+                        statuses[`${po.poNumber}-${po.destination}`] = { status: 'Produced', coNumber: co.coNumber };
+                        producedSoFar -= po.quantities.total;
+                    } else {
+                        statuses[`${po.poNumber}-${po.destination}`] = { status: 'CO Issued', coNumber: co.coNumber };
+                    }
+                }
+            }
+        }
+        
+        records.forEach(record => {
+            const key = `${record.poNumber}-${record.destination}`;
+            if (!statuses[key]) {
+                statuses[key] = { status: 'Not Planned', coNumber: null };
+            }
+        });
+        
+        return statuses;
+    }, [records, cutOrderRecords]);
 
 
     const poInspectionStatuses = useMemo(() => {
@@ -83,21 +119,6 @@ const PoDetailsTable = ({ records, orders, cutOrderRecords }: { records: Synthet
         }
     };
 
-    const initialProductionStatuses = useMemo(() => {
-        const statuses = ["Produced", "CO Issued", "Not Planned"];
-        const statusMap: Record<string, string> = {};
-        records.forEach(record => {
-            const key = `${record.poNumber}-${record.destination}`;
-            const hash = key.split('').reduce((acc, char) => acc + char.charCodeAt(0) + 2, 0); // Offset hash
-            statusMap[key] = statuses[hash % statuses.length];
-        });
-        return statusMap;
-    }, [records]);
-
-    useEffect(() => {
-        setProductionStatuses(initialProductionStatuses);
-    }, [initialProductionStatuses]);
-
     const getProductionStatusVariant = (status: string): { variant: "default" | "secondary" | "destructive" | "outline", className?: string } => {
         switch (status) {
             case "Produced":
@@ -140,10 +161,6 @@ const PoDetailsTable = ({ records, orders, cutOrderRecords }: { records: Synthet
     const getOrderInfo = (orderId: string) => {
         return orders.find(o => o.id === orderId);
     };
-
-    const findCutOrderForPo = (poNumber: string) => {
-        return cutOrderRecords.find(co => co.poNumbers && co.poNumbers.includes(poNumber));
-    }
     
     return (
         <Table>
@@ -196,18 +213,13 @@ const PoDetailsTable = ({ records, orders, cutOrderRecords }: { records: Synthet
                     const { variant, className } = getStatusVariant(inspectionStatus);
                     const shippingStatus = shipStatuses.get(key) || "Not Shipped";
                     const shipStatusStyle = getShipStatusVariant(shippingStatus);
-                    const currentProdStatus = productionStatuses[key] || "Not Planned";
-                    const prodStatusStyle = getProductionStatusVariant(currentProdStatus);
-                    const cutOrder = findCutOrderForPo(record.poNumber);
                     
-                    let productionContent: React.ReactNode;
-                    if (currentProdStatus === 'Not Planned') {
-                        productionContent = currentProdStatus;
-                    } else if (cutOrder) {
-                        productionContent = cutOrder.coNumber;
-                    } else {
-                        // Fallback in case CO is not found, but status says it should be there.
-                        productionContent = currentProdStatus;
+                    const prodInfo = productionStatuses[key] || { status: 'Not Planned', coNumber: null };
+                    const prodStatusStyle = getProductionStatusVariant(prodInfo.status);
+                    
+                    let productionContent: React.ReactNode = prodInfo.coNumber || prodInfo.status;
+                    if (prodInfo.status === 'Not Planned') {
+                        productionContent = 'Not Planned';
                     }
 
                     return (
