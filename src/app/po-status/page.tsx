@@ -30,7 +30,7 @@ const PoDetailsTable = ({ records, orders, cutOrderRecords }: { records: Synthet
     const [isDfqcExpanded, setIsDfqcExpanded] = useState(false);
 
     const productionStatuses = useMemo(() => {
-        const statuses: Record<string, { status: string, coNumber: string | null }> = {};
+        const statuses: Record<string, { status: string, coNumber: string | null, producedQuantities: Partial<Record<Size, number>> }> = {};
         
         const poToCoMap = new Map<string, CutOrderRecord>();
         cutOrderRecords.forEach(co => {
@@ -38,48 +38,74 @@ const PoDetailsTable = ({ records, orders, cutOrderRecords }: { records: Synthet
                 poToCoMap.set(poNumber, co);
             });
         });
-
-        records.forEach(record => {
-            const key = `${record.poNumber}-${record.destination}`;
-            const cutOrder = poToCoMap.get(record.poNumber);
-
-            if (!cutOrder) {
-                statuses[key] = { status: 'Not Planned', coNumber: null };
-                return;
-            }
-
-            if (cutOrder.status === 'Produced') {
-                statuses[key] = { status: 'Produced', coNumber: cutOrder.coNumber };
-                return;
-            }
-            
-            if (cutOrder.status === 'In Progress' && cutOrder.producedQuantities) {
-                const posInCo = records
-                    .filter(rec => cutOrder.poNumbers.includes(rec.poNumber))
-                    .sort((a, b) => parseInt(a.originalEhdWeek.slice(1)) - parseInt(b.originalEhdWeek.slice(1)));
-
-                let producedSoFar = cutOrder.producedQuantities.total;
-                let isThisPoProduced = false;
-
-                for (const po of posInCo) {
-                    if (producedSoFar >= po.quantities.total) {
-                        if (po.poNumber === record.poNumber) {
-                           isThisPoProduced = true;
-                           break;
-                        }
-                        producedSoFar -= po.quantities.total;
-                    } else {
-                        break; 
-                    }
+        
+        const coToPoMap = new Map<string, SyntheticPoRecord[]>();
+        records.forEach(po => {
+            const co = poToCoMap.get(po.poNumber);
+            if (co) {
+                if (!coToPoMap.has(co.coNumber)) {
+                    coToPoMap.set(co.coNumber, []);
                 }
-                
-                statuses[key] = { 
-                    status: isThisPoProduced ? 'Produced' : 'CO Issued', 
-                    coNumber: cutOrder.coNumber 
-                };
+                coToPoMap.get(co.coNumber)!.push(po);
+            }
+        });
 
-            } else {
-                 statuses[key] = { status: 'CO Issued', coNumber: cutOrder.coNumber };
+        coToPoMap.forEach((posInCo, coNumber) => {
+            const cutOrder = cutOrderRecords.find(co => co.coNumber === coNumber);
+            if (!cutOrder) return;
+            
+            // Sort POs within the CO by EHD week (FIFO)
+            const sortedPos = [...posInCo].sort((a, b) => parseInt(a.originalEhdWeek.slice(1)) - parseInt(b.originalEhdWeek.slice(1)));
+            let remainingProduced = { ...(cutOrder.producedQuantities || {}) } as Partial<SizeBreakdown>;
+            
+            sortedPos.forEach(po => {
+                const key = `${po.poNumber}-${po.destination}`;
+                let poProducedQuantities: Partial<Record<Size, number>> = {};
+                let isPartiallyProduced = false;
+                let isFullyProduced = true;
+
+                if (cutOrder.status === 'Produced') {
+                    poProducedQuantities = { ...po.quantities };
+                } else if (cutOrder.status === 'In Progress' && cutOrder.producedQuantities) {
+                    SIZES.forEach(size => {
+                        const needed = po.quantities[size] || 0;
+                        if (needed > 0) {
+                            const available = remainingProduced[size] || 0;
+                            const producedForThisPo = Math.min(needed, available);
+                            
+                            poProducedQuantities[size] = producedForThisPo;
+                            remainingProduced[size] = available - producedForThisPo;
+
+                            if (producedForThisPo > 0 && producedForThisPo < needed) {
+                                isPartiallyProduced = true;
+                            }
+                            if(producedForThisPo < needed) {
+                                isFullyProduced = false;
+                            }
+                        }
+                    });
+                } else {
+                    isFullyProduced = false;
+                }
+
+                let finalStatus = 'Not Planned';
+                 if (isFullyProduced) {
+                    finalStatus = 'Produced';
+                } else if (isPartiallyProduced || (Object.values(poProducedQuantities).some(q => q > 0))) {
+                    finalStatus = 'In Progress';
+                } else if (cutOrder) {
+                    finalStatus = 'CO Issued';
+                }
+
+                statuses[key] = { status: finalStatus, coNumber: coNumber, producedQuantities: poProducedQuantities };
+            });
+        });
+
+        // Handle POs not in any CO
+        records.forEach(po => {
+            const key = `${po.poNumber}-${po.destination}`;
+            if (!statuses[key]) {
+                statuses[key] = { status: 'Not Planned', coNumber: null, producedQuantities: {} };
             }
         });
         
@@ -138,8 +164,10 @@ const PoDetailsTable = ({ records, orders, cutOrderRecords }: { records: Synthet
         switch (status) {
             case "Produced":
                 return { variant: "default", className: "bg-green-600 hover:bg-green-700" };
-            case "CO Issued":
+            case "In Progress":
                 return { variant: "default", className: "bg-yellow-500 hover:bg-yellow-600" };
+            case "CO Issued":
+                return { variant: "secondary" };
             default: // Not Planned
                 return { variant: "outline" };
         }
@@ -230,7 +258,7 @@ const PoDetailsTable = ({ records, orders, cutOrderRecords }: { records: Synthet
                     const shippingStatus = shipStatuses.get(key) || "Not Shipped";
                     const shipStatusStyle = getShipStatusVariant(shippingStatus);
                     
-                    const prodInfo = productionStatuses[key] || { status: 'Not Planned', coNumber: null };
+                    const prodInfo = productionStatuses[key] || { status: 'Not Planned', coNumber: null, producedQuantities: {} };
                     const prodStatusStyle = getProductionStatusVariant(prodInfo.status);
                     
                     return (
@@ -242,15 +270,22 @@ const PoDetailsTable = ({ records, orders, cutOrderRecords }: { records: Synthet
                             <TableCell>{record.issueWeek}</TableCell>
                             <TableCell>{record.originalEhdWeek}</TableCell>
                             <TableCell>{record.originalEhdWeek}</TableCell>
-                            {isExpanded && SIZES.map(size => (
-                                 <TableCell key={size} className="text-right">
-                                    {(record.quantities[size] || 0) > 0 ? (record.quantities[size] || 0).toLocaleString() : '-'}
-                                </TableCell>
-                            ))}
+                            {isExpanded && SIZES.map(size => {
+                                const totalQty = record.quantities[size] || 0;
+                                const producedQty = prodInfo.producedQuantities[size] || 0;
+                                const isFullyProduced = totalQty > 0 && producedQty >= totalQty;
+                                const isPartiallyProduced = producedQty > 0 && producedQty < totalQty;
+                                
+                                return (
+                                     <TableCell key={size} className={cn("text-right", isFullyProduced && "bg-green-100 dark:bg-green-900/40")}>
+                                        {isPartiallyProduced ? `${producedQty}/${totalQty}` : (totalQty > 0 ? totalQty.toLocaleString() : '-')}
+                                    </TableCell>
+                                )
+                            })}
                             <TableCell className="text-right font-bold">
                                 {(record.quantities.total || 0).toLocaleString()}
                             </TableCell>
-                            <TableCell>
+                             <TableCell>
                                 {prodInfo.coNumber || '-'}
                             </TableCell>
                             <TableCell>
@@ -277,18 +312,11 @@ const PoDetailsTable = ({ records, orders, cutOrderRecords }: { records: Synthet
             </TableBody>
             <TableFooter>
                 <TableRow>
-                    <TableCell colSpan={7} className="font-bold text-right">Total</TableCell>
-                    {isExpanded && SIZES.map(size => (
-                        <TableCell key={`total-${size}`} className="text-right font-bold">
-                            {(totals.sizeTotals[size] || 0).toLocaleString()}
-                        </TableCell>
-                    ))}
+                    <TableCell colSpan={isExpanded ? 7 + SIZES.length : 7} className="font-bold text-right">Total</TableCell>
                     <TableCell className="text-right font-bold">
-                        <div className="flex items-center justify-end">
-                            {totals.grandTotal.toLocaleString()}
-                        </div>
+                        {totals.grandTotal.toLocaleString()}
                     </TableCell>
-                    <TableCell colSpan={isDfqcExpanded ? 7 : 4}></TableCell>
+                    <TableCell colSpan={isDfqcExpanded ? 6 : 3}></TableCell>
                 </TableRow>
             </TableFooter>
         </Table>
@@ -428,4 +456,4 @@ export default function PoStatusPage() {
         </Suspense>
     );
 
-    
+}
