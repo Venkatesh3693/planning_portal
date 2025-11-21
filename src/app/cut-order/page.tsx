@@ -34,14 +34,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import type { CutOrderRecord } from '@/lib/types';
+import type { CutOrderRecord, SizeBreakdown, SyntheticPoRecord } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 
 
 function CutOrderPageContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get('orderId');
-    const { orders, isScheduleLoaded, appMode } = useSchedule();
+    const { orders, isScheduleLoaded, appMode, syntheticPoRecords } = useSchedule();
     
     const order = useMemo(() => {
         if (!isScheduleLoaded || !orderId) return null;
@@ -51,29 +51,43 @@ function CutOrderPageContent() {
     const filteredCutOrders: CutOrderRecord[] = useMemo(() => {
         if (!orderId) return [];
 
-        const mockRecords: CutOrderRecord[] = [
-            {
-                coNumber: 'CO-789012',
-                orderId: '114227-Purple',
-                coWeekCoverage: 'W40-W42',
-                quantities: { 'S': 5000, 'M': 10000, 'L': 5000, total: 20000 },
-                poNumbers: ['PO-DMI-001', 'PO-DMI-002'],
+        const allPosForOrder = syntheticPoRecords.filter(po => po.orderId === orderId);
+        
+        if(allPosForOrder.length === 0) return [];
+
+        const calculateQuantities = (poNumbers: string[]): SizeBreakdown => {
+            const quantities: SizeBreakdown = SIZES.reduce((acc, size) => ({...acc, [size]: 0}), { total: 0 });
+            allPosForOrder.forEach(po => {
+                if (poNumbers.includes(po.poNumber)) {
+                    SIZES.forEach(size => {
+                        quantities[size] = (quantities[size] || 0) + (po.quantities[size] || 0);
+                    });
+                    quantities.total += po.quantities.total;
+                }
+            });
+            return quantities;
+        };
+
+        const poChunks = [
+            allPosForOrder.slice(0, 2).map(p => p.poNumber),
+            allPosForOrder.slice(2, 4).map(p => p.poNumber)
+        ].filter(chunk => chunk.length > 0);
+        
+        const mockRecords: CutOrderRecord[] = poChunks.map((chunk, index) => {
+            const firstPoWeek = parseInt(allPosForOrder.find(p => p.poNumber === chunk[0])?.originalEhdWeek.replace('W', '') || '0');
+            return {
+                coNumber: `CO-78901${2 + index}`,
+                orderId: orderId,
+                coWeekCoverage: `W${firstPoWeek}-W${firstPoWeek + 2}`,
+                poNumbers: chunk,
+                quantities: calculateQuantities(chunk),
                 carryoverQty: 0,
-                status: 'Produced'
-            },
-            {
-                coNumber: 'CO-789013',
-                orderId: '114227-Purple',
-                coWeekCoverage: 'W43-W45',
-                quantities: { 'XS': 2000, 'S': 3000, 'M': 5000, total: 10000 },
-                poNumbers: ['PO-DMI-003'],
-                carryoverQty: 0,
-                status: 'In Progress'
-            },
-        ];
+                status: index === 0 ? 'Produced' : 'In Progress',
+            }
+        });
         
         return mockRecords.filter(co => co.orderId === orderId);
-    }, [orderId]);
+    }, [orderId, syntheticPoRecords]);
 
 
     const totals = useMemo(() => {
