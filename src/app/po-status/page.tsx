@@ -362,12 +362,12 @@ function PoStatusPageContent() {
                      <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2">
                            <Label htmlFor="cc-select">CC No.</Label>
-                           <Select value={selectedCc} onValueChange={setSelectedCc}>
+                           <Select value={selectedCc} onValueChange={(value) => setSelectedCc(value === 'all' ? '' : value)}>
                              <SelectTrigger id="cc-select" className="w-[180px]">
                                <SelectValue placeholder="All CCs" />
                              </SelectTrigger>
                              <SelectContent>
-                               <SelectItem value="">All CCs</SelectItem>
+                               <SelectItem value="all">All CCs</SelectItem>
                                {ccOptions.map(cc => <SelectItem key={cc} value={cc}>{cc}</SelectItem>)}
                              </SelectContent>
                            </Select>
@@ -402,5 +402,3 @@ export default function PoStatusPage() {
         </Suspense>
     );
 }
-
-    
