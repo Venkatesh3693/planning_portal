@@ -57,6 +57,13 @@ const UnallocatedLineCard = ({ line, onAllocate, onEdit, activeGroup }: { line: 
     );
 }
 
+function getUUID() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `lg-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+}
+
 export default function CapacityPage() {
   const { 
     appMode, 
@@ -83,10 +90,7 @@ export default function CapacityPage() {
 
   const handleCreateGroup = () => {
     const newGroupName = `SLG-${sewingLineGroups.length + 1}`;
-    const newGroupId =
-      typeof crypto !== 'undefined' && (crypto as any).randomUUID
-        ? (crypto as any).randomUUID()
-        : `lg-${Date.now()}`;
+    const newGroupId = getUUID();
 
     const newGroup: SewingLineGroup = {
       id: newGroupId,
