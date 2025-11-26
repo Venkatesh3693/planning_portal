@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
@@ -84,17 +83,24 @@ export default function CapacityPage() {
 
   const handleCreateGroup = () => {
     const newGroupName = `SLG-${sewingLineGroups.length + 1}`;
+    const newGroupId =
+      typeof crypto !== 'undefined' && (crypto as any).randomUUID
+        ? (crypto as any).randomUUID()
+        : `lg-${Date.now()}`;
+
     const newGroup: SewingLineGroup = {
-      id: `lg-${crypto.randomUUID()}`,
+      id: newGroupId,
       name: newGroupName,
       allocatedLines: [],
     };
 
-    setSewingLineGroups([...sewingLineGroups, newGroup]);
-    setActiveGroupId(newGroup.id);
+    // use functional update to avoid stale state
+    setSewingLineGroups(prev => [...prev, newGroup]);
+    setActiveGroupId(newGroupId);
   };
 
   const handleDeleteGroup = (groupId: string) => {
+    // use functional update to avoid stale state
     setSewingLineGroups(prev => prev.filter(g => g.id !== groupId));
     if (activeGroupId === groupId) {
       setActiveGroupId(null);
